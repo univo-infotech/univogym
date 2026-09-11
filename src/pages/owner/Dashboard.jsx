@@ -30,6 +30,7 @@ import { getStock } from "../../firebase/stock";
 import { getVisits } from "../../firebase/visits";
 import { openWhatsApp, generateMemberInviteMessage, generateRenewalReminderMessage } from "../../utils/whatsapp";
 import { getGymSettings } from "../../utils/settings";
+import DirectAddMemberModal from "../../components/shared/DirectAddMemberModal";
 
 export default function Dashboard() {
   const [members, setMembers] = useState([]);
@@ -401,107 +402,12 @@ export default function Dashboard() {
         </div>
       </Modal>
 
-      {/* Modal 2: Direct Add Member by Owner */}
-      <Modal
+      {/* Modal 2: Direct Add Member by Owner with complete registration flow */}
+      <DirectAddMemberModal
         isOpen={directAddOpen}
         onClose={() => setDirectAddOpen(false)}
-        title="➕ Add Member Directly (By Owner)"
-      >
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const { addMember } = await import("../../firebase/members");
-            const newMem = {
-              fullName: directMember.name,
-              name: directMember.name,
-              phone: directMember.phone,
-              email: directMember.email,
-              planName: directMember.planName,
-              gender: directMember.gender,
-              status: "active",
-              registeredBy: "owner",
-              createdAt: new Date().toISOString()
-            };
-            try {
-              await addMember("univo_main", newMem);
-            } catch (err) {
-              console.warn("Direct add fallback:", err);
-            }
-            setMembers([newMem, ...members]);
-            setDirectAddOpen(false);
-            toast.success(`${newMem.name} added directly by Owner!`);
-          }}
-          className="space-y-4 text-slate-800"
-        >
-          <div>
-            <label className="text-xs font-bold text-slate-700">Full Name *</label>
-            <input
-              required
-              type="text"
-              placeholder="e.g. Ajay Prajapati"
-              value={directMember.name}
-              onChange={(e) => setDirectMember({ ...directMember, name: e.target.value })}
-              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold text-slate-700">Phone Number *</label>
-              <input
-                required
-                type="text"
-                placeholder="9876543210"
-                value={directMember.phone}
-                onChange={(e) => setDirectMember({ ...directMember, phone: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-700">Gender</label>
-              <select
-                value={directMember.gender}
-                onChange={(e) => setDirectMember({ ...directMember, gender: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900"
-              >
-                <option>Male</option>
-                <option>Female</option>
-                <option>Other</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold text-slate-700">Email Address</label>
-              <input
-                type="email"
-                placeholder="ajay@gmail.com"
-                value={directMember.email}
-                onChange={(e) => setDirectMember({ ...directMember, email: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-700">Membership Plan</label>
-              <select
-                value={directMember.planName}
-                onChange={(e) => setDirectMember({ ...directMember, planName: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900"
-              >
-                <option>1-Month Basic</option>
-                <option>3-Month Pro</option>
-                <option>6-Month Transformation</option>
-                <option>Annual Elite Plan</option>
-              </select>
-            </div>
-          </div>
-          <button
-            type="submit"
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:opacity-95"
-          >
-            Save & Add Member to Gym
-          </button>
-        </form>
-      </Modal>
+        onSuccess={(newMem) => setMembers([newMem, ...members])}
+      />
 
       {/* Modal 3: Renewals & WhatsApp Reminders Blast */}
       <Modal

@@ -30,6 +30,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { generatePaymentReceipt } from '../../utils/pdf';
 import { getGymSettings } from '../../utils/settings';
 import Modal from '../../components/ui/Modal';
+import DirectAddMemberModal from '../../components/shared/DirectAddMemberModal';
 
 function toDate(val) {
   if (!val) return null;
@@ -719,114 +720,13 @@ export default function Members() {
         />
       )}
 
-      {/* Direct Add Member Modal */}
-      <Modal
+      {/* Direct Add Member Modal with complete registration questions */}
+      <DirectAddMemberModal
         isOpen={showDirectAdd}
         onClose={() => setShowDirectAdd(false)}
-        title='➕ Add Member Directly (By Owner)'
-      >
-        <form onSubmit={handleDirectAddSubmit} className='space-y-4 text-slate-800'>
-          <div>
-            <label className='text-xs font-bold text-slate-700'>Full Name *</label>
-            <input
-              required
-              type='text'
-              placeholder='e.g. Ajay Prajapati'
-              value={directForm.name}
-              onChange={(e) => setDirectForm({ ...directForm, name: e.target.value })}
-              className='w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
-            />
-          </div>
-          <div className='grid grid-cols-2 gap-3'>
-            <div>
-              <label className='text-xs font-bold text-slate-700'>Phone Number *</label>
-              <input
-                required
-                type='text'
-                placeholder='9876543210'
-                value={directForm.phone}
-                onChange={(e) => setDirectForm({ ...directForm, phone: e.target.value })}
-                className='w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500'
-              />
-            </div>
-            <div>
-              <label className='text-xs font-bold text-slate-700'>Gender</label>
-              <select
-                value={directForm.gender}
-                onChange={(e) => setDirectForm({ ...directForm, gender: e.target.value })}
-                className='w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900'
-              >
-                <option>Male</option>
-                <option>Female</option>
-                <option>Other</option>
-              </select>
-            </div>
-          </div>
-          <div className='grid grid-cols-2 gap-3'>
-            <div>
-              <label className='text-xs font-bold text-slate-700'>Email Address</label>
-              <input
-                type='email'
-                placeholder='ajay@gmail.com'
-                value={directForm.email}
-                onChange={(e) => setDirectForm({ ...directForm, email: e.target.value })}
-                className='w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900'
-              />
-            </div>
-            <div>
-              <label className='text-xs font-bold text-slate-700'>Membership Plan</label>
-              <select
-                value={directForm.planName}
-                onChange={(e) => setDirectForm({ ...directForm, planName: e.target.value })}
-                className='w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900'
-              >
-                <option>1-Month Basic</option>
-                <option>3-Month Pro</option>
-                <option>6-Month Transformation</option>
-                <option>Annual Elite Plan</option>
-              </select>
-            </div>
-          </div>
-
-          <div className='grid grid-cols-2 gap-3'>
-            <div>
-              <label className='text-xs font-bold text-slate-700'>Assign Coach / Trainer</label>
-              <select
-                value={directForm.trainerName || 'Coach Amit Kumar'}
-                onChange={(e) => setDirectForm({ ...directForm, trainerName: e.target.value })}
-                className='w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900'
-              >
-                <option>Coach Amit Kumar (Head Trainer)</option>
-                <option>Coach Sneha Rao (Yoga & Core)</option>
-                <option>Coach Rohan Joshi (CrossFit)</option>
-                <option>General Floor Trainer</option>
-              </select>
-            </div>
-            <div>
-              <label className='text-xs font-bold text-slate-700'>Emergency Contact / Address</label>
-              <input
-                type='text'
-                placeholder='e.g. Bhopal • +91 9876543210'
-                value={directForm.address || ''}
-                onChange={(e) => setDirectForm({ ...directForm, address: e.target.value })}
-                className='w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900'
-              />
-            </div>
-          </div>
-
-          <div className='p-3 bg-emerald-50 rounded-2xl border border-emerald-100 text-xs text-emerald-800 flex items-center gap-2'>
-            <span className='font-bold'>✓ Liability Waiver & Terms Verified:</span>
-            <span>Recorded on member profile automatically</span>
-          </div>
-
-          <button
-            type='submit'
-            className='w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:opacity-95'
-          >
-            Save & Add Member to Gym
-          </button>
-        </form>
-      </Modal>
+        onSuccess={(newMem) => setMembers([newMem, ...members])}
+        trainers={trainers}
+      />
     </div>
   );
 }
