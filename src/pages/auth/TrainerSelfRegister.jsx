@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Dumbbell, Camera, CheckCircle2, User, Phone, Mail, Award, Briefcase, FileText, Upload, Image as ImageIcon } from "lucide-react";
 import { addTrainer } from "../../firebase/trainers";
-import { uploadFile } from "../../firebase/storage";
 import toast from "react-hot-toast";
 
 export default function TrainerSelfRegister() {
@@ -25,24 +24,21 @@ export default function TrainerSelfRegister() {
     portfolioUrl: "",
   });
 
-  const handleFileUpload = async (e, field) => {
+  const handleFileUpload = (e, field) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
-    setIsUploading(true);
-    const toastId = toast.loading("Uploading file to secure storage...");
-    try {
-      const path = `trainers/${gymId || "univo_main"}/${Date.now()}_${file.name}`;
-      const url = await uploadFile(file, path);
-      
-      setForm((prev) => ({ ...prev, [field]: url }));
-      toast.success("File uploaded successfully!", { id: toastId });
-    } catch (err) {
-      toast.error("Failed to upload file", { id: toastId });
-      console.error(err);
-    } finally {
-      setIsUploading(false);
+
+    if (file.size > 800 * 1024) {
+      toast.error("Image is too large. Please select an image under 800KB.");
+      return;
     }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => ({ ...prev, [field]: reader.result }));
+      toast.success("File attached successfully!");
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e) => {
