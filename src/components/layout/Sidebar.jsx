@@ -24,7 +24,7 @@ import { useAuth } from "../../contexts/AuthContext";
 
 export default function Sidebar({ role = "owner" }) {
   const navigate = useNavigate();
-  const { logoutUser, setRole } = useAuth();
+  const { logoutUser } = useAuth();
 
   const ownerLinks = [
     { to: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -61,33 +61,14 @@ export default function Sidebar({ role = "owner" }) {
   const links = role === "trainer" ? trainerLinks : role === "member" ? memberLinks : ownerLinks;
 
   return (
-    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-screen shrink-0">
+    <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen shrink-0 shadow-sm">
       {/* Brand */}
-      <div className="p-4 border-b border-slate-800 flex items-center gap-3">
-        <img src="/logo-icon.png" alt="Univo Logo" className="w-9 h-9 object-contain" />
+      <div className="p-5 border-b border-slate-100 flex items-center gap-3">
+        <img src="/logo-icon.png" alt="Univo Logo" className="w-10 h-10 object-contain" />
         <div>
-          <h1 className="font-bold text-white text-sm tracking-wider">UNIVO GYM</h1>
-          <p className="text-[10px] text-green-400 font-medium">MANAGEMENT</p>
+          <h1 className="font-extrabold text-slate-900 text-sm tracking-wider">UNIVO GYM</h1>
+          <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Management</p>
         </div>
-      </div>
-
-      {/* Role switcher preview for testing */}
-      <div className="px-4 py-2 border-b border-slate-800/60 flex gap-1">
-        <button 
-          onClick={() => { setRole?.("owner"); navigate("/owner/dashboard"); }} 
-          className={`text-[10px] px-2 py-1 rounded ${role === "owner" ? "bg-green-500/20 text-green-400 border border-green-500/30" : "text-slate-400"}`}>
-          Owner
-        </button>
-        <button 
-          onClick={() => { setRole?.("trainer"); navigate("/trainer/dashboard"); }} 
-          className={`text-[10px] px-2 py-1 rounded ${role === "trainer" ? "bg-teal-500/20 text-teal-400 border border-teal-500/30" : "text-slate-400"}`}>
-          Trainer
-        </button>
-        <button 
-          onClick={() => { setRole?.("member"); navigate("/member/dashboard"); }} 
-          className={`text-[10px] px-2 py-1 rounded ${role === "member" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "text-slate-400"}`}>
-          Member
-        </button>
       </div>
 
       {/* Navigation Links */}
@@ -99,10 +80,10 @@ export default function Sidebar({ role = "owner" }) {
               key={link.to}
               to={link.to}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
+                `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                   isActive
-                    ? "bg-green-500/15 text-green-400 border border-green-500/30"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                 }`
               }
             >
@@ -114,13 +95,13 @@ export default function Sidebar({ role = "owner" }) {
       </nav>
 
       {/* Footer Profile / Logout */}
-      <div className="p-3 border-t border-slate-800">
+      <div className="p-4 border-t border-slate-100">
         <button
           onClick={() => {
             logoutUser?.();
             navigate("/login");
           }}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm font-medium text-rose-400 hover:bg-rose-500/10 transition"
+          className="flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 transition"
         >
           <LogOut className="w-4 h-4 shrink-0" />
           <span>Log Out</span>
