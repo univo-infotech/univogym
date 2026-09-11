@@ -77,7 +77,7 @@ export default function Dashboard() {
     if (!invitePhone) return;
     try {
       const token = await generateInviteToken("univo_main", invitePhone);
-      const link = `${window.location.origin}/register/univo_main/${token}`;
+      const link = `${window.location.origin}/#/register/univo_main/${token}`;
       setGeneratedLink(link);
       setLinkCountdown(300);
     } catch (e) {
@@ -287,3 +287,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

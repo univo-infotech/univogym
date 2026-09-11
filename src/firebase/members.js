@@ -1,4 +1,4 @@
-import {
+﻿import {
   collection,
   doc,
   getDoc,
@@ -69,7 +69,7 @@ export async function generateInviteToken(gymId, opts = {}) {
     used: false,
   });
   const token = ref.id;
-  const url = `${window.location.origin}/register/${gymId}/${token}`;
+  const url = `${window.location.origin}/#/register/${gymId}/${token}`;
   return url;
 }
 
@@ -136,3 +136,4 @@ export async function addMember(gymId, memberData) {
   });
   return ref.id;
 }
+
