@@ -28,7 +28,7 @@ export default function Dashboard() {
   const [payments, setPayments] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [visits, setVisits] = useState([]);
-  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false); const [directAddOpen, setDirectAddOpen] = useState(false); const [directMember, setDirectMember] = useState({ name: "", phone: "", email: "", planName: "3-Month Pro", gender: "Male" });
   const [invitePhone, setInvitePhone] = useState("");
   const [generatedLink, setGeneratedLink] = useState("");
   const [linkCountdown, setLinkCountdown] = useState(300);
@@ -110,13 +110,20 @@ export default function Dashboard() {
               "Stronger Today, Healthier Tomorrow" • Complete real-time overview
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button 
               variant="whatsapp"
               icon={<Share2 className="w-4 h-4" />}
               onClick={() => setInviteModalOpen(true)}
             >
-              Add Member (5-Min WhatsApp Link)
+              Share 5-Min WhatsApp Link
+            </Button>
+            <Button 
+              variant="primary"
+              icon={<UserPlus className="w-4 h-4" />}
+              onClick={() => setDirectAddOpen(true)}
+            >
+              Add Member Directly (Owner Form)
             </Button>
           </div>
         </div>
@@ -223,6 +230,98 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Direct Add Member Modal for Owner */}
+      <Modal
+        isOpen={directAddOpen}
+        onClose={() => setDirectAddOpen(false)}
+        title="➕ Add Member Directly (By Owner)"
+      >
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const { addMember } = await import("../../firebase/members");
+            await addMember("univo_main", {
+              fullName: directMember.name,
+              name: directMember.name,
+              phone: directMember.phone,
+              email: directMember.email,
+              planName: directMember.planName,
+              gender: directMember.gender,
+              registeredBy: "owner",
+              createdAt: new Date().toISOString()
+            });
+            setDirectAddOpen(false);
+            const m = await getMembers("univo_main");
+            setMembers(m || []);
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="text-xs font-semibold text-slate-700">Full Name *</label>
+            <input
+              required
+              type="text"
+              placeholder="e.g. Ajay Prajapati"
+              value={directMember.name}
+              onChange={(e) => setDirectMember({ ...directMember, name: e.target.value })}
+              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-700">Phone Number *</label>
+              <input
+                required
+                type="text"
+                placeholder="9876543210"
+                value={directMember.phone}
+                onChange={(e) => setDirectMember({ ...directMember, phone: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-700">Gender</label>
+              <select
+                value={directMember.gender}
+                onChange={(e) => setDirectMember({ ...directMember, gender: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900"
+              >
+                <option>Male</option>
+                <option>Female</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-700">Email Address</label>
+              <input
+                type="email"
+                placeholder="ajay@gmail.com"
+                value={directMember.email}
+                onChange={(e) => setDirectMember({ ...directMember, email: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-700">Membership Plan</label>
+              <select
+                value={directMember.planName}
+                onChange={(e) => setDirectMember({ ...directMember, planName: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900"
+              >
+                <option>1-Month Basic</option>
+                <option>3-Month Pro</option>
+                <option>6-Month Transformation</option>
+                <option>Annual Elite Plan</option>
+              </select>
+            </div>
+          </div>
+          <Button fullWidth type="submit">
+            Save & Add Member to Gym
+          </Button>
+        </form>
+      </Modal>
       {/* WhatsApp Link Modal */}
       <Modal
         isOpen={inviteModalOpen}
@@ -287,6 +386,7 @@ export default function Dashboard() {
     </div>
   );
 }
+
 
 
 

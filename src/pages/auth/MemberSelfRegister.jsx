@@ -623,53 +623,77 @@ export default function MemberSelfRegister() {
                 <div className="mt-3 w-10 h-0.5 rounded-full bg-gradient-to-r from-teal-400 to-green-400" />
               </div>
 
-              {/* Photo upload */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-300">
-                  Profile Photo <span className="text-slate-500">(optional)</span>
+              {/* Photo upload: Gallery & Live Camera Selfie */}
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-slate-200">
+                  Profile Photo <span className="text-slate-400 font-normal">(Gallery upload ya Live Camera selfie)</span>
                 </label>
-                <div
-                  {...getRootProps()}
-                  className={cn(
-                    'relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200',
-                    isDragActive
-                      ? 'border-teal-500 bg-teal-500/10'
-                      : 'border-slate-600/60 hover:border-teal-500/50 hover:bg-slate-700/30',
-                  )}
-                >
-                  <input {...getInputProps()} />
-                  {photoPreview ? (
-                    <div className="space-y-3">
-                      <div className="relative w-24 h-24 mx-auto">
-                        <img
-                          src={photoPreview}
-                          alt="Preview"
-                          className="w-24 h-24 rounded-full object-cover border-2 border-teal-500/50 shadow-lg"
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setPhotoFile(null); setPhotoPreview(null); }}
-                          className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-400 transition-colors"
-                        >
-                          <Trash2 className="w-3 h-3 text-white" />
-                        </button>
-                      </div>
-                      <p className="text-xs text-teal-400">Photo selected Â· Click to change</p>
+
+                {photoPreview ? (
+                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-800/80 border border-teal-500/40">
+                    <img
+                      src={photoPreview}
+                      alt="Preview"
+                      className="w-20 h-20 rounded-full object-cover border-2 border-teal-400 shadow-md"
+                    />
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-white">Photo Selected</p>
+                      <p className="text-xs text-teal-400">Ready to upload with membership form</p>
+                      <button
+                        type="button"
+                        onClick={() => { setPhotoFile(null); setPhotoPreview(null); }}
+                        className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 mt-1 font-semibold"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Remove & re-take photo
+                      </button>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="w-14 h-14 mx-auto rounded-full bg-slate-700/60 flex items-center justify-center">
-                        <Camera className="w-6 h-6 text-slate-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-slate-300 font-medium">
-                          {isDragActive ? 'Drop photo here' : 'Drag & drop or click to upload'}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-1">JPG, PNG up to 5 MB</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Option 1: Gallery Upload */}
+                    <label className="flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed border-slate-600 bg-slate-800/40 hover:bg-slate-800 hover:border-teal-500 cursor-pointer transition-all">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setPhotoFile(file);
+                            const reader = new FileReader();
+                            reader.onload = (ev) => setPhotoPreview(ev.target.result);
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      <Upload className="w-7 h-7 text-teal-400 mb-2" />
+                      <span className="text-xs font-bold text-white">Upload from Gallery</span>
+                      <span className="text-[10px] text-slate-400 mt-0.5">Choose existing photo</span>
+                    </label>
+
+                    {/* Option 2: Live Camera Selfie */}
+                    <label className="flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed border-slate-600 bg-slate-800/40 hover:bg-slate-800 hover:border-green-500 cursor-pointer transition-all">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="user"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setPhotoFile(file);
+                            const reader = new FileReader();
+                            reader.onload = (ev) => setPhotoPreview(ev.target.result);
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      <Camera className="w-7 h-7 text-green-400 mb-2" />
+                      <span className="text-xs font-bold text-white">Take Live Selfie</span>
+                      <span className="text-[10px] text-slate-400 mt-0.5">Open phone camera</span>
+                    </label>
+                  </div>
+                )}
               </div>
 
               {/* Full Name */}
@@ -1167,4 +1191,5 @@ export default function MemberSelfRegister() {
     </div>
   );
 }
+
 
