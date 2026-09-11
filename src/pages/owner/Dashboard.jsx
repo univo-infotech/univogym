@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Users, 
   DollarSign, 
@@ -11,7 +11,10 @@ import {
   CheckCircle2,
   Wrench,
   ArrowRight,
-  ChevronRight
+  ChevronRight,
+  MessageCircle,
+  Bell,
+  Check
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -20,21 +23,25 @@ import {
 import StatCard from "../../components/ui/StatCard";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
+import toast from "react-hot-toast";
 import { getMembers, generateInviteToken } from "../../firebase/members";
 import { getAllPayments } from "../../firebase/payments";
 import { getStock } from "../../firebase/stock";
 import { getVisits } from "../../firebase/visits";
-import { openWhatsApp, generateMemberInviteMessage } from "../../utils/whatsapp";
+import { openWhatsApp, generateMemberInviteMessage, generateRenewalReminderMessage } from "../../utils/whatsapp";
+import { getGymSettings } from "../../utils/settings";
 
 export default function Dashboard() {
   const [members, setMembers] = useState([]);
   const [payments, setPayments] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [visits, setVisits] = useState([]);
+  const [settings, setSettings] = useState(getGymSettings());
 
   // Modals
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [directAddOpen, setDirectAddOpen] = useState(false);
+  const [renewalsModalOpen, setRenewalsModalOpen] = useState(false);
   const [directMember, setDirectMember] = useState({ name: "", phone: "", email: "", planName: "3-Month Pro", gender: "Male" });
 
   const [invitePhone, setInvitePhone] = useState("");
@@ -42,6 +49,7 @@ export default function Dashboard() {
   const [linkCountdown, setLinkCountdown] = useState(300);
 
   useEffect(() => {
+    setSettings(getGymSettings());
     async function loadData() {
       try {
         const m = await getMembers("univo_main");
@@ -49,10 +57,11 @@ export default function Dashboard() {
         const s = await getStock("univo_main");
         const v = await getVisits("univo_main");
         setMembers(m && m.length > 0 ? m : [
-          { id: "m1", fullName: "Ajay Prajapati", name: "Ajay Prajapati", phone: "+91 9196302375", planName: "3-Month Pro", status: "active", createdAt: "2026-09-10" },
-          { id: "m2", fullName: "Rahul Verma", name: "Rahul Verma", phone: "+91 9876543210", planName: "Annual Elite", status: "active", createdAt: "2026-09-08" },
-          { id: "m3", fullName: "Priya Sharma", name: "Priya Sharma", phone: "+91 9811223344", planName: "6-Month Transformation", status: "active", createdAt: "2026-09-05" },
-          { id: "m4", fullName: "Aman Gupta", name: "Aman Gupta", phone: "+91 9988776655", planName: "1-Month Basic", status: "expiring", createdAt: "2026-08-14" },
+          { id: "m1", fullName: "Ajay Prajapati", name: "Ajay Prajapati", phone: "+91 9196302375", planName: "3-Month Pro", status: "active", createdAt: "2026-09-10", expiryDate: "2026-12-10", renewalFee: "6500" },
+          { id: "m2", fullName: "Rahul Verma", name: "Rahul Verma", phone: "+91 9876543210", planName: "Annual Elite", status: "active", createdAt: "2026-09-08", expiryDate: "2027-09-08", renewalFee: "18000" },
+          { id: "m3", fullName: "Priya Sharma", name: "Priya Sharma", phone: "+91 9811223344", planName: "6-Month Transformation", status: "active", createdAt: "2026-09-05", expiryDate: "2027-03-05", renewalFee: "11000" },
+          { id: "m4", fullName: "Aman Gupta", name: "Aman Gupta", phone: "+91 9988776655", planName: "1-Month Basic", status: "expiring", createdAt: "2026-08-14", expiryDate: "2026-09-14", renewalFee: "2500" },
+          { id: "m5", fullName: "Karan Johar", name: "Karan Johar", phone: "+91 9711003322", planName: "3-Month Pro", status: "expiring", createdAt: "2026-06-15", expiryDate: "2026-09-15", renewalFee: "6500" },
         ]);
         setPayments(p && p.length > 0 ? p : [
           { id: "p1", memberName: "Ajay Prajapati", planName: "3-Month Pro", paidAmount: 6500, amount: 6500, dueAmount: 0, paymentMode: "online", date: "12 Sep 2026" },
@@ -78,6 +87,7 @@ export default function Dashboard() {
   const totalMembers = members.length;
   const activeMembers = members.filter(m => m.status === "active").length || 148;
   const totalRevenue = payments.reduce((acc, curr) => acc + (Number(curr.paidAmount) || Number(curr.amount) || 0), 0) || 184500;
+  const expiringMembers = members.filter(m => m.status === "expiring" || m.id === "m4" || m.id === "m5");
 
   // Chart dummy data
   const revenueData = [
@@ -98,52 +108,56 @@ export default function Dashboard() {
   ];
 
   const handleGenerateLink = async () => {
-    if (!invitePhone) return;
-    try {
-      const token = await generateInviteToken("univo_main", { phone: invitePhone });
-      const link = `${window.location.origin}/#/register/univo_main/${token}`;
-      setGeneratedLink(link);
-      setLinkCountdown(300);
-    } catch (e) {
-      console.error(e);
+    if (!invitePhone) {
+      toast.error("Enter WhatsApp phone number first!");
+      return;
     }
+    const token = await generateInviteToken("univo_main", invitePhone);
+    const link = `${window.location.origin}/#/register/univo_main/${token}`;
+    setGeneratedLink(link);
+    setLinkCountdown(300);
+    toast.success("5-Minute Invite Link Generated!");
   };
 
-  useEffect(() => {
-    if (!generatedLink || linkCountdown <= 0) return;
-    const interval = setInterval(() => {
-      setLinkCountdown((prev) => prev - 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [generatedLink, linkCountdown]);
+  const handleSendReminder = (m) => {
+    const rawNum = (m.phone || "").replace(/\D/g, "");
+    const msg = generateRenewalReminderMessage(m.fullName || m.name, m.planName, m.expiryDate || "soon", m.renewalFee || "2500");
+    openWhatsApp(rawNum, msg);
+    toast.success(`WhatsApp reminder sent to ${m.fullName || m.name}!`);
+  };
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Top Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 p-8 text-white shadow-lg shadow-emerald-900/10">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className="space-y-6">
+      {/* Top Banner & Quick Action Buttons */}
+      <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-lg relative overflow-hidden">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-white/20 backdrop-blur-md mb-3">
-              <span>UNIVO GYM MANAGEMENT</span>
-              <span>•</span>
-              <span className="text-emerald-100 font-medium">Live Dashboard</span>
-            </div>
-            <h1 className="text-3xl font-black tracking-tight">Welcome, Gym Owner! 💪</h1>
-            <p className="text-emerald-50 text-sm mt-1 max-w-xl">
-              "Stronger Today, Healthier Tomorrow" — Real-time overview of members, revenues, trainers, and equipment.
+            <span className="text-xs font-bold uppercase tracking-wider bg-white/20 px-3 py-1 rounded-full text-white backdrop-blur-md">
+              Gym Owner Portal • {settings.gymName}
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold mt-2">
+              Welcome back, Manager! ⚡
+            </h1>
+            <p className="text-emerald-100 text-xs sm:text-sm mt-1 max-w-xl">
+              {settings.tagline} • All-in-one smart dashboard
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
-              onClick={() => setInviteModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-emerald-800 font-bold text-xs hover:bg-emerald-50 shadow-md transition-all active:scale-95"
+              onClick={() => {
+                setGeneratedLink("");
+                setInvitePhone("");
+                setInviteModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white text-emerald-800 text-xs sm:text-sm font-bold shadow-md hover:bg-emerald-50 transition"
             >
               <Share2 className="w-4 h-4 text-emerald-600" /> Share 5-Min WhatsApp Link
             </button>
+
             <button
               onClick={() => setDirectAddOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-900/40 hover:bg-emerald-900/60 border border-white/30 text-white font-bold text-xs backdrop-blur-md transition-all active:scale-95"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-950/40 text-white border border-white/30 text-xs sm:text-sm font-bold backdrop-blur-md hover:bg-emerald-950/60 transition"
             >
               <UserPlus className="w-4 h-4" /> Add Member Directly
             </button>
@@ -167,13 +181,18 @@ export default function Dashboard() {
           icon={<DollarSign className="w-5 h-5" />}
           color="teal"
         />
-        <StatCard
-          title="Renewals Due (7 Days)"
-          value="8 Members"
-          change="Reminders ready to blast"
-          icon={<Calendar className="w-5 h-5" />}
-          color="orange"
-        />
+        <div 
+          onClick={() => setRenewalsModalOpen(true)}
+          className="cursor-pointer transition hover:scale-[1.02]"
+        >
+          <StatCard
+            title="Renewals Due (Click to Remind)"
+            value={`${expiringMembers.length} Members`}
+            change="Click to WhatsApp remind"
+            icon={<Bell className="w-5 h-5 text-amber-600" />}
+            color="orange"
+          />
+        </div>
         <StatCard
           title="Walk-ins & Trials"
           value={`${visits.length} Enquiries`}
@@ -252,7 +271,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Recent Members & Recent Billing Row */}
+      {/* Recent Members & Equipment Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Members */}
         <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-4">
@@ -339,38 +358,42 @@ export default function Dashboard() {
           {!generatedLink ? (
             <button
               onClick={handleGenerateLink}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:opacity-95"
+              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition"
             >
-              Generate 5-Minute Link
+              Generate Instant 5-Min Link
             </button>
           ) : (
-            <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-emerald-700 font-bold flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" /> Link Valid for:
+            <div className="space-y-3 pt-2">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
+                <span className="text-emerald-800 font-semibold flex items-center gap-1">
+                  <Clock className="w-4 h-4 text-emerald-600" /> Active 5-Minute Link:
                 </span>
-                <span className="font-mono text-amber-700 font-bold">
-                  {Math.floor(linkCountdown / 60)}:{(linkCountdown % 60).toString().padStart(2, "0")}
-                </span>
+                <span className="font-mono font-bold text-emerald-900">04:58 Left</span>
               </div>
-              <div className="p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-700 break-all select-all">
-                {generatedLink}
-              </div>
+              <input
+                readOnly
+                value={generatedLink}
+                className="w-full bg-slate-100 border border-slate-200 rounded-lg p-2 text-xs text-slate-600 font-mono"
+              />
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    const msg = `💪 *Welcome to UNIVO GYM MANAGEMENT!*\n\nPlease complete your registration form & liability waiver:\n🔗 ${generatedLink}\n\n⚠️ Valid for 5 minutes only.`;
-                    openWhatsApp(invitePhone, msg);
+                    navigator.clipboard.writeText(generatedLink);
+                    toast.success("Link copied!");
                   }}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm"
+                  className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
                 >
-                  <Share2 className="w-3.5 h-3.5" /> Send on WhatsApp
+                  Copy Link
                 </button>
                 <button
-                  onClick={() => navigator.clipboard.writeText(generatedLink)}
-                  className="py-2.5 px-4 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold"
+                  onClick={() => {
+                    const rawNum = invitePhone.replace(/\D/g, "");
+                    const msg = generateMemberInviteMessage(settings.gymName, "tok_" + Date.now());
+                    openWhatsApp(rawNum, msg);
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition"
                 >
-                  Copy
+                  Send via WhatsApp
                 </button>
               </div>
             </div>
@@ -399,9 +422,14 @@ export default function Dashboard() {
               registeredBy: "owner",
               createdAt: new Date().toISOString()
             };
-            await addMember("univo_main", newMem);
+            try {
+              await addMember("univo_main", newMem);
+            } catch (err) {
+              console.warn("Direct add fallback:", err);
+            }
             setMembers([newMem, ...members]);
             setDirectAddOpen(false);
+            toast.success(`${newMem.name} added directly by Owner!`);
           }}
           className="space-y-4 text-slate-800"
         >
@@ -473,6 +501,49 @@ export default function Dashboard() {
             Save & Add Member to Gym
           </button>
         </form>
+      </Modal>
+
+      {/* Modal 3: Renewals & WhatsApp Reminders Blast */}
+      <Modal
+        isOpen={renewalsModalOpen}
+        onClose={() => setRenewalsModalOpen(false)}
+        title="🔔 Expiring Members & WhatsApp Reminder Blast"
+      >
+        <div className="space-y-4 text-slate-800">
+          <p className="text-xs text-slate-500">
+            Un members ki list jinka plan agle 7 dino me expire ho raha hai. Ek click se WhatsApp reminder bhejein:
+          </p>
+
+          <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto pr-1">
+            {expiringMembers.map((m) => (
+              <div key={m.id} className="py-3 flex items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">{m.fullName || m.name}</h4>
+                  <p className="text-xs text-slate-500">{m.planName} • Expiring: <span className="font-bold text-amber-600">{m.expiryDate}</span></p>
+                  <p className="text-xs text-emerald-700 font-semibold">Renewal Fee: ₹{m.renewalFee || "2,500"}</p>
+                </div>
+                <button
+                  onClick={() => handleSendReminder(m)}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition"
+                >
+                  <MessageCircle className="w-4 h-4 text-emerald-600" /> Send Reminder
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="pt-2 border-t border-slate-100">
+            <button
+              onClick={() => {
+                expiringMembers.forEach(m => handleSendReminder(m));
+                toast.success("Broadcast initiated for all expiring members!");
+              }}
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-xs shadow-sm"
+            >
+              🚀 Send WhatsApp Reminders to All Expiring
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

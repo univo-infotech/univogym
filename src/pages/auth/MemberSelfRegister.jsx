@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import SignatureCanvas from 'react-signature-canvas';
 import { useDropzone } from 'react-dropzone';
@@ -138,7 +138,7 @@ function StepBar({ current, total }) {
 function Card({ children, className }) {
   return (
     <div className={cn(
-      'bg-slate-800/60 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 sm:p-8 shadow-2xl shadow-black/40',
+      'bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm text-slate-800',
       className,
     )}>
       {children}
@@ -150,17 +150,17 @@ function Card({ children, className }) {
 const Input = React.forwardRef(({ label, error, className, ...props }, ref) => {
   return (
     <div className="space-y-1.5">
-      {label && <label className="block text-sm font-medium text-slate-300">{label}</label>}
+      {label && <label className="block text-xs font-bold text-slate-700">{label}</label>}
       <input
         ref={ref}
         className={cn(
-          'w-full bg-slate-900/70 border border-slate-600/60 text-white placeholder-slate-500 rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200 focus:border-teal-500/70 focus:ring-2 focus:ring-teal-500/20',
+          'w-full bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400 rounded-xl px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20',
           error && 'border-red-500/50 focus:border-red-500/70 focus:ring-red-500/20',
           className,
         )}
         {...props}
       />
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
     </div>
   );
 });
@@ -169,16 +169,16 @@ const Input = React.forwardRef(({ label, error, className, ...props }, ref) => {
 function Textarea({ label, error, ...props }) {
   return (
     <div className="space-y-1.5">
-      {label && <label className="block text-sm font-medium text-slate-300">{label}</label>}
+      {label && <label className="block text-xs font-bold text-slate-700">{label}</label>}
       <textarea
         rows={4}
         className={cn(
-          'w-full bg-slate-900/70 border border-slate-600/60 text-white placeholder-slate-500 rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200 focus:border-teal-500/70 focus:ring-2 focus:ring-teal-500/20 resize-none',
+          'w-full bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400 rounded-xl px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 resize-none',
           error && 'border-red-500/50',
         )}
         {...props}
       />
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
     </div>
   );
 }
@@ -523,18 +523,14 @@ export default function MemberSelfRegister() {
 
   // â”€â”€â”€ Render: Registration Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
-    <div className="min-h-screen bg-slate-950 py-8 px-4">
-
-      {/* Background blobs */}
-      <div className="fixed top-0 left-0 w-[600px] h-[600px] bg-teal-500/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-      <div className="fixed bottom-0 right-0 w-[400px] h-[400px] bg-green-500/5 rounded-full blur-3xl translate-x-1/2 translate-y-1/2 pointer-events-none" />
+    <div className="min-h-screen bg-slate-50 py-8 px-4 text-slate-900">
 
       <div className="max-w-2xl mx-auto relative z-10">
 
-        {/* â”€â”€ Header â”€â”€ */}
+        {/* ── Header ── */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-400 to-green-500 flex items-center justify-center shadow-lg shadow-teal-500/30 overflow-hidden">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md overflow-hidden">
               <img
                 src="/logo-icon.png"
                 alt="Univo"
@@ -547,20 +543,20 @@ export default function MemberSelfRegister() {
               <Dumbbell className="w-6 h-6 text-white" style={{ display: 'none' }} />
             </div>
             <div className="text-left">
-              <p className="text-xs font-bold tracking-widest text-teal-400 uppercase">
+              <p className="text-xs font-bold tracking-widest text-emerald-600 uppercase">
                 {gymData?.name || 'Univo Gym'}
               </p>
               <p className="text-[10px] text-slate-500 tracking-widest uppercase">Member Registration</p>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-white">Create Your Account</h1>
-          <p className="text-slate-400 text-sm mt-1">Complete all steps to activate your membership</p>
+          <h1 className="text-2xl font-extrabold text-slate-900">Create Your Account</h1>
+          <p className="text-slate-500 text-xs mt-1">Complete all steps to activate your membership and liability waiver</p>
         </div>
 
-        {/* â”€â”€ Progress bar â”€â”€ */}
+        {/* ── Progress bar ── */}
         <StepBar current={step} total={STEPS.length} />
 
-        {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ STEP 1 â€“ Verify â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ STEP 1 â€“ Verify â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 1 && (
           <Card>
             <div className="text-center space-y-6">
@@ -574,31 +570,31 @@ export default function MemberSelfRegister() {
               )}
 
               <div className="space-y-2">
-                <h2 className="text-xl font-bold text-white">
-                  Welcome{gymData?.name ? ` to ${gymData.name}` : ''}! ðŸ‘‹
+                <h2 className="text-xl font-bold text-slate-900">
+                  Welcome{gymData?.name ? ` to ${gymData.name}` : ''}! 👋
                 </h2>
-                <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
+                <p className="text-slate-500 text-sm max-w-sm mx-auto leading-relaxed">
                   You have been invited to join our gym. Complete this registration to activate your membership.
                 </p>
               </div>
 
               {/* Phone number */}
-              <div className="bg-slate-900/60 border border-slate-700/50 rounded-xl p-4 max-w-xs mx-auto">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 max-w-xs mx-auto">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-green-500/15 flex items-center justify-center flex-shrink-0">
-                    <Phone className="w-5 h-5 text-green-400" />
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                    <Phone className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div className="text-left">
                     <p className="text-xs text-slate-500">Registered Phone</p>
-                    <p className="text-base font-semibold text-white">{tokenData?.phone || 'N/A'}</p>
+                    <p className="text-base font-bold text-slate-900">{tokenData?.phone || 'N/A'}</p>
                   </div>
                 </div>
               </div>
 
               <p className="text-xs text-slate-500">
                 Invitation expires:{' '}
-                <span className="text-slate-400 font-medium">
-                  {tokenData?.expiresAt ? formatDate(tokenData.expiresAt.toDate?.() || tokenData.expiresAt) : 'N/A'}
+                <span className="text-slate-700 font-semibold">
+                  {tokenData?.expiresAt ? formatDate(tokenData.expiresAt.toDate?.() || tokenData.expiresAt) : 'In 5 minutes'}
                 </span>
               </p>
 
@@ -613,36 +609,36 @@ export default function MemberSelfRegister() {
           </Card>
         )}
 
-        {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ STEP 2 â€“ Personal Info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {/* ─── STEP 2 – Personal Info ─── */}
         {step === 2 && (
           <form onSubmit={hs2(onStep2Submit)}>
             <Card className="space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-white">Personal Information</h2>
-                <p className="text-slate-400 text-sm mt-1">Tell us about yourself</p>
-                <div className="mt-3 w-10 h-0.5 rounded-full bg-gradient-to-r from-teal-400 to-green-400" />
+                <h2 className="text-xl font-bold text-slate-900">Personal Information</h2>
+                <p className="text-slate-500 text-xs mt-1">Tell us about yourself</p>
+                <div className="mt-3 w-10 h-0.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500" />
               </div>
 
               {/* Photo upload: Gallery & Live Camera Selfie */}
               <div className="space-y-3">
-                <label className="block text-sm font-semibold text-slate-200">
-                  Profile Photo <span className="text-slate-400 font-normal">(Gallery upload ya Live Camera selfie)</span>
+                <label className="block text-xs font-bold text-slate-700">
+                  Profile Photo <span className="text-slate-500 font-normal">(Gallery upload ya Live Camera selfie)</span>
                 </label>
 
                 {photoPreview ? (
-                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-800/80 border border-teal-500/40">
+                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
                     <img
                       src={photoPreview}
                       alt="Preview"
-                      className="w-20 h-20 rounded-full object-cover border-2 border-teal-400 shadow-md"
+                      className="w-20 h-20 rounded-full object-cover border-2 border-emerald-500 shadow-md"
                     />
                     <div className="space-y-1">
-                      <p className="text-sm font-bold text-white">Photo Selected</p>
-                      <p className="text-xs text-teal-400">Ready to upload with membership form</p>
+                      <p className="text-sm font-bold text-slate-900">Photo Selected</p>
+                      <p className="text-xs text-emerald-700 font-medium">Ready to upload with membership form</p>
                       <button
                         type="button"
                         onClick={() => { setPhotoFile(null); setPhotoPreview(null); }}
-                        className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 mt-1 font-semibold"
+                        className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 mt-1 font-semibold"
                       >
                         <Trash2 className="w-3.5 h-3.5" /> Remove & re-take photo
                       </button>
@@ -651,7 +647,7 @@ export default function MemberSelfRegister() {
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
                     {/* Option 1: Gallery Upload */}
-                    <label className="flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed border-slate-600 bg-slate-800/40 hover:bg-slate-800 hover:border-teal-500 cursor-pointer transition-all">
+                    <label className="flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-emerald-50/50 hover:border-emerald-500 cursor-pointer transition-all">
                       <input
                         type="file"
                         accept="image/*"
@@ -666,13 +662,13 @@ export default function MemberSelfRegister() {
                           }
                         }}
                       />
-                      <Upload className="w-7 h-7 text-teal-400 mb-2" />
-                      <span className="text-xs font-bold text-white">Upload from Gallery</span>
-                      <span className="text-[10px] text-slate-400 mt-0.5">Choose existing photo</span>
+                      <Upload className="w-7 h-7 text-emerald-600 mb-2" />
+                      <span className="text-xs font-bold text-slate-900">Upload from Gallery</span>
+                      <span className="text-[10px] text-slate-500 mt-0.5">Choose existing photo</span>
                     </label>
 
                     {/* Option 2: Live Camera Selfie */}
-                    <label className="flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed border-slate-600 bg-slate-800/40 hover:bg-slate-800 hover:border-green-500 cursor-pointer transition-all">
+                    <label className="flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-emerald-50/50 hover:border-emerald-500 cursor-pointer transition-all">
                       <input
                         type="file"
                         accept="image/*"
@@ -688,9 +684,9 @@ export default function MemberSelfRegister() {
                           }
                         }}
                       />
-                      <Camera className="w-7 h-7 text-green-400 mb-2" />
-                      <span className="text-xs font-bold text-white">Take Live Selfie</span>
-                      <span className="text-[10px] text-slate-400 mt-0.5">Open phone camera</span>
+                      <Camera className="w-7 h-7 text-teal-600 mb-2" />
+                      <span className="text-xs font-bold text-slate-900">Take Live Selfie</span>
+                      <span className="text-[10px] text-slate-500 mt-0.5">Open phone camera</span>
                     </label>
                   </div>
                 )}
@@ -706,7 +702,7 @@ export default function MemberSelfRegister() {
 
               {/* Gender */}
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-300">Gender *</label>
+                <label className="block text-xs font-bold text-slate-700">Gender *</label>
                 <div className="grid grid-cols-3 gap-3">
                   {GENDER_OPTIONS.map((g) => (
                     <button
@@ -714,14 +710,14 @@ export default function MemberSelfRegister() {
                       type="button"
                       onClick={() => { setGender(g.value); setStepError(''); }}
                       className={cn(
-                        'flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all duration-200',
+                        'flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all duration-200',
                         gender === g.value
-                          ? 'border-teal-500 bg-teal-500/15 text-white'
-                          : 'border-slate-600/60 bg-slate-800/40 text-slate-400 hover:border-slate-500',
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-900 font-bold'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300',
                       )}
                     >
                       <span className="text-2xl">{g.emoji}</span>
-                      <span className="text-xs font-medium">{g.label}</span>
+                      <span className="text-xs font-semibold">{g.label}</span>
                     </button>
                   ))}
                 </div>
@@ -1098,16 +1094,16 @@ export default function MemberSelfRegister() {
             {/* Digital Signature Canvas */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-slate-300">Digital Signature *</label>
+                <label className="text-xs font-bold text-slate-700">Digital Signature *</label>
                 <button
                   type="button"
                   onClick={clearSignature}
-                  className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition-colors"
+                  className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 transition-colors"
                 >
                   <RotateCcw className="w-3.5 h-3.5" /> Clear
                 </button>
               </div>
-              <div className="rounded-xl overflow-hidden border-2 border-slate-600/60 bg-slate-900/70">
+              <div className="rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-50">
                 <SignatureCanvas
                   ref={sigRef}
                   canvasProps={{
@@ -1115,13 +1111,13 @@ export default function MemberSelfRegister() {
                     height: 160,
                     style: { touchAction: 'none', display: 'block', width: '100%' },
                   }}
-                  penColor="#00b4d8"
-                  backgroundColor="transparent"
+                  penColor="#0f172a"
+                  backgroundColor="#f8fafc"
                   onEnd={() => { setSigSaved(false); setSigError(''); }}
                 />
               </div>
               <p className="text-xs text-slate-500">Draw your signature above using your mouse or finger</p>
-              {sigError && <p className="text-xs text-red-400">{sigError}</p>}
+              {sigError && <p className="text-xs text-red-500">{sigError}</p>}
             </div>
 
             {/* Typed name */}
@@ -1133,11 +1129,11 @@ export default function MemberSelfRegister() {
             />
 
             {/* Date */}
-            <div className="flex items-center gap-3 bg-slate-900/50 border border-slate-700/40 rounded-xl px-4 py-3">
-              <Calendar className="w-4 h-4 text-teal-400 flex-shrink-0" />
+            <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3">
+              <Calendar className="w-4 h-4 text-emerald-600 flex-shrink-0" />
               <div>
                 <p className="text-xs text-slate-500">Date of Agreement</p>
-                <p className="text-sm text-white font-medium">
+                <p className="text-sm text-slate-900 font-bold">
                   {new Date().toLocaleDateString('en-IN', {
                     day: '2-digit', month: 'long', year: 'numeric',
                   })}

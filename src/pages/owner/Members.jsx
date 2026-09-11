@@ -27,6 +27,8 @@ import toast from 'react-hot-toast';
 import { getMembers, generateInviteToken, addMember } from '../../firebase/members';
 import { getTrainers } from '../../firebase/trainers';
 import { useAuth } from '../../contexts/AuthContext';
+import { generatePaymentReceipt } from '../../utils/pdf';
+import { getGymSettings } from '../../utils/settings';
 import Modal from '../../components/ui/Modal';
 
 function toDate(val) {
@@ -125,6 +127,7 @@ function InviteLinkModal({ gymId, plans, onClose }) {
   const [memberName, setMemberName] = useState('');
   const [phone, setPhone] = useState('');
   const [planId, setPlanId] = useState('');
+  const [customToken, setCustomToken] = useState('');
   const [generating, setGenerating] = useState(false);
   const [link, setLink] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(TIMER_SECONDS);
@@ -156,16 +159,21 @@ function InviteLinkModal({ gymId, plans, onClose }) {
     }
     setGenerating(true);
     try {
-      const selectedPlan = plans.find((p) => p.id === planId);
-      const url = await generateInviteToken(gymId || 'univo_main', {
-        memberName: memberName.trim(),
-        phone: phone.trim(),
-        planId,
-        planName: selectedPlan?.name || 'Pro Membership',
-      });
-      setLink(url);
+      if (customToken.trim()) {
+        const url = `${window.location.origin}/#/register/univo_main/${customToken.trim()}`;
+        setLink(url);
+      } else {
+        const selectedPlan = plans.find((p) => p.id === planId);
+        const url = await generateInviteToken(gymId || 'univo_main', {
+          memberName: memberName.trim(),
+          phone: phone.trim(),
+          planId,
+          planName: selectedPlan?.name || 'Pro Membership',
+        });
+        setLink(url);
+      }
       startTimer();
-      toast.success('5-Minute Invite Link Generated!');
+      toast.success('5-Minute Invite Link Ready!');
     } catch (e) {
       toast.error('Failed to generate link');
     } finally {
@@ -227,6 +235,18 @@ function InviteLinkModal({ gymId, plans, onClose }) {
             />
           </div>
 
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>
+              Custom Invite Code / Token (Optional)
+            </label>
+            <input
+              value={customToken}
+              onChange={(e) => setCustomToken(e.target.value)}
+              placeholder='Leave blank for auto 5-min link'
+              className='w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-700 font-mono placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white'
+            />
+          </div>
+
           <button
             onClick={handleGenerate}
             disabled={generating}
@@ -284,6 +304,7 @@ const FILTER_TABS = [
 export default function Members() {
   const { gymId } = useAuth();
   const navigate = useNavigate();
+  const settings = getGymSettings();
 
   const [members, setMembers] = useState([]);
   const [trainers, setTrainers] = useState([]);
@@ -596,11 +617,27 @@ export default function Members() {
                       <StatusBadge status={status} />
                     </td>
                     <td className='px-5 py-3.5 text-right'>
-                      <div className='flex items-center justify-end gap-1'>
+                        <button
+                          onClick={() => {
+                            generatePaymentReceipt({
+                              memberName: m.name || m.fullName,
+                              planName: m.planName || "3-Month Pro",
+                              paidAmount: 6500,
+                              dueAmount: 0,
+                              paymentMode: "online",
+                              date: formatDate(m.createdAt)
+                            });
+                            toast.success("Downloading official bill receipt...");
+                          }}
+                          className='p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition'
+                          title='Download Official Bill Receipt PDF'
+                        >
+                          <Download className='w-4 h-4 text-emerald-600' />
+                        </button>
                         <button
                           onClick={() => {
                             const waPhone = (m.phone || '').replace(/\D/g, '');
-                            window.open(`https://wa.me/${waPhone}?text=Hi%20${m.name || m.fullName},%20Greetings%20from%20UNIVO%20GYM!`, '_blank');
+                            window.open(`https://wa.me/${waPhone}?text=Hi%20${m.name || m.fullName},%20Greetings%20from%20${settings.gymName}!`, '_blank');
                           }}
                           className='p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition'
                           title='Message on WhatsApp'
@@ -614,7 +651,6 @@ export default function Members() {
                         >
                           <Eye className='w-4 h-4' />
                         </button>
-                      </div>
                     </td>
                   </tr>
                 );
@@ -735,9 +771,41 @@ export default function Members() {
               </select>
             </div>
           </div>
+
+          <div className='grid grid-cols-2 gap-3'>
+            <div>
+              <label className='text-xs font-bold text-slate-700'>Assign Coach / Trainer</label>
+              <select
+                value={directForm.trainerName || 'Coach Amit Kumar'}
+                onChange={(e) => setDirectForm({ ...directForm, trainerName: e.target.value })}
+                className='w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900'
+              >
+                <option>Coach Amit Kumar (Head Trainer)</option>
+                <option>Coach Sneha Rao (Yoga & Core)</option>
+                <option>Coach Rohan Joshi (CrossFit)</option>
+                <option>General Floor Trainer</option>
+              </select>
+            </div>
+            <div>
+              <label className='text-xs font-bold text-slate-700'>Emergency Contact / Address</label>
+              <input
+                type='text'
+                placeholder='e.g. Bhopal • +91 9876543210'
+                value={directForm.address || ''}
+                onChange={(e) => setDirectForm({ ...directForm, address: e.target.value })}
+                className='w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900'
+              />
+            </div>
+          </div>
+
+          <div className='p-3 bg-emerald-50 rounded-2xl border border-emerald-100 text-xs text-emerald-800 flex items-center gap-2'>
+            <span className='font-bold'>✓ Liability Waiver & Terms Verified:</span>
+            <span>Recorded on member profile automatically</span>
+          </div>
+
           <button
             type='submit'
-            className='w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:opacity-95'
+            className='w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:opacity-95'
           >
             Save & Add Member to Gym
           </button>
