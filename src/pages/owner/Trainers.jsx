@@ -3,6 +3,7 @@ import { Plus, MessageCircle, MoreVertical, Link2, KeyRound, CheckCircle2, UserP
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import { getTrainers, addTrainer, updateTrainer, deleteTrainer } from "../../firebase/trainers";
+import { uploadFile } from "../../firebase/storage";
 
 import { createStaffUser } from "../../firebase/auth";
 import { useAuth } from "../../contexts/AuthContext";
@@ -42,6 +43,7 @@ export default function Trainers() {
   };
 
   const [loading, setLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [generateLoginModalOpen, setGenerateLoginModalOpen] = useState(false);
   const [selectedTrainer, setSelectedTrainer] = useState(null);
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -347,7 +349,7 @@ export default function Trainers() {
               <textarea rows={2} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 focus:bg-white outline-none resize-none" placeholder="Short description of the trainer's background..."></textarea>
             </div>
 
-            <button disabled={loading} type="submit" className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:shadow-lg disabled:opacity-50">
+            <button disabled={loading || isUploading} type="submit" className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:shadow-lg disabled:opacity-50">
               {loading ? "Creating Account..." : "Create Trainer & Account"}
             </button>
           </form>
@@ -410,7 +412,7 @@ export default function Trainers() {
             <input required type="text" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 focus:bg-white outline-none" placeholder="Strong password" />
           </div>
 
-          <button disabled={loading} type="submit" className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:shadow-lg disabled:opacity-50">
+          <button disabled={loading || isUploading} type="submit" className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:shadow-lg disabled:opacity-50">
             {loading ? "Creating..." : "Create & Send Credentials"}
           </button>
         </form>

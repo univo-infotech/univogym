@@ -2,12 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Dumbbell, Camera, CheckCircle2, User, Phone, Mail, Award, Briefcase, FileText, Upload, Image as ImageIcon } from "lucide-react";
 import { addTrainer } from "../../firebase/trainers";
+import { uploadFile } from "../../firebase/storage";
 import toast from "react-hot-toast";
 
 export default function TrainerSelfRegister() {
   const { gymId, token } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const [form, setForm] = useState({
@@ -23,15 +25,24 @@ export default function TrainerSelfRegister() {
     portfolioUrl: "",
   });
 
-  const handleFileUpload = (e, field) => {
+  const handleFileUpload = async (e, field) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm((prev) => ({ ...prev, [field]: reader.result }));
-      toast.success("File attached successfully!");
-    };
-    reader.readAsDataURL(file);
+    
+    setIsUploading(true);
+    const toastId = toast.loading("Uploading file to secure storage...");
+    try {
+      const path = `trainers/${gymId || "univo_main"}/${Date.now()}_${file.name}`;
+      const url = await uploadFile(file, path);
+      
+      setForm((prev) => ({ ...prev, [field]: url }));
+      toast.success("File uploaded successfully!", { id: toastId });
+    } catch (err) {
+      toast.error("Failed to upload file", { id: toastId });
+      console.error(err);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -168,8 +179,8 @@ export default function TrainerSelfRegister() {
               </div>
             </div>
             <div className="pt-6">
-              <button disabled={loading} type="submit" className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 transition-all disabled:opacity-50">
-                {loading ? "Submitting Profile..." : "Submit Trainer Profile"}
+              <button disabled={loading || isUploading} type="submit" className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 transition-all disabled:opacity-50">
+                {loading ? "Submitting Profile..." : isUploading ? "Uploading Files..." : "Submit Trainer Profile"}
               </button>
             </div>
           </form>
