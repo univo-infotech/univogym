@@ -267,8 +267,8 @@ export default function Dashboard() {
                   variant="whatsapp"
                   fullWidth
                   onClick={() => {
-                    const msg = generateMemberInviteMessage("UNIVO GYM MANAGEMENT", "", "");
-                    openWhatsApp(invitePhone, `${msg}\n\n🔗 ${generatedLink}`);
+                    
+                    const msg = `💪 *Welcome to UNIVO GYM MANAGEMENT!*\n\nPlease complete your registration form & liability waiver:\n🔗 ${generatedLink}\n\n⚠️ Valid for 5 minutes only.`; openWhatsApp(invitePhone, msg);
                   }}
                 >
                   Send On WhatsApp
@@ -287,4 +287,6 @@ export default function Dashboard() {
     </div>
   );
 }
+
+
 

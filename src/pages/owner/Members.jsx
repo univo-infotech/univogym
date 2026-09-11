@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -29,7 +29,7 @@ import { getMembers, generateInviteToken } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
 import { useAuth } from "../../contexts/AuthContext";
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function toDate(val) {
   if (!val) return null;
@@ -58,7 +58,7 @@ function daysLeft(member) {
 
 function formatDate(val) {
   const d = toDate(val);
-  if (!d) return "—";
+  if (!d) return "â€”";
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
@@ -112,7 +112,7 @@ function Avatar({ member, size = "sm" }) {
   );
 }
 
-// ─── Invite Link Modal ───────────────────────────────────────────────────────
+// â”€â”€â”€ Invite Link Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TIMER_SECONDS = 300; // 5 min
 
@@ -174,7 +174,7 @@ function InviteLinkModal({ gymId, plans, onClose }) {
     const msg = encodeURIComponent(
       `Hi ${memberName || "there"}, please complete your gym registration using this link:\n${link}`
     );
-    window.open(`https://wa.me/${phone.replace(/\D/g, "")}?text=${msg}`, "_blank");
+    window.open(`https://wa.me/${phone.replace(/\D/g, "")}?text=${encodeURIComponent(`💪 *Welcome to UNIVO GYM MANAGEMENT!*\n\nPlease complete your registration form & liability waiver:\n🔗 ${link}\n\n⚠️ Valid for 5 minutes only.`)}`, "_blank");
   }
 
   return (
@@ -222,10 +222,10 @@ function InviteLinkModal({ gymId, plans, onClose }) {
               onChange={(e) => setPlanId(e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-cyan-500 transition-colors"
             >
-              <option value="">— No plan selected —</option>
+              <option value="">â€” No plan selected â€”</option>
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} {p.price ? `– ₹${p.price}` : ""}
+                  {p.name} {p.price ? `â€“ â‚¹${p.price}` : ""}
                 </option>
               ))}
             </select>
@@ -236,7 +236,7 @@ function InviteLinkModal({ gymId, plans, onClose }) {
             disabled={generating}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {generating ? "Generating…" : "Generate Link"}
+            {generating ? "Generatingâ€¦" : "Generate Link"}
           </button>
 
           {/* Generated link area */}
@@ -257,7 +257,7 @@ function InviteLinkModal({ gymId, plans, onClose }) {
               {expired ? (
                 <div className="flex items-center gap-2 text-red-400 text-sm font-semibold">
                   <Clock className="w-4 h-4" />
-                  Link Expired — Generate New
+                  Link Expired â€” Generate New
                 </div>
               ) : (
                 <div className="flex items-center justify-between">
@@ -289,7 +289,7 @@ function InviteLinkModal({ gymId, plans, onClose }) {
   );
 }
 
-// ─── Stats Card ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Stats Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StatCard({ icon: Icon, label, value, color }) {
   const colorMap = {
@@ -312,7 +312,7 @@ function StatCard({ icon: Icon, label, value, color }) {
   );
 }
 
-// ─── Table Row Actions ────────────────────────────────────────────────────────
+// â”€â”€â”€ Table Row Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function RowActions({ member, gymId, plans, onGenerate }) {
   const [open, setOpen] = useState(false);
@@ -383,7 +383,7 @@ function RowActions({ member, gymId, plans, onGenerate }) {
   );
 }
 
-// ─── Member Grid Card ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Member Grid Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function MemberGridCard({ member, gymId, plans, onGenerate }) {
   const navigate = useNavigate();
@@ -426,7 +426,7 @@ function MemberGridCard({ member, gymId, plans, onGenerate }) {
         <div className="flex justify-between text-xs text-slate-500 mb-1">
           <span>Expiry</span>
           <span className={days !== null && days < 0 ? "text-red-400" : days !== null && days <= 7 ? "text-orange-400" : "text-slate-400"}>
-            {days !== null ? (days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`) : "—"}
+            {days !== null ? (days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`) : "â€”"}
           </span>
         </div>
         <p className="text-xs text-slate-400 text-center">{formatDate(member.expiryDate)}</p>
@@ -451,7 +451,7 @@ function MemberGridCard({ member, gymId, plans, onGenerate }) {
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const FILTER_TABS = [
   { key: "all", label: "All" },
@@ -462,8 +462,8 @@ const FILTER_TABS = [
 ];
 
 const SORT_OPTIONS = [
-  { value: "name_asc", label: "Name A→Z" },
-  { value: "name_desc", label: "Name Z→A" },
+  { value: "name_asc", label: "Name Aâ†’Z" },
+  { value: "name_desc", label: "Name Zâ†’A" },
   { value: "join_desc", label: "Newest First" },
   { value: "join_asc", label: "Oldest First" },
   { value: "expiry_asc", label: "Expiry Soonest" },
@@ -581,7 +581,7 @@ export default function Members() {
 
   return (
     <div className="min-h-screen bg-slate-950 p-6 space-y-6">
-      {/* ── Header ── */}
+      {/* â”€â”€ Header â”€â”€ */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-white">Members</h1>
@@ -605,7 +605,7 @@ export default function Members() {
         </div>
       </div>
 
-      {/* ── Stats Cards ── */}
+      {/* â”€â”€ Stats Cards â”€â”€ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={UserCheck} label="Active Members" value={stats.active} color="green" />
         <StatCard icon={UserX} label="Expired Members" value={stats.expired} color="red" />
@@ -613,7 +613,7 @@ export default function Members() {
         <StatCard icon={TrendingUp} label="New This Month" value={stats.newMonth} color="blue" />
       </div>
 
-      {/* ── Filters Row ── */}
+      {/* â”€â”€ Filters Row â”€â”€ */}
       <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 space-y-4">
         {/* Search + View Toggle */}
         <div className="flex flex-col sm:flex-row gap-3">
@@ -622,7 +622,7 @@ export default function Members() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name or phone…"
+              placeholder="Search by name or phoneâ€¦"
               className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors text-sm"
             />
           </div>
@@ -696,7 +696,7 @@ export default function Members() {
         </div>
       </div>
 
-      {/* ── Content ── */}
+      {/* â”€â”€ Content â”€â”€ */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="w-10 h-10 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
@@ -708,7 +708,7 @@ export default function Members() {
           <p className="text-sm">Try adjusting your filters</p>
         </div>
       ) : view === "table" ? (
-        /* ── Table View ── */
+        /* â”€â”€ Table View â”€â”€ */
         <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -738,20 +738,20 @@ export default function Members() {
                         <div className="flex items-center gap-3">
                           <Avatar member={m} size="sm" />
                           <div>
-                            <p className="font-semibold text-white">{m.name || "—"}</p>
+                            <p className="font-semibold text-white">{m.name || "â€”"}</p>
                             <p className="text-xs text-slate-500">{m.email || ""}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-slate-300">{m.phone || "—"}</td>
+                      <td className="px-4 py-3 text-slate-300">{m.phone || "â€”"}</td>
                       <td className="px-4 py-3">
                         {m.planName ? (
                           <span className="px-2 py-0.5 rounded-full text-xs bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
                             {m.planName}
                           </span>
-                        ) : "—"}
+                        ) : "â€”"}
                       </td>
-                      <td className="px-4 py-3 text-slate-300">{m.trainerName || "—"}</td>
+                      <td className="px-4 py-3 text-slate-300">{m.trainerName || "â€”"}</td>
                       <td className="px-4 py-3 text-slate-400">{formatDate(m.createdAt)}</td>
                       <td className="px-4 py-3 text-slate-400">{formatDate(m.expiryDate)}</td>
                       <td className="px-4 py-3">
@@ -776,7 +776,7 @@ export default function Members() {
           </div>
         </div>
       ) : (
-        /* ── Grid View ── */
+        /* â”€â”€ Grid View â”€â”€ */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {filtered.map((m) => (
             <MemberGridCard
@@ -790,7 +790,7 @@ export default function Members() {
         </div>
       )}
 
-      {/* ── Invite Modal ── */}
+      {/* â”€â”€ Invite Modal â”€â”€ */}
       {showInvite && (
         <InviteLinkModal
           gymId={gymId}
@@ -801,3 +801,4 @@ export default function Members() {
     </div>
   );
 }
+
