@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import SignatureCanvas from 'react-signature-canvas';
 import { useDropzone } from 'react-dropzone';
@@ -43,7 +43,7 @@ import {
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const STEPS = [
   { id: 1, label: 'Verify'     },
   { id: 2, label: 'Personal'   },
@@ -59,19 +59,19 @@ const WAIVER_CLAUSES = [
 ];
 
 const WORKOUT_TIMES = [
-  { id: 'morning',   label: 'Morning',   sub: '6 am – 9 am',   icon: '🌅' },
-  { id: 'afternoon', label: 'Afternoon', sub: '12 pm – 3 pm',  icon: '☀️' },
-  { id: 'evening',   label: 'Evening',   sub: '4 pm – 7 pm',   icon: '🌆' },
-  { id: 'night',     label: 'Night',     sub: '7 pm – 10 pm',  icon: '🌙' },
+  { id: 'morning',   label: 'Morning',   sub: '6 am â€“ 9 am',   icon: 'ðŸŒ…' },
+  { id: 'afternoon', label: 'Afternoon', sub: '12 pm â€“ 3 pm',  icon: 'â˜€ï¸' },
+  { id: 'evening',   label: 'Evening',   sub: '4 pm â€“ 7 pm',   icon: 'ðŸŒ†' },
+  { id: 'night',     label: 'Night',     sub: '7 pm â€“ 10 pm',  icon: 'ðŸŒ™' },
 ];
 
 const GENDER_OPTIONS = [
-  { value: 'male',   label: 'Male',   emoji: '♂️' },
-  { value: 'female', label: 'Female', emoji: '♀️' },
-  { value: 'other',  label: 'Other',  emoji: '⚧️' },
+  { value: 'male',   label: 'Male',   emoji: 'â™‚ï¸' },
+  { value: 'female', label: 'Female', emoji: 'â™€ï¸' },
+  { value: 'other',  label: 'Other',  emoji: 'âš§ï¸' },
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function cn(...classes) {
   return classes.filter(Boolean).join(' ');
 }
@@ -82,7 +82,7 @@ function formatDate(date) {
   });
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** Step progress bar */
 function StepBar({ current, total }) {
@@ -146,12 +146,13 @@ function Card({ children, className }) {
   );
 }
 
-/** Text input */
-function Input({ label, error, className, ...props }) {
+/** Text input with forwardRef for react-hook-form */
+const Input = React.forwardRef(({ label, error, className, ...props }, ref) => {
   return (
     <div className="space-y-1.5">
       {label && <label className="block text-sm font-medium text-slate-300">{label}</label>}
       <input
+        ref={ref}
         className={cn(
           'w-full bg-slate-900/70 border border-slate-600/60 text-white placeholder-slate-500 rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200 focus:border-teal-500/70 focus:ring-2 focus:ring-teal-500/20',
           error && 'border-red-500/50 focus:border-red-500/70 focus:ring-red-500/20',
@@ -162,7 +163,7 @@ function Input({ label, error, className, ...props }) {
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );
-}
+});
 
 /** Textarea */
 function Textarea({ label, error, ...props }) {
@@ -182,53 +183,53 @@ function Textarea({ label, error, ...props }) {
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function MemberSelfRegister() {
   const { gymId, token } = useParams();
   const navigate         = useNavigate();
 
-  // ── Token validation state ──
+  // â”€â”€ Token validation state â”€â”€
   const [tokenStatus,  setTokenStatus]  = useState('loading'); // loading | valid | expired | used | error
   const [tokenData,    setTokenData]    = useState(null);
   const [gymData,      setGymData]      = useState(null);
 
-  // ── Step state ──
+  // â”€â”€ Step state â”€â”€
   const [step, setStep] = useState(1);
 
-  // ── Step 2 – Personal Info ──
+  // â”€â”€ Step 2 â€“ Personal Info â”€â”€
   const [photoFile,    setPhotoFile]    = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const { register: reg2, handleSubmit: hs2, formState: { errors: e2 } } = useForm();
   const [gender,       setGender]       = useState('');
   const [personalData, setPersonalData] = useState({});
 
-  // ── Step 3 – Membership ──
+  // â”€â”€ Step 3 â€“ Membership â”€â”€
   const [plans,        setPlans]        = useState([]);
   const [trainers,     setTrainers]     = useState([]);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [selectedTrainer, setSelectedTrainer] = useState(null);
   const [plansLoading, setPlansLoading] = useState(false);
 
-  // ── Step 4 – Schedule ──
+  // â”€â”€ Step 4 â€“ Schedule â”€â”€
   const [preferredTime, setPreferredTime] = useState('');
   const [healthNotes,   setHealthNotes]   = useState('');
 
-  // ── Step 5 – Waiver ──
+  // â”€â”€ Step 5 â€“ Waiver â”€â”€
   const sigRef                              = useRef(null);
   const [waiverAgreed,  setWaiverAgreed]   = useState(false);
   const [typedName,     setTypedName]      = useState('');
   const [sigSaved,      setSigSaved]       = useState(false);
   const [sigError,      setSigError]       = useState('');
 
-  // ── Submit state ──
+  // â”€â”€ Submit state â”€â”€
   const [submitting,    setSubmitting]     = useState(false);
   const [submitError,   setSubmitError]    = useState('');
   const [success,       setSuccess]        = useState(false);
 
-  // ── Step navigation errors ──
+  // â”€â”€ Step navigation errors â”€â”€
   const [stepError,     setStepError]      = useState('');
 
-  // ─── Validate token on mount ─────────────────────────────────────────────
+  // â”€â”€â”€ Validate token on mount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     async function validate() {
       try {
@@ -252,7 +253,7 @@ export default function MemberSelfRegister() {
     validate();
   }, [gymId, token]);
 
-  // ─── Fetch plans & trainers when step 3 opens ────────────────────────────
+  // â”€â”€â”€ Fetch plans & trainers when step 3 opens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (step !== 3) return;
     (async () => {
@@ -272,7 +273,7 @@ export default function MemberSelfRegister() {
     })();
   }, [step, gymId]);
 
-  // ─── Photo drop zone ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Photo drop zone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const onDrop = useCallback((accepted) => {
     const file = accepted[0];
     if (!file) return;
@@ -289,7 +290,7 @@ export default function MemberSelfRegister() {
     maxSize: 5 * 1024 * 1024,
   });
 
-  // ─── Step validation & navigation ───────────────────────────────────────
+  // â”€â”€â”€ Step validation & navigation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const goNext = () => {
     setStepError('');
     if (step === 3 && !selectedPlan) {
@@ -310,7 +311,7 @@ export default function MemberSelfRegister() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ─── Step 2 submit ───────────────────────────────────────────────────────
+  // â”€â”€â”€ Step 2 submit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const onStep2Submit = (data) => {
     setStepError('');
     if (!gender) { setStepError('Please select your gender.'); return; }
@@ -319,14 +320,14 @@ export default function MemberSelfRegister() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ─── Clear signature ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Clear signature â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const clearSignature = () => {
     if (sigRef.current) sigRef.current.clear();
     setSigSaved(false);
     setSigError('');
   };
 
-  // ─── Final submit ────────────────────────────────────────────────────────
+  // â”€â”€â”€ Final submit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleFinalSubmit = async () => {
     setSubmitError('');
     setSigError('');
@@ -421,7 +422,7 @@ export default function MemberSelfRegister() {
     }
   };
 
-  // ─── Render: Loading ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Render: Loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (tokenStatus === 'loading') {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -430,13 +431,13 @@ export default function MemberSelfRegister() {
             <Dumbbell className="w-8 h-8 text-white" />
           </div>
           <Loader2 className="w-8 h-8 text-teal-400 animate-spin mx-auto" />
-          <p className="text-slate-400 text-sm">Validating your invitation link…</p>
+          <p className="text-slate-400 text-sm">Validating your invitation linkâ€¦</p>
         </div>
       </div>
     );
   }
 
-  // ─── Render: Expired / Used / Error ──────────────────────────────────────
+  // â”€â”€â”€ Render: Expired / Used / Error â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (['expired', 'used', 'error'].includes(tokenStatus)) {
     const expired = tokenStatus === 'expired';
     const used    = tokenStatus === 'used';
@@ -466,7 +467,7 @@ export default function MemberSelfRegister() {
                 onClick={() => navigate('/login')}
                 className="text-sm text-teal-400 hover:text-teal-300 transition-colors underline underline-offset-2"
               >
-                Go to Login →
+                Go to Login â†’
               </button>
             </div>
           </Card>
@@ -475,7 +476,7 @@ export default function MemberSelfRegister() {
     );
   }
 
-  // ─── Render: Success ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Render: Success â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (success) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
@@ -489,7 +490,7 @@ export default function MemberSelfRegister() {
           </div>
 
           <div className="space-y-2">
-            <h1 className="text-3xl font-extrabold text-white">Welcome to the Family! 🎉</h1>
+            <h1 className="text-3xl font-extrabold text-white">Welcome to the Family! ðŸŽ‰</h1>
             <p className="text-slate-400">Your account has been created successfully.</p>
           </div>
 
@@ -520,7 +521,7 @@ export default function MemberSelfRegister() {
     );
   }
 
-  // ─── Render: Registration Form ───────────────────────────────────────────
+  // â”€â”€â”€ Render: Registration Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <div className="min-h-screen bg-slate-950 py-8 px-4">
 
@@ -530,7 +531,7 @@ export default function MemberSelfRegister() {
 
       <div className="max-w-2xl mx-auto relative z-10">
 
-        {/* ── Header ── */}
+        {/* â”€â”€ Header â”€â”€ */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-400 to-green-500 flex items-center justify-center shadow-lg shadow-teal-500/30 overflow-hidden">
@@ -556,10 +557,10 @@ export default function MemberSelfRegister() {
           <p className="text-slate-400 text-sm mt-1">Complete all steps to activate your membership</p>
         </div>
 
-        {/* ── Progress bar ── */}
+        {/* â”€â”€ Progress bar â”€â”€ */}
         <StepBar current={step} total={STEPS.length} />
 
-        {/* ─────────────────────── STEP 1 – Verify ─────────────────────── */}
+        {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ STEP 1 â€“ Verify â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 1 && (
           <Card>
             <div className="text-center space-y-6">
@@ -574,7 +575,7 @@ export default function MemberSelfRegister() {
 
               <div className="space-y-2">
                 <h2 className="text-xl font-bold text-white">
-                  Welcome{gymData?.name ? ` to ${gymData.name}` : ''}! 👋
+                  Welcome{gymData?.name ? ` to ${gymData.name}` : ''}! ðŸ‘‹
                 </h2>
                 <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
                   You have been invited to join our gym. Complete this registration to activate your membership.
@@ -612,7 +613,7 @@ export default function MemberSelfRegister() {
           </Card>
         )}
 
-        {/* ─────────────────── STEP 2 – Personal Info ─────────────────── */}
+        {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ STEP 2 â€“ Personal Info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 2 && (
           <form onSubmit={hs2(onStep2Submit)}>
             <Card className="space-y-6">
@@ -653,7 +654,7 @@ export default function MemberSelfRegister() {
                           <Trash2 className="w-3 h-3 text-white" />
                         </button>
                       </div>
-                      <p className="text-xs text-teal-400">Photo selected · Click to change</p>
+                      <p className="text-xs text-teal-400">Photo selected Â· Click to change</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -765,7 +766,7 @@ export default function MemberSelfRegister() {
           </form>
         )}
 
-        {/* ─────────────────── STEP 3 – Membership ────────────────────── */}
+        {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ STEP 3 â€“ Membership â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 3 && (
           <Card className="space-y-6">
             <div>
@@ -777,7 +778,7 @@ export default function MemberSelfRegister() {
             {plansLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 text-teal-400 animate-spin" />
-                <span className="ml-2 text-slate-400 text-sm">Loading plans…</span>
+                <span className="ml-2 text-slate-400 text-sm">Loading plansâ€¦</span>
               </div>
             ) : plans.length === 0 ? (
               <div className="text-center py-12 text-slate-500">
@@ -816,7 +817,7 @@ export default function MemberSelfRegister() {
                         </div>
                         <div className="text-right">
                           <p className="text-2xl font-extrabold text-white">
-                            ₹{Number(plan.price).toLocaleString('en-IN')}
+                            â‚¹{Number(plan.price).toLocaleString('en-IN')}
                           </p>
                           <p className="text-[10px] text-slate-500">per {plan.durationUnit || 'month'}</p>
                         </div>
@@ -930,7 +931,7 @@ export default function MemberSelfRegister() {
           </Card>
         )}
 
-        {/* ─────────────────── STEP 4 – Schedule ──────────────────────── */}
+        {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ STEP 4 â€“ Schedule â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 4 && (
           <Card className="space-y-6">
             <div>
@@ -982,7 +983,7 @@ export default function MemberSelfRegister() {
               </label>
               <textarea
                 rows={4}
-                placeholder="Any injuries, medical conditions, or special requirements we should know about…"
+                placeholder="Any injuries, medical conditions, or special requirements we should know aboutâ€¦"
                 value={healthNotes}
                 onChange={(e) => setHealthNotes(e.target.value)}
                 className="w-full bg-slate-900/70 border border-slate-600/60 text-white placeholder-slate-500 rounded-xl px-4 py-3 text-sm outline-none transition-all duration-200 focus:border-teal-500/70 focus:ring-2 focus:ring-teal-500/20 resize-none"
@@ -1017,7 +1018,7 @@ export default function MemberSelfRegister() {
           </Card>
         )}
 
-        {/* ─────────────────── STEP 5 – Waiver & Signature ─────────────── */}
+        {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ STEP 5 â€“ Waiver & Signature â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {step === 5 && (
           <Card className="space-y-6">
             <div>
@@ -1147,7 +1148,7 @@ export default function MemberSelfRegister() {
                 {submitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating Account…
+                    Creating Accountâ€¦
                   </>
                 ) : (
                   <>
@@ -1166,3 +1167,4 @@ export default function MemberSelfRegister() {
     </div>
   );
 }
+
