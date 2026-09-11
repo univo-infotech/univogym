@@ -237,6 +237,22 @@ function InviteLinkModal({ gymId, plans, onClose }) {
 
           <div>
             <label className='block text-xs font-semibold text-slate-700 mb-1'>
+              Membership Plan
+            </label>
+            <select
+              value={planId}
+              onChange={(e) => setPlanId(e.target.value)}
+              className='w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white'
+            >
+              <option value=''>Auto / Let member choose during registration</option>
+              {plans.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>
               Custom Invite Code / Token (Optional)
             </label>
             <input
