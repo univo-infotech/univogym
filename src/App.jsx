@@ -18,22 +18,34 @@ function ProtectedRoute({ children, allowedRoles }) {
   return children;
 }
 
-function RoleRedirect() {
-  const { role, loading } = useAuth();
-  if (loading) return <Loader />;
-  if (role === "owner") return <Navigate to="/owner/dashboard" replace />;
-  if (role === "trainer") return <Navigate to="/trainer/dashboard" replace />;
-  if (role === "member") return <Navigate to="/member/dashboard" replace />;
-  return <Navigate to="/login" replace />;
-}
-
 export default function App() {
+  const { user, role, loading } = useAuth();
+
   return (
     <Routes>
+      {/* Root route: If not logged in, show Login page directly (No redirect!) */}
+      <Route
+        path="/"
+        element={
+          loading ? (
+            <Loader />
+          ) : user ? (
+            role === "owner" ? (
+              <Navigate to="/owner/dashboard" replace />
+            ) : role === "trainer" ? (
+              <Navigate to="/trainer/dashboard" replace />
+            ) : (
+              <Navigate to="/member/dashboard" replace />
+            )
+          ) : (
+            <Login />
+          )
+        }
+      />
+
       {/* Public Routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/register/:gymId/:token" element={<MemberSelfRegister />} />
-      <Route path="/" element={<RoleRedirect />} />
 
       {/* Owner Routes */}
       <Route
@@ -79,19 +91,8 @@ export default function App() {
         }
       />
 
-      {/* 404 */}
-      <Route
-        path="*"
-        element={
-          <div className="flex items-center justify-center min-h-screen bg-slate-950">
-            <div className="text-center">
-              <div className="text-6xl mb-4">🏋️</div>
-              <h1 className="text-4xl font-bold text-white mb-2">404</h1>
-              <p className="text-slate-400">Page not found</p>
-            </div>
-          </div>
-        }
-      />
+      {/* 404 Fallback: Any other URL goes to Home/Login */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
