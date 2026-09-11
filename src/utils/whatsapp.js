@@ -12,7 +12,7 @@ export function openWhatsApp(phone, message) {
 }
 
 export function generateMemberInviteMessage(gymName, token, baseUrl = window.location.origin) {
-  const link = `${baseUrl}/register/univo_main/${token}`;
+  const link = `${baseUrl}/#/register/univo_main/${token}`;
   return `💪 *Welcome to ${gymName || "Univo Gym Management"}!*\n\nPlease complete your membership registration form and liability waiver using this link:\n🔗 ${link}\n\n⚠️ *Note:* This link is valid for 5 minutes only.\nLet's get stronger together!`;
 }
 
