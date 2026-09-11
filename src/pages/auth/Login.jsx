@@ -106,36 +106,19 @@ export default function Login() {
 
         {/* ── Logo row ── */}
         <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-400 to-green-500 flex items-center justify-center shadow-lg shadow-teal-500/25 overflow-hidden">
-            <img
-              src="/logo-icon.png"
-              alt="Univo"
-              className="w-7 h-7 object-contain"
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'block';
-              }}
-            />
-            <Dumbbell className="w-5 h-5 text-white" style={{ display: 'none' }} />
-          </div>
+          <img
+            src="/logo-icon.png"
+            alt="Univo Gym Logo"
+            className="w-12 h-12 object-contain"
+          />
           <div>
-            <p className="text-xs font-bold tracking-[0.25em] text-teal-400 uppercase">Univo Gym</p>
-            <p className="text-[10px] text-slate-500 tracking-widest uppercase">Management System</p>
+            <p className="text-base font-extrabold tracking-wider text-white uppercase leading-none">Univo Gym</p>
+            <p className="text-[11px] font-semibold text-green-400 tracking-widest uppercase mt-1">Management System</p>
           </div>
         </div>
 
         {/* ── Hero content ── */}
         <div className="relative z-10 space-y-6">
-
-          {/* Full logo */}
-          <div className="mb-2">
-            <img
-              src="/logo-full.png"
-              alt="Univo Gym Management"
-              className="h-14 object-contain"
-              onError={(e) => { e.target.style.display = 'none'; }}
-            />
-          </div>
 
           <h1 className="text-4xl xl:text-5xl font-extrabold text-white leading-tight">
             Power Your{' '}

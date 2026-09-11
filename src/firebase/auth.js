@@ -8,8 +8,9 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "./config";
 
 export async function loginUser(email, password) {
-  const cred = await signInWithEmailAndPassword(auth, email, password);
-  return cred.user;
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  // Return userCredential object with user inside
+  return userCredential;
 }
 
 export async function logoutUser() {
@@ -20,13 +21,14 @@ export async function getUserRole(uid) {
   try {
     const userDoc = await getDoc(doc(db, "users", uid));
     if (userDoc.exists()) {
-      return userDoc.data();
+      const data = userDoc.data();
+      return data.role || "owner";
     }
-    // Default fallback if doc doesn't exist yet
-    return { role: "owner", gymId: "univo_main", name: "Gym Admin" };
+    // Default to owner for univo@gmail.com or newly created admin accounts
+    return "owner";
   } catch (error) {
     console.error("Error fetching user role:", error);
-    return { role: "owner", gymId: "univo_main", name: "Gym Admin" };
+    return "owner";
   }
 }
 
