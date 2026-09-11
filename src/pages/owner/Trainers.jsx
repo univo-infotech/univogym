@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, MessageCircle, MoreVertical, Link2, KeyRound, CheckCircle2, UserPlus, Image as ImageIcon } from "lucide-react";
+import { Plus, MessageCircle, MoreVertical, Link2, KeyRound, CheckCircle2, UserPlus, Image as ImageIcon, Upload, Camera } from "lucide-react";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import { getTrainers, addTrainer, updateTrainer, deleteTrainer } from "../../firebase/trainers";

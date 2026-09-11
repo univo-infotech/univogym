@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Dumbbell, Camera, CheckCircle2, User, Phone, Mail, Award, Briefcase, FileText } from "lucide-react";
+import { Dumbbell, Camera, CheckCircle2, User, Phone, Mail, Award, Briefcase, FileText, Upload, Image as ImageIcon } from "lucide-react";
 import { addTrainer } from "../../firebase/trainers";
 import toast from "react-hot-toast";
 
@@ -18,7 +18,21 @@ export default function TrainerSelfRegister() {
     experience: "",
     certifications: "",
     bio: "",
+    photoUrl: "",
+    certUrl: "",
+    portfolioUrl: "",
   });
+
+  const handleFileUpload = (e, field) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => ({ ...prev, [field]: reader.result }));
+      toast.success("File attached successfully!");
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -126,6 +140,33 @@ export default function TrainerSelfRegister() {
               </div>
             </div>
 
+
+            {/* Uploads Section */}
+            <div className="space-y-4 pt-4">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2">
+                <Upload className="w-4 h-4 text-emerald-600" /> Documents & Portfolio
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-emerald-400 transition text-center">
+                  <Camera className="w-6 h-6 text-slate-400 mb-2" />
+                  <span className="text-xs font-bold text-slate-700">{form.photoUrl ? "Profile Photo Added" : "Upload Profile Photo"}</span>
+                  <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'photoUrl')} className="hidden" />
+                </label>
+                
+                <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-emerald-400 transition text-center">
+                  <Award className="w-6 h-6 text-slate-400 mb-2" />
+                  <span className="text-xs font-bold text-slate-700">{form.certUrl ? "Certificate Added" : "Upload Certificate"}</span>
+                  <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, 'certUrl')} className="hidden" />
+                </label>
+                
+                <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-emerald-400 transition text-center">
+                  <ImageIcon className="w-6 h-6 text-slate-400 mb-2" />
+                  <span className="text-xs font-bold text-slate-700">{form.portfolioUrl ? "Before/After Added" : "Before/After Result"}</span>
+                  <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'portfolioUrl')} className="hidden" />
+                </label>
+              </div>
+            </div>
             <div className="pt-6">
               <button disabled={loading} type="submit" className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 transition-all disabled:opacity-50">
                 {loading ? "Submitting Profile..." : "Submit Trainer Profile"}
