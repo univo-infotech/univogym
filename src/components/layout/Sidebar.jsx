@@ -23,10 +23,12 @@ import {
   Menu
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { getGymSettings } from "../../utils/settings";
 
 export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
   const navigate = useNavigate();
   const { logoutUser } = useAuth();
+  const settings = getGymSettings();
 
   const ownerLinks = [
     { to: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -81,9 +83,15 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
         {/* Brand Header */}
         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo-icon.png" alt="Univo Logo" className="w-10 h-10 object-contain" />
-            <div>
-              <h1 className="font-extrabold text-slate-900 text-sm tracking-wider">UNIVO GYM</h1>
+            <img
+              src={settings.logoUrl || "/logo-icon.png"}
+              alt="Gym Logo"
+              className="w-10 h-10 object-contain rounded-xl"
+            />
+            <div className="overflow-hidden">
+              <h1 className="font-extrabold text-slate-900 text-sm tracking-wider truncate">
+                {settings.gymName || "UNIVO GYM"}
+              </h1>
               <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Management</p>
             </div>
           </div>

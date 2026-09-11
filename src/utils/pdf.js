@@ -138,7 +138,24 @@ export function generatePaymentReceipt(payment, customSettings = null) {
   doc.text("1. Fees once paid is strictly non-refundable and non-transferable under any circumstances.", 20, 182);
   doc.text("2. Please present this receipt or member ID pass upon entering the fitness facility.", 20, 187);
 
+  // Logo embedding if custom dataUrl is provided
+  if (settings.logoUrl && settings.logoUrl.startsWith("data:image")) {
+    try {
+      doc.addImage(settings.logoUrl, "PNG", 14, 4, 18, 18);
+    } catch (e) {
+      console.warn("Logo image embed failed:", e);
+    }
+  }
+
   // Signature Block
+  if (settings.signatureUrl && settings.signatureUrl.startsWith("data:image")) {
+    try {
+      doc.addImage(settings.signatureUrl, "PNG", 135, 196, 40, 16);
+    } catch (e) {
+      console.warn("Signature image embed failed:", e);
+    }
+  }
+
   doc.setTextColor(71, 85, 105);
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");

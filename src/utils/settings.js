@@ -8,7 +8,9 @@ const DEFAULT_SETTINGS = {
   whatsappReminder: "⚠️ *Gym Renewal Reminder*\n\nHi {name},\nYour membership for *{plan}* is expiring on *{expiry}*.\nPending/Renewal Amount: ₹{amount}.\n\nRenew today to maintain your workout consistency! 💪\n— {gym_name}",
   whatsappReceipt: "🧾 *Payment Receipt - {gym_name}*\n\nMember: {name}\nPlan: {plan}\nPaid: ₹{amount}\nDate: {date}\n\nThank you for training with us!",
   ownerSignatureName: "Authorized Signatory",
-  ownerSignatureTitle: "Gym Manager / Owner"
+  ownerSignatureTitle: "Gym Manager / Owner",
+  logoUrl: "/logo-icon.png",
+  signatureUrl: ""
 };
 
 export function getGymSettings() {
