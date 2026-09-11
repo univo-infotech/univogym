@@ -347,46 +347,62 @@ export default function Trainers() {
               <textarea rows={2} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 focus:bg-white outline-none resize-none" placeholder="Short description of the trainer's background..."></textarea>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+              <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-emerald-400 transition text-center">
+                <Camera className="w-5 h-5 text-slate-400 mb-1" />
+                <span className="text-[10px] font-bold text-slate-600">{form.photoUrl ? "Photo Added" : "Upload Photo"}</span>
+                <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'photoUrl')} className="hidden" />
+              </label>
+              <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-emerald-400 transition text-center">
+                <Upload className="w-5 h-5 text-slate-400 mb-1" />
+                <span className="text-[10px] font-bold text-slate-600">{form.certUrl ? "Cert Added" : "Upload Cert"}</span>
+                <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, 'certUrl')} className="hidden" />
+              </label>
+              <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-emerald-400 transition text-center">
+                <ImageIcon className="w-5 h-5 text-slate-400 mb-1" />
+                <span className="text-[10px] font-bold text-slate-600">{form.portfolioUrl ? "Result Added" : "Before/After"}</span>
+                <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'portfolioUrl')} className="hidden" />
+              </label>
+            </div>
+
             <button disabled={loading} type="submit" className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:shadow-lg disabled:opacity-50">
               {loading ? "Creating Account..." : "Create Trainer & Account"}
             </button>
           </form>
         ) : (
-          <div className="space-y-5 text-center pb-2">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-2">
-              <Link2 className="w-8 h-8 text-emerald-600" />
-            </div>
-            <div>
+          <div className="space-y-5 pb-2">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                <Link2 className="w-8 h-8 text-emerald-600" />
+              </div>
               <h3 className="text-lg font-bold text-slate-900">Invite Trainer via Link</h3>
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                Generate a secure registration link. The trainer will be able to set up their own profile, upload photos, and create a password securely.
+                Send a secure registration link. The trainer can upload their photo, certificates, and before/after results.
               </p>
             </div>
 
-            {!inviteLink ? (
-              <button onClick={handleGenerateLink} className="w-full py-3 rounded-xl bg-slate-900 text-white font-bold text-sm shadow-md transition hover:bg-slate-800 flex items-center justify-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Generate Secure Link
-              </button>
-            ) : (
-              <div className="space-y-3">
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl break-all text-xs font-medium text-emerald-800 text-left">
-                  {inviteLink}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => {
-                    navigator.clipboard.writeText(inviteLink);
-                    toast.success("Link copied!");
-                  }} className="py-2.5 rounded-xl border-2 border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50">
-                    Copy Link
-                  </button>
-                  <button onClick={() => {
-                    window.open(`https://wa.me/?text=Hi! Please use this secure link to register your Trainer profile at the Gym: ${inviteLink}`, "_blank");
-                  }} className="py-2.5 rounded-xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 flex items-center justify-center gap-2 shadow-sm">
-                    <MessageCircle className="w-4 h-4" /> Share
-                  </button>
-                </div>
+            <div className="space-y-3 pt-2 text-left">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Trainer Name</label>
+                <input type="text" value={linkForm.name} onChange={(e) => setLinkForm({ ...linkForm, name: e.target.value })} className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 focus:bg-white outline-none" placeholder="e.g. Rahul Coach" />
               </div>
-            )}
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Trainer Phone (WhatsApp)</label>
+                <input type="tel" value={linkForm.phone} onChange={(e) => setLinkForm({ ...linkForm, phone: e.target.value })} className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 focus:bg-white outline-none" placeholder="9876543210" />
+              </div>
+            </div>
+
+            <button onClick={() => {
+              if(!linkForm.phone) { toast.error("Phone number is required"); return; }
+              const token = Math.random().toString(36).substring(2, 10);
+              const link = `${window.location.origin}/register-trainer?t=${token}`;
+              const msg = `Hi ${linkForm.name || "Coach"}, please use this secure link to register your Trainer profile and upload your portfolio: ${link}`;
+              const num = linkForm.phone.replace(/\D/g, "");
+              window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, "_blank");
+              setModalOpen(false);
+            }} className="w-full py-3 mt-4 rounded-xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 flex items-center justify-center gap-2 shadow-sm transition">
+              <MessageCircle className="w-5 h-5" /> Generate & Send on WhatsApp
+            </button>
           </div>
         )}
       </Modal>
