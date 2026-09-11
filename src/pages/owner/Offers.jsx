@@ -1,83 +1,91 @@
-﻿import React, { useState } from "react";
-import { Tag, Send, MessageSquare } from "lucide-react";
+import React, { useState } from "react";
+import { Tag, Send, MessageSquare, Sparkles, Percent } from "lucide-react";
 import Button from "../../components/ui/Button";
 import { openWhatsApp } from "../../utils/whatsapp";
 
 export default function Offers() {
   const [broadcastMessage, setBroadcastMessage] = useState(
-    "🔥 *UNIVO GYM SPECIAL OFFER!*\n\nGet 20% OFF on 6-Month & 1-Year plans this festival season. Free Personal Training assessment included!\n\nVisit gym reception to claim today 💪"
+    "🔥 *UNIVO GYM SPECIAL OFFER!*\n\nGet 20% FLAT OFF on 6-Month & 1-Year plans this season! Free Personal Training fitness assessment included.\n\nVisit gym reception to claim today 💪"
   );
   const [targetAudience, setTargetAudience] = useState("all");
+
+  const dummyOffers = [
+    { id: "o1", title: "Festival Flash Sale", discount: "20% OFF", plan: "Annual Elite", expiry: "30 Sep 2026", active: true },
+    { id: "o2", title: "Buddy Transformation Deal", discount: "Buy 1 Get 1 at 50%", plan: "6-Month Transformation", expiry: "15 Oct 2026", active: true },
+    { id: "o3", title: "Student Fitness Pass", discount: "Flat ₹1000 OFF", plan: "3-Month Pro", expiry: "Ongoing", active: true },
+  ];
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-white">Offers & WhatsApp Broadcast</h2>
-        <p className="text-slate-400 text-xs mt-1">Send marketing discounts, festival wishes & gym announcements directly on WhatsApp</p>
+        <h1 className="text-2xl font-bold text-slate-900">Offers & WhatsApp Broadcast</h1>
+        <p className="text-slate-500 text-xs mt-1">
+          Send marketing promotions, festival discounts & win-back messages directly on WhatsApp
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
-          <h3 className="text-base font-semibold text-white flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-green-400" /> WhatsApp Message Composer
+        {/* WhatsApp Composer */}
+        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-emerald-600" /> WhatsApp Direct Broadcaster
           </h3>
 
           <div>
-            <label className="text-xs text-slate-300">Select Target Group</label>
+            <label className="text-xs font-bold text-slate-700">Select Target Group</label>
             <select
               value={targetAudience}
               onChange={(e) => setTargetAudience(e.target.value)}
-              className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-sm text-white"
+              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900"
             >
-              <option value="all">All Active Members</option>
-              <option value="expired">Expired Members (Win-back)</option>
-              <option value="expiring">Members Expiring This Week</option>
-              <option value="leads">Demo / Inquiries (Leads)</option>
+              <option value="all">All Active Members (148 Members)</option>
+              <option value="expired">Expired Members (Win-back Deal)</option>
+              <option value="expiring">Members Expiring This Week (Renewal Prompt)</option>
+              <option value="leads">Walk-in Leads & Trials</option>
             </select>
           </div>
 
           <div>
-            <label className="text-xs text-slate-300">Message Content</label>
+            <label className="text-xs font-bold text-slate-700">Message Content</label>
             <textarea
-              rows={6}
+              rows={5}
               value={broadcastMessage}
               onChange={(e) => setBroadcastMessage(e.target.value)}
-              className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm text-white font-mono resize-none"
+              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm text-slate-900 font-mono resize-none focus:bg-white focus:outline-none focus:border-emerald-500"
             />
           </div>
 
-          <Button
-            variant="whatsapp"
-            fullWidth
-            icon={<Send className="w-4 h-4" />}
+          <button
             onClick={() => openWhatsApp("", broadcastMessage)}
+            className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2"
           >
-            Broadcast to {targetAudience.toUpperCase()} Group
-          </Button>
+            <Send className="w-4 h-4" /> Open WhatsApp Broadcast
+          </button>
         </div>
 
-        <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
-          <h3 className="text-base font-semibold text-white flex items-center gap-2">
-            <Tag className="w-4 h-4 text-teal-400" /> Live Gym Offers
+        {/* Active Promos */}
+        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <Tag className="w-5 h-5 text-emerald-600" /> Active Membership Offers
           </h3>
-          <div className="space-y-3">
-            <div className="p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-teal-500/10 border border-green-500/20">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-green-400">SUMMER TRANSFORMATION</span>
-                <span className="text-xs text-slate-400">Valid till 30 Sep</span>
-              </div>
-              <h4 className="text-base font-bold text-white mt-1">Flat 20% OFF + 15 Days Free</h4>
-              <p className="text-xs text-slate-300 mt-1">Applicable on 3-month and 6-month combo packages with personal training.</p>
-            </div>
 
-            <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-amber-400">REFERRAL BONUS</span>
-                <span className="text-xs text-slate-400">Always Active</span>
+          <div className="space-y-3">
+            {dummyOffers.map((off) => (
+              <div key={off.id} className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-extrabold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                      {off.discount}
+                    </span>
+                    <h4 className="text-sm font-bold text-slate-900">{off.title}</h4>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1">Applies to: {off.plan} • Valid: {off.expiry}</p>
+                </div>
+                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full">
+                  LIVE
+                </span>
               </div>
-              <h4 className="text-base font-bold text-white mt-1">Bring a Friend, Get 1 Month Free</h4>
-              <p className="text-xs text-slate-300 mt-1">When your referred friend joins for 3+ months, both get 1 month extension.</p>
-            </div>
+            ))}
           </div>
         </div>
       </div>
