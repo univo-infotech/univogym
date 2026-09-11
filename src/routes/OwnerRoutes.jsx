@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "../components/layout/Layout";
 
@@ -34,6 +34,7 @@ export default function OwnerRoutes() {
         <Route path="services" element={<Services />} />
         <Route path="stock" element={<Stock />} />
         <Route path="payments" element={<Payments />} />
+        <Route path="fees" element={<Payments />} />
         <Route path="expenses" element={<Expenses />} />
         <Route path="reports" element={<Reports />} />
         <Route path="visits" element={<Visits />} />

@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -31,16 +31,16 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
   const ownerLinks = [
     { to: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/owner/members", label: "Members", icon: Users },
+    { to: "/owner/payments", label: "Fees & Receipts", icon: Receipt },
     { to: "/owner/trainers", label: "Trainers", icon: Dumbbell },
     { to: "/owner/staff", label: "Staff", icon: UserCheck },
-    { to: "/owner/memberships", label: "Memberships", icon: CreditCard },
+    { to: "/owner/memberships", label: "Memberships & Plans", icon: CreditCard },
     { to: "/owner/services", label: "Services", icon: Star },
     { to: "/owner/stock", label: "Stock & Equipment", icon: Package },
-    { to: "/owner/payments", label: "Payments", icon: DollarSign },
-    { to: "/owner/expenses", label: "Expenses", icon: Receipt },
-    { to: "/owner/reports", label: "Reports", icon: BarChart2 },
-    { to: "/owner/visits", label: "Visits & Demo", icon: CalendarCheck },
-    { to: "/owner/offers", label: "Offers & Broadcast", icon: Tag },
+    { to: "/owner/expenses", label: "Expenses & Utility", icon: DollarSign },
+    { to: "/owner/reports", label: "Reports (Daily/Monthly)", icon: BarChart2 },
+    { to: "/owner/visits", label: "Visit & Demo", icon: CalendarCheck },
+    { to: "/owner/offers", label: "Offer & Broadcast", icon: Tag },
     { to: "/owner/settings", label: "Settings", icon: Settings },
   ];
 

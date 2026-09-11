@@ -507,11 +507,11 @@ export default function Dashboard() {
       <Modal
         isOpen={renewalsModalOpen}
         onClose={() => setRenewalsModalOpen(false)}
-        title="🔔 Expiring Members & WhatsApp Reminder Blast"
+        title="🔔 3-Day Renewals & WhatsApp Reminder Blast"
       >
         <div className="space-y-4 text-slate-800">
           <p className="text-xs text-slate-500">
-            Un members ki list jinka plan agle 7 dino me expire ho raha hai. Ek click se WhatsApp reminder bhejein:
+            List of members whose gym membership is expiring within 3 to 7 days. Send official WhatsApp renewal reminders in 1-click:
           </p>
 
           <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto pr-1">

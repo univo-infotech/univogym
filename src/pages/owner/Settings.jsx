@@ -22,7 +22,7 @@ export default function Settings() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Gym Settings & Custom Branding</h1>
         <p className="text-slate-500 text-xs mt-1">
-          Har gym owner apna Gym Name, Tagline, WhatsApp Reminders, aur Official Signature Receipt ke liye set kar sakta hai
+          Configure your Gym Name, Tagline, Phone, Address, WhatsApp Reminders, and Authorized Signatory on official invoices.
         </p>
       </div>
 
@@ -34,7 +34,7 @@ export default function Settings() {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-bold text-slate-700">Gym Name (Har jagah aur Receipt pe show hoga)</label>
+              <label className="text-xs font-bold text-slate-700">Gym Name (Appears on all bills & receipts)</label>
               <input
                 required
                 type="text"
@@ -64,7 +64,7 @@ export default function Settings() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">Gym Address / Branch</label>
+              <label className="text-xs font-bold text-slate-700">Gym Address / Facility Location</label>
               <input
                 type="text"
                 value={settings.address}
@@ -78,10 +78,10 @@ export default function Settings() {
         {/* Bill Receipt Signatory Card */}
         <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
           <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <FileSignature className="w-5 h-5 text-emerald-600" /> Bill Receipt Signature & Authority
+            <FileSignature className="w-5 h-5 text-emerald-600" /> Official Invoice Signatory & Authority
           </h3>
           <p className="text-xs text-slate-500">
-            Payment receipt PDF download karte waqt jo authority signature stamp aayega:
+            Authorized signature stamp that appears on official member receipts and bills:
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -113,7 +113,7 @@ export default function Settings() {
             <MessageSquare className="w-5 h-5 text-emerald-600" /> WhatsApp Renewal Reminder Notification Template
           </h3>
           <p className="text-xs text-slate-500">
-            Variables: {"{name}"} = Member Name, {"{plan}"} = Plan Name, {"{expiry}"} = Expiry Date, {"{amount}"} = Renewal Price, {"{gym_name}"} = Gym Name
+            Dynamic Variables: {"{name}"} = Member Name, {"{plan}"} = Plan Name, {"{expiry}"} = Expiry Date, {"{amount}"} = Renewal Price, {"{gym_name}"} = Gym Name
           </p>
           <textarea
             rows={4}
