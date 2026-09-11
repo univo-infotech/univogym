@@ -1,9 +1,10 @@
-﻿import React from "react";
+import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
 import Loader from "./components/ui/Loader";
 import Login from "./pages/auth/Login";
 import MemberSelfRegister from "./pages/auth/MemberSelfRegister";
+import TrainerSelfRegister from "./pages/auth/TrainerSelfRegister";
 
 // Owner Pages
 import OwnerLayout from "./routes/OwnerRoutes";
@@ -46,6 +47,7 @@ export default function App() {
       {/* Public Routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/register/:gymId/:token" element={<MemberSelfRegister />} />
+      <Route path="/register-trainer/:gymId/:token" element={<TrainerSelfRegister />} />
 
       {/* Owner Routes */}
       <Route

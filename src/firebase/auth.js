@@ -1,15 +1,16 @@
-﻿import { 
+import { 
   signInWithEmailAndPassword, 
   signOut, 
   createUserWithEmailAndPassword, 
-  updateProfile 
+  updateProfile,
+  getAuth as getSecondaryAuth
 } from "firebase/auth";
+import { initializeApp, deleteApp } from "firebase/app";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { auth, db } from "./config";
+import app, { auth, db } from "./config";
 
 export async function loginUser(email, password) {
   const userCredential = await signInWithEmailAndPassword(auth, email, password);
-  // Return userCredential object with user inside
   return userCredential;
 }
 
@@ -24,7 +25,6 @@ export async function getUserRole(uid) {
       const data = userDoc.data();
       return data.role || "owner";
     }
-    // Default to owner for univo@gmail.com or newly created admin accounts
     return "owner";
   } catch (error) {
     console.error("Error fetching user role:", error);
@@ -32,17 +32,32 @@ export async function getUserRole(uid) {
   }
 }
 
-export async function createStaffUser(email, password, role, gymId, name = "") {
-  const cred = await createUserWithEmailAndPassword(auth, email, password);
-  if (name) {
-    await updateProfile(cred.user, { displayName: name });
+export async function createStaffUser(email, password, role, gymId, name = "", profileId = "") {
+  try {
+    const secondaryApp = initializeApp(app.options, "SecondaryApp_" + Date.now());
+    const secondaryAuth = getSecondaryAuth(secondaryApp);
+    
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    if (name) {
+      await updateProfile(cred.user, { displayName: name });
+    }
+    
+    // Assign role in main db
+    await setDoc(doc(db, "users", cred.user.uid), {
+      email,
+      role,
+      gymId,
+      name,
+      profileId,
+      createdAt: new Date().toISOString()
+    });
+    
+    await secondaryAuth.signOut();
+    await deleteApp(secondaryApp);
+    
+    return cred.user;
+  } catch (error) {
+    console.error("Error creating staff/trainer user:", error);
+    throw error;
   }
-  await setDoc(doc(db, "users", cred.user.uid), {
-    email,
-    role,
-    gymId,
-    name,
-    createdAt: new Date().toISOString()
-  });
-  return cred.user;
 }
