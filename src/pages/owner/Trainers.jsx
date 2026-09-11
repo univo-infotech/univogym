@@ -293,7 +293,25 @@ export default function Trainers() {
         </div>
 
         {activeTab === "manual" ? (
-          <form onSubmit={handleManualAdd} className="space-y-4">
+          <form onSubmit={handleManualAdd} className="space-y-5">
+            {/* Top Profile Photo */}
+            <div className="flex flex-col items-center justify-center mb-2">
+              <label className="relative cursor-pointer group">
+                <div className="w-24 h-24 rounded-full bg-slate-100 border-4 border-white shadow-md overflow-hidden flex items-center justify-center transition group-hover:shadow-lg group-hover:border-emerald-50">
+                  {form.photoUrl ? (
+                    <img src={form.photoUrl} alt="Trainer" className="w-full h-full object-cover" />
+                  ) : (
+                    <UserPlus className="w-10 h-10 text-slate-300" />
+                  )}
+                </div>
+                <div className="absolute bottom-0 right-0 w-8 h-8 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center shadow-sm group-hover:bg-emerald-600 transition group-hover:scale-105">
+                  <Camera className="w-4 h-4 text-white" />
+                </div>
+                <input type="file" accept="image/jpeg, image/png" onChange={(e) => handleFileUpload(e, 'photoUrl')} className="hidden" />
+              </label>
+              <p className="text-[11px] font-bold text-slate-500 mt-2 uppercase tracking-wide">Profile Photo</p>
+            </div>
+
             <div className="flex items-start gap-4 p-3 bg-blue-50 border border-blue-100 rounded-xl">
               <KeyRound className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
               <div>
@@ -322,8 +340,8 @@ export default function Trainers() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Specialization</label>
-                <input type="text" value={form.specialization} onChange={(e) => setForm({ ...form, specialization: e.target.value })} className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 focus:bg-white outline-none" />
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Phone *</label>
+                <input required type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 focus:bg-white outline-none" placeholder="9876543210" />
               </div>
               <div>
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Experience</label>
@@ -331,42 +349,55 @@ export default function Trainers() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Phone *</label>
-                <input required type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 focus:bg-white outline-none" placeholder="9876543210" />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Certifications</label>
-                <input type="text" value={form.certifications} onChange={(e) => setForm({ ...form, certifications: e.target.value })} className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 focus:bg-white outline-none" placeholder="ACE, ISSA, etc." />
-              </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Specialization</label>
+              <input type="text" value={form.specialization} onChange={(e) => setForm({ ...form, specialization: e.target.value })} className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 focus:bg-white outline-none" placeholder="e.g. Weight Training & Hypertrophy" />
             </div>
 
             <div>
-              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Bio / Description</label>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Professional Bio</label>
               <textarea rows={2} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm focus:border-emerald-500 focus:bg-white outline-none resize-none" placeholder="Short description of the trainer's background..."></textarea>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-              <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-emerald-400 transition text-center">
-                <Camera className="w-5 h-5 text-slate-400 mb-1" />
-                <span className="text-[10px] font-bold text-slate-600">{form.photoUrl ? "Photo Added" : "Upload Photo"}</span>
-                <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'photoUrl')} className="hidden" />
-              </label>
-              <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-emerald-400 transition text-center">
-                <Upload className="w-5 h-5 text-slate-400 mb-1" />
-                <span className="text-[10px] font-bold text-slate-600">{form.certUrl ? "Cert Added" : "Upload Cert"}</span>
-                <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, 'certUrl')} className="hidden" />
-              </label>
-              <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-emerald-400 transition text-center">
-                <ImageIcon className="w-5 h-5 text-slate-400 mb-1" />
-                <span className="text-[10px] font-bold text-slate-600">{form.portfolioUrl ? "Result Added" : "Before/After"}</span>
-                <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'portfolioUrl')} className="hidden" />
-              </label>
+            {/* Premium Documents Section */}
+            <div className="pt-2">
+              <h4 className="text-sm font-bold text-slate-900 mb-3 border-b border-slate-100 pb-2">Documents & Portfolio</h4>
+              <div className="space-y-3">
+                
+                {/* Certification Upload */}
+                <label className="flex items-center gap-4 p-3 border border-slate-200 rounded-2xl cursor-pointer hover:bg-emerald-50 hover:border-emerald-300 transition group bg-white shadow-sm">
+                  <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-100 group-hover:border-emerald-200 transition">
+                    {form.certUrl ? <CheckCircle2 className="w-6 h-6 text-emerald-600" /> : <ImageIcon className="w-5 h-5 text-slate-400 group-hover:text-emerald-600" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-800">Trainer Certification</p>
+                    <p className="text-[11px] font-medium text-slate-500">Supports PDF, JPG, PNG (Max 2MB)</p>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-bold group-hover:bg-emerald-500 group-hover:text-white transition">
+                    {form.certUrl ? "Change File" : "Browse"}
+                  </div>
+                  <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileUpload(e, 'certUrl')} className="hidden" />
+                </label>
+
+                {/* Portfolio Upload */}
+                <label className="flex items-center gap-4 p-3 border border-slate-200 rounded-2xl cursor-pointer hover:bg-emerald-50 hover:border-emerald-300 transition group bg-white shadow-sm">
+                  <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-100 group-hover:border-emerald-200 transition">
+                    {form.portfolioUrl ? <CheckCircle2 className="w-6 h-6 text-emerald-600" /> : <Camera className="w-5 h-5 text-slate-400 group-hover:text-emerald-600" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-800">Before/After Transformation</p>
+                    <p className="text-[11px] font-medium text-slate-500">Upload JPG, PNG (Max 2MB)</p>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-bold group-hover:bg-emerald-500 group-hover:text-white transition">
+                    {form.portfolioUrl ? "Change File" : "Browse"}
+                  </div>
+                  <input type="file" accept="image/jpeg, image/png" onChange={(e) => handleFileUpload(e, 'portfolioUrl')} className="hidden" />
+                </label>
+              </div>
             </div>
 
-            <button disabled={loading} type="submit" className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:shadow-lg disabled:opacity-50">
-              {loading ? "Creating Account..." : "Create Trainer & Account"}
+            <button disabled={loading} type="submit" className="w-full py-3.5 mt-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:shadow-lg hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 flex justify-center items-center gap-2">
+              {loading ? "Creating Account..." : <><CheckCircle2 className="w-5 h-5" /> Create Trainer & Account</>}
             </button>
           </form>
         ) : (

@@ -81,9 +81,19 @@ export default function TrainerSelfRegister() {
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-2xl mx-auto space-y-8">
         <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <Dumbbell className="w-8 h-8 text-white" />
-          </div>
+          <label className="relative cursor-pointer group inline-block mb-4">
+            <div className="w-24 h-24 rounded-full bg-white border-4 border-emerald-100 shadow-xl overflow-hidden flex items-center justify-center transition group-hover:shadow-2xl group-hover:border-emerald-200 mx-auto">
+              {form.photoUrl ? (
+                <img src={form.photoUrl} alt="Trainer Profile" className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-10 h-10 text-emerald-600" />
+              )}
+            </div>
+            <div className="absolute bottom-0 right-0 w-8 h-8 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center shadow-sm group-hover:bg-emerald-600 transition group-hover:scale-105">
+              <Camera className="w-4 h-4 text-white" />
+            </div>
+            <input type="file" accept="image/jpeg, image/png" onChange={(e) => handleFileUpload(e, 'photoUrl')} className="hidden" />
+          </label>
           <h2 className="text-3xl font-extrabold text-slate-900">Trainer Registration</h2>
           <p className="mt-2 text-sm text-slate-500">
             Create your professional trainer profile. You can update these details later once you receive your login credentials.
@@ -154,23 +164,36 @@ export default function TrainerSelfRegister() {
                 <Upload className="w-4 h-4 text-emerald-600" /> Documents & Portfolio
               </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-emerald-400 transition text-center">
-                  <Camera className="w-6 h-6 text-slate-400 mb-2" />
-                  <span className="text-xs font-bold text-slate-700">{form.photoUrl ? "Profile Photo Added" : "Upload Profile Photo"}</span>
-                  <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'photoUrl')} className="hidden" />
-                </label>
+              <div className="space-y-3">
                 
-                <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-emerald-400 transition text-center">
-                  <Award className="w-6 h-6 text-slate-400 mb-2" />
-                  <span className="text-xs font-bold text-slate-700">{form.certUrl ? "Certificate Added" : "Upload Certificate"}</span>
-                  <input type="file" accept="image/*,.pdf" onChange={(e) => handleFileUpload(e, 'certUrl')} className="hidden" />
+                {/* Certification Upload */}
+                <label className="flex items-center gap-4 p-4 border border-slate-200 rounded-2xl cursor-pointer hover:bg-emerald-50 hover:border-emerald-300 transition group bg-white shadow-sm">
+                  <div className="w-14 h-14 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-100 group-hover:border-emerald-200 transition">
+                    {form.certUrl ? <CheckCircle2 className="w-7 h-7 text-emerald-600" /> : <Award className="w-6 h-6 text-slate-400 group-hover:text-emerald-600" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-800">Trainer Certification</p>
+                    <p className="text-[11px] font-medium text-slate-500">Supports PDF, JPG, PNG (Max 2MB)</p>
+                  </div>
+                  <div className="px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold group-hover:bg-emerald-500 group-hover:text-white transition">
+                    {form.certUrl ? "Change File" : "Browse Files"}
+                  </div>
+                  <input type="file" accept="image/jpeg, image/png, application/pdf" onChange={(e) => handleFileUpload(e, 'certUrl')} className="hidden" />
                 </label>
-                
-                <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-emerald-400 transition text-center">
-                  <ImageIcon className="w-6 h-6 text-slate-400 mb-2" />
-                  <span className="text-xs font-bold text-slate-700">{form.portfolioUrl ? "Before/After Added" : "Before/After Result"}</span>
-                  <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'portfolioUrl')} className="hidden" />
+
+                {/* Portfolio Upload */}
+                <label className="flex items-center gap-4 p-4 border border-slate-200 rounded-2xl cursor-pointer hover:bg-emerald-50 hover:border-emerald-300 transition group bg-white shadow-sm">
+                  <div className="w-14 h-14 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-100 group-hover:border-emerald-200 transition">
+                    {form.portfolioUrl ? <CheckCircle2 className="w-7 h-7 text-emerald-600" /> : <ImageIcon className="w-6 h-6 text-slate-400 group-hover:text-emerald-600" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-800">Before/After Transformation</p>
+                    <p className="text-[11px] font-medium text-slate-500">Upload JPG, PNG (Max 2MB)</p>
+                  </div>
+                  <div className="px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold group-hover:bg-emerald-500 group-hover:text-white transition">
+                    {form.portfolioUrl ? "Change File" : "Browse Files"}
+                  </div>
+                  <input type="file" accept="image/jpeg, image/png" onChange={(e) => handleFileUpload(e, 'portfolioUrl')} className="hidden" />
                 </label>
               </div>
             </div>
