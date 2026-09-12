@@ -5,6 +5,7 @@ import {
   getDocs,
   addDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -290,4 +291,24 @@ export async function addMember(gymId, memberData) {
 
   return memberId;
 }
+
+/**
+ * Delete a member document and clear from local cache.
+ */
+export async function deleteMember(memberId) {
+  try {
+    await deleteDoc(doc(db, "members", memberId));
+  } catch (err) {
+    console.warn("deleteMember firestore error:", err);
+  }
+
+  try {
+    const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
+    const updated = cached.filter((m) => m.id !== memberId);
+    localStorage.setItem("univo_recent_members", JSON.stringify(updated));
+  } catch (e) {
+    // Ignore
+  }
+}
+
 

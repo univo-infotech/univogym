@@ -24,12 +24,24 @@ import {
   Share2,
   Sparkles,
   CheckCircle2,
-  QrCode
+  QrCode,
+  CalendarPlus,
+  RotateCcw,
+  Trash2,
+  Check,
+  Sun,
+  Moon,
+  Dumbbell,
+  Receipt,
+  IndianRupee,
+  LogOut,
+  Calendar
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
-import { getMembers, generateInviteToken, addMember } from '../../firebase/members';
+import { getMembers, generateInviteToken, addMember, updateMember, deleteMember } from '../../firebase/members';
 import { getTrainers } from '../../firebase/trainers';
+import { addPayment } from '../../firebase/payments';
 import { useAuth } from '../../contexts/AuthContext';
 import { generatePaymentReceipt } from '../../utils/pdf';
 import { getGymSettings } from '../../utils/settings';
@@ -44,25 +56,35 @@ function toDate(val) {
 }
 
 function getMemberStatus(member) {
-  if (member.status === 'active') return 'active';
+  if (member.status === 'left') return 'left';
   if (member.status === 'expired') return 'expired';
   if (member.status === 'expiring') return 'expiring';
-  
+  if (member.active === false) return 'inactive';
+
   const expiry = toDate(member.expiryDate);
   if (!expiry) return member.status || 'active';
   const now = new Date();
   const diff = (expiry - now) / (1000 * 60 * 60 * 24);
   if (diff < 0) return 'expired';
   if (diff <= 7) return 'expiring';
-  if (member.active === false) return 'inactive';
   return 'active';
 }
 
-function daysLeft(member) {
+function getMemberDaysInfo(member) {
+  const status = getMemberStatus(member);
+  if (status === 'left') {
+    return { text: 'Left / Discontinued', cls: 'bg-rose-50 text-rose-700 border-rose-200' };
+  }
   const expiry = toDate(member.expiryDate);
-  if (!expiry) return null;
+  if (!expiry) return { text: 'No Expiry Set', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
   const diff = Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24));
-  return diff;
+  if (diff < 0) {
+    return { text: `Expired (${Math.abs(diff)} days ago)`, cls: 'bg-rose-50 text-rose-700 border-rose-200' };
+  }
+  if (diff <= 7) {
+    return { text: `Expiring (${diff} days left)`, cls: 'bg-amber-50 text-amber-700 border-amber-200' };
+  }
+  return { text: `Active (${diff} days left)`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
 }
 
 function formatDate(val) {
@@ -78,23 +100,25 @@ function fmtCountdown(sec) {
 }
 
 const STATUS_CONFIG = {
-  active: { label: 'Active', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
-  expired: { label: 'Expired', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
-  expiring: { label: 'Expiring Soon', cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
-  inactive: { label: 'Inactive', cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
+  active: { label: 'Active', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  left: { label: 'Left', dot: 'bg-rose-500', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
+  expired: { label: 'Expired', dot: 'bg-rose-500', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
+  expiring: { label: 'Expiring Soon', dot: 'bg-amber-500', cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
+  inactive: { label: 'Inactive', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
 };
 
 function StatusBadge({ status }) {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.active;
   return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${cfg.cls}`}>
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${cfg.cls}`}>
+      <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
       {cfg.label}
     </span>
   );
 }
 
 function Avatar({ member, size = 'sm' }) {
-  const sizeMap = { sm: 'w-9 h-9 text-xs', md: 'w-12 h-12 text-base', lg: 'w-16 h-16 text-xl' };
+  const sizeMap = { sm: 'w-10 h-10 text-xs', md: 'w-12 h-12 text-base', lg: 'w-16 h-16 text-xl' };
   if (member.photoURL) {
     return (
       <img
@@ -198,7 +222,6 @@ function InviteLinkModal({ gymId, onClose }) {
       maxWidth="max-w-xl"
     >
       <div className='space-y-4 text-slate-800'>
-        {/* Helper Banner */}
         <div className='p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-950'>
           <Sparkles className='w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5' />
           <p className='leading-relaxed text-[11px] text-emerald-900'>
@@ -206,7 +229,6 @@ function InviteLinkModal({ gymId, onClose }) {
           </p>
         </div>
 
-        {/* Form Inputs (Side-by-Side) */}
         <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
           <div>
             <label className='block text-xs font-semibold text-slate-700 mb-1'>Member Name (optional)</label>
@@ -240,7 +262,6 @@ function InviteLinkModal({ gymId, onClose }) {
           </button>
         ) : (
           <div className='p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3.5'>
-            {/* Countdown & Expiry */}
             <div className='flex items-center justify-between text-xs'>
               <span className='font-semibold text-slate-600 flex items-center gap-1.5'>
                 <Clock className='w-4 h-4 text-emerald-600' /> Time Remaining:
@@ -250,9 +271,7 @@ function InviteLinkModal({ gymId, onClose }) {
               </span>
             </div>
 
-            {/* Link & QR Code 2-column view */}
             <div className='grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-center pt-1'>
-              {/* Left Column: Link input & buttons */}
               <div className='space-y-2.5 flex flex-col justify-center'>
                 <div>
                   <label className='text-[10px] font-bold text-slate-500 uppercase block mb-1'>Direct Registration Link</label>
@@ -279,7 +298,6 @@ function InviteLinkModal({ gymId, onClose }) {
                 </div>
               </div>
 
-              {/* Right Column: Instant QR Code Box */}
               <div className='p-3 bg-white border-2 border-emerald-100 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm'>
                 <p className='text-xs font-bold text-slate-900 mb-1.5 flex items-center gap-1'>
                   <QrCode className='w-3.5 h-3.5 text-emerald-600' /> Scan to Register
@@ -304,12 +322,388 @@ function InviteLinkModal({ gymId, onClose }) {
   );
 }
 
-const FILTER_TABS = [
-  { key: 'all', label: 'All' },
-  { key: 'active', label: 'Active' },
-  { key: 'expired', label: 'Expired' },
-  { key: 'expiring', label: 'Expiring Soon' },
-];
+/**
+ * Modal to extend member membership date (+7, +10, +15, +30 or custom days) and collect fee
+ */
+function ExtendModal({ member, onClose, onSave, gymId }) {
+  const [daysPreset, setDaysPreset] = useState(10); // Default 10 days as highlighted by user
+  const [customDays, setCustomDays] = useState('');
+  const [fee, setFee] = useState('');
+  const [paymentMode, setPaymentMode] = useState('cash');
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const effectiveDays = daysPreset === 'custom' ? Number(customDays) || 0 : Number(daysPreset);
+
+  const currentExpiry = toDate(member?.expiryDate);
+  const now = new Date();
+  // If expired, extension starts from today; if active, extension adds to current expiry date
+  const baseDate = (currentExpiry && currentExpiry > now) ? new Date(currentExpiry) : new Date(now);
+  const targetDate = new Date(baseDate.getTime() + effectiveDays * 24 * 60 * 60 * 1000);
+
+  const handleConfirm = async (e) => {
+    e.preventDefault();
+    if (effectiveDays <= 0) {
+      toast.error('Please specify valid extension days');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const newExpiryIso = targetDate.toISOString();
+      await updateMember(member.id, {
+        expiryDate: newExpiryIso,
+        status: 'active',
+        active: true
+      });
+
+      // If fee was charged, record payment
+      if (Number(fee) > 0) {
+        try {
+          await addPayment({
+            memberId: member.id,
+            memberName: member.name || member.fullName,
+            gymId: gymId || 'univo_main',
+            amount: Number(fee),
+            paidAmount: Number(fee),
+            dueAmount: 0,
+            mode: paymentMode,
+            plan: `${member.planName || 'Membership'} (Extended +${effectiveDays} Days)`,
+            date: new Date().toISOString(),
+            notes: notes ? `Extension: ${notes}` : `Extended membership by ${effectiveDays} days`
+          });
+        } catch (payErr) {
+          console.warn('Payment record warning:', payErr);
+        }
+      }
+
+      toast.success(`Membership extended by ${effectiveDays} days until ${formatDate(targetDate)}!`);
+      onSave(member.id, newExpiryIso);
+      onClose();
+    } catch (err) {
+      console.error('Error extending membership:', err);
+      toast.error('Failed to extend membership');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="📅 Extend Membership Date"
+      maxWidth="max-w-md"
+    >
+      <form onSubmit={handleConfirm} className='space-y-4 text-slate-800'>
+        {/* Member Preview Banner */}
+        <div className='p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-center justify-between'>
+          <div>
+            <p className='font-bold text-slate-900 text-sm'>{member.name || member.fullName}</p>
+            <p className='text-xs text-slate-500'>{member.phone} • {member.planName || 'General Plan'}</p>
+          </div>
+          <div className='text-right'>
+            <span className='text-[10px] uppercase font-bold text-slate-400 block'>Current Expiry</span>
+            <span className='text-xs font-semibold text-slate-700'>{formatDate(member.expiryDate)}</span>
+          </div>
+        </div>
+
+        {/* Quick Days Selector */}
+        <div>
+          <label className='block text-xs font-bold text-slate-700 mb-2'>
+            Select Extension Days <span className='text-emerald-600'>(10 Days popular)</span>
+          </label>
+          <div className='grid grid-cols-4 gap-2'>
+            {[7, 10, 15, 30].map((d) => (
+              <button
+                type='button'
+                key={d}
+                onClick={() => setDaysPreset(d)}
+                className={`py-2 px-1 text-xs font-bold rounded-xl border transition flex flex-col items-center justify-center ${
+                  daysPreset === d
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-600/20'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <span>+{d} Days</span>
+                {d === 10 && <span className='text-[9px] opacity-90'>Recommended</span>}
+              </button>
+            ))}
+          </div>
+
+          <div className='mt-2.5 flex items-center gap-2'>
+            <button
+              type='button'
+              onClick={() => setDaysPreset('custom')}
+              className={`py-2 px-3 text-xs font-semibold rounded-xl border transition ${
+                daysPreset === 'custom'
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-white text-slate-600 border-slate-200'
+              }`}
+            >
+              Custom Days
+            </button>
+            {daysPreset === 'custom' && (
+              <input
+                type='number'
+                min='1'
+                max='365'
+                placeholder='Enter days (e.g. 12)'
+                value={customDays}
+                onChange={(e) => setCustomDays(e.target.value)}
+                className='flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500'
+                autoFocus
+              />
+            )}
+          </div>
+        </div>
+
+        {/* New Expiry Date Card */}
+        <div className='p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between'>
+          <span className='text-xs font-medium text-slate-600 flex items-center gap-1.5'>
+            <Calendar className='w-4 h-4 text-emerald-600' /> New Expiry Date:
+          </span>
+          <span className='text-xs font-bold text-emerald-700 bg-emerald-100/70 px-2.5 py-1 rounded-lg'>
+            {formatDate(targetDate)} (+{effectiveDays}d)
+          </span>
+        </div>
+
+        {/* Fee Collection Section */}
+        <div className='border-t border-slate-100 pt-3 space-y-3'>
+          <div className='grid grid-cols-2 gap-2.5'>
+            <div>
+              <label className='block text-xs font-semibold text-slate-700 mb-1'>
+                Extension Fee (₹) <span className='text-slate-400'>(Optional)</span>
+              </label>
+              <div className='relative'>
+                <span className='absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold'>₹</span>
+                <input
+                  type='number'
+                  placeholder='0'
+                  value={fee}
+                  onChange={(e) => setFee(e.target.value)}
+                  className='w-full bg-white border border-slate-200 rounded-xl pl-7 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500'
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className='block text-xs font-semibold text-slate-700 mb-1'>Payment Mode</label>
+              <select
+                value={paymentMode}
+                onChange={(e) => setPaymentMode(e.target.value)}
+                className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-emerald-500'
+              >
+                <option value='cash'>Cash</option>
+                <option value='online'>UPI / Online</option>
+                <option value='bank'>Bank Transfer</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Remarks / Reason (Optional)</label>
+            <input
+              type='text'
+              placeholder='e.g. 10 days extra allowance for exam / travel'
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500'
+            />
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className='flex items-center gap-2 pt-2'>
+          <button
+            type='button'
+            onClick={onClose}
+            className='flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition'
+          >
+            Cancel
+          </button>
+          <button
+            type='submit'
+            disabled={loading || effectiveDays <= 0}
+            className='flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition shadow-md disabled:opacity-50'
+          >
+            {loading ? 'Extending...' : `Confirm +${effectiveDays} Days Extension`}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Modal to mark a member as Left / Discontinued
+ */
+function LeftModal({ member, onClose, onSave }) {
+  const [reason, setReason] = useState('Stopped coming');
+  const [customReason, setCustomReason] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const presetReasons = [
+    'Stopped coming / Gym left',
+    'Relocated / Out of town',
+    'Personal / Family reason',
+    'Health / Injury break',
+    'Membership expired & did not renew',
+    'Other'
+  ];
+
+  const handleConfirm = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const finalReason = reason === 'Other' ? (customReason || 'Other') : reason;
+      await updateMember(member.id, {
+        status: 'left',
+        active: false,
+        leftAt: new Date().toISOString(),
+        leftReason: finalReason
+      });
+
+      toast.success(`${member.name || member.fullName} marked as Left`);
+      onSave(member.id, finalReason);
+      onClose();
+    } catch (err) {
+      console.error('Error marking member as left:', err);
+      toast.error('Failed to update member');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="🚪 Mark Member as Left"
+      maxWidth="max-w-md"
+    >
+      <form onSubmit={handleConfirm} className='space-y-4 text-slate-800'>
+        <div className='p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5'>
+          <LogOut className='w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5' />
+          <div className='text-xs'>
+            <p className='font-bold text-rose-950'>Mark {member.name || member.fullName} as Left?</p>
+            <p className='text-rose-800/80 mt-0.5 leading-relaxed'>
+              Yeh member Active list se hat kar <strong>Left / Inactive</strong> filter tab me chala jayega. Aap jab chahe isse wapas reactivate kar sakte hain.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label className='block text-xs font-bold text-slate-700 mb-1.5'>Reason for Leaving</label>
+          <div className='space-y-1.5'>
+            {presetReasons.map((r) => (
+              <label
+                key={r}
+                className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-medium cursor-pointer transition ${
+                  reason === r
+                    ? 'bg-rose-50/70 border-rose-300 text-rose-950 font-semibold'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <input
+                  type='radio'
+                  name='leftReason'
+                  value={r}
+                  checked={reason === r}
+                  onChange={() => setReason(r)}
+                  className='accent-rose-600'
+                />
+                <span>{r}</span>
+              </label>
+            ))}
+          </div>
+
+          {reason === 'Other' && (
+            <input
+              type='text'
+              placeholder='Specify reason...'
+              value={customReason}
+              onChange={(e) => setCustomReason(e.target.value)}
+              className='mt-2 w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-rose-500'
+              autoFocus
+            />
+          )}
+        </div>
+
+        <div className='flex items-center gap-2 pt-2'>
+          <button
+            type='button'
+            onClick={onClose}
+            className='flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition'
+          >
+            Cancel
+          </button>
+          <button
+            type='submit'
+            disabled={loading}
+            className='flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-md disabled:opacity-50'
+          >
+            {loading ? 'Marking...' : 'Confirm Mark as Left'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Modal to confirm deleting a member permanently
+ */
+function DeleteConfirmModal({ member, onClose, onConfirm }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleDelete = async () => {
+    setLoading(true);
+    try {
+      await deleteMember(member.id);
+      toast.success('Member removed permanently');
+      onConfirm(member.id);
+      onClose();
+    } catch (err) {
+      toast.error('Failed to delete member');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="🗑️ Delete Member"
+      maxWidth="max-w-sm"
+    >
+      <div className='space-y-4 text-slate-800'>
+        <p className='text-xs text-slate-600 leading-relaxed'>
+          Are you sure you want to permanently delete <strong>{member.name || member.fullName}</strong>? This action cannot be undone.
+        </p>
+
+        <div className='flex items-center gap-2 pt-2'>
+          <button
+            type='button'
+            onClick={onClose}
+            className='flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold'
+          >
+            Cancel
+          </button>
+          <button
+            type='button'
+            onClick={handleDelete}
+            disabled={loading}
+            className='flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold disabled:opacity-50'
+          >
+            {loading ? 'Deleting...' : 'Delete Permanently'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 
 export default function Members() {
   const { gymId } = useAuth();
@@ -321,90 +715,113 @@ export default function Members() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('table');
   const [search, setSearch] = useState('');
-  const [filterTab, setFilterTab] = useState('all');
+  const [filterTab, setFilterTab] = useState('active');
   const [showInvite, setShowInvite] = useState(false);
   const [showDirectAdd, setShowDirectAdd] = useState(false);
 
-  const [directForm, setDirectForm] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    planName: '3-Month Pro',
-    gender: 'Male',
-  });
+  // Modals for table actions
+  const [extendMember, setExtendMember] = useState(null);
+  const [leftMember, setLeftMember] = useState(null);
+  const [deleteTargetMember, setDeleteTargetMember] = useState(null);
 
   const dummyMembers = [
     {
       id: 'm1',
+      name: 'Ashis',
+      fullName: 'Ashis',
+      phone: '+91 7000670416',
+      email: 'ashis@gmail.com',
+      planName: '1 Month (Standard)',
+      planPrice: 599,
+      slot: 'Morning (6am-9am)',
+      trainerName: 'Coach Rohan Deshmukh',
+      status: 'active',
+      createdAt: '2026-09-01',
+      expiryDate: '2026-10-01'
+    },
+    {
+      id: 'm2',
       name: 'Ajay Prajapati',
       fullName: 'Ajay Prajapati',
       phone: '+91 9196302375',
-      email: 'ajay@gmail.com',
-      planName: '3-Month Pro',
-      trainerName: 'Coach Amit',
+      email: 'ajay.p@univogym.com',
+      planName: '3 Months Pro Transformation',
+      planPrice: 6500,
+      slot: 'Evening (4pm-7pm)',
+      trainerName: 'Coach Amit Sharma',
       status: 'active',
       createdAt: '2026-09-10',
       expiryDate: '2026-12-10'
     },
     {
-      id: 'm2',
+      id: 'm3',
       name: 'Rahul Verma',
       fullName: 'Rahul Verma',
       phone: '+91 9876543210',
-      email: 'rahul.v@gmail.com',
-      planName: 'Annual Elite',
-      trainerName: 'Coach Rohan',
+      email: 'rahul.v@univogym.com',
+      planName: '12 Months Annual Elite',
+      planPrice: 14999,
+      slot: 'Morning (6am-9am)',
+      trainerName: 'Coach Rohan Deshmukh',
       status: 'active',
       createdAt: '2026-09-08',
       expiryDate: '2027-09-08'
     },
     {
-      id: 'm3',
+      id: 'm4',
       name: 'Priya Sharma',
       fullName: 'Priya Sharma',
       phone: '+91 9811223344',
-      email: 'priya@gmail.com',
-      planName: '6-Month Transformation',
-      trainerName: 'Coach Sneha',
+      email: 'priya.s@gmail.com',
+      planName: '6 Months Fitness Pass',
+      planPrice: 8500,
+      slot: 'Evening (4pm-7pm)',
+      trainerName: 'Coach Sneha Kapoor',
       status: 'active',
       createdAt: '2026-09-05',
       expiryDate: '2027-03-05'
     },
     {
-      id: 'm4',
+      id: 'm5',
       name: 'Aman Gupta',
       fullName: 'Aman Gupta',
       phone: '+91 9988776655',
       email: 'aman.g@gmail.com',
-      planName: '1-Month Basic',
+      planName: '1 Month Basic',
+      planPrice: 1500,
+      slot: 'Morning (6am-9am)',
       trainerName: 'Unassigned',
       status: 'expiring',
       createdAt: '2026-08-14',
-      expiryDate: '2026-09-14'
+      expiryDate: '2026-09-16'
     },
     {
-      id: 'm5',
+      id: 'm6',
       name: 'Karan Johar',
       fullName: 'Karan Johar',
       phone: '+91 9711003322',
       email: 'karan@gmail.com',
-      planName: '3-Month Pro',
-      trainerName: 'Coach Amit',
+      planName: '3 Months Pro',
+      planPrice: 6500,
+      slot: 'Night (7pm-10pm)',
+      trainerName: 'Coach Amit Sharma',
       status: 'expired',
       createdAt: '2026-05-10',
       expiryDate: '2026-08-10'
     },
     {
-      id: 'm6',
-      name: 'Neha Rajput',
-      fullName: 'Neha Rajput',
-      phone: '+91 9655443322',
-      email: 'neha.r@gmail.com',
-      planName: 'Annual Elite',
-      trainerName: 'Coach Sneha',
+      id: 'm7',
+      name: 'Sandesh Sharma',
+      fullName: 'Sandesh Sharma',
+      phone: '+91 9685215724',
+      email: 'sandesh@gmail.com',
+      planName: '2 Month (Special)',
+      planPrice: 999,
+      slot: 'Morning (6am-9am)',
+      trainerName: 'Coach Rohan Deshmukh',
       status: 'active',
-      createdAt: '2026-09-01',
-      expiryDate: '2027-09-01'
+      createdAt: '2026-09-03',
+      expiryDate: '2026-11-03'
     }
   ];
 
@@ -417,7 +834,6 @@ export default function Members() {
           getTrainers(gymId || 'univo_main'),
         ]);
         if (m && m.length > 0) {
-          // Merge real members with dummy members so default demo data remains viewable if list is short
           const realPhoneSet = new Set(m.map((rm) => (rm.phone || '').replace(/\D/g, '')));
           const remainingDummy = dummyMembers.filter((dm) => !realPhoneSet.has((dm.phone || '').replace(/\D/g, '')));
           setMembers([...m, ...remainingDummy]);
@@ -434,30 +850,74 @@ export default function Members() {
     loadData();
   }, [gymId]);
 
-  const handleDirectAddSubmit = async (e) => {
-    e.preventDefault();
-    const newMem = {
-      name: directForm.name,
-      fullName: directForm.name,
-      phone: directForm.phone,
-      email: directForm.email,
-      planName: directForm.planName,
-      gender: directForm.gender,
-      status: 'active',
-      registeredBy: 'owner',
-      createdAt: new Date().toISOString(),
-      expiryDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
-    };
-    try {
-      await addMember(gymId || 'univo_main', newMem);
-    } catch (e) {
-      console.warn('Offline or simulated save:', e);
-    }
-    setMembers([newMem, ...members]);
-    setShowDirectAdd(false);
-    toast.success(`${newMem.name} added successfully!`);
-    setDirectForm({ name: '', phone: '', email: '', planName: '3-Month Pro', gender: 'Male' });
+  // Handlers for Extend, Left, Reactivate, Delete
+  const handleExtendSuccess = (memberId, newExpiryIso) => {
+    setMembers((prev) =>
+      prev.map((m) =>
+        m.id === memberId
+          ? { ...m, expiryDate: newExpiryIso, status: 'active', active: true }
+          : m
+      )
+    );
   };
+
+  const handleLeftSuccess = (memberId, reason) => {
+    setMembers((prev) =>
+      prev.map((m) =>
+        m.id === memberId
+          ? { ...m, status: 'left', active: false, leftReason: reason }
+          : m
+      )
+    );
+  };
+
+  const handleReactivate = async (m) => {
+    try {
+      // Re-activating: give fresh 30 days if already expired, otherwise keep active
+      const now = new Date();
+      const currentExp = toDate(m.expiryDate);
+      const newExp = (!currentExp || currentExp < now)
+        ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        : m.expiryDate;
+
+      await updateMember(m.id, {
+        status: 'active',
+        active: true,
+        expiryDate: newExp,
+        reactivatedAt: new Date().toISOString()
+      });
+
+      setMembers((prev) =>
+        prev.map((item) =>
+          item.id === m.id
+            ? { ...item, status: 'active', active: true, expiryDate: newExp }
+            : item
+        )
+      );
+
+      toast.success(`${m.name || m.fullName} reactivated as Active!`);
+    } catch (err) {
+      toast.error('Failed to reactivate member');
+    }
+  };
+
+  const handleDeleteSuccess = (memberId) => {
+    setMembers((prev) => prev.filter((m) => m.id !== memberId));
+  };
+
+  // Status counts
+  const activeCount = members.filter((m) => getMemberStatus(m) === 'active').length;
+  const leftCount = members.filter((m) => getMemberStatus(m) === 'left').length;
+  const expiringCount = members.filter((m) => getMemberStatus(m) === 'expiring').length;
+  const expiredCount = members.filter((m) => getMemberStatus(m) === 'expired').length;
+
+  const FILTER_TABS = [
+    { key: 'active', label: `Active (${activeCount})` },
+    { key: 'left', label: `Left / Inactive (${leftCount})` },
+    { key: 'expiring', label: `Expiring (${expiringCount})` },
+    { key: 'expired', label: `Expired (${expiredCount})` },
+    { key: 'all', label: `All (${members.length})` },
+  ];
 
   const filtered = members.filter((m) => {
     const q = search.toLowerCase();
@@ -469,44 +929,40 @@ export default function Members() {
     return matchSearch && matchTab;
   });
 
-  const activeCount = members.filter((m) => getMemberStatus(m) === 'active').length;
-  const expiredCount = members.filter((m) => getMemberStatus(m) === 'expired').length;
-  const expiringCount = members.filter((m) => getMemberStatus(m) === 'expiring').length;
-
   return (
     <div className='space-y-6'>
-      {/* Header & Actions */}
+      {/* Header & Quick Actions */}
       <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4'>
         <div>
           <div className='flex items-center gap-3'>
-            <h1 className='text-2xl font-bold text-slate-900'>Gym Members</h1>
+            <h1 className='text-2xl font-bold text-slate-900'>Member Directory</h1>
             <span className='px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200'>
               {members.length} Total
             </span>
           </div>
           <p className='text-xs text-slate-500 mt-1'>
-            Register members via WhatsApp invite link or add directly as Owner
+            Manage member admissions, membership extensions, shift timings & profiles
           </p>
         </div>
 
         <div className='flex flex-wrap items-center gap-2'>
           <button
             onClick={() => setShowInvite(true)}
-            className='flex-1 sm:flex-none flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-sm'
+            className='flex-1 sm:flex-none flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-sm'
           >
             <Share2 className='w-4 h-4 text-emerald-600' /> Share 10-Min Link
           </button>
           <button
             onClick={() => setShowDirectAdd(true)}
-            className='flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition shadow-sm'
+            className='flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition shadow-sm'
           >
-            <UserPlus className='w-4 h-4' /> Add Member Directly
+            <UserPlus className='w-4 h-4' /> + Add Member
           </button>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
+      {/* KPI Cards Row */}
+      <div className='grid grid-cols-2 lg:grid-cols-4 gap-3.5'>
         <div className='p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3'>
           <div className='w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center'>
             <UserCheck className='w-5 h-5' />
@@ -516,6 +972,17 @@ export default function Members() {
             <p className='text-lg font-bold text-slate-900'>{activeCount}</p>
           </div>
         </div>
+
+        <div className='p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3'>
+          <div className='w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center'>
+            <LogOut className='w-5 h-5' />
+          </div>
+          <div>
+            <p className='text-xs text-slate-500 font-medium'>Left / Discontinued</p>
+            <p className='text-lg font-bold text-slate-900'>{leftCount}</p>
+          </div>
+        </div>
+
         <div className='p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3'>
           <div className='w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center'>
             <AlertTriangle className='w-5 h-5' />
@@ -525,8 +992,9 @@ export default function Members() {
             <p className='text-lg font-bold text-slate-900'>{expiringCount}</p>
           </div>
         </div>
+
         <div className='p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3'>
-          <div className='w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center'>
+          <div className='w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center'>
             <UserX className='w-5 h-5' />
           </div>
           <div>
@@ -534,58 +1002,51 @@ export default function Members() {
             <p className='text-lg font-bold text-slate-900'>{expiredCount}</p>
           </div>
         </div>
-        <div className='p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3'>
-          <div className='w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center'>
-            <TrendingUp className='w-5 h-5' />
-          </div>
-          <div>
-            <p className='text-xs text-slate-500 font-medium'>New This Month</p>
-            <p className='text-lg font-bold text-slate-900'>18</p>
-          </div>
-        </div>
       </div>
 
-      {/* Filter & Search Bar */}
-      <div className='p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between'>
-        <div className='relative w-full sm:w-80'>
-          <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400' />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder='Search member name or phone...'
-            className='w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white'
-          />
+      {/* Filter Tabs & Search Bar (styled directly like reference software) */}
+      <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between'>
+        {/* Status Pill Tabs */}
+        <div className='flex flex-wrap gap-1.5 w-full sm:w-auto'>
+          {FILTER_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setFilterTab(tab.key)}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition ${
+                filterTab === tab.key
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        <div className='flex items-center justify-between w-full sm:w-auto gap-2'>
-          {/* Status Tabs */}
-          <div className='flex gap-1 bg-slate-100 p-1 rounded-xl'>
-            {FILTER_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setFilterTab(tab.key)}
-                className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${
-                  filterTab === tab.key
-                    ? 'bg-white text-emerald-700 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+        {/* Right side Search & View Toggle */}
+        <div className='flex items-center gap-2.5 w-full sm:w-auto'>
+          <div className='relative flex-1 sm:w-64'>
+            <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400' />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder='Search by name, phone...'
+              className='w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white'
+            />
           </div>
 
-          {/* View toggle */}
           <div className='flex bg-slate-100 p-1 rounded-xl'>
             <button
               onClick={() => setView('table')}
               className={`p-1.5 rounded-lg transition ${view === 'table' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}
+              title='Table View'
             >
               <LayoutList className='w-4 h-4' />
             </button>
             <button
               onClick={() => setView('grid')}
               className={`p-1.5 rounded-lg transition ${view === 'grid' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400'}`}
+              title='Card View'
             >
               <LayoutGrid className='w-4 h-4' />
             </button>
@@ -593,112 +1054,230 @@ export default function Members() {
         </div>
       </div>
 
-      {/* Member Data Display */}
+      {/* Member Directory Table matching Reference UI */}
       {view === 'table' ? (
-        <div className='overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm'>
+        <div className='overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-sm'>
           <table className='w-full text-left text-xs text-slate-600'>
-            <thead className='bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200'>
+            <thead className='bg-slate-50 text-[11px] uppercase tracking-wider text-slate-400 font-bold border-b border-slate-200'>
               <tr>
                 <th className='px-5 py-3.5'>Member</th>
-                <th className='px-5 py-3.5'>Contact</th>
-                <th className='px-5 py-3.5'>Membership Plan</th>
-                <th className='px-5 py-3.5'>Trainer</th>
-                <th className='px-5 py-3.5'>Joined</th>
+                <th className='px-5 py-3.5'>Slot & Trainer</th>
+                <th className='px-5 py-3.5'>Plan & Fee</th>
                 <th className='px-5 py-3.5'>Status</th>
                 <th className='px-5 py-3.5 text-right'>Actions</th>
               </tr>
             </thead>
             <tbody className='divide-y divide-slate-100'>
-              {filtered.map((m) => {
-                const status = getMemberStatus(m);
-                return (
-                  <tr key={m.id} className='hover:bg-slate-50/80 transition'>
-                    <td className='px-5 py-3.5'>
-                      <div className='flex items-center gap-3'>
-                        <Avatar member={m} size='sm' />
-                        <div>
-                          <p className='font-bold text-slate-900'>{m.name || m.fullName}</p>
-                          <p className='text-[11px] text-slate-400'>{m.email || 'No email'}</p>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className='px-5 py-10 text-center text-slate-400'>
+                    No members found in this view.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((m) => {
+                  const status = getMemberStatus(m);
+                  const daysInfo = getMemberDaysInfo(m);
+                  const isLeft = status === 'left';
+
+                  return (
+                    <tr key={m.id} className='hover:bg-slate-50/70 transition items-center'>
+                      {/* Column 1: Member Name & Phone */}
+                      <td className='px-5 py-3.5'>
+                        <div className='flex items-center gap-3'>
+                          <Avatar member={m} size='sm' />
+                          <div>
+                            <p className='font-bold text-slate-900 text-sm leading-tight'>
+                              {m.name || m.fullName}
+                            </p>
+                            <p className='text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5'>
+                              <span>{m.phone || 'No phone'}</span>
+                              <span>•</span>
+                              <span>{formatDate(m.createdAt)}</span>
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className='px-5 py-3.5 font-medium text-slate-700'>{m.phone || '—'}</td>
-                    <td className='px-5 py-3.5'>
-                      <span className='px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-semibold text-[11px] border border-emerald-200'>
-                        {m.planName || 'General'}
-                      </span>
-                    </td>
-                    <td className='px-5 py-3.5 text-slate-600'>{m.trainerName || 'Unassigned'}</td>
-                    <td className='px-5 py-3.5 text-slate-500'>{formatDate(m.createdAt)}</td>
-                    <td className='px-5 py-3.5'>
-                      <StatusBadge status={status} />
-                    </td>
-                    <td className='px-5 py-3.5 text-right'>
-                        <button
-                          onClick={() => {
-                            generatePaymentReceipt({
-                              memberName: m.name || m.fullName,
-                              planName: m.planName || "3-Month Pro",
-                              paidAmount: 6500,
-                              dueAmount: 0,
-                              paymentMode: "online",
-                              date: formatDate(m.createdAt)
-                            });
-                            toast.success("Downloading official bill receipt...");
-                          }}
-                          className='p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition'
-                          title='Download Official Bill Receipt PDF'
-                        >
-                          <Download className='w-4 h-4 text-emerald-600' />
-                        </button>
-                        <button
-                          onClick={() => {
-                            const waPhone = (m.phone || '').replace(/\D/g, '');
-                            window.open(`https://wa.me/${waPhone}?text=Hi%20${m.name || m.fullName},%20Greetings%20from%20${settings.gymName}!`, '_blank');
-                          }}
-                          className='p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition'
-                          title='Message on WhatsApp'
-                        >
-                          <MessageCircle className='w-4 h-4' />
-                        </button>
-                        <button
-                          onClick={() => navigate(`/owner/members/${m.id}`)}
-                          className='p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition'
-                          title='View Profile'
-                        >
-                          <Eye className='w-4 h-4' />
-                        </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+
+                      {/* Column 2: Slot & Trainer Pill */}
+                      <td className='px-5 py-3.5'>
+                        <div className='space-y-1'>
+                          <div className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 font-semibold text-[11px] border border-indigo-100'>
+                            <Sun className='w-3 h-3 text-indigo-500' />
+                            <span>{m.slot || m.workoutSlot || 'General Shift'}</span>
+                          </div>
+                          <p className='text-[11px] text-slate-500 pl-0.5'>
+                            {m.trainerName ? `🏋️ ${m.trainerName}` : 'No Trainer'}
+                          </p>
+                        </div>
+                      </td>
+
+                      {/* Column 3: Plan & Fee with Days Left Pill */}
+                      <td className='px-5 py-3.5'>
+                        <div className='space-y-1'>
+                          <p className='font-bold text-slate-900 text-xs'>
+                            {m.planName || 'Standard Plan'} {m.planPrice ? `(₹${Number(m.planPrice).toLocaleString('en-IN')})` : ''}
+                          </p>
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${daysInfo.cls}`}>
+                            {daysInfo.text}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Column 4: Current Status Pill */}
+                      <td className='px-5 py-3.5'>
+                        <StatusBadge status={status} />
+                      </td>
+
+                      {/* Column 5: Action Pill Buttons (Matching Reference Design) */}
+                      <td className='px-5 py-3.5 text-right'>
+                        <div className='inline-flex items-center gap-1.5 justify-end'>
+                          {/* Profile Button */}
+                          <button
+                            onClick={() => navigate(`/owner/members/${m.id}`)}
+                            className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-200/80 transition shadow-sm'
+                            title='View Full Member Profile'
+                          >
+                            <Eye className='w-3.5 h-3.5 text-slate-500' />
+                            <span>Profile</span>
+                          </button>
+
+                          {/* Extend Date Button */}
+                          <button
+                            onClick={() => setExtendMember(m)}
+                            className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs border border-emerald-200 transition shadow-sm'
+                            title='Extend membership by 10 days or custom days'
+                          >
+                            <CalendarPlus className='w-3.5 h-3.5 text-emerald-600' />
+                            <span>Extend</span>
+                          </button>
+
+                          {/* Left or Reactivate Button */}
+                          {isLeft ? (
+                            <button
+                              onClick={() => handleReactivate(m)}
+                              className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs border border-emerald-200 transition shadow-sm'
+                              title='Reactivate member back to active status'
+                            >
+                              <RotateCcw className='w-3.5 h-3.5 text-emerald-600' />
+                              <span>Return</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setLeftMember(m)}
+                              className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs border border-rose-200 transition shadow-sm'
+                              title='Mark member as left / discontinued'
+                            >
+                              <UserMinus className='w-3.5 h-3.5 text-rose-600' />
+                              <span>Left</span>
+                            </button>
+                          )}
+
+                          {/* Bill Receipt Download */}
+                          <button
+                            onClick={() => {
+                              generatePaymentReceipt({
+                                memberName: m.name || m.fullName,
+                                planName: m.planName || "Gym Membership",
+                                paidAmount: m.planPrice || 2500,
+                                dueAmount: 0,
+                                paymentMode: "Online",
+                                date: formatDate(m.createdAt)
+                              });
+                              toast.success("Downloading official bill receipt...");
+                            }}
+                            className='p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-emerald-700 transition'
+                            title='Download Bill Receipt PDF'
+                          >
+                            <Download className='w-3.5 h-3.5' />
+                          </button>
+
+                          {/* WhatsApp Action */}
+                          <button
+                            onClick={() => {
+                              const waPhone = (m.phone || '').replace(/\D/g, '');
+                              window.open(`https://wa.me/${waPhone}?text=Hi%20${m.name || m.fullName},%20Greetings%20from%20${settings.gymName}!`, '_blank');
+                            }}
+                            className='p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition'
+                            title='Message on WhatsApp'
+                          >
+                            <MessageCircle className='w-3.5 h-3.5' />
+                          </button>
+
+                          {/* Delete Member */}
+                          <button
+                            onClick={() => setDeleteTargetMember(m)}
+                            className='p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition'
+                            title='Delete Member'
+                          >
+                            <Trash2 className='w-3.5 h-3.5' />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
       ) : (
+        /* Card View */
         <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'>
           {filtered.map((m) => {
             const status = getMemberStatus(m);
+            const daysInfo = getMemberDaysInfo(m);
+            const isLeft = status === 'left';
+
             return (
-              <div key={m.id} className='p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4 hover:border-emerald-300 transition'>
-                <div className='flex items-center justify-between'>
-                  <Avatar member={m} size='md' />
-                  <StatusBadge status={status} />
-                </div>
+              <div key={m.id} className='p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3.5 hover:border-emerald-300 transition flex flex-col justify-between'>
                 <div>
-                  <h4 className='font-bold text-slate-900 text-sm'>{m.name || m.fullName}</h4>
-                  <p className='text-xs text-slate-500'>{m.phone}</p>
+                  <div className='flex items-center justify-between'>
+                    <Avatar member={m} size='md' />
+                    <StatusBadge status={status} />
+                  </div>
+                  <div className='mt-3'>
+                    <h4 className='font-bold text-slate-900 text-sm leading-tight'>{m.name || m.fullName}</h4>
+                    <p className='text-xs text-slate-400 mt-0.5'>{m.phone || 'No phone'}</p>
+                  </div>
+                  <div className='mt-3 space-y-1'>
+                    <p className='text-xs font-semibold text-slate-800'>{m.planName || 'Standard Plan'}</p>
+                    <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${daysInfo.cls}`}>
+                      {daysInfo.text}
+                    </span>
+                  </div>
                 </div>
-                <div className='pt-2 border-t border-slate-100 flex items-center justify-between text-xs'>
-                  <span className='font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md'>
-                    {m.planName || 'General'}
-                  </span>
+
+                <div className='pt-3 border-t border-slate-100 flex items-center justify-between gap-1'>
                   <button
                     onClick={() => navigate(`/owner/members/${m.id}`)}
-                    className='text-xs text-emerald-600 font-bold hover:underline'
+                    className='px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition'
                   >
-                    View Details →
+                    Profile
                   </button>
+
+                  <button
+                    onClick={() => setExtendMember(m)}
+                    className='px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold hover:bg-emerald-100 transition'
+                  >
+                    Extend
+                  </button>
+
+                  {isLeft ? (
+                    <button
+                      onClick={() => handleReactivate(m)}
+                      className='px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition'
+                    >
+                      Return
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setLeftMember(m)}
+                      className='px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold hover:bg-rose-100 transition'
+                    >
+                      Left
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -706,7 +1285,35 @@ export default function Members() {
         </div>
       )}
 
-      {/* Invite Modal */}
+      {/* Extend Membership Modal */}
+      {extendMember && (
+        <ExtendModal
+          member={extendMember}
+          gymId={gymId}
+          onClose={() => setExtendMember(null)}
+          onSave={handleExtendSuccess}
+        />
+      )}
+
+      {/* Left Member Modal */}
+      {leftMember && (
+        <LeftModal
+          member={leftMember}
+          onClose={() => setLeftMember(null)}
+          onSave={handleLeftSuccess}
+        />
+      )}
+
+      {/* Delete Member Modal */}
+      {deleteTargetMember && (
+        <DeleteConfirmModal
+          member={deleteTargetMember}
+          onClose={() => setDeleteTargetMember(null)}
+          onConfirm={handleDeleteSuccess}
+        />
+      )}
+
+      {/* 10-Minute WhatsApp Invite Modal */}
       {showInvite && (
         <InviteLinkModal
           gymId={gymId}
@@ -714,7 +1321,7 @@ export default function Members() {
         />
       )}
 
-      {/* Direct Add Member Modal with complete registration questions */}
+      {/* Direct Add Member Modal */}
       <DirectAddMemberModal
         isOpen={showDirectAdd}
         onClose={() => setShowDirectAdd(false)}
