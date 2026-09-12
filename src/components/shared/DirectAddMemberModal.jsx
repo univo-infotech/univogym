@@ -481,13 +481,14 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
             </div>
 
             {/* ==========================================================
-                COACH DETAILS & BALANCED DESKTOP PROFILE CARD
+                COACH DETAILS & PROPER RESIZED PROFILE CARD
             ========================================================== */}
             {isPersonalTrainer && selectedTrainerObj && (
-              <div className="p-4 rounded-2xl bg-white border border-indigo-200 shadow-xs space-y-3.5 transition-all">
-                <div className="flex flex-col sm:flex-row items-start gap-3.5">
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/40 border-2 border-indigo-200 shadow-sm space-y-4 transition-all">
+                {/* Header Profile Row */}
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
                   
-                  {/* Compact Coach Photo Frame with Click-to-Zoom */}
+                  {/* Coach Photo Frame */}
                   <div 
                     className="relative group cursor-pointer flex-shrink-0"
                     onClick={() => {
@@ -502,7 +503,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     }}
                   >
                     {(selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL) ? (
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-md bg-slate-900 flex-shrink-0">
+                      <div className="w-24 h-28 sm:w-28 sm:h-32 rounded-2xl overflow-hidden border-2 border-indigo-400 shadow-md bg-slate-900 flex-shrink-0">
                         <img
                           src={selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL}
                           alt={selectedTrainerObj.name}
@@ -510,77 +511,79 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                         />
                       </div>
                     ) : (
-                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-extrabold flex items-center justify-center text-2xl shadow-sm flex-shrink-0">
+                      <div className="w-24 h-28 sm:w-28 sm:h-32 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-extrabold flex items-center justify-center text-3xl shadow-md flex-shrink-0">
                         {selectedTrainerObj.name?.charAt(0)?.toUpperCase() || "C"}
                       </div>
                     )}
                     {(selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL) && (
-                      <div className="absolute inset-0 bg-slate-900/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1 shadow-lg">
-                        <Maximize2 className="w-3.5 h-3.5" /> Zoom
+                      <div className="absolute inset-0 bg-slate-900/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1 shadow-lg">
+                        <Maximize2 className="w-4 h-4" /> Full View
                       </div>
                     )}
                   </div>
 
                   {/* Coach Credentials Column */}
-                  <div className="flex-1 min-w-0 space-y-1.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-2 text-center sm:text-left">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
                       <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h5 className="font-extrabold text-slate-900 text-sm">{selectedTrainerObj.name}</h5>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+                        <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                          <h5 className="font-extrabold text-slate-900 text-base">{selectedTrainerObj.name}</h5>
+                          <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1">
                             <Award className="w-3 h-3 text-indigo-600" /> Dedicated Coach
                           </span>
                         </div>
-                        <p className="text-xs font-bold text-indigo-600">
+                        <p className="text-xs font-bold text-indigo-600 mt-0.5">
                           {selectedTrainerObj.specialization || "Personal Fitness Coach"}
                         </p>
                       </div>
 
                       {selectedTrainerObj.experience && (
-                        <span className="text-[11px] font-bold px-2.5 py-0.5 bg-slate-100 text-slate-700 rounded-lg border border-slate-200">
-                          {selectedTrainerObj.experience} Experience
-                        </span>
+                        <div className="inline-flex justify-center sm:justify-end">
+                          <span className="text-[11px] font-bold px-3 py-1 bg-white text-slate-700 rounded-xl border border-slate-200 shadow-2xs">
+                            ⭐ {selectedTrainerObj.experience} Experience
+                          </span>
+                        </div>
                       )}
                     </div>
 
                     {/* Coach Bio */}
                     {selectedTrainerObj.bio && (
-                      <div className="bg-slate-50/90 p-2.5 rounded-xl text-xs text-slate-700 border border-slate-100 leading-relaxed">
-                        <span className="font-bold text-slate-900 inline mr-1">Bio:</span>
+                      <div className="bg-white/90 p-3 rounded-xl text-xs text-slate-700 border border-indigo-100 leading-relaxed shadow-2xs">
+                        <span className="font-bold text-slate-900 block mb-0.5">Coach Bio & Background:</span>
                         {selectedTrainerObj.bio}
                       </div>
                     )}
 
                     {/* Coach Certifications */}
                     {selectedTrainerObj.certifications && (
-                      <p className="text-[11px] text-slate-500 pt-0.5">
-                        <strong className="text-slate-700">Certifications: </strong> {selectedTrainerObj.certifications}
+                      <p className="text-[11px] text-slate-600 pt-0.5">
+                        <strong className="text-slate-800">Certifications: </strong> {selectedTrainerObj.certifications}
                       </p>
                     )}
                   </div>
                 </div>
 
-                {/* Coach Client Transformations (Results) with fixed photo fallbacks */}
+                {/* Coach Client Transformations (Results) with high-end card styling */}
                 {selectedTrainerObj.transformations && selectedTrainerObj.transformations.length > 0 ? (
-                  <div className="pt-2.5 border-t border-slate-100 space-y-2">
+                  <div className="pt-3 border-t border-indigo-100 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Flame className="w-3.5 h-3.5 text-amber-500" />
+                      <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <Flame className="w-4 h-4 text-amber-500" />
                         Client Results & Transformations ({selectedTrainerObj.transformations.length})
                       </p>
-                      <span className="text-[10px] text-slate-400 font-medium">Click photo for full view</span>
+                      <span className="text-[11px] text-slate-500 font-medium">Click photos to view full size</span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                       {selectedTrainerObj.transformations.map((item, idx) => {
                         const beforeSrc = item.beforeImg || item.beforeURL;
                         const afterSrc = item.afterImg || item.afterURL;
                         return (
-                          <div key={item.id || idx} className="bg-slate-50 p-2 rounded-xl border border-slate-200/90 space-y-1.5">
-                            <div className="grid grid-cols-2 gap-1.5">
+                          <div key={item.id || idx} className="bg-white p-2.5 rounded-2xl border border-indigo-100/90 shadow-2xs space-y-2 hover:shadow-sm transition">
+                            <div className="grid grid-cols-2 gap-2">
                               {/* Before Image */}
                               <div 
-                                className="relative rounded-lg overflow-hidden bg-slate-200 h-28 sm:h-32 border border-slate-300/80 cursor-pointer group shadow-2xs"
+                                className="relative rounded-xl overflow-hidden bg-slate-100 h-36 sm:h-40 border border-slate-200 cursor-pointer group shadow-2xs"
                                 onClick={() => beforeSrc && setFullPhotoModal({ img: beforeSrc, title: "Before Transformation", desc: item.description })}
                               >
                                 {beforeSrc ? (
@@ -588,11 +591,11 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                                 ) : (
                                   <div className="flex items-center justify-center h-full text-slate-400 text-[10px] font-semibold">No Photo</div>
                                 )}
-                                <span className="absolute top-1 left-1 bg-rose-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm">
+                                <span className="absolute top-1.5 left-1.5 bg-rose-600/95 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-sm tracking-wide">
                                   BEFORE
                                 </span>
                                 {beforeSrc && (
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold gap-1">
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
                                     <Maximize2 className="w-3.5 h-3.5" /> View
                                   </div>
                                 )}
@@ -600,7 +603,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
                               {/* After Image */}
                               <div 
-                                className="relative rounded-lg overflow-hidden bg-slate-200 h-28 sm:h-32 border border-slate-300/80 cursor-pointer group shadow-2xs"
+                                className="relative rounded-xl overflow-hidden bg-slate-100 h-36 sm:h-40 border border-slate-200 cursor-pointer group shadow-2xs"
                                 onClick={() => afterSrc && setFullPhotoModal({ img: afterSrc, title: "After Transformation", desc: item.description })}
                               >
                                 {afterSrc ? (
@@ -608,11 +611,11 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                                 ) : (
                                   <div className="flex items-center justify-center h-full text-slate-400 text-[10px] font-semibold">No Photo</div>
                                 )}
-                                <span className="absolute top-1 left-1 bg-emerald-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm">
+                                <span className="absolute top-1.5 left-1.5 bg-emerald-600/95 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-sm tracking-wide">
                                   AFTER
                                 </span>
                                 {afterSrc && (
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold gap-1">
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
                                     <Maximize2 className="w-3.5 h-3.5" /> View
                                   </div>
                                 )}
@@ -620,7 +623,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                             </div>
 
                             {item.description && (
-                              <p className="text-[11px] text-slate-600 font-medium line-clamp-1 leading-snug">
+                              <p className="text-[11px] text-slate-700 font-medium line-clamp-2 leading-relaxed px-0.5">
                                 {item.description}
                               </p>
                             )}
@@ -630,7 +633,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     </div>
                   </div>
                 ) : (
-                  <div className="pt-1 text-xs text-slate-400 italic">
+                  <div className="pt-1 text-xs text-slate-500 italic">
                     Coach verified. Personalized workout routine and diet plan will be scheduled upon member joining.
                   </div>
                 )}
