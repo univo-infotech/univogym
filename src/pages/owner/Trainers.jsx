@@ -17,7 +17,8 @@ import {
   FileText,
   Mail,
   Phone,
-  Briefcase
+  Briefcase,
+  X
 } from "lucide-react";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
@@ -54,7 +55,9 @@ export default function Trainers() {
     certifications: "",
     photoUrl: "",
     certUrl: "",
-    portfolioUrl: "",
+    transformations: [
+      { id: 1, beforeImg: "", afterImg: "", description: "" }
+    ],
   });
 
   const [linkForm, setLinkForm] = useState({ name: "", phone: "" });
@@ -74,6 +77,59 @@ export default function Trainers() {
       toast.success("File attached successfully!");
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleTransformationFile = (e, index, type) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 800 * 1024) {
+      toast.error("Image is too large. Please select an image under 800KB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => {
+        const updated = [...prev.transformations];
+        updated[index] = { ...updated[index], [type]: reader.result };
+        return { ...prev, transformations: updated };
+      });
+      toast.success(`${type === "beforeImg" ? "Before" : "After"} image uploaded!`);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleTransformationDesc = (val, index) => {
+    setForm((prev) => {
+      const updated = [...prev.transformations];
+      updated[index] = { ...updated[index], description: val };
+      return { ...prev, transformations: updated };
+    });
+  };
+
+  const addMoreTransformation = () => {
+    setForm((prev) => ({
+      ...prev,
+      transformations: [
+        ...prev.transformations,
+        { id: Date.now(), beforeImg: "", afterImg: "", description: "" }
+      ]
+    }));
+  };
+
+  const removeTransformation = (index) => {
+    if (form.transformations.length <= 1) {
+      setForm((prev) => ({
+        ...prev,
+        transformations: [{ id: 1, beforeImg: "", afterImg: "", description: "" }]
+      }));
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      transformations: prev.transformations.filter((_, i) => i !== index)
+    }));
   };
 
   useEffect(() => {
@@ -131,7 +187,7 @@ export default function Trainers() {
         certifications: form.certifications,
         photoUrl: form.photoUrl || "",
         certUrl: form.certUrl || "",
-        portfolioUrl: form.portfolioUrl || "",
+        transformations: form.transformations.filter(t => t.beforeImg || t.afterImg || t.description),
         membersCount: 0,
         hasLogin: true,
       };
@@ -163,7 +219,7 @@ export default function Trainers() {
         certifications: "",
         photoUrl: "",
         certUrl: "",
-        portfolioUrl: "",
+        transformations: [{ id: 1, beforeImg: "", afterImg: "", description: "" }],
       });
     } catch (err) {
       console.error(err);
@@ -558,57 +614,145 @@ export default function Trainers() {
               ></textarea>
             </div>
 
-            {/* Premium Documents Section */}
+            {/* Certification Upload Section */}
             <div className="pt-2">
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 border-b border-slate-100 pb-2 flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-emerald-600" /> Documents & Portfolio
+                <FileText className="w-4 h-4 text-emerald-600" /> Trainer Certification
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Certification Upload */}
-                <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-2xl cursor-pointer hover:bg-emerald-50/60 hover:border-emerald-300 transition group bg-white shadow-xs">
-                  <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-emerald-100 transition">
-                    {form.certUrl ? (
-                      <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                    ) : (
-                      <Award className="w-5 h-5 text-slate-400 group-hover:text-emerald-600" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-800 truncate">
-                      {form.certUrl ? "Certificate Attached" : "Upload Certification"}
-                    </p>
-                    <p className="text-[10px] text-slate-500">PDF, JPG, PNG (Max 800KB)</p>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/jpeg, image/png, application/pdf"
-                    onChange={(e) => handleFileUpload(e, "certUrl")}
-                    className="hidden"
-                  />
-                </label>
+              <label className="flex items-center gap-3 p-3.5 border border-slate-200 rounded-2xl cursor-pointer hover:bg-emerald-50/60 hover:border-emerald-300 transition group bg-white shadow-xs">
+                <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-emerald-100 transition">
+                  {form.certUrl ? (
+                    <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                  ) : (
+                    <Award className="w-5 h-5 text-slate-400 group-hover:text-emerald-600" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-slate-800 truncate">
+                    {form.certUrl ? "Certificate Attached" : "Upload Certification"}
+                  </p>
+                  <p className="text-[10px] text-slate-500">Supports PDF, JPG, PNG (Max 800KB)</p>
+                </div>
+                <div className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-bold group-hover:bg-emerald-500 group-hover:text-white transition">
+                  {form.certUrl ? "Change File" : "Browse"}
+                </div>
+                <input
+                  type="file"
+                  accept="image/jpeg, image/png, application/pdf"
+                  onChange={(e) => handleFileUpload(e, "certUrl")}
+                  className="hidden"
+                />
+              </label>
+            </div>
 
-                {/* Portfolio / Before After */}
-                <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-2xl cursor-pointer hover:bg-emerald-50/60 hover:border-emerald-300 transition group bg-white shadow-xs">
-                  <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-emerald-100 transition">
-                    {form.portfolioUrl ? (
-                      <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                    ) : (
-                      <ImageIcon className="w-5 h-5 text-slate-400 group-hover:text-emerald-600" />
-                    )}
+            {/* Transformations / Before-After Section with Add More */}
+            <div className="pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <ImageIcon className="w-4 h-4 text-emerald-600" /> Client Transformation Results
+                </h4>
+                <button
+                  type="button"
+                  onClick={addMoreTransformation}
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add More Result
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {form.transformations.map((item, idx) => (
+                  <div
+                    key={item.id || idx}
+                    className="p-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl relative space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold text-slate-700">
+                        Result #{idx + 1}
+                      </span>
+                      {form.transformations.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeTransformation(idx)}
+                          className="text-slate-400 hover:text-rose-600 p-1 transition"
+                          title="Remove this transformation"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Side-by-side Before & After */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Before Box */}
+                      <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-white hover:border-emerald-400 transition text-center bg-slate-50 min-h-[110px]">
+                        {item.beforeImg ? (
+                          <div className="relative w-full h-24 rounded-lg overflow-hidden">
+                            <img
+                              src={item.beforeImg}
+                              alt="Before"
+                              className="w-full h-full object-cover"
+                            />
+                            <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                              Before
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            <Camera className="w-5 h-5 text-slate-400 mb-1" />
+                            <span className="text-[11px] font-bold text-slate-700">Before Photo</span>
+                            <span className="text-[9px] text-slate-400">Click to upload</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/jpeg, image/png"
+                          onChange={(e) => handleTransformationFile(e, idx, "beforeImg")}
+                          className="hidden"
+                        />
+                      </label>
+
+                      {/* After Box */}
+                      <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-white hover:border-emerald-400 transition text-center bg-slate-50 min-h-[110px]">
+                        {item.afterImg ? (
+                          <div className="relative w-full h-24 rounded-lg overflow-hidden">
+                            <img
+                              src={item.afterImg}
+                              alt="After"
+                              className="w-full h-full object-cover"
+                            />
+                            <span className="absolute bottom-1 left-1 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                              After
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            <Camera className="w-5 h-5 text-emerald-500 mb-1" />
+                            <span className="text-[11px] font-bold text-slate-700">After Photo</span>
+                            <span className="text-[9px] text-slate-400">Click to upload</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/jpeg, image/png"
+                          onChange={(e) => handleTransformationFile(e, idx, "afterImg")}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    {/* Description below */}
+                    <div>
+                      <input
+                        type="text"
+                        value={item.description || ""}
+                        onChange={(e) => handleTransformationDesc(e.target.value, idx)}
+                        placeholder="e.g. 12 Weeks Fat Loss & Muscle Gain - 14kg down"
+                        className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                      />
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-800 truncate">
-                      {form.portfolioUrl ? "Result Attached" : "Before/After Result"}
-                    </p>
-                    <p className="text-[10px] text-slate-500">JPG, PNG (Max 800KB)</p>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/jpeg, image/png"
-                    onChange={(e) => handleFileUpload(e, "portfolioUrl")}
-                    className="hidden"
-                  />
-                </label>
+                ))}
               </div>
             </div>
 
@@ -808,50 +952,101 @@ export default function Trainers() {
             )}
 
             {/* Documents & Results Preview */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 Certifications & Transformation Results
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div className="flex items-center gap-2 font-bold text-xs text-slate-800 mb-2">
-                    <Award className="w-4 h-4 text-emerald-600" /> Certificate
-                  </div>
-                  {viewTrainerModal.certUrl ? (
-                    viewTrainerModal.certUrl.startsWith("data:application/pdf") ? (
-                      <a
-                        href={viewTrainerModal.certUrl}
-                        download="certificate.pdf"
-                        className="text-xs font-bold text-emerald-600 underline"
-                      >
-                        Download PDF Certificate
-                      </a>
-                    ) : (
-                      <img
-                        src={viewTrainerModal.certUrl}
-                        alt="Certificate"
-                        className="w-full h-40 object-cover rounded-xl border border-slate-200"
-                      />
-                    )
-                  ) : (
-                    <p className="text-xs text-slate-400">No certificate uploaded</p>
-                  )}
+              
+              {/* Certificate */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className="flex items-center gap-2 font-bold text-xs text-slate-800 mb-2">
+                  <Award className="w-4 h-4 text-emerald-600" /> Certificate
                 </div>
-
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div className="flex items-center gap-2 font-bold text-xs text-slate-800 mb-2">
-                    <ImageIcon className="w-4 h-4 text-emerald-600" /> Client Transformation
-                  </div>
-                  {viewTrainerModal.portfolioUrl ? (
+                {viewTrainerModal.certUrl ? (
+                  viewTrainerModal.certUrl.startsWith("data:application/pdf") ? (
+                    <a
+                      href={viewTrainerModal.certUrl}
+                      download="certificate.pdf"
+                      className="text-xs font-bold text-emerald-600 underline"
+                    >
+                      Download PDF Certificate
+                    </a>
+                  ) : (
                     <img
-                      src={viewTrainerModal.portfolioUrl}
-                      alt="Before After"
-                      className="w-full h-40 object-cover rounded-xl border border-slate-200"
+                      src={viewTrainerModal.certUrl}
+                      alt="Certificate"
+                      className="w-full max-h-56 object-contain bg-white rounded-xl border border-slate-200"
                     />
-                  ) : (
-                    <p className="text-xs text-slate-400">No transformation photo uploaded</p>
-                  )}
-                </div>
+                  )
+                ) : (
+                  <p className="text-xs text-slate-400">No certificate uploaded</p>
+                )}
+              </div>
+
+              {/* Transformations Gallery */}
+              <div className="space-y-3">
+                <h5 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <ImageIcon className="w-4 h-4 text-emerald-600" /> Client Transformations
+                </h5>
+
+                {viewTrainerModal.transformations && viewTrainerModal.transformations.length > 0 ? (
+                  <div className="space-y-4">
+                    {viewTrainerModal.transformations.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs space-y-3"
+                      >
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="text-center">
+                            <span className="text-[10px] font-bold uppercase text-slate-500 mb-1 block">
+                              Before
+                            </span>
+                            {item.beforeImg ? (
+                              <img
+                                src={item.beforeImg}
+                                alt="Before"
+                                className="w-full h-36 object-cover rounded-xl border border-slate-100"
+                              />
+                            ) : (
+                              <div className="w-full h-36 bg-slate-100 rounded-xl flex items-center justify-center text-xs text-slate-400">
+                                No Before Photo
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-center">
+                            <span className="text-[10px] font-bold uppercase text-emerald-600 mb-1 block">
+                              After
+                            </span>
+                            {item.afterImg ? (
+                              <img
+                                src={item.afterImg}
+                                alt="After"
+                                className="w-full h-36 object-cover rounded-xl border border-emerald-100"
+                              />
+                            ) : (
+                              <div className="w-full h-36 bg-slate-100 rounded-xl flex items-center justify-center text-xs text-slate-400">
+                                No After Photo
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {item.description && (
+                          <p className="text-xs font-medium text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                            📝 {item.description}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : viewTrainerModal.portfolioUrl ? (
+                  <img
+                    src={viewTrainerModal.portfolioUrl}
+                    alt="Transformation"
+                    className="w-full h-44 object-cover rounded-xl border border-slate-200"
+                  />
+                ) : (
+                  <p className="text-xs text-slate-400">No transformation photos added</p>
+                )}
               </div>
             </div>
 
