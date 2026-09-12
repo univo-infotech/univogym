@@ -15,7 +15,8 @@ import {
   MessageCircle,
   Bell,
   Check,
-  QrCode
+  QrCode,
+  Copy
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -383,61 +384,72 @@ export default function Dashboard() {
               Generate Link & QR Code
             </button>
           ) : (
-            <div className="space-y-3 pt-2">
+            <div className="space-y-3.5 pt-2">
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
                 <span className="text-emerald-800 font-semibold flex items-center gap-1">
                   <Clock className="w-4 h-4 text-emerald-600" /> Active 5-Minute Link:
                 </span>
-                <span className={`font-mono font-bold px-2 py-0.5 rounded-full ${linkCountdown <= 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-900'}`}>
+                <span className={`font-mono font-bold px-2.5 py-0.5 rounded-full ${linkCountdown <= 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-900'}`}>
                   {linkCountdown <= 0 ? 'EXPIRED' : `${String(Math.floor(linkCountdown / 60)).padStart(2, '0')}:${String(linkCountdown % 60).padStart(2, '0')} Left`}
                 </span>
               </div>
-              <input
-                readOnly
-                value={generatedLink}
-                className="w-full bg-slate-100 border border-slate-200 rounded-lg p-2 text-xs text-slate-600 font-mono"
-              />
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(generatedLink);
-                    toast.success("Link copied!");
-                  }}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                >
-                  Copy Link
-                </button>
-                <button
-                  onClick={() => {
-                    const rawNum = invitePhone.replace(/\D/g, "");
-                    const waPhone = rawNum.length === 10 ? `91${rawNum}` : rawNum;
-                    const msg = encodeURIComponent(
-                      `💪 *Welcome to ${settings.gymName || 'UNIVO GYM'}!*\n\nHi ${inviteName || 'Athlete'},\nPlease complete your gym registration form, choose your membership plan & trainer, and sign your liability waiver using this direct link:\n\n🔗 ${generatedLink}\n\n⚠️ *Important:* This secure registration link expires in 5 minutes.`
-                    );
-                    window.open(`https://wa.me/${waPhone}?text=${msg}`, "_blank");
-                  }}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <MessageCircle className="w-4 h-4" /> Send via WhatsApp
-                </button>
-              </div>
 
-              {/* Instant QR Code Box */}
-              <div className="p-4 bg-white border-2 border-emerald-100 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 mb-2">
-                  <QrCode className="w-4 h-4 text-emerald-600" /> Scan QR to Register Instantly
+              {/* Link & QR Code 2-column view */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-center pt-1">
+                {/* Left Column: Link input & buttons */}
+                <div className="space-y-2.5 flex flex-col justify-center">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Direct Registration Link</label>
+                    <input
+                      readOnly
+                      value={generatedLink}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-mono select-all"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedLink);
+                        toast.success("Link copied!");
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <Copy className="w-3.5 h-3.5" /> Copy Link
+                    </button>
+                    <button
+                      onClick={() => {
+                        const rawNum = invitePhone.replace(/\D/g, "");
+                        const waPhone = rawNum.length === 10 ? `91${rawNum}` : rawNum;
+                        const msg = encodeURIComponent(
+                          `💪 *Welcome to ${settings.gymName || 'UNIVO GYM'}!*\n\nHi ${inviteName || 'Athlete'},\nPlease complete your gym registration form, choose your membership plan & trainer, and sign your liability waiver using this direct link:\n\n🔗 ${generatedLink}\n\n⚠️ *Important:* This secure registration link expires in 5 minutes.`
+                        );
+                        window.open(`https://wa.me/${waPhone}?text=${msg}`, "_blank");
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20"
+                    >
+                      <MessageCircle className="w-4 h-4" /> Send via WhatsApp
+                    </button>
+                  </div>
                 </div>
-                <div className="p-3 bg-white rounded-2xl border-2 border-slate-100 shadow-inner flex items-center justify-center">
-                  <QRCodeSVG
-                    value={generatedLink}
-                    size={160}
-                    level="H"
-                    includeMargin={true}
-                  />
+
+                {/* Right Column: Instant QR Code Box */}
+                <div className="p-3 bg-white border-2 border-emerald-100 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
+                  <p className="text-xs font-bold text-slate-900 mb-1.5 flex items-center gap-1">
+                    <QrCode className="w-3.5 h-3.5 text-emerald-600" /> Scan to Register
+                  </p>
+                  <div className="p-2 bg-white rounded-xl border border-slate-200 shadow-inner flex items-center justify-center">
+                    <QRCodeSVG
+                      value={generatedLink}
+                      size={135}
+                      level="H"
+                      includeMargin={true}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1.5 max-w-[180px] leading-tight">
+                    Scan with mobile camera to create ID instantly.
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-2.5 max-w-xs leading-relaxed">
-                  Member can scan this QR code directly with their phone camera to open the form and create their gym ID right now!
-                </p>
               </div>
             </div>
           )}

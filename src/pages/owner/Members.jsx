@@ -191,31 +191,30 @@ function InviteLinkModal({ gymId, onClose }) {
   }
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4'>
-      <div className='bg-white border border-slate-200 rounded-3xl w-full max-w-md shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95'>
-        <div className='flex items-center justify-between border-b border-slate-100 pb-4'>
-          <div className='flex items-center gap-3'>
-            <div className='w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600'>
-              <Link2 className='w-5 h-5' />
-            </div>
-            <div>
-              <h2 className='text-base font-bold text-slate-900'>5-Min WhatsApp Invite Link</h2>
-              <p className='text-xs text-slate-500'>Self-registration link for new member</p>
-            </div>
-          </div>
-          <button onClick={onClose} className='p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100'>
-            <X className='w-5 h-5' />
-          </button>
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="📲 5-Min WhatsApp Invite Link & QR Code"
+      maxWidth="max-w-xl"
+    >
+      <div className='space-y-4 text-slate-800'>
+        {/* Helper Banner */}
+        <div className='p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-950'>
+          <Sparkles className='w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5' />
+          <p className='leading-relaxed text-[11px] text-emerald-900'>
+            Member link open karke ya <strong>QR Code scan karke</strong> apna plan, trainer aur photo khud select & upload karega.
+          </p>
         </div>
 
-        <div className='space-y-3'>
+        {/* Form Inputs (Side-by-Side) */}
+        <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
           <div>
             <label className='block text-xs font-semibold text-slate-700 mb-1'>Member Name (optional)</label>
             <input
               value={memberName}
               onChange={(e) => setMemberName(e.target.value)}
               placeholder='e.g. Rahul Sharma'
-              className='w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white'
+              className='w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white'
             />
           </div>
           <div>
@@ -226,79 +225,82 @@ function InviteLinkModal({ gymId, onClose }) {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder='9876543210'
-              className='w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white'
+              className='w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white'
             />
           </div>
+        </div>
 
-          <div className='p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-950'>
-            <Sparkles className='w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5' />
-            <p className='leading-relaxed text-[11px] text-emerald-900'>
-              Member link open karke apna <strong>Membership Plan</strong>, <strong>Trainer</strong>, aur profile photo khud select karega aur digital waiver sign karega.
-            </p>
-          </div>
-
+        {!link ? (
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className='w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm font-bold transition shadow-md disabled:opacity-50'
+            className='w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm font-bold transition shadow-md disabled:opacity-50'
           >
-            {generating ? 'Generating...' : 'Generate 5-Minute Link'}
+            {generating ? 'Generating...' : '⚡ Generate 5-Minute Link & QR Code'}
           </button>
+        ) : (
+          <div className='p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3.5'>
+            {/* Countdown & Expiry */}
+            <div className='flex items-center justify-between text-xs'>
+              <span className='font-semibold text-slate-600 flex items-center gap-1.5'>
+                <Clock className='w-4 h-4 text-emerald-600' /> Time Remaining:
+              </span>
+              <span className={`font-mono font-bold px-2.5 py-0.5 rounded-full ${expired ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'}`}>
+                {expired ? 'EXPIRED' : fmtCountdown(secondsLeft)}
+              </span>
+            </div>
 
-          {link && (
-            <div className='mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3'>
-              <div className='flex items-center justify-between text-xs'>
-                <span className='font-semibold text-slate-600 flex items-center gap-1.5'>
-                  <Clock className='w-4 h-4 text-emerald-600' /> Time Remaining:
-                </span>
-                <span className={`font-mono font-bold px-2 py-0.5 rounded-full ${expired ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'}`}>
-                  {expired ? 'EXPIRED' : fmtCountdown(secondsLeft)}
-                </span>
-              </div>
-
-              <input
-                readOnly
-                value={link}
-                className='w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-600 font-mono'
-              />
-
-              <div className='flex gap-2'>
-                <button
-                  onClick={handleCopy}
-                  className='flex-1 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition'
-                >
-                  <Copy className='w-4 h-4' /> Copy Link
-                </button>
-                <button
-                  onClick={handleWhatsApp}
-                  className='flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm'
-                >
-                  <MessageCircle className='w-4 h-4' /> Send via WhatsApp
-                </button>
-              </div>
-
-              {/* Instant QR Code Box */}
-              <div className='p-4 bg-white border-2 border-emerald-100 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm'>
-                <div className='flex items-center gap-1.5 text-xs font-bold text-slate-900 mb-2'>
-                  <QrCode className='w-4 h-4 text-emerald-600' /> Scan QR to Register Instantly
+            {/* Link & QR Code 2-column view */}
+            <div className='grid grid-cols-1 sm:grid-cols-2 gap-3.5 items-center pt-1'>
+              {/* Left Column: Link input & buttons */}
+              <div className='space-y-2.5 flex flex-col justify-center'>
+                <div>
+                  <label className='text-[10px] font-bold text-slate-500 uppercase block mb-1'>Direct Registration Link</label>
+                  <input
+                    readOnly
+                    value={link}
+                    className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-mono select-all'
+                  />
                 </div>
-                <div className='p-3 bg-white rounded-2xl border-2 border-slate-100 shadow-inner flex items-center justify-center'>
+
+                <div className='flex flex-col gap-2'>
+                  <button
+                    onClick={handleCopy}
+                    className='w-full py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm'
+                  >
+                    <Copy className='w-3.5 h-3.5' /> Copy Link
+                  </button>
+                  <button
+                    onClick={handleWhatsApp}
+                    className='w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-md shadow-emerald-600/20'
+                  >
+                    <MessageCircle className='w-4 h-4' /> Send via WhatsApp
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Instant QR Code Box */}
+              <div className='p-3 bg-white border-2 border-emerald-100 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm'>
+                <p className='text-xs font-bold text-slate-900 mb-1.5 flex items-center gap-1'>
+                  <QrCode className='w-3.5 h-3.5 text-emerald-600' /> Scan to Register
+                </p>
+                <div className='p-2 bg-white rounded-xl border border-slate-200 shadow-inner flex items-center justify-center'>
                   <QRCodeSVG
                     value={link}
-                    size={160}
+                    size={135}
                     level="H"
                     includeMargin={true}
                   />
                 </div>
-                <p className='text-[11px] text-slate-500 mt-2.5 max-w-xs leading-relaxed'>
-                  Member can scan this QR code directly with their phone camera to open the form and create their gym ID right now!
+                <p className='text-[10px] text-slate-500 mt-1.5 max-w-[180px] leading-tight'>
+                  Scan with mobile camera to create ID instantly.
                 </p>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }
 
