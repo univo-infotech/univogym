@@ -23,30 +23,7 @@ const MODULES = [
   { id: "settings", label: "Settings", desc: "Gym profile & configurations" }
 ];
 
-const DEFAULT_PRESETS = [
-  { 
-    id: "receptionist_default", title: "Receptionist", icon: "🛎️", desc: "Front desk: admission, fee collection, visits & receipts.", 
-    perms: {
-      dashboard: { view: true },
-      members: { view: true, create: true, edit: true, delete: false },
-      payments: { view: true, create: true, edit: true, delete: false },
-      visits: { view: true, create: true, edit: true, delete: false }
-    }
-  },
-  { 
-    id: "manager_default", title: "Branch Manager", icon: "🏢", desc: "Branch management: admissions, fees, operational reports & expenses.", 
-    perms: {
-      dashboard: { view: true },
-      members: { view: true, create: true, edit: true, delete: true },
-      payments: { view: true, create: true, edit: true, delete: true },
-      trainers: { view: true, create: true, edit: true, delete: false },
-      staff: { view: true, create: true, edit: false, delete: false },
-      expenses: { view: true, create: true, edit: true, delete: true },
-      reports: { view: true },
-      visits: { view: true, create: true, edit: true, delete: true }
-    }
-  }
-];
+// Removed DEFAULT_PRESETS as it is now seeded dynamically
 
 export default function RolesPermissions() {
   const { gymId, role: currentRole } = useAuth();
@@ -81,10 +58,32 @@ export default function RolesPermissions() {
   async function loadData() {
     setLoading(true);
     try {
-      const [uData, rData] = await Promise.all([
-        getStaffUsers(GID),
-        getRoles(GID)
-      ]);
+      const uData = await getStaffUsers(GID);
+      let rData = await getRoles(GID);
+      
+      if (rData.length === 0) {
+        // Seed initial default roles
+        const rec = { 
+          title: "Receptionist", icon: "🛎️", desc: "Front desk: admission, fee collection, visits & receipts.", 
+          perms: {
+            dashboard: { view: true }, members: { view: true, create: true, edit: true, delete: false },
+            payments: { view: true, create: true, edit: true, delete: false }, visits: { view: true, create: true, edit: true, delete: false }
+          }
+        };
+        const man = { 
+          title: "Branch Manager", icon: "🏢", desc: "Branch management: admissions, fees, operational reports & expenses.", 
+          perms: {
+            dashboard: { view: true }, members: { view: true, create: true, edit: true, delete: true },
+            payments: { view: true, create: true, edit: true, delete: true }, trainers: { view: true, create: true, edit: true, delete: false },
+            staff: { view: true, create: true, edit: false, delete: false }, expenses: { view: true, create: true, edit: true, delete: true },
+            reports: { view: true }, visits: { view: true, create: true, edit: true, delete: true }
+          }
+        };
+        await addRole(GID, rec);
+        await addRole(GID, man);
+        rData = await getRoles(GID);
+      }
+      
       setUsers(uData.filter(u => u.role !== 'owner'));
       setRoles(rData);
     } catch (err) {
@@ -94,7 +93,7 @@ export default function RolesPermissions() {
     }
   }
 
-  const allPresets = [...DEFAULT_PRESETS, ...roles];
+  const allPresets = [...roles];
 
   // --- STAFF FUNCTIONS ---
   const openAddStaff = () => {
@@ -184,7 +183,6 @@ export default function RolesPermissions() {
   };
   
   const openEditRole = (r) => {
-    if (r.id.includes("default")) return toast.error("Default roles cannot be edited");
     setSelectedRole(r);
     setRoleForm({ title: r.title, icon: r.icon, desc: r.desc, perms: r.perms || {} });
     setRoleModalOpen(true);
@@ -296,21 +294,18 @@ export default function RolesPermissions() {
           </div>
           
           {allPresets.map((p, i) => {
-            const isDefault = p.id.includes("default");
             return (
               <div key={p.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-blue-300 transition relative flex flex-col">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2"><span className="text-xl">{p.icon}</span><h3 className="font-bold text-slate-900">{p.title}</h3></div>
-                  {!isDefault && (
-                    <div className="flex gap-1">
-                      <button onClick={() => openEditRole(p)} className="p-1 text-slate-400 hover:text-blue-600"><Edit className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => setDeleteConfirm({ type: 'role', ...p })} className="p-1 text-slate-400 hover:text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  )}
+                  <div className="flex gap-1">
+                    <button onClick={() => openEditRole(p)} className="p-1 text-slate-400 hover:text-blue-600"><Edit className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => setDeleteConfirm({ type: 'role', ...p })} className="p-1 text-slate-400 hover:text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
                 </div>
                 <p className="text-xs text-slate-500 leading-relaxed mb-4 flex-1">{p.desc}</p>
                 <div className="flex items-center justify-between mt-auto">
-                  <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md uppercase">{isDefault ? "Standard Preset" : "Custom Role"}</span>
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md uppercase">Standard Preset</span>
                   <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md uppercase">{getActiveModulesCount(p.perms)} Modules</span>
                 </div>
               </div>
@@ -446,12 +441,12 @@ export default function RolesPermissions() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
+          <div className={`grid grid-cols-1 ${selectedStaff ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-5 bg-blue-50/50 p-4 rounded-2xl border border-blue-100`}>
             <div>
               <label className="text-[11px] font-bold text-blue-800 uppercase tracking-wide mb-1 block">User ID / Email *</label>
               <input required type="email" placeholder="staff@gym.com" value={staffForm.email} disabled={!!selectedStaff}
                 onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
-                className={`w-full bg-white border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 ${selectedStaff ? 'border-transparent bg-transparent font-bold pl-0' : 'border-slate-300'}`} />
+                className={`w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 ${selectedStaff ? 'opacity-80 font-bold text-slate-800' : ''}`} />
             </div>
             {!selectedStaff && (
               <div>
