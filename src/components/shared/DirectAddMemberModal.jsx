@@ -301,161 +301,152 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
         title="Add Member Directly (Complete Registration Form)"
         maxWidth="max-w-5xl"
       >
-        <form onSubmit={handleSubmit} className="space-y-6 text-slate-800 text-xs max-h-[82vh] overflow-y-auto pr-1">
+        <form onSubmit={handleSubmit} className="space-y-4 text-slate-800 text-xs max-h-[82vh] overflow-y-auto pr-1">
           
           {/* ============================================================
-              STEP 1: PHOTO & PERSONAL IDENTIFICATION
+              SECTION 1: PHOTO & PERSONAL DETAILS (2-COLUMN ON DESKTOP)
           ============================================================ */}
-          <div className="p-5 rounded-3xl bg-slate-50 border border-slate-200 space-y-4">
+          <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-50 border border-slate-200 space-y-3.5">
             <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
               <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm">
                 <User className="w-4 h-4 text-indigo-600" />
-                1. Profile Photo & Identification
+                1. Member Profile & Identification
               </h4>
               <span className="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full font-bold">
                 Step 1 of 5
               </span>
             </div>
 
-            <div>
-              <PhotoCaptureInput
-                value={formData.photoURL}
-                onChange={(url) => setFormData((prev) => ({ ...prev, photoURL: url }))}
-                label="Member Portrait Photo"
-                subLabel="Upload photo from device files or take a live camera snapshot"
-                shape="rounded"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Full Name *</label>
-                <input
-                  required
-                  type="text"
-                  placeholder="e.g. Rahul Sharma"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+              {/* Left Column: Portrait Photo Capture */}
+              <div className="lg:col-span-4 bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-center">
+                <PhotoCaptureInput
+                  value={formData.photoURL}
+                  onChange={(url) => setFormData((prev) => ({ ...prev, photoURL: url }))}
+                  label="Portrait Photo"
+                  subLabel="Upload file or take live camera snapshot"
+                  shape="rounded"
                 />
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Gender *</label>
-                <select
-                  value={formData.gender}
-                  onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
+              {/* Right Column: Personal & Contact Fields */}
+              <div className="lg:col-span-8 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Full Name *</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="e.g. Rahul Sharma"
+                      value={formData.fullName}
+                      onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Gender *</label>
+                    <select
+                      value={formData.gender}
+                      onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Primary Phone *</label>
+                    <input
+                      required
+                      type="tel"
+                      placeholder="9876543210"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Alt. Phone (Optional)</label>
+                    <input
+                      type="tel"
+                      placeholder="Family / Emergency"
+                      value={formData.altPhone}
+                      onChange={(e) => setFormData({ ...formData, altPhone: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Email (Optional)</label>
+                    <input
+                      type="email"
+                      placeholder="name@email.com"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Date of Birth</label>
+                    <input
+                      type="date"
+                      value={formData.dob}
+                      onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="font-bold text-slate-700 block mb-1">Residential Address</label>
+                    <input
+                      type="text"
+                      placeholder="Flat / Street address, Area, City"
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           {/* ============================================================
-              STEP 2: CONTACT & RESIDENTIAL DETAILS
+              SECTION 2: MEMBERSHIP PLAN & TRAINER (STREAMLINED)
           ============================================================ */}
-          <div className="p-5 rounded-3xl bg-slate-50 border border-slate-200 space-y-3.5">
+          <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-50 border border-slate-200 space-y-3.5">
             <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
               <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm">
-                <Phone className="w-4 h-4 text-emerald-600" />
-                2. Contact & Address Details
+                <Dumbbell className="w-4 h-4 text-purple-600" />
+                2. Membership Plan & Assigned Coach
               </h4>
-              <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full font-bold">
+              <span className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full font-bold">
                 Step 2 of 5
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Primary Phone Number *</label>
-                <input
-                  required
-                  type="tel"
-                  placeholder="9876543210"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Alternative Phone (Optional)</label>
-                <input
-                  type="tel"
-                  placeholder="Family / Emergency contact"
-                  value={formData.altPhone}
-                  onChange={(e) => setFormData({ ...formData, altPhone: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Email Address (Optional)</label>
-                <input
-                  type="email"
-                  placeholder="rahul@gmail.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Date of Birth</label>
-                <input
-                  type="date"
-                  value={formData.dob}
-                  onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">Residential Address</label>
-                <input
-                  type="text"
-                  placeholder="Street address, Flat No., Area"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ============================================================
-              STEP 3: MEMBERSHIP PLAN & TRAINER (WITH DETAILS & RESULTS)
-          ============================================================ */}
-          <div className="p-5 rounded-3xl bg-slate-50 border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
-              <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm">
-                <Dumbbell className="w-4 h-4 text-purple-600" />
-                3. Membership Plan & Assigned Coach
-              </h4>
-              <span className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full font-bold">
-                Step 3 of 5
-              </span>
-            </div>
-
             {/* Selectors Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Membership Plan */}
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Membership Plan</label>
                 <select
                   value={formData.planId}
                   onChange={(e) => setFormData({ ...formData, planId: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-500"
                 >
                   {availablePlans.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} - Rs. {Number(p.price || 0).toLocaleString("en-IN")}
+                      {p.name} - ₹{Number(p.price || 0).toLocaleString("en-IN")}
                     </option>
                   ))}
                 </select>
@@ -468,7 +459,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                   type="date"
                   value={formData.joiningDate}
                   onChange={(e) => setFormData({ ...formData, joiningDate: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-semibold"
                 />
               </div>
 
@@ -478,7 +469,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 <select
                   value={formData.trainerName}
                   onChange={(e) => setFormData({ ...formData, trainerName: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-500"
                 >
                   {availableTrainers.map((t) => (
                     <option key={t.id || t.name} value={t.name}>
@@ -490,15 +481,15 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
             </div>
 
             {/* ==========================================================
-                COACH DETAILS & PROPER RESIZED PROFILE CARD
+                COACH DETAILS & BALANCED DESKTOP PROFILE CARD
             ========================================================== */}
             {isPersonalTrainer && selectedTrainerObj && (
-              <div className="p-5 rounded-3xl bg-white border-2 border-indigo-200 shadow-sm space-y-4 transition-all">
-                <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-5">
+              <div className="p-4 rounded-2xl bg-white border border-indigo-200 shadow-xs space-y-3.5 transition-all">
+                <div className="flex flex-col sm:flex-row items-start gap-3.5">
                   
-                  {/* Fixed Size Photo Frame with click to zoom */}
+                  {/* Compact Coach Photo Frame with Click-to-Zoom */}
                   <div 
-                    className="relative group cursor-pointer flex-shrink-0 mx-auto"
+                    className="relative group cursor-pointer flex-shrink-0"
                     onClick={() => {
                       const p = selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL;
                       if (p) {
@@ -511,7 +502,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     }}
                   >
                     {(selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL) ? (
-                      <div className="w-52 h-72 sm:w-60 sm:h-80 rounded-3xl overflow-hidden border-4 border-indigo-500 shadow-xl bg-slate-900 flex-shrink-0">
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-md bg-slate-900 flex-shrink-0">
                         <img
                           src={selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL}
                           alt={selectedTrainerObj.name}
@@ -519,34 +510,34 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                         />
                       </div>
                     ) : (
-                      <div className="w-52 h-72 sm:w-60 sm:h-80 rounded-3xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-extrabold flex items-center justify-center text-5xl shadow-sm flex-shrink-0">
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-extrabold flex items-center justify-center text-2xl shadow-sm flex-shrink-0">
                         {selectedTrainerObj.name?.charAt(0)?.toUpperCase() || "C"}
                       </div>
                     )}
                     {(selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL) && (
-                      <div className="absolute inset-0 bg-slate-900/60 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5 shadow-lg">
-                        <Maximize2 className="w-4 h-4" /> Click for Full View
+                      <div className="absolute inset-0 bg-slate-900/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1 shadow-lg">
+                        <Maximize2 className="w-3.5 h-3.5" /> Zoom
                       </div>
                     )}
                   </div>
 
                   {/* Coach Credentials Column */}
-                  <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex-1 min-w-0 space-y-1.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h5 className="font-extrabold text-slate-900 text-base">{selectedTrainerObj.name}</h5>
-                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+                          <h5 className="font-extrabold text-slate-900 text-sm">{selectedTrainerObj.name}</h5>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center gap-1">
                             <Award className="w-3 h-3 text-indigo-600" /> Dedicated Coach
                           </span>
                         </div>
-                        <p className="text-xs font-bold text-indigo-600 mt-0.5">
+                        <p className="text-xs font-bold text-indigo-600">
                           {selectedTrainerObj.specialization || "Personal Fitness Coach"}
                         </p>
                       </div>
 
                       {selectedTrainerObj.experience && (
-                        <span className="text-xs font-bold px-3 py-1 bg-slate-100 text-slate-700 rounded-xl border border-slate-200">
+                        <span className="text-[11px] font-bold px-2.5 py-0.5 bg-slate-100 text-slate-700 rounded-lg border border-slate-200">
                           {selectedTrainerObj.experience} Experience
                         </span>
                       )}
@@ -554,88 +545,92 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
                     {/* Coach Bio */}
                     {selectedTrainerObj.bio && (
-                      <div className="bg-slate-50/80 p-3 rounded-xl text-xs text-slate-700 border border-slate-100 leading-relaxed">
-                        <span className="font-bold text-slate-900 block mb-0.5">Coach Bio & Background:</span>
+                      <div className="bg-slate-50/90 p-2.5 rounded-xl text-xs text-slate-700 border border-slate-100 leading-relaxed">
+                        <span className="font-bold text-slate-900 inline mr-1">Bio:</span>
                         {selectedTrainerObj.bio}
                       </div>
                     )}
 
                     {/* Coach Certifications */}
                     {selectedTrainerObj.certifications && (
-                      <p className="text-xs text-slate-500 pt-0.5">
-                        <strong className="text-slate-800">Certifications: </strong> {selectedTrainerObj.certifications}
+                      <p className="text-[11px] text-slate-500 pt-0.5">
+                        <strong className="text-slate-700">Certifications: </strong> {selectedTrainerObj.certifications}
                       </p>
                     )}
                   </div>
                 </div>
 
-                {/* Coach Client Transformations (Results) */}
+                {/* Coach Client Transformations (Results) with fixed photo fallbacks */}
                 {selectedTrainerObj.transformations && selectedTrainerObj.transformations.length > 0 ? (
-                  <div className="pt-3 border-t border-slate-100 space-y-2.5">
+                  <div className="pt-2.5 border-t border-slate-100 space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Flame className="w-4 h-4 text-amber-500" />
+                        <Flame className="w-3.5 h-3.5 text-amber-500" />
                         Client Results & Transformations ({selectedTrainerObj.transformations.length})
                       </p>
-                      <span className="text-[11px] text-slate-400 font-medium">Click photos to view full size</span>
+                      <span className="text-[10px] text-slate-400 font-medium">Click photo for full view</span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                      {selectedTrainerObj.transformations.map((item, idx) => (
-                        <div key={item.id || idx} className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/90 space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            {/* Before Image */}
-                            <div 
-                              className="relative rounded-2xl overflow-hidden bg-slate-200 h-52 sm:h-64 border-2 border-slate-300/80 cursor-pointer group shadow-xs"
-                              onClick={() => item.beforeImg && setFullPhotoModal({ img: item.beforeImg, title: "Before Transformation", desc: item.description })}
-                            >
-                              {item.beforeImg ? (
-                                <img src={item.beforeImg} alt="Before" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-                              ) : (
-                                <div className="flex items-center justify-center h-full text-slate-400 text-xs font-semibold">No Photo</div>
-                              )}
-                              <span className="absolute top-2 left-2 bg-rose-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-md">
-                                BEFORE
-                              </span>
-                              {item.beforeImg && (
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
-                                  <Maximize2 className="w-4 h-4" /> View
-                                </div>
-                              )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                      {selectedTrainerObj.transformations.map((item, idx) => {
+                        const beforeSrc = item.beforeImg || item.beforeURL;
+                        const afterSrc = item.afterImg || item.afterURL;
+                        return (
+                          <div key={item.id || idx} className="bg-slate-50 p-2 rounded-xl border border-slate-200/90 space-y-1.5">
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {/* Before Image */}
+                              <div 
+                                className="relative rounded-lg overflow-hidden bg-slate-200 h-28 sm:h-32 border border-slate-300/80 cursor-pointer group shadow-2xs"
+                                onClick={() => beforeSrc && setFullPhotoModal({ img: beforeSrc, title: "Before Transformation", desc: item.description })}
+                              >
+                                {beforeSrc ? (
+                                  <img src={beforeSrc} alt="Before" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                                ) : (
+                                  <div className="flex items-center justify-center h-full text-slate-400 text-[10px] font-semibold">No Photo</div>
+                                )}
+                                <span className="absolute top-1 left-1 bg-rose-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm">
+                                  BEFORE
+                                </span>
+                                {beforeSrc && (
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold gap-1">
+                                    <Maximize2 className="w-3.5 h-3.5" /> View
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* After Image */}
+                              <div 
+                                className="relative rounded-lg overflow-hidden bg-slate-200 h-28 sm:h-32 border border-slate-300/80 cursor-pointer group shadow-2xs"
+                                onClick={() => afterSrc && setFullPhotoModal({ img: afterSrc, title: "After Transformation", desc: item.description })}
+                              >
+                                {afterSrc ? (
+                                  <img src={afterSrc} alt="After" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                                ) : (
+                                  <div className="flex items-center justify-center h-full text-slate-400 text-[10px] font-semibold">No Photo</div>
+                                )}
+                                <span className="absolute top-1 left-1 bg-emerald-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm">
+                                  AFTER
+                                </span>
+                                {afterSrc && (
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[10px] font-bold gap-1">
+                                    <Maximize2 className="w-3.5 h-3.5" /> View
+                                  </div>
+                                )}
+                              </div>
                             </div>
 
-                            {/* After Image */}
-                            <div 
-                              className="relative rounded-2xl overflow-hidden bg-slate-200 h-52 sm:h-64 border-2 border-slate-300/80 cursor-pointer group shadow-xs"
-                              onClick={() => item.afterImg && setFullPhotoModal({ img: item.afterImg, title: "After Transformation", desc: item.description })}
-                            >
-                              {item.afterImg ? (
-                                <img src={item.afterImg} alt="After" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-                              ) : (
-                                <div className="flex items-center justify-center h-full text-slate-400 text-xs font-semibold">No Photo</div>
-                              )}
-                              <span className="absolute top-2 left-2 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-md">
-                                AFTER
-                              </span>
-                              {item.afterImg && (
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
-                                  <Maximize2 className="w-4 h-4" /> View
-                                </div>
-                              )}
-                            </div>
+                            {item.description && (
+                              <p className="text-[11px] text-slate-600 font-medium line-clamp-1 leading-snug">
+                                {item.description}
+                              </p>
+                            )}
                           </div>
-
-                          {item.description && (
-                            <p className="text-xs text-slate-600 font-medium line-clamp-2 leading-snug">
-                              {item.description}
-                            </p>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ) : (
-                  <div className="pt-2 text-xs text-slate-400 italic">
+                  <div className="pt-1 text-xs text-slate-400 italic">
                     Coach verified. Personalized workout routine and diet plan will be scheduled upon member joining.
                   </div>
                 )}
@@ -646,27 +641,27 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 PERSONAL TRAINING BODY ASSESSMENT (WEIGHT, HEIGHT, BMI)
             ========================================================== */}
             {isPersonalTrainer && (
-              <div className="p-5 rounded-3xl bg-gradient-to-br from-purple-50/70 to-indigo-50/70 border-2 border-purple-200 space-y-4">
-                <div className="flex items-center justify-between border-b border-purple-200/80 pb-2.5">
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-50/70 to-indigo-50/70 border border-purple-200 space-y-3">
+                <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
                   <div>
-                    <h5 className="font-bold text-purple-950 text-sm flex items-center gap-1.5">
-                      <Scale className="w-4 h-4 text-purple-600" />
+                    <h5 className="font-bold text-purple-950 text-xs flex items-center gap-1.5">
+                      <Scale className="w-3.5 h-3.5 text-purple-600" />
                       Member Physical Assessment (Weight, Height & BMI)
                     </h5>
-                    <p className="text-xs text-purple-800/80 mt-0.5">
-                      Baseline body metrics required for {selectedTrainerObj.name} to design target workout plans
+                    <p className="text-[11px] text-purple-800/80 mt-0.5">
+                      Baseline body metrics for {selectedTrainerObj.name} to design target workout plans
                     </p>
                   </div>
-                  <span className="text-[10px] font-extrabold bg-purple-200 text-purple-900 px-2.5 py-0.5 rounded-full">
+                  <span className="text-[10px] font-extrabold bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full">
                     Coach Assessment
                   </span>
                 </div>
 
                 {/* Weight, Height and BMI Display Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
                   {/* Weight Input */}
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1 text-[11px] sm:text-xs">
+                    <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1 text-xs">
                       <Scale className="w-3.5 h-3.5 text-purple-600" /> Body Weight (kg) *
                     </label>
                     <input
@@ -684,7 +679,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
                   {/* Height Input */}
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1 text-[11px] sm:text-xs">
+                    <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1 text-xs">
                       <Activity className="w-3.5 h-3.5 text-purple-600" /> Height (cm) *
                     </label>
                     <input
@@ -700,21 +695,21 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                   </div>
 
                   {/* Auto Calculated BMI Card */}
-                  <div className="col-span-2 sm:col-span-1 bg-white p-3 rounded-2xl border border-purple-200 flex flex-col justify-between">
+                  <div className="bg-white p-2.5 rounded-xl border border-purple-200 flex flex-col justify-between">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-slate-500 uppercase">Calculated BMI</span>
                       {bmiInfo && (
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${bmiInfo.color}`}>
+                        <span className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded border ${bmiInfo.color}`}>
                           {bmiInfo.category}
                         </span>
                       )}
                     </div>
 
-                    <div className="my-1">
+                    <div className="my-0.5">
                       {bmiInfo ? (
                         <div className="flex items-baseline gap-1.5">
-                          <span className="text-2xl font-black text-purple-950">{bmiInfo.val}</span>
-                          <span className="text-[11px] text-slate-500 font-bold">kg/m²</span>
+                          <span className="text-xl font-black text-purple-950">{bmiInfo.val}</span>
+                          <span className="text-[10px] text-slate-500 font-bold">kg/m²</span>
                         </div>
                       ) : (
                         <span className="text-xs text-slate-400 italic">Enter Weight & Height</span>
@@ -728,7 +723,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 </div>
 
                 {/* Goal & Target Weight */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <div>
                     <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1">
                       <Target className="w-3.5 h-3.5 text-purple-600" /> Primary Fitness Goal
@@ -736,7 +731,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     <select
                       value={formData.fitnessGoal}
                       onChange={(e) => setFormData({ ...formData, fitnessGoal: e.target.value })}
-                      className="w-full bg-white border border-purple-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-purple-600"
+                      className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-purple-600"
                     >
                       {FITNESS_GOALS.map((g) => (
                         <option key={g} value={g}>{g}</option>
@@ -752,7 +747,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       placeholder="e.g. 68.0"
                       value={formData.targetWeight}
                       onChange={(e) => setFormData({ ...formData, targetWeight: e.target.value })}
-                      className="w-full bg-white border border-purple-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-purple-600"
+                      className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-purple-600"
                     />
                   </div>
 
@@ -761,7 +756,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     <select
                       value={formData.targetTimeline}
                       onChange={(e) => setFormData({ ...formData, targetTimeline: e.target.value })}
-                      className="w-full bg-white border border-purple-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:border-purple-600"
+                      className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-purple-600"
                     >
                       <option value="30 Days">30 Days (Fast Track)</option>
                       <option value="90 Days">90 Days (Recommended)</option>
@@ -775,22 +770,22 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
           </div>
 
           {/* ============================================================
-              STEP 4: WORKOUT SCHEDULE & PREFERENCES
+              SECTION 3: WORKOUT SCHEDULE & HEALTH PROFILE
           ============================================================ */}
-          <div className="p-5 rounded-3xl bg-slate-50 border border-slate-200 space-y-3.5">
-            <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
+          <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-50 border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
               <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm">
                 <Clock className="w-4 h-4 text-amber-600" />
-                4. Workout Schedule & Health Profile
+                3. Workout Schedule & Health Profile
               </h4>
               <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full font-bold">
-                Step 4 of 5
+                Step 3 of 5
               </span>
             </div>
 
             <div>
               <label className="font-bold text-slate-700 block mb-1.5">Preferred Workout Time Slot</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {WORKOUT_SLOTS.map((s) => {
                   const fullText = `${s.label} (${s.time})`;
                   const isSelected = formData.preferredSlot === fullText;
@@ -800,9 +795,9 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       key={s.id}
                       type="button"
                       onClick={() => setFormData({ ...formData, preferredSlot: fullText })}
-                      className={`p-2.5 rounded-2xl text-left border transition ${
+                      className={`p-2 rounded-xl text-left border transition ${
                         isSelected
-                          ? "bg-amber-50 border-amber-400 text-amber-900 shadow-sm"
+                          ? "bg-amber-50 border-amber-400 text-amber-900 shadow-xs"
                           : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
                       }`}
                     >
@@ -820,39 +815,39 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
             <div>
               <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1.5">
                 <Heart className="w-3.5 h-3.5 text-rose-500" />
-                Medical History / Injuries / Health Notes
+                Medical History / Injuries / Health Notes (Optional)
               </label>
               <textarea
                 rows={2}
                 placeholder="e.g. Previous knee injury, back pain history, high BP, asthma (optional)"
                 value={formData.healthNotes}
                 onChange={(e) => setFormData({ ...formData, healthNotes: e.target.value })}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
               />
             </div>
           </div>
 
           {/* ============================================================
-              STEP 5: LIABILITY WAIVER & DIGITAL SIGNATURE
+              SECTION 4: LIABILITY WAIVER & DIGITAL SIGNATURE
           ============================================================ */}
-          <div className="p-5 rounded-3xl bg-slate-50 border border-slate-200 space-y-3.5">
-            <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
+          <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-50 border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
               <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                5. Liability Waiver & Signature
+                4. Liability Waiver & Signature
               </h4>
               <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full font-bold">
-                Step 5 of 5
+                Step 4 of 5
               </span>
             </div>
 
             {/* Waiver Text Box */}
-            <div className="p-3.5 bg-white rounded-2xl border border-slate-200 text-[11px] text-slate-600 leading-relaxed max-h-28 overflow-y-auto">
-              <p className="font-bold text-slate-900 mb-1">Assumption of Risk & Release of Liability Agreement:</p>
-              <p className="mb-1">
+            <div className="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600 leading-relaxed max-h-24 overflow-y-auto">
+              <p className="font-bold text-slate-900 mb-0.5">Assumption of Risk & Release of Liability Agreement:</p>
+              <p className="mb-0.5">
                 1. I acknowledge that participation in exercise programs, weight training, cardio, and general fitness activities involves inherent physical risks.
               </p>
-              <p className="mb-1">
+              <p className="mb-0.5">
                 2. I voluntarily assume all risks connected with participation in gym training and release Univo Gym Management, its owners, and trainers from liability for accidental injury.
               </p>
               <p>
@@ -872,7 +867,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
             {/* Signature Selection */}
             <div className="pt-2 border-t border-slate-200">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-1.5">
                 <span className="font-bold text-slate-700 text-xs">Member Digital Signature</span>
                 <div className="flex rounded-xl overflow-hidden border border-slate-200 text-[10px] font-bold">
                   <button
@@ -901,8 +896,8 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
               </div>
 
               {formData.signatureType === "draw" ? (
-                <div className="space-y-1.5">
-                  <div className="border-2 border-dashed border-slate-300 rounded-2xl overflow-hidden bg-white">
+                <div className="space-y-1">
+                  <div className="border-2 border-dashed border-slate-300 rounded-xl overflow-hidden bg-white max-w-md">
                     <SignaturePad
                       onSave={(dataUrl) => setFormData((prev) => ({ ...prev, signatureURL: dataUrl }))}
                       onClear={() => setFormData((prev) => ({ ...prev, signatureURL: "" }))}
@@ -911,13 +906,13 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                   <p className="text-[10px] text-slate-400">Draw using mouse, stylus, or fingertip above</p>
                 </div>
               ) : (
-                <div>
+                <div className="max-w-md">
                   <input
                     type="text"
                     placeholder="Type your full legal name as digital signature"
                     value={formData.typedSignature || formData.fullName}
                     onChange={(e) => setFormData({ ...formData, typedSignature: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-serif italic text-slate-900 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-serif italic text-slate-900 focus:outline-none focus:border-indigo-500 font-bold"
                   />
                 </div>
               )}
