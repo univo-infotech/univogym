@@ -47,8 +47,6 @@ export default function OwnerRoutes() {
         <Route path="memberships" element={<PermissionRoute moduleId="memberships"><Memberships /></PermissionRoute>} />
         <Route path="services" element={<PermissionRoute moduleId="services"><Services /></PermissionRoute>} />
         <Route path="stock" element={<PermissionRoute moduleId="stock"><Stock /></PermissionRoute>} />
-        <Route path="payments" element={<PermissionRoute moduleId="payments"><Payments /></PermissionRoute>} />
-        <Route path="fees" element={<PermissionRoute moduleId="payments"><Payments /></PermissionRoute>} />
         <Route path="expenses" element={<PermissionRoute moduleId="expenses"><Expenses /></PermissionRoute>} />
         <Route path="reports" element={<PermissionRoute moduleId="reports"><Reports /></PermissionRoute>} />
         <Route path="visits" element={<PermissionRoute moduleId="visits"><Visits /></PermissionRoute>} />

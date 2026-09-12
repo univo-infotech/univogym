@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { useLocation, NavLink } from "react-router-dom";
 import { LayoutDashboard, Users, CreditCard, DollarSign, Package } from "lucide-react";
 import Sidebar from "./Sidebar";
@@ -11,7 +11,6 @@ export default function Layout({ children, role = "owner" }) {
   const mobileNav = [
     { to: "/owner/dashboard", label: "Home", icon: LayoutDashboard },
     { to: "/owner/members", label: "Members", icon: Users },
-    { to: "/owner/payments", label: "Billing", icon: DollarSign },
     { to: "/owner/memberships", label: "Plans", icon: CreditCard },
     { to: "/owner/stock", label: "Stock", icon: Package },
   ];
