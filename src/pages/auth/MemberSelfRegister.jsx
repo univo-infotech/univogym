@@ -434,30 +434,24 @@ export default function MemberSelfRegister() {
 
     setSubmitting(true);
     try {
-      const storage = getStorage();
-      const auth = getAuth();
-
+      // 1. Capture base64 data directly (instant, reliable, no CORS or network blocking)
       let photoURL = photoPreview || '';
-      if (photoFile) {
-        try {
-          const pRef = storageRef(storage, `gyms/${gymId || 'univo_main'}/members/photos/${Date.now()}_${photoFile.name}`);
-          await uploadBytes(pRef, photoFile);
-          photoURL = await getDownloadURL(pRef);
-        } catch (e) {
-          console.warn('Storage fallback for photo');
-        }
-      }
-
       let signatureURL = '';
       if (sigRef.current && !sigRef.current.isEmpty()) {
-        try {
-          const sigData = sigRef.current.toDataURL('image/png');
-          const sRef = storageRef(storage, `gyms/${gymId || 'univo_main'}/members/signatures/${Date.now()}_sig.png`);
-          await uploadString(sRef, sigData, 'data_url');
-          signatureURL = await getDownloadURL(sRef);
-        } catch (e) {
-          console.warn('Storage fallback for signature');
+        signatureURL = sigRef.current.toDataURL('image/png');
+      }
+
+      // 2. Non-blocking asynchronous Firebase Storage backup (if available and CORS configured)
+      try {
+        const storage = getStorage();
+        if (photoFile) {
+          const pRef = storageRef(storage, `gyms/${gymId || 'univo_main'}/members/photos/${Date.now()}_${photoFile.name}`);
+          uploadBytes(pRef, photoFile).then((snap) => getDownloadURL(snap.ref)).then((url) => {
+            if (url) photoURL = url;
+          }).catch(() => {});
         }
+      } catch (storageErr) {
+        console.warn('Storage backup skipped:', storageErr);
       }
 
       let durationMonths = parseInt(selectedPlan?.duration || '1');
@@ -517,6 +511,7 @@ export default function MemberSelfRegister() {
       // 3. Optional Auth account creation (does not block registration)
       if (personalData.email) {
         try {
+          const auth = getAuth();
           const tempPassword = `Univo@${Math.random().toString(36).slice(2, 8)}123`;
           const cred = await createUserWithEmailAndPassword(auth, personalData.email, tempPassword);
           memberPayload.uid = cred.user.uid;
