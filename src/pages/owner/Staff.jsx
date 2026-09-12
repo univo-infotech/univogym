@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Plus, Phone, Mail, Calendar, IndianRupee, Search,
   Trash2, Edit3, ChevronRight, X, Check, Clock,
@@ -31,7 +31,7 @@ const STATUS_COLORS = {
 };
 
 function fmtCurrency(n) {
-  return "â‚¹" + Number(n || 0).toLocaleString("en-IN");
+  return "Rs. " + Number(n || 0).toLocaleString("en-IN");
 }
 function todayStr() {
   return new Date().toISOString().split("T")[0];
@@ -276,15 +276,15 @@ export default function Staff() {
   const paidCount = salaryRows.filter(s => staffPayrollMap[s.id]?.paid).length;
   const pendingCount = salaryRows.length - paidCount;
 
-  // â”€â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ——— Render —————————————————————————————————————————————————————————
   return (
     <div className="space-y-6">
 
-      {/* â”€â”€ Header â”€â”€ */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Staff Management</h1>
-          <p className="text-slate-500 text-xs mt-1">Add staff â†’ salary auto-appears in Expenses next month</p>
+          <p className="text-slate-500 text-xs mt-1">Add staff — salary auto-appears in Expenses next month</p>
         </div>
         <button onClick={() => { setForm(emptyForm); setAddModal(true); }}
           className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow hover:opacity-90 transition">
