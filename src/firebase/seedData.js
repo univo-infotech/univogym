@@ -26,6 +26,7 @@ export async function clearAllGymData(gymId = "univo_main") {
     `gyms/${gymId}/visits`,
     `gyms/${gymId}/trainers`,
     `gyms/${gymId}/staff`,
+    `gyms/${gymId}/beforeAfter`,
   ];
 
   // 1. Clear local storage caches
@@ -79,7 +80,29 @@ export async function load6MonthDummyData(gymId = "univo_main") {
       salary: 35000,
       photoUrl: "https://images.unsplash.com/photo-1567013127542-490d757e51fc?w=500&auto=format&fit=crop&q=80",
       bio: "Certified ACE personal trainer specializing in body composition transformation and posture correction.",
-      createdAt: "2026-03-01T08:00:00Z"
+      createdAt: "2026-03-01T08:00:00Z",
+      transformations: [
+        {
+          id: "ba_01",
+          beforeImg: "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&auto=format&fit=crop&q=80",
+          afterImg: "https://images.unsplash.com/photo-1583454155184-870a1f63aebc?w=600&auto=format&fit=crop&q=80",
+          description: "Vikas Malhotra: 92 kg -> 78 kg (-14 kg Fat Loss in 12 Weeks). Disciplined calorie deficit + 5-day hypertrophy split.",
+          memberName: "Vikas Malhotra",
+          startWeight: "92 kg",
+          endWeight: "78 kg",
+          duration: "12 Weeks (90 Days)"
+        },
+        {
+          id: "ba_06",
+          beforeImg: "https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=600&auto=format&fit=crop&q=80",
+          afterImg: "https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?w=600&auto=format&fit=crop&q=80",
+          description: "Ajay Prajapati: 84 kg -> 73 kg (-11 kg Lean Athlete Conditioning in 12 Weeks).",
+          memberName: "Ajay Prajapati",
+          startWeight: "84 kg",
+          endWeight: "73 kg",
+          duration: "12 Weeks"
+        }
+      ]
     },
     {
       id: "tr_2",
@@ -93,7 +116,29 @@ export async function load6MonthDummyData(gymId = "univo_main") {
       salary: 32000,
       photoUrl: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=500&auto=format&fit=crop&q=80",
       bio: "Ex-Athlete & CrossFit coach focusing on functional movement, calorie burn, and core strengthening.",
-      createdAt: "2026-03-10T09:00:00Z"
+      createdAt: "2026-03-10T09:00:00Z",
+      transformations: [
+        {
+          id: "ba_02",
+          beforeImg: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80",
+          afterImg: "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=600&auto=format&fit=crop&q=80",
+          description: "Pooja Verma: 76 kg -> 61 kg (-15 kg Fat Loss & PCOD Posture Recovery in 16 Weeks).",
+          memberName: "Pooja Verma",
+          startWeight: "76 kg",
+          endWeight: "61 kg",
+          duration: "16 Weeks"
+        },
+        {
+          id: "ba_05",
+          beforeImg: "https://images.unsplash.com/photo-1575052814086-f385e2e2ad1b?w=600&auto=format&fit=crop&q=80",
+          afterImg: "https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=600&auto=format&fit=crop&q=80",
+          description: "Kavita Rao: 71 kg -> 59 kg (-12 kg Postpartum Fitness & Core Strength in 18 Weeks).",
+          memberName: "Kavita Rao",
+          startWeight: "71 kg",
+          endWeight: "59 kg",
+          duration: "18 Weeks"
+        }
+      ]
     },
     {
       id: "tr_3",
@@ -107,7 +152,29 @@ export async function load6MonthDummyData(gymId = "univo_main") {
       salary: 34000,
       photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80",
       bio: "National Powerlifting medalist with focus on barbell compound movements (Squat, Bench, Deadlift).",
-      createdAt: "2026-04-01T10:00:00Z"
+      createdAt: "2026-04-01T10:00:00Z",
+      transformations: [
+        {
+          id: "ba_03",
+          beforeImg: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&auto=format&fit=crop&q=80",
+          afterImg: "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&auto=format&fit=crop&q=80",
+          description: "Rohit Bansal: 68 kg -> 79 kg (+11 kg Lean Muscle Mass & Strength in 24 Weeks).",
+          memberName: "Rohit Bansal",
+          startWeight: "68 kg",
+          endWeight: "79 kg",
+          duration: "24 Weeks"
+        },
+        {
+          id: "ba_04",
+          beforeImg: "https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=600&auto=format&fit=crop&q=80",
+          afterImg: "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?w=600&auto=format&fit=crop&q=80",
+          description: "Deepak Meena: 88 kg -> 74 kg (-14 kg Six-pack Shredding in 16 Weeks).",
+          memberName: "Deepak Meena",
+          startWeight: "88 kg",
+          endWeight: "74 kg",
+          duration: "16 Weeks"
+        }
+      ]
     }
   ];
 
@@ -882,6 +949,140 @@ export async function load6MonthDummyData(gymId = "univo_main") {
     }
   }
 
+  // --- 9. BEFORE & AFTER TRANSFORMATION RESULTS ---
+  const beforeAfterData = [
+    {
+      id: "ba_01",
+      memberName: "Vikas Malhotra",
+      memberId: "mem_01",
+      trainerId: "tr_1",
+      trainerName: "Coach Amit Sharma",
+      beforeURL: "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&auto=format&fit=crop&q=80",
+      beforeImg: "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=600&auto=format&fit=crop&q=80",
+      afterURL: "https://images.unsplash.com/photo-1583454155184-870a1f63aebc?w=600&auto=format&fit=crop&q=80",
+      afterImg: "https://images.unsplash.com/photo-1583454155184-870a1f63aebc?w=600&auto=format&fit=crop&q=80",
+      startWeight: "92 kg",
+      endWeight: "78 kg",
+      weightDiff: "-14 kg",
+      bodyFatDiff: "28% -> 14%",
+      duration: "12 Weeks (90 Days)",
+      category: "Fat Loss & Shredding",
+      notes: "Disciplined calorie deficit + 5-day hypertrophy split. Zero junk food and 10k steps daily.",
+      date: "2026-06-15",
+      createdAt: "2026-06-15T10:00:00Z"
+    },
+    {
+      id: "ba_02",
+      memberName: "Pooja Verma",
+      memberId: "mem_04",
+      trainerId: "tr_2",
+      trainerName: "Coach Sneha Kapoor",
+      beforeURL: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80",
+      beforeImg: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=600&auto=format&fit=crop&q=80",
+      afterURL: "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=600&auto=format&fit=crop&q=80",
+      afterImg: "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=600&auto=format&fit=crop&q=80",
+      startWeight: "76 kg",
+      endWeight: "61 kg",
+      weightDiff: "-15 kg",
+      bodyFatDiff: "32% -> 21%",
+      duration: "16 Weeks",
+      category: "PCOD & Posture Recovery",
+      notes: "Regulated hormonal balance through strength circuits and low GI high-protein nutrition.",
+      date: "2026-07-20",
+      createdAt: "2026-07-20T11:00:00Z"
+    },
+    {
+      id: "ba_03",
+      memberName: "Rohit Bansal",
+      memberId: "mem_03",
+      trainerId: "tr_3",
+      trainerName: "Coach Rohan Deshmukh",
+      beforeURL: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&auto=format&fit=crop&q=80",
+      beforeImg: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&auto=format&fit=crop&q=80",
+      afterURL: "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&auto=format&fit=crop&q=80",
+      afterImg: "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=600&auto=format&fit=crop&q=80",
+      startWeight: "68 kg",
+      endWeight: "79 kg",
+      weightDiff: "+11 kg (Lean Muscle)",
+      bodyFatDiff: "12% -> 13%",
+      duration: "24 Weeks",
+      category: "Powerlifting & Bulking",
+      notes: "Compound progressive overload (Bench 115kg, Squat 160kg, Deadlift 200kg). 3200 kcal surplus.",
+      date: "2026-08-10",
+      createdAt: "2026-08-10T15:00:00Z"
+    },
+    {
+      id: "ba_04",
+      memberName: "Deepak Meena",
+      memberId: "mem_07",
+      trainerId: "tr_3",
+      trainerName: "Coach Rohan Deshmukh",
+      beforeURL: "https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=600&auto=format&fit=crop&q=80",
+      beforeImg: "https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=600&auto=format&fit=crop&q=80",
+      afterURL: "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?w=600&auto=format&fit=crop&q=80",
+      afterImg: "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?w=600&auto=format&fit=crop&q=80",
+      startWeight: "88 kg",
+      endWeight: "74 kg",
+      weightDiff: "-14 kg",
+      bodyFatDiff: "24% -> 11%",
+      duration: "16 Weeks",
+      category: "Abs & Core Shredding",
+      notes: "Carb cycling and high intensity metabolic conditioning. Chiseled 6-pack abs revealed.",
+      date: "2026-08-28",
+      createdAt: "2026-08-28T12:00:00Z"
+    },
+    {
+      id: "ba_05",
+      memberName: "Kavita Rao",
+      memberId: "mem_06",
+      trainerId: "tr_2",
+      trainerName: "Coach Sneha Kapoor",
+      beforeURL: "https://images.unsplash.com/photo-1575052814086-f385e2e2ad1b?w=600&auto=format&fit=crop&q=80",
+      beforeImg: "https://images.unsplash.com/photo-1575052814086-f385e2e2ad1b?w=600&auto=format&fit=crop&q=80",
+      afterURL: "https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=600&auto=format&fit=crop&q=80",
+      afterImg: "https://images.unsplash.com/photo-1540497077202-7c8a3999166f?w=600&auto=format&fit=crop&q=80",
+      startWeight: "71 kg",
+      endWeight: "59 kg",
+      weightDiff: "-12 kg",
+      bodyFatDiff: "29% -> 19%",
+      duration: "18 Weeks",
+      category: "Postpartum Toning",
+      notes: "Pelvic floor strengthening, progressive dumbbell resistance training, and clean whole foods.",
+      date: "2026-09-02",
+      createdAt: "2026-09-02T10:00:00Z"
+    },
+    {
+      id: "ba_06",
+      memberName: "Ajay Prajapati",
+      memberId: "mem_02",
+      trainerId: "tr_1",
+      trainerName: "Coach Amit Sharma",
+      beforeURL: "https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=600&auto=format&fit=crop&q=80",
+      beforeImg: "https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?w=600&auto=format&fit=crop&q=80",
+      afterURL: "https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?w=600&auto=format&fit=crop&q=80",
+      afterImg: "https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?w=600&auto=format&fit=crop&q=80",
+      startWeight: "84 kg",
+      endWeight: "73 kg",
+      weightDiff: "-11 kg",
+      bodyFatDiff: "22% -> 13%",
+      duration: "12 Weeks",
+      category: "Athlete Conditioning",
+      notes: "Agility ladder drills, heavy bag cardio, and strict protein-to-bodyweight nutrition protocol.",
+      date: "2026-09-08",
+      createdAt: "2026-09-08T09:00:00Z"
+    }
+  ];
+
+  for (const ba of beforeAfterData) {
+    try {
+      const batch = writeBatch(db);
+      batch.set(doc(db, `gyms/${gymId}/beforeAfter`, ba.id), ba);
+      await batch.commit();
+    } catch (e) {
+      console.warn("BeforeAfter write note:", e);
+    }
+  }
+
   return {
     success: true,
     membersCount: membersData.length,
@@ -891,6 +1092,7 @@ export async function load6MonthDummyData(gymId = "univo_main") {
     equipmentCount: equipmentData.length,
     visitsCount: visitsData.length,
     trainersCount: trainersData.length,
-    staffCount: staffData.length
+    staffCount: staffData.length,
+    beforeAfterCount: beforeAfterData.length
   };
 }

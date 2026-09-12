@@ -37,6 +37,7 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
     { id: "members", to: "/owner/members", label: "Members", icon: Users },
     { id: "payments", to: "/owner/payments", label: "Fees & Receipts", icon: Receipt },
     { id: "trainers", to: "/owner/trainers", label: "Trainers", icon: Dumbbell },
+    { id: "beforeafter", to: "/owner/before-after", label: "Before & After Results", icon: Camera },
     { id: "staff", to: "/owner/staff", label: "Staff", icon: UserCheck },
     { id: "memberships", to: "/owner/memberships", label: "Memberships & Plans", icon: CreditCard },
     { id: "services", to: "/owner/services", label: "Services", icon: Star },

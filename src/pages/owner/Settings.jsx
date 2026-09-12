@@ -121,6 +121,7 @@ export default function Settings() {
         `Loaded 6-month dummy data successfully!\n` +
         `• ${res.membersCount} Members (March to Sept 2026)\n` +
         `• ${res.paymentsCount} Payment Records & Subscriptions\n` +
+        `• ${res.beforeAfterCount || 6} Verified Before & After Client Transformations\n` +
         `• ${res.expensesCount} Expenses & Maintenance Bills\n` +
         `• ${res.supplementsCount} Supplements & ${res.equipmentCount} Equipment`,
         { id: "data_action", duration: 6000 }
@@ -534,6 +535,10 @@ export default function Settings() {
                 <li className="flex items-center gap-1.5">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                   <strong>19+ Payment Receipts</strong> (₹599 to ₹4,999 plans, cash & online)
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <strong>6 Verified Transformations</strong> (Before & After photos, kg & body fat drop)
                 </li>
                 <li className="flex items-center gap-1.5">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />

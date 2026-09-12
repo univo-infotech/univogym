@@ -18,7 +18,8 @@ import {
   Flame,
   Award,
   ShieldCheck,
-  Scale
+  Scale,
+  Sparkles
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getMember } from "../../firebase/members";
@@ -26,6 +27,8 @@ import { getMemberPayments, addPayment } from "../../firebase/payments";
 import { generatePaymentReceipt } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
 import Modal from "../../components/ui/Modal";
+import { collection, getDocs, query } from "firebase/firestore";
+import { db } from "../../firebase/config";
 
 export default function MemberDetail() {
   const { id } = useParams();
@@ -33,6 +36,7 @@ export default function MemberDetail() {
   const [activeTab, setActiveTab] = useState("overview");
   const [member, setMember] = useState(null);
   const [payments, setPayments] = useState([]);
+  const [transformations, setTransformations] = useState([]);
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [settings] = useState(getGymSettings());
 
@@ -72,6 +76,22 @@ export default function MemberDetail() {
         setPayments(p && p.length > 0 ? p : [
           { id: "p1", memberName: "Ajay Prajapati", planName: "3-Month Pro", paidAmount: 6500, amount: 6500, dueAmount: 0, paymentMode: "online", date: "2026-09-10" }
         ]);
+
+        // Load transformations for this member
+        try {
+          const baSnap = await getDocs(collection(db, "gyms", "univo_main", "beforeAfter"));
+          if (!baSnap.empty) {
+            const allBa = baSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const memberBa = allBa.filter(
+              item => item.memberId === id ||
+                (m && item.memberName?.toLowerCase() === (m.name || m.fullName || "").toLowerCase()) ||
+                (!m && item.memberName?.toLowerCase().includes("ajay"))
+            );
+            setTransformations(memberBa.length > 0 ? memberBa : [allBa[0]]);
+          }
+        } catch (baErr) {
+          console.warn("Notice loading member transformations:", baErr);
+        }
       } catch (err) {
         console.error(err);
       }
@@ -152,6 +172,7 @@ export default function MemberDetail() {
         {[
           { key: "overview", label: "Overview & Personal Details" },
           { key: "payments", label: "Billing & Invoices" },
+          { key: "transformations", label: "Before & After Results" },
           { key: "waiver", label: "Signed Waiver & Signature" },
         ].map((tab) => (
           <button
@@ -292,6 +313,111 @@ export default function MemberDetail() {
               <p className="text-[10px] text-slate-400 font-mono mt-1">Verified e-Signature • IP logged</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Tab 3: Transformations */}
+      {activeTab === "transformations" && (
+        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Camera className="w-5 h-5 text-emerald-600" /> Before & After Transformation Progress
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Physical progress photos, body fat changes, and mentor trainer notes.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate("/trainer/before-after")}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-xs font-bold transition flex items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" /> Manage All Transformations
+            </button>
+          </div>
+
+          {transformations.length === 0 ? (
+            <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-100">
+              <Camera className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <p className="text-xs font-bold text-slate-600">No transformation photos uploaded for this member yet</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Upload before & after progress photos in the Trainer section.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {transformations.map((t) => (
+                <div key={t.id} className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-extrabold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
+                        {t.duration || "12 Weeks Journey"}
+                      </span>
+                      <p className="text-xs text-slate-500 font-medium mt-1.5">
+                        Mentored by <span className="text-slate-800 font-bold">{t.trainerName || member.trainerName}</span>
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-slate-400">
+                      {t.date ? new Date(t.date).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" }) : "Verified"}
+                    </span>
+                  </div>
+
+                  {/* Side-by-side photos */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-extrabold text-rose-600 uppercase">Starting Baseline</span>
+                        <span className="font-bold text-slate-700">{t.startWeight || "Starting Wt"}</span>
+                      </div>
+                      <div className="h-56 rounded-xl overflow-hidden bg-slate-900 border border-slate-200">
+                        <img
+                          src={t.beforeURL || t.beforeImg}
+                          alt="Before"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-extrabold text-emerald-600 uppercase flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> Transformed Result
+                        </span>
+                        <span className="font-bold text-emerald-700">{t.endWeight || "Current Wt"}</span>
+                      </div>
+                      <div className="h-56 rounded-xl overflow-hidden bg-slate-900 border border-emerald-200">
+                        <img
+                          src={t.afterURL || t.afterImg}
+                          alt="After"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Metrics bar */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 text-center">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Weight Difference</p>
+                      <p className="text-sm font-black text-emerald-600 mt-0.5">{t.weightDiff || "-11 kg"}</p>
+                    </div>
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 text-center">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Body Fat Delta</p>
+                      <p className="text-sm font-black text-purple-600 mt-0.5">{t.bodyFatDiff || "Optimized"}</p>
+                    </div>
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 text-center col-span-2 sm:col-span-1">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Category</p>
+                      <p className="text-xs font-bold text-slate-800 mt-1 truncate">{t.category || "Fat Loss & Conditioning"}</p>
+                    </div>
+                  </div>
+
+                  {t.notes && (
+                    <div className="p-3 bg-white rounded-xl border border-slate-200 text-xs text-slate-700 leading-relaxed italic">
+                      "{t.notes}"
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
