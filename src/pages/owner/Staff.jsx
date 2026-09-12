@@ -16,7 +16,7 @@ import {
 import { addExpense } from "../../firebase/expenses";
 import toast from "react-hot-toast";
 
-// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Constants ---------------------------------------------------
 const ROLES = [
   "Head Trainer", "Senior Trainer", "Female Fitness Coach",
   "Yoga / Zumba Instructor", "Nutritionist",
@@ -64,7 +64,7 @@ function Avatar({ name, photo, size = "md" }) {
   return <div className={`${sz} ${bg} rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0`}>{initials}</div>;
 }
 
-// â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Main Page ---------------------------------------------------
 export default function Staff() {
   const { gymId } = useAuth();
   const GID = gymId || "univo_main";
@@ -78,7 +78,7 @@ export default function Staff() {
   const [salaryMonth, setSalaryMonth] = useState(currentMonthKey());
   const [salarySearch, setSalarySearch] = useState("");
   const [salaryFilter, setSalaryFilter] = useState("all"); // all | paid | pending
-  const [staffPayrollMap, setStaffPayrollMap] = useState({}); // staffId â†’ {bonuses, deductions, paid}
+  const [staffPayrollMap, setStaffPayrollMap] = useState({}); // staffId -> {bonuses, deductions, paid}
 
   // Modals
   const [addModal, setAddModal]     = useState(false);
@@ -98,7 +98,7 @@ export default function Staff() {
   const [form, setForm] = useState(emptyForm);
   const [payrollForm, setPayrollForm] = useState({ type: "bonus", amount: "", reason: "", date: todayStr() });
 
-  // â”€â”€â”€ Load staff â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // --- Load staff ------------------------------------------------
   const loadStaff = useCallback(async () => {
     setLoading(true);
     try {
@@ -137,7 +137,7 @@ export default function Staff() {
     if (staffList.length > 0) loadPayrolls();
   }, [staffList, salaryMonth, GID]);
 
-  // â”€â”€â”€ Staff CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // --- Staff CRUD -------------------------------------------------
   const handleSave = async (e) => {
     e.preventDefault();
     const finalRole = form.role === "Custom Role" ? (form.customRole || "Custom") : form.role;
@@ -162,7 +162,7 @@ export default function Staff() {
         const dueDate = nextMonthFirst(data.joinDate);
         try {
           await addExpense(GID, {
-            title: `Salary â€” ${data.name} (${finalRole})`,
+            title: `Salary - ${data.name} (${finalRole})`,
             category: "Staff Salary",
             type: "monthly",
             amount: Number(data.salary),
@@ -170,7 +170,7 @@ export default function Staff() {
             staffId: id,
             isAutoSalary: true,
           });
-          toast.success(`Staff added! Salary â‚¹${Number(data.salary).toLocaleString()} scheduled in expenses from ${dueDate}`);
+          toast.success(`Staff added! Salary Rs.${Number(data.salary).toLocaleString()} scheduled in expenses from ${dueDate}`);
         } catch {
           toast.success("Staff added! (Expense auto-add skipped)");
         }
@@ -192,7 +192,7 @@ export default function Staff() {
     setDeleteConfirm(null);
   };
 
-  // â”€â”€â”€ Mark Salary Paid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // --- Mark Salary Paid --------------------------------------------
   const handleMarkPaid = async (s) => {
     const pd = staffPayrollMap[s.id] || {};
     const net = Number(s.salary || 0) + (pd.bonuses || 0) - (pd.deductions || 0);
@@ -204,11 +204,11 @@ export default function Staff() {
       setStaffPayrollMap(prev => ({
         ...prev, [s.id]: { ...prev[s.id], paid: true },
       }));
-      toast.success(`${s.name} â€” ${fmtCurrency(net)} marked PAID for ${monthLabel(salaryMonth)}`);
+      toast.success(`${s.name} - ${fmtCurrency(net)} marked PAID for ${monthLabel(salaryMonth)}`);
     } catch (err) { toast.error(err.message); }
   };
 
-  // â”€â”€â”€ Payroll entry â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // --- Payroll entry --------------------------------------------
   const handleAddPayroll = async (e) => {
     e.preventDefault();
     if (!payrollForm.amount || Number(payrollForm.amount) <= 0) { toast.error("Enter valid amount"); return; }
@@ -236,7 +236,7 @@ export default function Staff() {
     } catch (err) { toast.error(err.message); }
   };
 
-  // â”€â”€â”€ Photo / Aadhaar upload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // --- Photo / Aadhaar upload --------------------------------------
   const handleFileUpload = (e, field) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -246,7 +246,7 @@ export default function Staff() {
     reader.readAsDataURL(file);
   };
 
-  // â”€â”€â”€ Computed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // --- Computed ----------------------------------------------------
   const uniqueRoles = [...new Set(staffList.map(s => s.role).filter(Boolean))];
 
   const filteredStaff = staffList.filter(s => {
@@ -276,15 +276,15 @@ export default function Staff() {
   const paidCount = salaryRows.filter(s => staffPayrollMap[s.id]?.paid).length;
   const pendingCount = salaryRows.length - paidCount;
 
-  // ——— Render —————————————————————————————————————————————————————————
+  // --- Render ------------------------------------------------------
   return (
     <div className="space-y-6">
 
-      {/* Header */}
+      {/* --- Header --- */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Staff Management</h1>
-          <p className="text-slate-500 text-xs mt-1">Add staff — salary auto-appears in Expenses next month</p>
+          <p className="text-slate-500 text-xs mt-1">Add staff - salary auto-appears in Expenses next month</p>
         </div>
         <button onClick={() => { setForm(emptyForm); setAddModal(true); }}
           className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow hover:opacity-90 transition">
@@ -292,7 +292,7 @@ export default function Staff() {
         </button>
       </div>
 
-      {/* â”€â”€ Summary Cards â”€â”€ */}
+      {/* --- Summary Cards --- */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Total Staff", value: staffList.length, icon: <Users className="w-5 h-5" />, color: "text-blue-600 bg-blue-50" },
@@ -310,11 +310,11 @@ export default function Staff() {
         ))}
       </div>
 
-      {/* â”€â”€ Search / Filter â”€â”€ */}
+      {/* --- Search / Filter --- */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input type="text" placeholder="Search staff by name, role, phoneâ€¦"
+          <input type="text" placeholder="Search staff by name, role, phone..."
             value={search} onChange={e => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm text-slate-800 focus:border-emerald-500 outline-none shadow-sm" />
         </div>
@@ -325,9 +325,9 @@ export default function Staff() {
         </select>
       </div>
 
-      {/* â”€â”€ Staff Cards Grid â”€â”€ */}
+      {/* --- Staff Cards Grid --- */}
       {loading ? (
-        <div className="text-center py-16 text-slate-400 text-sm">Loading staffâ€¦</div>
+        <div className="text-center py-16 text-slate-400 text-sm">Loading staff...</div>
       ) : filteredStaff.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-slate-400">
           <Users className="w-12 h-12 mb-3 opacity-30" />
@@ -383,9 +383,9 @@ export default function Staff() {
         </div>
       )}
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      {/* ============================================================
           SALARY TABLE
-      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      ============================================================ */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* Table Header */}
         <div className="p-4 border-b border-slate-100 space-y-3">
@@ -393,7 +393,7 @@ export default function Staff() {
             <div>
               <h2 className="text-base font-bold text-slate-900">Monthly Salary Tracker</h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                {paidCount} Paid Â· {pendingCount} Pending Â· Total {fmtCurrency(totalPayroll)}
+                {paidCount} Paid - {pendingCount} Pending - Total {fmtCurrency(totalPayroll)}
               </p>
             </div>
             {/* Month selector */}
@@ -406,7 +406,7 @@ export default function Staff() {
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-              <input type="text" placeholder="Search in salary tableâ€¦"
+              <input type="text" placeholder="Search in salary table..."
                 value={salarySearch} onChange={e => setSalarySearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:border-emerald-500 outline-none" />
             </div>
@@ -468,13 +468,13 @@ export default function Staff() {
                     <td className="px-4 py-3 text-right hidden md:table-cell">
                       {pd.bonuses > 0
                         ? <span className="text-xs font-bold text-emerald-600">+{fmtCurrency(pd.bonuses)}</span>
-                        : <span className="text-slate-300">â€”</span>}
+                        : <span className="text-slate-300">-</span>}
                     </td>
                     {/* Deduction */}
                     <td className="px-4 py-3 text-right hidden md:table-cell">
                       {pd.deductions > 0
                         ? <span className="text-xs font-bold text-rose-600">-{fmtCurrency(pd.deductions)}</span>
-                        : <span className="text-slate-300">â€”</span>}
+                        : <span className="text-slate-300">-</span>}
                     </td>
                     {/* Net Pay */}
                     <td className="px-4 py-3 text-right">
@@ -518,7 +518,7 @@ export default function Staff() {
               <tfoot className="bg-slate-50 border-t-2 border-slate-200">
                 <tr>
                   <td colSpan={5} className="px-4 py-3 text-sm font-bold text-slate-700">
-                    Total ({salaryRows.length} staff) â€” {monthLabel(salaryMonth)}
+                    Total ({salaryRows.length} staff) - {monthLabel(salaryMonth)}
                   </td>
                   <td className="px-4 py-3 text-right text-base font-extrabold text-slate-900">{fmtCurrency(totalPayroll)}</td>
                   <td colSpan={2} className="px-4 py-3 text-center text-xs text-slate-500">
@@ -531,9 +531,9 @@ export default function Staff() {
         </div>
       </div>
 
-      {/* â•â• ADD / EDIT STAFF MODAL â•â• */}
+      {/* == ADD / EDIT STAFF MODAL == */}
       <Modal isOpen={addModal} onClose={() => { setAddModal(false); setEditStaff(null); setForm(emptyForm); }}
-        title={editStaff ? `âœï¸ Edit â€” ${editStaff.name}` : "ðŸ‘¤ Add New Staff Member"} maxWidth="max-w-2xl">
+        title={editStaff ? `Edit - ${editStaff.name}` : "Add New Staff Member"} maxWidth="max-w-2xl">
         <form onSubmit={handleSave} className="space-y-5">
 
           {/* Photo upload */}
@@ -550,7 +550,7 @@ export default function Staff() {
             </div>
             <div>
               <p className="text-xs font-bold text-slate-700">Profile Photo</p>
-              <p className="text-[11px] text-slate-400">JPG/PNG Â· max 1MB</p>
+              <p className="text-[11px] text-slate-400">JPG/PNG (max 1MB)</p>
             </div>
           </div>
 
@@ -598,7 +598,7 @@ export default function Staff() {
 
             {/* Salary */}
             <div>
-              <label className="text-xs font-bold text-slate-700">Monthly Salary (â‚¹) *</label>
+              <label className="text-xs font-bold text-slate-700">Monthly Salary (Rs.) *</label>
               <input required type="number" min="0" placeholder="e.g. 25000" value={form.salary}
                 onChange={e => setForm({ ...form, salary: e.target.value })}
                 className="inp" />
@@ -612,7 +612,7 @@ export default function Staff() {
                 className="inp" />
               {form.joinDate && (
                 <p className="text-[11px] text-emerald-600 mt-1">
-                  ðŸ’¡ Salary in expenses from: <strong>{nextMonthFirst(form.joinDate)}</strong>
+                  Salary in expenses from: <strong>{nextMonthFirst(form.joinDate)}</strong>
                 </p>
               )}
             </div>
@@ -637,7 +637,7 @@ export default function Staff() {
 
             {/* Aadhaar Front */}
             <div>
-              <label className="text-xs font-bold text-slate-700">Aadhaar Card â€” Front</label>
+              <label className="text-xs font-bold text-slate-700">Aadhaar Card - Front</label>
               <div className="mt-1">
                 {form.aadhaarFront
                   ? <div className="relative">
@@ -658,7 +658,7 @@ export default function Staff() {
 
             {/* Aadhaar Back */}
             <div>
-              <label className="text-xs font-bold text-slate-700">Aadhaar Card â€” Back</label>
+              <label className="text-xs font-bold text-slate-700">Aadhaar Card - Back</label>
               <div className="mt-1">
                 {form.aadhaarBack
                   ? <div className="relative">
@@ -680,7 +680,7 @@ export default function Staff() {
             {/* Notes */}
             <div className="sm:col-span-2">
               <label className="text-xs font-bold text-slate-700">Notes (optional)</label>
-              <textarea rows={2} placeholder="Any additional infoâ€¦" value={form.notes}
+              <textarea rows={2} placeholder="Any additional info..." value={form.notes}
                 onChange={e => setForm({ ...form, notes: e.target.value })}
                 className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:bg-white outline-none focus:border-emerald-500 resize-none" />
             </div>
@@ -691,7 +691,7 @@ export default function Staff() {
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-start gap-2 text-emerald-800 text-xs">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <span>
-                Staff added on <strong>{form.joinDate}</strong> â†’ salary of <strong>{fmtCurrency(form.salary)}</strong> will automatically appear in <strong>Expenses</strong> from <strong>{nextMonthFirst(form.joinDate)}</strong> onwards.
+                Staff added on <strong>{form.joinDate}</strong> - salary of <strong>{fmtCurrency(form.salary)}</strong> will automatically appear in <strong>Expenses</strong> from <strong>{nextMonthFirst(form.joinDate)}</strong> onwards.
               </span>
             </div>
           )}
@@ -703,7 +703,7 @@ export default function Staff() {
         </form>
       </Modal>
 
-      {/* â•â• VIEW STAFF DETAIL â•â• */}
+      {/* == VIEW STAFF DETAIL == */}
       <Modal isOpen={!!viewStaff} onClose={() => setViewStaff(null)} title="" maxWidth="max-w-lg">
         {viewStaff && (
           <div className="space-y-4">
@@ -721,11 +721,11 @@ export default function Staff() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               {[
                 { label: "Phone", value: viewStaff.phone },
-                { label: "Email", value: viewStaff.email || "â€”" },
+                { label: "Email", value: viewStaff.email || "-" },
                 { label: "Monthly Salary", value: fmtCurrency(viewStaff.salary) },
                 { label: "Join Date", value: viewStaff.joinDate },
                 { label: "Salary From", value: nextMonthFirst(viewStaff.joinDate) },
-                { label: "Aadhaar No.", value: viewStaff.aadhaarNo || "â€”" },
+                { label: "Aadhaar No.", value: viewStaff.aadhaarNo || "-" },
               ].map((r, i) => (
                 <div key={i} className="bg-slate-50 rounded-xl p-3">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase">{r.label}</p>
@@ -782,9 +782,9 @@ export default function Staff() {
         )}
       </Modal>
 
-      {/* â•â• BONUS / DEDUCTION MODAL â•â• */}
+      {/* == BONUS / DEDUCTION MODAL == */}
       <Modal isOpen={!!payrollModal} onClose={() => setPayrollModal(null)}
-        title={payrollForm.type === "bonus" ? `ðŸŽ Add Bonus â€” ${payrollModal?.name}` : `âœ‚ï¸ Add Deduction â€” ${payrollModal?.name}`}
+        title={payrollForm.type === "bonus" ? `Add Bonus - ${payrollModal?.name}` : `Add Deduction - ${payrollModal?.name}`}
         maxWidth="max-w-sm">
         <form onSubmit={handleAddPayroll} className="space-y-4">
           <div className="flex rounded-xl overflow-hidden border border-slate-200">
@@ -798,7 +798,7 @@ export default function Staff() {
             </button>
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-700">Amount (â‚¹) *</label>
+            <label className="text-xs font-bold text-slate-700">Amount (Rs.) *</label>
             <input required type="number" min="1" placeholder="e.g. 1500" value={payrollForm.amount}
               onChange={e => setPayrollForm(p => ({ ...p, amount: e.target.value }))}
               className="inp" />
@@ -818,8 +818,8 @@ export default function Staff() {
         </form>
       </Modal>
 
-      {/* â•â• DELETE CONFIRM â•â• */}
-      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="âš ï¸ Confirm Delete" maxWidth="max-w-sm">
+      {/* == DELETE CONFIRM == */}
+      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Confirm Delete" maxWidth="max-w-sm">
         <div className="space-y-4 text-center">
           <p className="text-slate-600 text-sm">Remove <strong>{deleteConfirm?.name}</strong> from staff? This cannot be undone.</p>
           <div className="flex gap-3">
@@ -835,7 +835,7 @@ export default function Staff() {
   );
 }
 
-// â”€â”€â”€ Dummy Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Dummy Data ----------------------------------------------------
 const DUMMY_STAFF = [
   { id: "st1", name: "Coach Amit Kumar",  role: "Head Trainer",          phone: "9876500111", email: "amit@gym.com",   salary: "35000", joinDate: "2026-08-01", status: "active" },
   { id: "st2", name: "Coach Sneha Rao",   role: "Female Fitness Coach",  phone: "9811200222", email: "sneha@gym.com",  salary: "30000", joinDate: "2026-08-01", status: "active" },
