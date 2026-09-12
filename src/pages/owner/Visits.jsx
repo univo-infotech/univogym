@@ -373,9 +373,10 @@ export default function Visits() {
     const waPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
 
     try {
-      const token = await generateInviteToken(gymId, waPhone);
-      const base = window.location.origin;
-      const genLink = `${base}/register/${gymId}/${token}`;
+      const genLink = await generateInviteToken(gymId, {
+        memberName: visit.name,
+        phone: waPhone,
+      });
 
       setInviteData({
         name: visit.name,

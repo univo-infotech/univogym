@@ -146,8 +146,8 @@ export async function generateInviteToken(gymId, opts = {}) {
     console.warn("Local tokens write notice:", e);
   }
 
-  // Standard web route without hash
-  const url = `${window.location.origin}/register/${effectiveGymId}/${token}`;
+  // Web route with hash for HashRouter compatibility
+  const url = `${window.location.origin}/#/register/${effectiveGymId}/${token}`;
   return url;
 }
 
