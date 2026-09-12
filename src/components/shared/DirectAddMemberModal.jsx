@@ -498,7 +498,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                   
                   {/* Fixed Size Photo Frame with click to zoom */}
                   <div 
-                    className="relative group cursor-pointer flex-shrink-0"
+                    className="relative group cursor-pointer flex-shrink-0 mx-auto"
                     onClick={() => {
                       const p = selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL;
                       if (p) {
@@ -511,21 +511,21 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     }}
                   >
                     {(selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL) ? (
-                      <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden border-2 border-indigo-200 shadow-sm bg-slate-100 flex-shrink-0">
+                      <div className="w-52 h-72 sm:w-60 sm:h-80 rounded-3xl overflow-hidden border-4 border-indigo-500 shadow-xl bg-slate-900 flex-shrink-0">
                         <img
                           src={selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL}
                           alt={selectedTrainerObj.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                         />
                       </div>
                     ) : (
-                      <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-extrabold flex items-center justify-center text-3xl shadow-sm flex-shrink-0">
+                      <div className="w-52 h-72 sm:w-60 sm:h-80 rounded-3xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-extrabold flex items-center justify-center text-5xl shadow-sm flex-shrink-0">
                         {selectedTrainerObj.name?.charAt(0)?.toUpperCase() || "C"}
                       </div>
                     )}
                     {(selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL) && (
-                      <div className="absolute inset-0 bg-slate-900/50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
-                        <Maximize2 className="w-3.5 h-3.5" /> Full View
+                      <div className="absolute inset-0 bg-slate-900/60 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5 shadow-lg">
+                        <Maximize2 className="w-4 h-4" /> Click for Full View
                       </div>
                     )}
                   </div>
@@ -586,32 +586,42 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                           <div className="grid grid-cols-2 gap-2">
                             {/* Before Image */}
                             <div 
-                              className="relative rounded-xl overflow-hidden bg-slate-200 h-28 border border-slate-300 cursor-pointer group"
+                              className="relative rounded-2xl overflow-hidden bg-slate-200 h-52 sm:h-64 border-2 border-slate-300/80 cursor-pointer group shadow-xs"
                               onClick={() => item.beforeImg && setFullPhotoModal({ img: item.beforeImg, title: "Before Transformation", desc: item.description })}
                             >
                               {item.beforeImg ? (
-                                <img src={item.beforeImg} alt="Before" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                                <img src={item.beforeImg} alt="Before" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
                               ) : (
-                                <div className="flex items-center justify-center h-full text-slate-400 text-[10px]">No Photo</div>
+                                <div className="flex items-center justify-center h-full text-slate-400 text-xs font-semibold">No Photo</div>
                               )}
-                              <span className="absolute top-1.5 left-1.5 bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow">
+                              <span className="absolute top-2 left-2 bg-rose-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-md">
                                 BEFORE
                               </span>
+                              {item.beforeImg && (
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
+                                  <Maximize2 className="w-4 h-4" /> View
+                                </div>
+                              )}
                             </div>
 
                             {/* After Image */}
                             <div 
-                              className="relative rounded-xl overflow-hidden bg-slate-200 h-28 border border-slate-300 cursor-pointer group"
+                              className="relative rounded-2xl overflow-hidden bg-slate-200 h-52 sm:h-64 border-2 border-slate-300/80 cursor-pointer group shadow-xs"
                               onClick={() => item.afterImg && setFullPhotoModal({ img: item.afterImg, title: "After Transformation", desc: item.description })}
                             >
                               {item.afterImg ? (
-                                <img src={item.afterImg} alt="After" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                                <img src={item.afterImg} alt="After" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
                               ) : (
-                                <div className="flex items-center justify-center h-full text-slate-400 text-[10px]">No Photo</div>
+                                <div className="flex items-center justify-center h-full text-slate-400 text-xs font-semibold">No Photo</div>
                               )}
-                              <span className="absolute top-1.5 left-1.5 bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow">
+                              <span className="absolute top-2 left-2 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-md">
                                 AFTER
                               </span>
+                              {item.afterImg && (
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
+                                  <Maximize2 className="w-4 h-4" /> View
+                                </div>
+                              )}
                             </div>
                           </div>
 
