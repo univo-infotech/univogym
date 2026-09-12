@@ -1,4 +1,4 @@
-﻿import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, addDoc, updateDoc, doc, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "./config";
 
 export async function addVisit(gymId, visitData) {
@@ -19,4 +19,18 @@ export async function getVisits(gymId) {
   const q = query(colRef, orderBy("createdAt", "desc"));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function deleteVisit(gymId, visitId) {
+  const docRef = doc(db, `gyms/${gymId}/visits`, visitId);
+  return await deleteDoc(docRef);
+}
+
+export async function convertVisitToMember(gymId, visitId, memberId) {
+  const docRef = doc(db, `gyms/${gymId}/visits`, visitId);
+  return await updateDoc(docRef, {
+    status: "converted",
+    convertedMemberId: memberId,
+    convertedAt: new Date().toISOString()
+  });
 }
