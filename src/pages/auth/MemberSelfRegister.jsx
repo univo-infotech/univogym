@@ -469,6 +469,7 @@ export default function MemberSelfRegister() {
         gymId: gymId || 'univo_main',
         fullName: personalData.fullName || tokenData?.memberName || typedName,
         name: personalData.fullName || tokenData?.memberName || typedName,
+        aadhaar: personalData.aadhaar || '',
         phone: tokenData?.phone || personalData.altPhone || personalData.phone || '',
         photoURL,
         signatureURL,
@@ -706,6 +707,13 @@ export default function MemberSelfRegister() {
                 placeholder="e.g. Rahul Sharma"
                 error={e2.fullName?.message}
                 {...reg2('fullName', { required: 'Full name is required' })}
+              />
+
+              <Input
+                label="Aadhaar Number (UIDAI) (Optional)"
+                placeholder="XXXX XXXX XXXX"
+                maxLength={14}
+                {...reg2('aadhaar')}
               />
 
               <div className="space-y-2">

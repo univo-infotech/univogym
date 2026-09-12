@@ -196,6 +196,7 @@ export default function MemberDetail() {
             <h3 className="text-base font-bold text-slate-900">Personal Information</h3>
             <div className="space-y-2 text-xs text-slate-600">
               <p><span className="font-semibold text-slate-800">Gender: </span>{member.gender || "Male"}</p>
+              <p><span className="font-semibold text-slate-800">Aadhaar No: </span>{member.aadhaar || "—"}</p>
               <p><span className="font-semibold text-slate-800">Phone: </span>{member.phone || "—"}</p>
               <p><span className="font-semibold text-slate-800">Email: </span>{member.email || "—"}</p>
               <p><span className="font-semibold text-slate-800">Joined Date: </span>{member.createdAt || "2026-09-10"}</p>

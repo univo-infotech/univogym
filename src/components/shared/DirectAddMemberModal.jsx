@@ -105,6 +105,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
   // Complete member registration form state
   const [formData, setFormData] = useState({
     fullName: "",
+    aadhaar: "",
     phone: "",
     altPhone: "",
     email: "",
@@ -221,6 +222,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       id: "m_" + Date.now(),
       name: formData.fullName.trim(),
       fullName: formData.fullName.trim(),
+      aadhaar: formData.aadhaar.trim(),
       phone: formData.phone.trim(),
       altPhone: formData.altPhone.trim(),
       email: formData.email.trim(),
@@ -268,6 +270,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     // Reset form
     setFormData({
       fullName: "",
+      aadhaar: "",
       phone: "",
       altPhone: "",
       email: "",
@@ -331,7 +334,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
               {/* Right Column: Personal & Contact Fields */}
               <div className="lg:col-span-8 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="font-bold text-slate-700 block mb-1">Full Name *</label>
                     <input
@@ -341,6 +344,23 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       value={formData.fullName}
                       onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Aadhaar Number (UIDAI)</label>
+                    <input
+                      type="text"
+                      maxLength={14}
+                      placeholder="XXXX XXXX XXXX"
+                      value={formData.aadhaar}
+                      onChange={(e) => {
+                        // Auto-format as 4-digit blocks: 1234 5678 9012
+                        const raw = e.target.value.replace(/\D/g, "").slice(0, 12);
+                        const formatted = raw.match(/.{1,4}/g)?.join(" ") || raw;
+                        setFormData({ ...formData, aadhaar: formatted });
+                      }}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-semibold tracking-wider placeholder:tracking-normal"
                     />
                   </div>
 
