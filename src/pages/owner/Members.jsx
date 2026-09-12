@@ -38,6 +38,8 @@ import { getPlans } from '../../firebase/plans';
 import { addPayment } from '../../firebase/payments';
 import { useAuth } from '../../contexts/AuthContext';
 import { getGymSettings } from '../../utils/settings';
+import { generatePaymentReceipt } from '../../utils/pdf';
+import { openWhatsApp } from '../../utils/whatsapp';
 import Modal from '../../components/ui/Modal';
 import DirectAddMemberModal from '../../components/shared/DirectAddMemberModal';
 
@@ -93,19 +95,30 @@ function fmtCountdown(sec) {
 }
 
 const STATUS_CONFIG = {
-  active: { label: 'Active', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  paid: { label: 'Paid', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  active: { label: 'Active (Paid)', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  partial: { label: 'Partial Due', dot: 'bg-amber-500', cls: 'bg-amber-50 text-amber-800 border border-amber-300' },
   left: { label: 'Left', dot: 'bg-rose-500', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
   expired: { label: 'Expired', dot: 'bg-rose-500', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
   expiring: { label: 'Expiring Soon', dot: 'bg-amber-500', cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
   inactive: { label: 'Inactive', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
 };
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, dueAmount }) {
+  if (Number(dueAmount) > 0 && status !== 'left') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300">
+        <span className="w-2 h-2 rounded-full bg-amber-500" />
+        Due: ₹{dueAmount}
+      </span>
+    );
+  }
+
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.active;
   return (
     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${cfg.cls}`}>
       <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-      {cfg.label}
+      {status === 'active' ? 'Paid' : cfg.label}
     </span>
   );
 }
@@ -522,94 +535,151 @@ function ExtendModal({ member, onClose, onSave, gymId }) {
 }
 
 /**
- * Modal to Change / Upgrade / Renew Membership Plan
+ * Modal to Collect Fee & Renew Membership (Matching User's Design & Screenshots)
  */
-function PlanModal({ member, gymId, onClose, onSave, trainers = [] }) {
-  const PRESET_PLANS = [
-    { name: '1 Month Standard', price: 599, days: 30 },
-    { name: '3 Months Pro Transformation', price: 1499, days: 90 },
-    { name: '6 Months Fitness Pass', price: 2799, days: 180 },
-    { name: '12 Months Annual Elite', price: 4999, days: 365 },
-    { name: 'Custom Plan', price: '', days: 30 }
+function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
+  const settings = getGymSettings();
+
+  const PLANS_CATALOG = [
+    { id: "p1", name: "1 Month Standard", durationMonths: 1, durationDays: 30, price: 599, label: "1 Month Standard — ₹599" },
+    { id: "p2", name: "1 Month with Locker", durationMonths: 1, durationDays: 30, price: 699, label: "1 Month + Locker — ₹699" },
+    { id: "p3", name: "3 Months Pro Transformation", durationMonths: 3, durationDays: 90, price: 1499, label: "3 Months Pro — ₹1,499" },
+    { id: "p4", name: "6 Months Fitness Pass", durationMonths: 6, durationDays: 180, price: 2799, label: "6 Months — ₹2,799" },
+    { id: "p5", name: "12 Months Annual Elite", durationMonths: 12, durationDays: 365, price: 4999, label: "12 Months / Annual — ₹4,999" },
   ];
 
-  const [selectedPlan, setSelectedPlan] = useState(member.planName || PRESET_PLANS[1].name);
-  const [customPlanName, setCustomPlanName] = useState('');
-  const [planPrice, setPlanPrice] = useState(member.planPrice || 1499);
-  const [durationDays, setDurationDays] = useState(90);
-  const [trainerName, setTrainerName] = useState(member.trainerName || 'Unassigned');
-  const [workoutSlot, setWorkoutSlot] = useState(member.slot || member.workoutSlot || 'General Shift');
-  const [collectPayment, setCollectPayment] = useState(true);
-  const [paymentMode, setPaymentMode] = useState('cash');
+  // Match initial plan from member or default to first
+  const initialPlan = PLANS_CATALOG.find((p) =>
+    (member.planName || "").toLowerCase().includes(p.name.toLowerCase())
+  ) || PLANS_CATALOG[0];
+
+  const [selectedPlanId, setSelectedPlanId] = useState(initialPlan.id);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [validityStart, setValidityStart] = useState(new Date().toISOString().split("T")[0]);
+  const [validityEnd, setValidityEnd] = useState("");
+  const [paymentType, setPaymentType] = useState("full"); // "full" or "partial"
+  const [payingNow, setPayingNow] = useState(initialPlan.price);
+  const [paymentMode, setPaymentMode] = useState("cash"); // "cash", "online", "bank", "split"
+  const [cashAmount, setCashAmount] = useState("");
+  const [onlineAmount, setOnlineAmount] = useState("");
+  const [remarks, setRemarks] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // When preset plan changes, update defaults
-  const handleSelectPreset = (p) => {
-    setSelectedPlan(p.name);
-    if (p.name !== 'Custom Plan') {
-      setPlanPrice(p.price);
-      setDurationDays(p.days);
+  const currentPlan = PLANS_CATALOG.find((p) => p.id === selectedPlanId) || PLANS_CATALOG[0];
+  const calculatedTotal = Math.max(0, currentPlan.price - Number(discountAmount || 0));
+
+  // Auto calculate validity end date
+  useEffect(() => {
+    if (validityStart) {
+      const d = new Date(validityStart);
+      d.setMonth(d.getMonth() + Number(currentPlan.durationMonths));
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const year = d.getFullYear();
+      setValidityEnd(`${day}/${month}/${year}`);
     }
+  }, [validityStart, selectedPlanId]);
+
+  // Sync paying now when total or payment type changes
+  useEffect(() => {
+    if (paymentType === "full") {
+      setPayingNow(calculatedTotal);
+    }
+  }, [calculatedTotal, paymentType]);
+
+  const remainingDue = Math.max(0, calculatedTotal - Number(payingNow || 0));
+
+  const toIndianDate = (dateObj) => {
+    if (!dateObj) return "";
+    const d = new Date(dateObj);
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
   };
 
-  // Compute new expiry date
-  const now = new Date();
-  const targetExpiry = new Date(now.getTime() + Number(durationDays || 30) * 24 * 60 * 60 * 1000);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleCollect = async (sendWhatsApp = false) => {
     setLoading(true);
+    const memberName = member.name || member.fullName || "Member";
+    const phone = member.phone || "";
+    const memberSlot = member.slot || member.workoutSlot || "General Shift";
 
-    const finalPlanName = selectedPlan === 'Custom Plan' ? (customPlanName || 'Custom Plan') : selectedPlan;
-    const finalPrice = Number(planPrice) || 0;
-    const newExpiryIso = targetExpiry.toISOString();
+    // Target expiry ISO for member doc
+    let newExpiryIso;
+    if (validityEnd && validityEnd.includes("/")) {
+      const [d, m, y] = validityEnd.split("/");
+      newExpiryIso = new Date(`${y}-${m}-${d}T23:59:59.000Z`).toISOString();
+    } else {
+      newExpiryIso = new Date(Date.now() + currentPlan.durationDays * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    const newPaymentRecord = {
+      id: "bill_" + Date.now(),
+      memberId: member.id,
+      memberName,
+      phone,
+      slot: memberSlot,
+      batch: member.batch || "Alpha Gym",
+      planName: currentPlan.name,
+      validityStart: toIndianDate(validityStart),
+      validityEnd: validityEnd,
+      dueDate: validityEnd,
+      planPrice: currentPlan.price,
+      discount: Number(discountAmount || 0),
+      amount: calculatedTotal,
+      paidAmount: Number(payingNow),
+      dueAmount: remainingDue,
+      paymentMode,
+      paymentType,
+      remarks: remarks || (paymentMode === "split" ? `Cash: ₹${cashAmount}, Online: ₹${onlineAmount}` : ""),
+      date: toIndianDate(new Date()),
+      status: remainingDue > 0 ? "partial" : "paid",
+    };
 
     try {
+      // 1. Update Member in Firestore & UI
       await updateMember(member.id, {
-        planName: finalPlanName,
-        planPrice: finalPrice,
+        planName: currentPlan.name,
+        planPrice: calculatedTotal,
         expiryDate: newExpiryIso,
-        trainerName,
-        slot: workoutSlot,
-        workoutSlot,
-        status: 'active',
-        active: true
+        status: "active",
+        active: true,
+        dueAmount: remainingDue,
+        lastPaymentDate: new Date().toISOString()
       });
 
-      // Record payment if checked
-      if (collectPayment && finalPrice > 0) {
-        try {
-          await addPayment({
-            memberId: member.id,
-            memberName: member.name || member.fullName,
-            gymId: gymId || 'univo_main',
-            amount: finalPrice,
-            paidAmount: finalPrice,
-            dueAmount: 0,
-            mode: paymentMode,
-            plan: finalPlanName,
-            date: new Date().toISOString(),
-            notes: `Membership Plan Update: ${finalPlanName} (${durationDays} days)`
-          });
-        } catch (pErr) {
-          console.warn('Payment record warning:', pErr);
-        }
+      // 2. Record Payment in payments
+      try {
+        await addPayment(gymId || "univo_main", newPaymentRecord);
+      } catch (pErr) {
+        console.warn("Payment record warning:", pErr);
       }
 
-      toast.success(`Plan updated to ${finalPlanName}!`);
+      toast.success(`Fee collected successfully for ${memberName}!`);
+
+      // 3. Update parent list
       onSave(member.id, {
-        planName: finalPlanName,
-        planPrice: finalPrice,
+        planName: currentPlan.name,
+        planPrice: calculatedTotal,
         expiryDate: newExpiryIso,
-        trainerName,
-        slot: workoutSlot,
-        status: 'active',
-        active: true
+        status: "active",
+        active: true,
+        dueAmount: remainingDue
       });
+
+      // 4. Generate & Download Bill PDF Receipt
+      generatePaymentReceipt(newPaymentRecord, settings);
+
+      // 5. If WhatsApp requested, open WhatsApp with receipt & details
+      if (sendWhatsApp && phone) {
+        const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName || 'UNIVO GYM'}*\n\nHello *${memberName}*,\nThank you for your payment! Here are your membership billing details:\n\n📋 *Plan:* ${currentPlan.name}\n📅 *Validity:* ${newPaymentRecord.validityStart} to ${newPaymentRecord.validityEnd}\n💰 *Total Plan Fee:* ₹${calculatedTotal}\n✅ *Amount Paid:* ₹${payingNow} (${paymentMode.toUpperCase()})\n${remainingDue > 0 ? `⚠️ *Remaining Due:* ₹${remainingDue}\n` : "✨ *Status:* FULLY PAID\n"}\nYour official tax receipt PDF is generated. Stay fit and keep crushing your workouts! 💪`;
+        openWhatsApp(phone, msg);
+      }
+
       onClose();
     } catch (err) {
-      console.error('Error updating plan:', err);
-      toast.error('Failed to update plan');
+      console.error("Error collecting fee:", err);
+      toast.error("Failed to collect fee");
     } finally {
       setLoading(false);
     }
@@ -619,181 +689,300 @@ function PlanModal({ member, gymId, onClose, onSave, trainers = [] }) {
     <Modal
       isOpen={true}
       onClose={onClose}
-      title="💳 Change / Upgrade Membership Plan"
-      maxWidth="max-w-lg"
+      title="Collect Fee & Renew Membership"
+      maxWidth="max-w-xl"
     >
-      <form onSubmit={handleSubmit} className='space-y-4 text-slate-800'>
-        <div className='p-3 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-center justify-between'>
-          <div>
-            <p className='font-bold text-slate-900 text-sm'>{member.name || member.fullName}</p>
-            <p className='text-xs text-slate-500'>Current Plan: <span className='font-semibold text-indigo-700'>{member.planName || 'Standard'}</span></p>
-          </div>
-          <div className='text-right'>
-            <span className='text-[10px] uppercase font-bold text-slate-400 block'>Current Expiry</span>
-            <span className='text-xs font-semibold text-slate-700'>{formatDate(member.expiryDate)}</span>
-          </div>
-        </div>
-
-        {/* Preset Plan Options */}
-        <div>
-          <label className='block text-xs font-bold text-slate-700 mb-2'>Select Plan</label>
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
-            {PRESET_PLANS.map((p) => (
-              <button
-                type='button'
-                key={p.name}
-                onClick={() => handleSelectPreset(p)}
-                className={`p-2.5 rounded-xl border text-left transition flex items-center justify-between ${
-                  selectedPlan === p.name
-                    ? 'bg-indigo-50/90 border-indigo-500 text-indigo-950 ring-2 ring-indigo-500/20 shadow-sm'
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <div>
-                  <p className='text-xs font-bold'>{p.name}</p>
-                  <p className='text-[10px] text-slate-400'>{p.days} Days Duration</p>
-                </div>
-                {p.price && <span className='text-xs font-bold text-indigo-600'>₹{p.price}</span>}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {selectedPlan === 'Custom Plan' && (
-          <div>
-            <label className='block text-xs font-semibold text-slate-700 mb-1'>Custom Plan Name</label>
-            <input
-              type='text'
-              placeholder='e.g. 2 Months Bodybuilding'
-              value={customPlanName}
-              onChange={(e) => setCustomPlanName(e.target.value)}
-              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500'
-              required
-            />
-          </div>
-        )}
-
-        <div className='grid grid-cols-2 gap-3'>
-          <div>
-            <label className='block text-xs font-semibold text-slate-700 mb-1'>Plan Fee (₹)</label>
-            <div className='relative'>
-              <span className='absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold'>₹</span>
-              <input
-                type='number'
-                value={planPrice}
-                onChange={(e) => setPlanPrice(e.target.value)}
-                className='w-full bg-white border border-slate-200 rounded-xl pl-7 pr-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500'
-                required
-              />
+      <div className="space-y-4 text-slate-800 text-xs">
+        {/* Member Card Header */}
+        <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white font-extrabold flex items-center justify-center text-base shadow-sm">
+              {(member.name || member.fullName || "M")[0]?.toUpperCase()}
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">
+                {member.name || member.fullName}
+              </h3>
+              <p className="text-slate-500 text-[11px] mt-0.5">
+                📱 {member.phone || "No phone"} • 🏋️ {member.slot || member.workoutSlot || "General Shift"}
+              </p>
             </div>
           </div>
-
-          <div>
-            <label className='block text-xs font-semibold text-slate-700 mb-1'>Duration (Days)</label>
-            <input
-              type='number'
-              min='1'
-              value={durationDays}
-              onChange={(e) => setDurationDays(e.target.value)}
-              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500'
-              required
-            />
+          <div className="text-right">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+              CURRENT EXPIRY
+            </p>
+            <p className="text-xs font-bold text-indigo-700 mt-0.5">
+              {formatDate(member.expiryDate)}
+            </p>
           </div>
         </div>
 
-        <div className='grid grid-cols-2 gap-3'>
+        {/* Select Membership Plan and Discount */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className='block text-xs font-semibold text-slate-700 mb-1'>Workout Shift / Slot</label>
+            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1">
+              SELECT MEMBERSHIP PLAN (प्लान चुनें) *
+            </label>
             <select
-              value={workoutSlot}
-              onChange={(e) => setWorkoutSlot(e.target.value)}
-              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500'
+              value={selectedPlanId}
+              onChange={(e) => setSelectedPlanId(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
             >
-              <option value='Morning (6am-9am)'>Morning (6am-9am)</option>
-              <option value='Afternoon (12pm-3pm)'>Afternoon (12pm-3pm)</option>
-              <option value='Evening (4pm-7pm)'>Evening (4pm-7pm)</option>
-              <option value='Night (7pm-10pm)'>Night (7pm-10pm)</option>
-              <option value='General Shift'>General Shift</option>
-            </select>
-          </div>
-
-          <div>
-            <label className='block text-xs font-semibold text-slate-700 mb-1'>Personal Trainer</label>
-            <select
-              value={trainerName}
-              onChange={(e) => setTrainerName(e.target.value)}
-              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500'
-            >
-              <option value='Unassigned'>No Trainer (Unassigned)</option>
-              {trainers.map((t) => (
-                <option key={t.id} value={t.name || t.fullName}>
-                  {t.name || t.fullName}
+              {PLANS_CATALOG.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
                 </option>
               ))}
             </select>
           </div>
-        </div>
 
-        {/* Computed New Expiry */}
-        <div className='p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs'>
-          <span className='font-medium text-slate-600'>New Expiry Date (from today):</span>
-          <span className='font-bold text-indigo-700 bg-indigo-100/70 px-2.5 py-1 rounded-lg'>
-            {formatDate(targetExpiry)} ({durationDays} days)
-          </span>
-        </div>
-
-        {/* Collect Payment Toggle */}
-        <div className='border-t border-slate-100 pt-3 space-y-2.5'>
-          <label className='flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer'>
+          <div>
+            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1 flex items-center gap-1">
+              <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
+              DISCOUNT (छूट ₹)
+            </label>
             <input
-              type='checkbox'
-              checked={collectPayment}
-              onChange={(e) => setCollectPayment(e.target.checked)}
-              className='accent-indigo-600 rounded'
+              type="number"
+              placeholder="e.g. 100"
+              value={discountAmount || ""}
+              onChange={(e) => setDiscountAmount(Number(e.target.value) || 0)}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
             />
-            <span>Record Payment for this Plan</span>
-          </label>
+          </div>
+        </div>
 
-          {collectPayment && (
-            <div className='grid grid-cols-2 gap-3 pl-5'>
-              <div>
-                <label className='block text-[11px] font-medium text-slate-600 mb-1'>Payment Mode</label>
-                <select
-                  value={paymentMode}
-                  onChange={(e) => setPaymentMode(e.target.value)}
-                  className='w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500'
-                >
-                  <option value='cash'>Cash</option>
-                  <option value='online'>UPI / Online</option>
-                  <option value='bank'>Bank Transfer</option>
-                </select>
+        {/* Membership Bill Validity Period Box (Screenshot Match) */}
+        <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-emerald-900 text-xs flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-emerald-600" />
+              Membership Bill Validity Period ({currentPlan.durationMonths} Month):
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-200/70 text-emerald-900 font-extrabold text-[11px]">
+              {toIndianDate(validityStart)} से {validityEnd}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-emerald-950 uppercase block mb-1">
+                Validity Start Date (शुरू दिनांक - Joining Date) *
+              </label>
+              <input
+                type="date"
+                value={validityStart}
+                onChange={(e) => setValidityStart(e.target.value)}
+                className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-emerald-950 uppercase block mb-1">
+                Validity End / Due Date (समाप्ति / अगली फीस दिनांक) *
+              </label>
+              <input
+                type="text"
+                value={validityEnd}
+                onChange={(e) => setValidityEnd(e.target.value)}
+                placeholder="DD/MM/YYYY"
+                className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-semibold focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Fee Summary Row */}
+        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+          <div>
+            <span className="text-slate-600 font-medium">
+              {currentPlan.name} ({currentPlan.durationMonths} Month)
+            </span>
+            {discountAmount > 0 && (
+              <span className="text-emerald-600 font-bold ml-2">
+                (Discount: -₹{discountAmount})
+              </span>
+            )}
+          </div>
+          <div className="text-right">
+            <span className="font-extrabold text-indigo-700 text-base">
+              TOTAL PLAN FEE: ₹{calculatedTotal}
+            </span>
+          </div>
+        </div>
+
+        {/* Payment Type Selection (Full vs Partial) */}
+        <div>
+          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1.5">
+            PAYMENT TYPE (भुगतान प्रकार)
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setPaymentType("full")}
+              className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition ${
+                paymentType === "full"
+                  ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              ● Full Payment (पूरा ₹{calculatedTotal})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPaymentType("partial");
+                setPayingNow(Math.floor(calculatedTotal / 2));
+              }}
+              className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition ${
+                paymentType === "partial"
+                  ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              ● Partial / Installment (किस्त)
+            </button>
+          </div>
+
+          {/* If Partial is selected, show Amount Paying Now input matching user's Screenshot 3 */}
+          {paymentType === "partial" && (
+            <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5">
+              <label className="text-[11px] font-bold text-amber-950 uppercase block">
+                Amount Paying Now (आज कितना जमा कर रहे हैं) *
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-amber-700">₹</span>
+                <input
+                  type="number"
+                  value={payingNow}
+                  onChange={(e) => setPayingNow(Number(e.target.value) || 0)}
+                  max={calculatedTotal}
+                  className="w-full bg-white border border-amber-400 rounded-xl pl-8 pr-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:border-amber-600"
+                />
               </div>
-              <div className='flex items-end'>
-                <p className='text-[11px] text-slate-500 pb-2'>
-                  Amount: <strong className='text-slate-900'>₹{planPrice || 0}</strong>
-                </p>
+            </div>
+          )}
+
+          {/* Stat Cards: Total, Paying Now, Remaining Due */}
+          <div className="grid grid-cols-3 gap-2 mt-2.5">
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
+              <p className="text-[10px] text-slate-500 font-bold uppercase">TOTAL PLAN FEE</p>
+              <p className="text-sm font-black text-slate-900 mt-0.5">₹{calculatedTotal}</p>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
+              <p className="text-[10px] text-emerald-800 font-bold uppercase">PAYING NOW</p>
+              <p className="text-sm font-black text-emerald-700 mt-0.5">₹{payingNow}</p>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
+              <p className="text-[10px] text-slate-500 font-bold uppercase">REMAINING DUE (बाकी)</p>
+              <p className={`text-sm font-black mt-0.5 ${remainingDue > 0 ? "text-rose-600" : "text-slate-700"}`}>
+                ₹{remainingDue}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Mode (Cash, UPI / QR, Bank, Split) */}
+        <div>
+          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1.5">
+            PAYMENT MODE (भुगतान माध्यम) *
+          </label>
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { key: "cash", label: "💵 Cash" },
+              { key: "online", label: "📱 UPI / QR" },
+              { key: "bank", label: "🏦 Bank" },
+              { key: "split", label: "⚡ Split (Cash + UPI)" },
+            ].map((m) => (
+              <button
+                type="button"
+                key={m.key}
+                onClick={() => setPaymentMode(m.key)}
+                className={`py-2 px-1.5 rounded-xl text-xs font-bold border transition text-center ${
+                  paymentMode === m.key
+                    ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Split Amount Inputs if Split is chosen */}
+          {paymentMode === "split" && (
+            <div className="p-3 mt-2 bg-amber-50 border border-amber-200 rounded-xl grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="font-bold text-amber-900 block mb-0.5">Cash Amount (₹)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 300"
+                  value={cashAmount}
+                  onChange={(e) => setCashAmount(e.target.value)}
+                  className="w-full bg-white border border-amber-300 rounded-lg p-1.5"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-amber-900 block mb-0.5">UPI Amount (₹)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 299"
+                  value={onlineAmount}
+                  onChange={(e) => setOnlineAmount(e.target.value)}
+                  className="w-full bg-white border border-amber-300 rounded-lg p-1.5"
+                />
               </div>
             </div>
           )}
         </div>
 
-        <div className='flex items-center gap-2 pt-2'>
+        {/* Payment Remarks / Transaction ID */}
+        <div>
+          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1">
+            PAYMENT REMARKS / TRANSACTION ID (OPTIONAL)
+          </label>
+          <input
+            type="text"
+            placeholder="e.g. GPay Ref #123456 / ₹200 cash advance"
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
+          />
+        </div>
+
+        {/* Modal Actions matching user screenshot */}
+        <div className="pt-2 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100">
           <button
-            type='button'
+            type="button"
             onClick={onClose}
-            className='flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition'
+            className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
           >
             Cancel
           </button>
+
           <button
-            type='submit'
+            type="button"
             disabled={loading}
-            className='flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white text-xs font-bold transition shadow-md disabled:opacity-50'
+            onClick={() => handleCollect(false)}
+            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition shadow-sm disabled:opacity-50"
           >
-            {loading ? 'Saving...' : 'Apply Plan Update'}
+            {loading ? "Processing..." : `Collect ₹${payingNow} Only`}
+          </button>
+
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => handleCollect(true)}
+            className="px-4 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm disabled:opacity-50"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            {loading ? "Processing..." : `Collect ₹${payingNow} & WhatsApp Bill`}
           </button>
         </div>
-      </form>
+      </div>
     </Modal>
   );
 }
@@ -1659,7 +1848,7 @@ export default function Members() {
 
                       {/* Column 4: Current Status Pill */}
                       <td className='px-5 py-3.5'>
-                        <StatusBadge status={status} />
+                        <StatusBadge status={status} dueAmount={m.dueAmount} />
                       </td>
 
                       {/* Column 5: Action Pill Buttons: View, Extend, Plan, Edit, Left, Delete */}
@@ -1685,14 +1874,14 @@ export default function Members() {
                             <span>Extend</span>
                           </button>
 
-                          {/* 3. Plan Button */}
+                          {/* 3. Collect Fee & Renew Button */}
                           <button
                             onClick={() => setPlanMember(m)}
                             className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-sm'
-                            title='Change or Upgrade Membership Plan'
+                            title='Collect Fee & Renew Membership'
                           >
-                            <CreditCard className='w-3.5 h-3.5 text-indigo-600' />
-                            <span>Plan</span>
+                            <IndianRupee className='w-3.5 h-3.5 text-indigo-600' />
+                            <span>Collect</span>
                           </button>
 
                           {/* 4. Edit Button */}
@@ -1756,7 +1945,7 @@ export default function Members() {
                 <div>
                   <div className='flex items-center justify-between'>
                     <Avatar member={m} size='md' />
-                    <StatusBadge status={status} />
+                    <StatusBadge status={status} dueAmount={m.dueAmount} />
                   </div>
                   <div className='mt-3'>
                     <h4 className='font-bold text-slate-900 text-sm leading-tight'>{m.name || m.fullName}</h4>
@@ -1789,7 +1978,7 @@ export default function Members() {
                     onClick={() => setPlanMember(m)}
                     className='px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold hover:bg-indigo-100 transition'
                   >
-                    Plan
+                    Collect
                   </button>
 
                   <button
@@ -1831,9 +2020,9 @@ export default function Members() {
         />
       )}
 
-      {/* Plan Change Modal */}
+      {/* Collect Fee & Renew Modal */}
       {planMember && (
-        <PlanModal
+        <CollectFeeModal
           member={planMember}
           gymId={gymId}
           trainers={trainers}
