@@ -343,16 +343,16 @@ export default function RolesPermissions() {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
             <button 
               onClick={openAddRole}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-sm backdrop-blur transition shadow-sm active:scale-95"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-sm backdrop-blur transition shadow-sm active:scale-95"
             >
               <Plus className="w-4 h-4 text-blue-300" /> Create Role Preset
             </button>
             <button 
               onClick={openAddStaff}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-blue-500/25 transition active:scale-95"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-blue-500/25 transition active:scale-95"
             >
               <User className="w-4 h-4" /> Add Staff Account
             </button>
@@ -360,7 +360,7 @@ export default function RolesPermissions() {
         </div>
 
         {/* Quick Metrics Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-white/10">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mt-6 sm:mt-8 pt-6 border-t border-white/10">
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3.5 border border-white/10">
             <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Configured Roles</p>
             <p className="text-2xl font-black text-white mt-1">{allPresets.length + 1}</p>
@@ -919,18 +919,18 @@ export default function RolesPermissions() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-200 flex justify-end gap-3 sticky bottom-0 bg-white py-2">
+          <div className="pt-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3 sticky bottom-0 bg-white py-2">
             <button 
               type="button" 
               onClick={() => setStaffModalOpen(false)} 
-              className="px-6 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 transition"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 transition text-center"
             >
               Cancel
             </button>
             <button 
               type="submit" 
               disabled={processing} 
-              className="px-8 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm shadow hover:opacity-90 transition disabled:opacity-50"
+              className="w-full sm:w-auto px-8 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm shadow hover:opacity-90 transition disabled:opacity-50 text-center"
             >
               {processing ? "Saving..." : "Save Staff Permissions"}
             </button>
@@ -1094,18 +1094,18 @@ export default function RolesPermissions() {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-200 flex justify-end gap-3 sticky bottom-0 bg-white py-2">
+          <div className="pt-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row justify-end gap-2.5 sm:gap-3 sticky bottom-0 bg-white py-2">
             <button 
               type="button" 
               onClick={() => setRoleModalOpen(false)} 
-              className="px-6 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 transition"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 transition text-center"
             >
               Cancel
             </button>
             <button 
               type="submit" 
               disabled={processing} 
-              className="px-8 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm shadow hover:opacity-90 transition disabled:opacity-50"
+              className="w-full sm:w-auto px-8 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm shadow hover:opacity-90 transition disabled:opacity-50 text-center"
             >
               {processing ? "Saving..." : "Save Role Template"}
             </button>
@@ -1138,11 +1138,11 @@ export default function RolesPermissions() {
             </p>
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row gap-2.5 sm:gap-3 pt-2">
             <button 
               type="button"
               onClick={() => setDeleteConfirm(null)} 
-              className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 transition"
+              className="w-full sm:flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 transition text-center"
             >
               Cancel
             </button>
@@ -1150,7 +1150,7 @@ export default function RolesPermissions() {
               type="button"
               onClick={confirmDelete} 
               disabled={processing} 
-              className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white font-bold text-sm hover:bg-rose-700 transition disabled:opacity-50 shadow-sm"
+              className="w-full sm:flex-1 py-2.5 rounded-xl bg-rose-600 text-white font-bold text-sm hover:bg-rose-700 transition disabled:opacity-50 shadow-sm text-center"
             >
               {processing ? "Deleting..." : "Yes, Delete"}
             </button>

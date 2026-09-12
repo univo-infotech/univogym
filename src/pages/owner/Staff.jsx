@@ -363,7 +363,7 @@ export default function Staff() {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             {canCreate && (
               <button 
                 onClick={() => { 
@@ -372,7 +372,7 @@ export default function Staff() {
                   setActiveModalTab("basic");
                   setAddModal(true); 
                 }}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-sm shadow-lg shadow-emerald-500/25 transition active:scale-95"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-sm shadow-lg shadow-emerald-500/25 transition active:scale-95"
               >
                 <Plus className="w-4 h-4" /> Add Staff Member
               </button>
@@ -381,7 +381,7 @@ export default function Staff() {
         </div>
 
         {/* Key Metrics Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-white/10">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mt-6 sm:mt-8 pt-6 border-t border-white/10">
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3.5 border border-white/10">
             <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Total Staff Members</p>
             <p className="text-2xl font-black text-white mt-1">{staffList.length}</p>
@@ -408,11 +408,11 @@ export default function Staff() {
       {/* ============================================================
           VIEW SELECTOR TABS
       ============================================================ */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between border-b border-slate-200 pb-2 overflow-x-auto custom-scrollbar">
+        <div className="flex items-center gap-2 min-w-max">
           <button
             onClick={() => setActiveTab("directory")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition ${
               activeTab === "directory"
                 ? "bg-slate-900 text-white shadow-sm"
                 : "bg-white text-slate-600 hover:bg-slate-100"
@@ -422,7 +422,7 @@ export default function Staff() {
           </button>
           <button
             onClick={() => setActiveTab("payroll")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition ${
               activeTab === "payroll"
                 ? "bg-slate-900 text-white shadow-sm"
                 : "bg-white text-slate-600 hover:bg-slate-100"
@@ -956,11 +956,11 @@ export default function Staff() {
                 </div>
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setActiveModalTab("salary")}
-                  className="px-5 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition flex items-center gap-1"
+                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition flex items-center justify-center gap-1 text-center"
                 >
                   Next: Salary Details <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -991,7 +991,7 @@ export default function Staff() {
                     type="date" 
                     value={form.joinDate}
                     onChange={e => setForm({ ...form, joinDate: e.target.value })}
-                    className="inp-modern" 
+                    className="inp-modern font-semibold" 
                   />
                 </div>
 
@@ -1028,18 +1028,18 @@ export default function Staff() {
                 </p>
               </div>
 
-              <div className="flex justify-between pt-2">
+              <div className="flex flex-col-reverse sm:flex-row justify-between gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setActiveModalTab("basic")}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition"
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition text-center"
                 >
                   Back
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveModalTab("aadhaar")}
-                  className="px-5 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition flex items-center gap-1"
+                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition flex items-center justify-center gap-1 text-center"
                 >
                   Next: Aadhaar Verification <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -1110,17 +1110,17 @@ export default function Staff() {
                 </div>
               </div>
 
-              <div className="flex justify-between pt-2">
+              <div className="flex flex-col-reverse sm:flex-row justify-between gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setActiveModalTab("salary")}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition"
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition text-center"
                 >
                   Back
                 </button>
                 <button 
                   type="submit"
-                  className="px-7 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow hover:opacity-90 transition"
+                  className="w-full sm:w-auto px-7 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow hover:opacity-90 transition text-center"
                 >
                   {editStaff ? "Save Staff Changes" : "Confirm & Add Staff"}
                 </button>
@@ -1320,16 +1320,16 @@ export default function Staff() {
             </p>
             <p className="text-xs text-slate-400 mt-1">This action cannot be undone.</p>
           </div>
-          <div className="flex gap-3 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row gap-2.5 sm:gap-3 pt-2">
             <button 
               onClick={() => setDeleteConfirm(null)} 
-              className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition"
+              className="w-full sm:flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition text-center"
             >
               Cancel
             </button>
             <button 
               onClick={handleDelete} 
-              className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 transition shadow"
+              className="w-full sm:flex-1 py-2.5 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 transition shadow text-center"
             >
               Yes, Delete
             </button>

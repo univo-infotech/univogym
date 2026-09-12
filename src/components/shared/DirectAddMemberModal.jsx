@@ -697,10 +697,10 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 </div>
 
                 {/* Weight, Height and BMI Display Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {/* Weight Input */}
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                    <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1 text-[11px] sm:text-xs">
                       <Scale className="w-3.5 h-3.5 text-purple-600" /> Body Weight (kg) *
                     </label>
                     <input
@@ -711,14 +711,14 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       placeholder="e.g. 74.5"
                       value={formData.weight}
                       onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
-                      className="w-full bg-white border border-purple-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                      className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-purple-600"
                     />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">Recorded at admission</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">Recorded in kg</span>
                   </div>
 
                   {/* Height Input */}
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                    <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1 text-[11px] sm:text-xs">
                       <Activity className="w-3.5 h-3.5 text-purple-600" /> Height (cm) *
                     </label>
                     <input
@@ -728,13 +728,13 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       placeholder="e.g. 175"
                       value={formData.height}
                       onChange={(e) => setFormData({ ...formData, height: e.target.value })}
-                      className="w-full bg-white border border-purple-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-purple-600"
+                      className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-purple-600"
                     />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">175 cm approx 5ft 9in</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">In centimeters</span>
                   </div>
 
                   {/* Auto Calculated BMI Card */}
-                  <div className="bg-white p-3 rounded-2xl border border-purple-200 flex flex-col justify-between">
+                  <div className="col-span-2 sm:col-span-1 bg-white p-3 rounded-2xl border border-purple-200 flex flex-col justify-between">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-slate-500 uppercase">Calculated BMI</span>
                       {bmiInfo && (
@@ -959,18 +959,18 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
           </div>
 
           {/* Submit Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 sticky bottom-0 bg-white py-2">
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-3 border-t border-slate-200 sticky bottom-0 bg-white py-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 transition"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 transition text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-8 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md transition disabled:opacity-50"
+              className="w-full sm:w-auto px-8 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md transition disabled:opacity-50 text-center"
             >
               {saving ? "Registering Member..." : "Register Member & Activate Plan"}
             </button>

@@ -56,6 +56,7 @@ export default function SignaturePad({ onSave, currentSignature = null, onClear 
           ref={sigPad}
           penColor={penColor}
           onBegin={() => setHasDrawn(true)}
+          onEnd={handleSave}
           canvasProps={{
             className: "w-full h-36 cursor-crosshair",
           }}
