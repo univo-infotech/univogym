@@ -500,19 +500,20 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                   <div 
                     className="relative group cursor-pointer flex-shrink-0"
                     onClick={() => {
-                      if (selectedTrainerObj.photoUrl) {
+                      const p = selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL;
+                      if (p) {
                         setFullPhotoModal({
-                          img: selectedTrainerObj.photoUrl,
+                          img: p,
                           title: `${selectedTrainerObj.name} - Coach Photo`,
                           desc: selectedTrainerObj.specialization
                         });
                       }
                     }}
                   >
-                    {selectedTrainerObj.photoUrl ? (
+                    {(selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL) ? (
                       <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden border-2 border-indigo-200 shadow-sm bg-slate-100 flex-shrink-0">
                         <img
-                          src={selectedTrainerObj.photoUrl}
+                          src={selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL}
                           alt={selectedTrainerObj.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
                         />
@@ -522,7 +523,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                         {selectedTrainerObj.name?.charAt(0)?.toUpperCase() || "C"}
                       </div>
                     )}
-                    {selectedTrainerObj.photoUrl && (
+                    {(selectedTrainerObj.photoUrl || selectedTrainerObj.photoURL) && (
                       <div className="absolute inset-0 bg-slate-900/50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold gap-1">
                         <Maximize2 className="w-3.5 h-3.5" /> Full View
                       </div>
