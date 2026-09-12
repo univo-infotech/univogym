@@ -328,7 +328,10 @@ export default function Payments() {
         const storedPayments = await getAllPayments("univo_main");
         const storedMembers = await getMembers("univo_main");
         if (storedPayments && storedPayments.length > 0) {
-          setPaymentsList(storedPayments);
+          // Prepend newly added payments before initial sample subscriptions
+          const storedIds = new Set(storedPayments.map((p) => p.id));
+          const remainingDummies = initialSubscriptions.filter((d) => !storedIds.has(d.id));
+          setPaymentsList([...storedPayments, ...remainingDummies]);
         } else {
           setPaymentsList(initialSubscriptions);
         }

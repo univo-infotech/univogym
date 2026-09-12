@@ -43,6 +43,7 @@ import {
   markTokenUsed,
   addMember,
 } from '../../firebase/members';
+import { addPayment } from '../../firebase/payments';
 import { getActivePlans } from '../../firebase/plans';
 import { getTrainers } from '../../firebase/trainers';
 import {
@@ -506,7 +507,44 @@ export default function MemberSelfRegister() {
       };
 
       // 1. Add member document to Firestore & local cache FIRST so profile is guaranteed to save!
-      await addMember(gymId || 'univo_main', memberPayload);
+      const createdMemberId = await addMember(gymId || 'univo_main', memberPayload);
+
+      // Create initial subscription/payment record so member immediately appears in Payments & Billing
+      try {
+        const formatToIndian = (d) => {
+          const dt = new Date(d);
+          const day = String(dt.getDate()).padStart(2, '0');
+          const month = String(dt.getMonth() + 1).padStart(2, '0');
+          const year = dt.getFullYear();
+          return `${day}/${month}/${year}`;
+        };
+
+        const planPriceNum = Number(selectedPlan?.price || 6500);
+        await addPayment(gymId || 'univo_main', {
+          id: 'bill_' + Date.now(),
+          memberId: createdMemberId || 'm_' + Date.now(),
+          memberName: memberPayload.fullName,
+          phone: memberPayload.phone,
+          slot: preferredTime || 'General Floor',
+          batch: 'Self Registration • Link Access',
+          planName: selectedPlan?.name || 'Membership Plan',
+          planPrice: planPriceNum,
+          discount: 0,
+          amount: planPriceNum,
+          paidAmount: planPriceNum,
+          dueAmount: 0,
+          paymentMode: 'online',
+          paymentType: 'full',
+          validityStart: formatToIndian(todayDate),
+          validityEnd: formatToIndian(expDate),
+          dueDate: formatToIndian(expDate),
+          date: formatToIndian(todayDate),
+          status: 'paid',
+          remarks: `Online Registration & Plan Activation: ${selectedPlan?.name || 'Membership'}`
+        });
+      } catch (payErr) {
+        console.warn('MemberSelfRegister payment recording notice:', payErr);
+      }
 
       // 2. Mark token as used
       try {
