@@ -61,3 +61,10 @@ export async function createStaffUser(email, password, role, gymId, name = "", p
     throw error;
   }
 }
+
+export async function getStaffUsers(gymId) {
+  const { collection, query, where, getDocs } = await import("firebase/firestore");
+  const q = query(collection(db, "users"), where("gymId", "==", gymId), where("role", "in", ["staff", "receptionist", "manager"]));
+  const snap = await getDocs(q);
+  return snap.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+}
