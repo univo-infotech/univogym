@@ -51,7 +51,7 @@ export default function Dashboard() {
   const [inviteName, setInviteName] = useState("");
   const [invitePhone, setInvitePhone] = useState("");
   const [generatedLink, setGeneratedLink] = useState("");
-  const [linkCountdown, setLinkCountdown] = useState(300);
+  const [linkCountdown, setLinkCountdown] = useState(600);
 
   useEffect(() => {
     setSettings(getGymSettings());
@@ -61,13 +61,20 @@ export default function Dashboard() {
         const p = await getAllPayments("univo_main");
         const s = await getStock("univo_main");
         const v = await getVisits("univo_main");
-        setMembers(m && m.length > 0 ? m : [
+        const defaultM = [
           { id: "m1", fullName: "Ajay Prajapati", name: "Ajay Prajapati", phone: "+91 9196302375", planName: "3-Month Pro", status: "active", createdAt: "2026-09-10", expiryDate: "2026-12-10", renewalFee: "6500" },
           { id: "m2", fullName: "Rahul Verma", name: "Rahul Verma", phone: "+91 9876543210", planName: "Annual Elite", status: "active", createdAt: "2026-09-08", expiryDate: "2027-09-08", renewalFee: "18000" },
           { id: "m3", fullName: "Priya Sharma", name: "Priya Sharma", phone: "+91 9811223344", planName: "6-Month Transformation", status: "active", createdAt: "2026-09-05", expiryDate: "2027-03-05", renewalFee: "11000" },
           { id: "m4", fullName: "Aman Gupta", name: "Aman Gupta", phone: "+91 9988776655", planName: "1-Month Basic", status: "expiring", createdAt: "2026-08-14", expiryDate: "2026-09-14", renewalFee: "2500" },
           { id: "m5", fullName: "Karan Johar", name: "Karan Johar", phone: "+91 9711003322", planName: "3-Month Pro", status: "expiring", createdAt: "2026-06-15", expiryDate: "2026-09-15", renewalFee: "6500" },
-        ]);
+        ];
+        if (m && m.length > 0) {
+          const realPhoneSet = new Set(m.map((rm) => (rm.phone || '').replace(/\D/g, '')));
+          const remainingDefault = defaultM.filter((dm) => !realPhoneSet.has((dm.phone || '').replace(/\D/g, '')));
+          setMembers([...m, ...remainingDefault]);
+        } else {
+          setMembers(defaultM);
+        }
         setPayments(p && p.length > 0 ? p : [
           { id: "p1", memberName: "Ajay Prajapati", planName: "3-Month Pro", paidAmount: 6500, amount: 6500, dueAmount: 0, paymentMode: "online", date: "12 Sep 2026" },
           { id: "p2", memberName: "Rahul Verma", planName: "Annual Elite", paidAmount: 18000, amount: 18000, dueAmount: 0, paymentMode: "cash", date: "11 Sep 2026" },
@@ -122,8 +129,8 @@ export default function Dashboard() {
       phone: invitePhone.trim(),
     });
     setGeneratedLink(link);
-    setLinkCountdown(300);
-    toast.success("5-Minute Invite Link & QR Code Generated!");
+    setLinkCountdown(600);
+    toast.success("10-Minute Invite Link & QR Code Generated!");
   };
 
   const handleSendReminder = (m) => {
@@ -159,7 +166,7 @@ export default function Dashboard() {
               }}
               className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white text-emerald-800 text-xs sm:text-sm font-bold shadow-md hover:bg-emerald-50 transition"
             >
-              <Share2 className="w-4 h-4 text-emerald-600" /> Share 5-Min WhatsApp Link
+              <Share2 className="w-4 h-4 text-emerald-600" /> Share 10-Min WhatsApp Link
             </button>
 
             <button
@@ -340,11 +347,11 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Modal 1: WhatsApp 5-Min Invite Link */}
+      {/* Modal 1: WhatsApp 10-Min Invite Link */}
       <Modal
         isOpen={inviteModalOpen}
         onClose={() => setInviteModalOpen(false)}
-        title="📲 Generate 5-Minute Member WhatsApp Link & QR"
+        title="📲 Generate 10-Minute Member WhatsApp Link & QR"
       >
         <div className="space-y-4 text-slate-800">
           <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-950">
@@ -387,7 +394,7 @@ export default function Dashboard() {
             <div className="space-y-3.5 pt-2">
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
                 <span className="text-emerald-800 font-semibold flex items-center gap-1">
-                  <Clock className="w-4 h-4 text-emerald-600" /> Active 5-Minute Link:
+                  <Clock className="w-4 h-4 text-emerald-600" /> Active 10-Minute Link:
                 </span>
                 <span className={`font-mono font-bold px-2.5 py-0.5 rounded-full ${linkCountdown <= 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-900'}`}>
                   {linkCountdown <= 0 ? 'EXPIRED' : `${String(Math.floor(linkCountdown / 60)).padStart(2, '0')}:${String(linkCountdown % 60).padStart(2, '0')} Left`}
@@ -422,7 +429,7 @@ export default function Dashboard() {
                         const rawNum = invitePhone.replace(/\D/g, "");
                         const waPhone = rawNum.length === 10 ? `91${rawNum}` : rawNum;
                         const msg = encodeURIComponent(
-                          `💪 *Welcome to ${settings.gymName || 'UNIVO GYM'}!*\n\nHi ${inviteName || 'Athlete'},\nPlease complete your gym registration form, choose your membership plan & trainer, and sign your liability waiver using this direct link:\n\n🔗 ${generatedLink}\n\n⚠️ *Important:* This secure registration link expires in 5 minutes.`
+                          `💪 *Welcome to ${settings.gymName || 'UNIVO GYM'}!*\n\nHi ${inviteName || 'Athlete'},\nPlease complete your gym registration form, choose your membership plan & trainer, and sign your liability waiver using this direct link:\n\n🔗 ${generatedLink}\n\n⚠️ *Important:* This secure registration link expires in 10 minutes.`
                         );
                         window.open(`https://wa.me/${waPhone}?text=${msg}`, "_blank");
                       }}

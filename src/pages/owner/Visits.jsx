@@ -113,7 +113,7 @@ const DEFAULT_VISITS = [
   }
 ];
 
-const TIMER_SECONDS = 300;
+const TIMER_SECONDS = 600;
 
 function fmtCountdown(secs) {
   const m = Math.floor(secs / 60).toString().padStart(2, "0");
@@ -409,7 +409,7 @@ export default function Visits() {
 
   const handleSendWhatsAppInvite = () => {
     const msg = encodeURIComponent(
-      `💪 *Welcome to ${settings.gymName || "UNIVO GYM MANAGEMENT"}!*\n\nHi ${inviteData.name || "Athlete"},\nThank you for visiting us for trial workout!\n\nYou can complete your online membership registration, choose your workout slot, select your personal trainer, and sign your liability waiver using this direct link:\n\n🔗 ${inviteData.link}\n\n⚠️ *Important:* This secure VIP link expires in 5 minutes.\n\nLet's get stronger together! 🔥`
+      `💪 *Welcome to ${settings.gymName || "UNIVO GYM MANAGEMENT"}!*\n\nHi ${inviteData.name || "Athlete"},\nThank you for visiting us for trial workout!\n\nYou can complete your online membership registration, choose your workout slot, select your personal trainer, and sign your liability waiver using this direct link:\n\n🔗 ${inviteData.link}\n\n⚠️ *Important:* This secure VIP link expires in 10 minutes.\n\nLet's get stronger together! 🔥`
     );
     window.open(`https://wa.me/${inviteData.phone}?text=${msg}`, "_blank");
   };
@@ -1033,7 +1033,7 @@ export default function Visits() {
       </Modal>
 
       {/* ========================================================================= */}
-      {/* -------------------- MODAL: 5-MIN INVITE LINK & QR CODE ----------------- */}
+      {/* -------------------- MODAL: 10-MIN INVITE LINK & QR CODE ---------------- */}
       {/* ========================================================================= */}
       <Modal
         isOpen={inviteModalOpen}
@@ -1041,7 +1041,7 @@ export default function Visits() {
           clearInterval(timerRef.current);
           setInviteModalOpen(false);
         }}
-        title="📲 Self-Registration 5-Minute Link & QR Code"
+        title="📲 Self-Registration 10-Minute Link & QR Code"
       >
         <div className="space-y-4 text-slate-800">
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 leading-relaxed">

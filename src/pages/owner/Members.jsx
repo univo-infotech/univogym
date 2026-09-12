@@ -126,7 +126,7 @@ function Avatar({ member, size = 'sm' }) {
   );
 }
 
-const TIMER_SECONDS = 300;
+const TIMER_SECONDS = 600;
 
 function InviteLinkModal({ gymId, onClose }) {
   const [memberName, setMemberName] = useState('');
@@ -168,7 +168,7 @@ function InviteLinkModal({ gymId, onClose }) {
       });
       setLink(url);
       startTimer();
-      toast.success('5-Minute Invite Link Ready!');
+      toast.success('10-Minute Invite Link Ready!');
     } catch (e) {
       toast.error('Failed to generate link');
     } finally {
@@ -185,7 +185,7 @@ function InviteLinkModal({ gymId, onClose }) {
     const rawNum = phone.replace(/\D/g, '');
     const waPhone = rawNum.length === 10 ? `91${rawNum}` : rawNum;
     const msg = encodeURIComponent(
-      `💪 *Welcome to UNIVO GYM MANAGEMENT!*\n\nHi ${memberName || 'Athlete'},\nPlease complete your gym registration form, choose your membership plan & trainer, and sign your liability waiver using this direct link:\n\n🔗 ${link}\n\n⚠️ *Important:* This secure registration link expires in 5 minutes.`
+      `💪 *Welcome to UNIVO GYM MANAGEMENT!*\n\nHi ${memberName || 'Athlete'},\nPlease complete your gym registration form, choose your membership plan & trainer, and sign your liability waiver using this direct link:\n\n🔗 ${link}\n\n⚠️ *Important:* This secure registration link expires in 10 minutes.`
     );
     window.open(`https://wa.me/${waPhone}?text=${msg}`, '_blank');
   }
@@ -194,7 +194,7 @@ function InviteLinkModal({ gymId, onClose }) {
     <Modal
       isOpen={true}
       onClose={onClose}
-      title="📲 5-Min WhatsApp Invite Link & QR Code"
+      title="📲 10-Min WhatsApp Invite Link & QR Code"
       maxWidth="max-w-xl"
     >
       <div className='space-y-4 text-slate-800'>
@@ -236,7 +236,7 @@ function InviteLinkModal({ gymId, onClose }) {
             disabled={generating}
             className='w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-sm font-bold transition shadow-md disabled:opacity-50'
           >
-            {generating ? 'Generating...' : '⚡ Generate 5-Minute Link & QR Code'}
+            {generating ? 'Generating...' : '⚡ Generate 10-Minute Link & QR Code'}
           </button>
         ) : (
           <div className='p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3.5'>
@@ -416,7 +416,14 @@ export default function Members() {
           getMembers(gymId || 'univo_main'),
           getTrainers(gymId || 'univo_main'),
         ]);
-        setMembers(m && m.length > 0 ? m : dummyMembers);
+        if (m && m.length > 0) {
+          // Merge real members with dummy members so default demo data remains viewable if list is short
+          const realPhoneSet = new Set(m.map((rm) => (rm.phone || '').replace(/\D/g, '')));
+          const remainingDummy = dummyMembers.filter((dm) => !realPhoneSet.has((dm.phone || '').replace(/\D/g, '')));
+          setMembers([...m, ...remainingDummy]);
+        } else {
+          setMembers(dummyMembers);
+        }
         setTrainers(t || []);
       } catch (err) {
         setMembers(dummyMembers);
@@ -487,7 +494,7 @@ export default function Members() {
             onClick={() => setShowInvite(true)}
             className='flex-1 sm:flex-none flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-sm'
           >
-            <Share2 className='w-4 h-4 text-emerald-600' /> Share 5-Min Link
+            <Share2 className='w-4 h-4 text-emerald-600' /> Share 10-Min Link
           </button>
           <button
             onClick={() => setShowDirectAdd(true)}

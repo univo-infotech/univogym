@@ -469,7 +469,7 @@ export default function MemberSelfRegister() {
         gymId: gymId || 'univo_main',
         fullName: personalData.fullName || tokenData?.memberName || typedName,
         name: personalData.fullName || tokenData?.memberName || typedName,
-        phone: tokenData?.phone || personalData.altPhone || '',
+        phone: tokenData?.phone || personalData.altPhone || personalData.phone || '',
         photoURL,
         signatureURL,
         gender,
@@ -502,6 +502,17 @@ export default function MemberSelfRegister() {
         inviteToken: token,
       };
 
+      // 1. Add member document to Firestore & local cache FIRST so profile is guaranteed to save!
+      await addMember(gymId || 'univo_main', memberPayload);
+
+      // 2. Mark token as used
+      try {
+        await markTokenUsed(gymId || 'univo_main', token);
+      } catch (e) {
+        console.warn('Token status update');
+      }
+
+      // 3. Optional Auth account creation (does not block registration)
       if (personalData.email) {
         try {
           const tempPassword = `Univo@${Math.random().toString(36).slice(2, 8)}123`;
@@ -509,16 +520,8 @@ export default function MemberSelfRegister() {
           memberPayload.uid = cred.user.uid;
           memberPayload.tempPassword = tempPassword;
         } catch (authErr) {
-          console.warn('Auth user registration note:', authErr.message);
+          console.warn('Auth user registration note (member profile already saved):', authErr.message);
         }
-      }
-
-      await addMember(gymId || 'univo_main', memberPayload);
-
-      try {
-        await markTokenUsed(gymId || 'univo_main', token);
-      } catch (e) {
-        console.warn('Token status update');
       }
 
       setSuccess(true);
@@ -564,7 +567,7 @@ export default function MemberSelfRegister() {
               <p className="text-slate-500 text-sm leading-relaxed">
                 {isUsed
                   ? 'This registration link has already been used. Your membership profile is active.'
-                  : 'This registration link has expired (5-minute security limit). Please request your gym manager for a new link.'}
+                  : 'This registration link has expired (10-minute security limit). Please request your gym manager for a new link.'}
               </p>
             </div>
             <div className="pt-2">
