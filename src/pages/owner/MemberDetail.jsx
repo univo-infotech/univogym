@@ -17,7 +17,8 @@ import {
   RefreshCw,
   Flame,
   Award,
-  ShieldCheck
+  ShieldCheck,
+  Scale
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getMember } from "../../firebase/members";
@@ -192,6 +193,35 @@ export default function MemberDetail() {
               </div>
             </div>
           </div>
+
+          {/* Physical Assessment & BMI Card */}
+          {(member.weight || member.height || member.bmi || member.fitnessGoal) && (
+            <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-3 md:col-span-2">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Scale className="w-4 h-4 text-purple-600" /> Personal Training Assessment & BMI Baseline
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Weight</p>
+                  <p className="text-sm font-extrabold text-slate-900 mt-0.5">{member.weight ? `${member.weight} kg` : "-"}</p>
+                </div>
+                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Height</p>
+                  <p className="text-sm font-extrabold text-slate-900 mt-0.5">{member.height ? `${member.height} cm` : "-"}</p>
+                </div>
+                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">BMI Score</p>
+                  <p className="text-sm font-extrabold text-purple-700 mt-0.5">
+                    {member.bmi ? `${member.bmi} (${member.bmiCategory || "Normal"})` : "-"}
+                  </p>
+                </div>
+                <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Target Goal</p>
+                  <p className="text-xs font-extrabold text-emerald-700 mt-0.5 truncate">{member.fitnessGoal || "General Fitness"}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

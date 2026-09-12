@@ -28,7 +28,12 @@ import {
   Sunset,
   Moon,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Scale,
+  Award,
+  Activity,
+  Flame,
+  Target
 } from 'lucide-react';
 import {
   validateInviteToken,
@@ -240,6 +245,38 @@ export default function MemberSelfRegister() {
   const [selectedTrainer, setSelectedTrainer] = useState(null);
   const [plansLoading, setPlansLoading] = useState(false);
 
+  // Body Assessment (when dedicated coach selected)
+  const [weight, setWeight] = useState('');
+  const [height, setHeight] = useState('');
+  const [fitnessGoal, setFitnessGoal] = useState('Weight Loss & Fat Burn');
+  const [targetWeight, setTargetWeight] = useState('');
+
+  // Dynamic BMI Calculation
+  const bmiInfo = React.useMemo(() => {
+    const w = parseFloat(weight);
+    const h = parseFloat(height);
+    if (!w || !h || w <= 0 || h <= 0) return null;
+    const hM = h / 100;
+    const val = parseFloat((w / (hM * hM)).toFixed(1));
+    let category = "Normal";
+    let color = "text-emerald-700 bg-emerald-50 border-emerald-200";
+
+    if (val < 18.5) {
+      category = "Underweight";
+      color = "text-blue-700 bg-blue-50 border-blue-200";
+    } else if (val <= 24.9) {
+      category = "Normal (Healthy)";
+      color = "text-emerald-700 bg-emerald-50 border-emerald-200";
+    } else if (val <= 29.9) {
+      category = "Overweight";
+      color = "text-amber-700 bg-amber-50 border-amber-200";
+    } else {
+      category = "Obese";
+      color = "text-rose-700 bg-rose-50 border-rose-200";
+    }
+    return { val, category, color };
+  }, [weight, height]);
+
   // Step 4: Schedule
   const [preferredTime, setPreferredTime] = useState('morning');
   const [healthNotes, setHealthNotes] = useState('');
@@ -434,6 +471,13 @@ export default function MemberSelfRegister() {
         planPrice: selectedPlan?.price || 6500,
         trainerId: selectedTrainer?.id || null,
         trainerName: selectedTrainer?.name || 'Unassigned (General Floor)',
+        hasPersonalCoach: Boolean(selectedTrainer),
+        weight: weight || '',
+        height: height || '',
+        bmi: bmiInfo ? String(bmiInfo.val) : '',
+        bmiCategory: bmiInfo ? bmiInfo.category : '',
+        fitnessGoal: fitnessGoal || '',
+        targetWeight: targetWeight || '',
         preferredTime,
         healthNotes,
         typedSignature: typedName.trim(),
@@ -951,6 +995,166 @@ export default function MemberSelfRegister() {
                   );
                 })}
               </div>
+
+              {/* Dedicated Coach Profile & Proven Transformation Results Preview */}
+              {selectedTrainer && (
+                <div className="p-4 rounded-2xl bg-white border-2 border-emerald-200/80 shadow-xs space-y-3.5 mt-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white font-extrabold flex items-center justify-center text-lg flex-shrink-0 shadow-xs overflow-hidden">
+                      {selectedTrainer.photoURL ? (
+                        <img src={selectedTrainer.photoURL} alt={selectedTrainer.name} className="w-full h-full object-cover" />
+                      ) : (
+                        selectedTrainer.name?.charAt(0) || "C"
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-slate-900 text-sm">{selectedTrainer.name}</h4>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                          <Award className="w-3 h-3 text-emerald-600" /> Dedicated Coach
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold text-emerald-700 mt-0.5">
+                        {selectedTrainer.specialization || "Personal Fitness Coach"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {selectedTrainer.bio && (
+                    <div className="bg-slate-50 p-2.5 rounded-xl text-xs text-slate-600 border border-slate-100">
+                      <span className="font-bold text-slate-800">Coach Bio: </span>
+                      {selectedTrainer.bio}
+                    </div>
+                  )}
+
+                  {selectedTrainer.certifications && (
+                    <p className="text-[11px] text-slate-500">
+                      <span className="font-bold text-slate-700">Certifications: </span>
+                      {selectedTrainer.certifications}
+                    </p>
+                  )}
+
+                  {/* Transformation Results */}
+                  {selectedTrainer.transformations && selectedTrainer.transformations.length > 0 && (
+                    <div className="pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <Flame className="w-3.5 h-3.5 text-amber-500" />
+                          Client Transformations & Results ({selectedTrainer.transformations.length})
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {selectedTrainer.transformations.map((item, idx) => (
+                          <div key={item.id || idx} className="bg-slate-50 p-2 rounded-xl border border-slate-200/80 space-y-1">
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div className="relative rounded-lg overflow-hidden bg-slate-200 h-20 border border-slate-300">
+                                {item.beforeImg && <img src={item.beforeImg} alt="Before" className="w-full h-full object-cover" />}
+                                <span className="absolute top-1 left-1 bg-rose-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">
+                                  BEFORE
+                                </span>
+                              </div>
+                              <div className="relative rounded-lg overflow-hidden bg-slate-200 h-20 border border-slate-300">
+                                {item.afterImg && <img src={item.afterImg} alt="After" className="w-full h-full object-cover" />}
+                                <span className="absolute top-1 left-1 bg-emerald-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">
+                                  AFTER
+                                </span>
+                              </div>
+                            </div>
+                            {item.description && (
+                              <p className="text-[10px] text-slate-600 truncate">{item.description}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Physical Assessment (Weight, Height & BMI) */}
+                  <div className="pt-3 border-t border-emerald-100 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h5 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                        <Scale className="w-4 h-4 text-emerald-600" />
+                        Physical Baseline Assessment (Weight, Height & BMI)
+                      </h5>
+                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        For Coach Program
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="font-bold text-slate-700 block mb-1 text-[11px]">Weight (kg) *</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="e.g. 74.5"
+                          value={weight}
+                          onChange={(e) => setWeight(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="font-bold text-slate-700 block mb-1 text-[11px]">Height (cm) *</label>
+                        <input
+                          type="number"
+                          placeholder="e.g. 175"
+                          value={height}
+                          onChange={(e) => setHeight(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-col justify-between">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Your BMI</span>
+                        <div className="flex items-baseline gap-1.5 my-0.5">
+                          {bmiInfo ? (
+                            <>
+                              <span className="text-xl font-black text-slate-900">{bmiInfo.val}</span>
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${bmiInfo.color}`}>
+                                {bmiInfo.category}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 italic">Enter Wt & Ht</span>
+                          )}
+                        </div>
+                        <span className="text-[9px] text-slate-400">BMI = Weight / (Height in m)²</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="font-bold text-slate-700 block mb-1 text-[11px]">Primary Fitness Goal</label>
+                        <select
+                          value={fitnessGoal}
+                          onChange={(e) => setFitnessGoal(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="Weight Loss & Fat Burn">Weight Loss & Fat Burn</option>
+                          <option value="Muscle Building & Bulk">Muscle Building & Bulk</option>
+                          <option value="Strength & Conditioning">Strength & Conditioning</option>
+                          <option value="General Fitness & Stamina">General Fitness & Stamina</option>
+                          <option value="Rehabilitation & Posture">Rehabilitation & Posture</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="font-bold text-slate-700 block mb-1 text-[11px]">Target Weight (kg, optional)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="e.g. 68.0"
+                          value={targetWeight}
+                          onChange={(e) => setTargetWeight(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {stepError && (
