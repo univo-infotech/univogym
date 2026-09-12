@@ -64,10 +64,13 @@ function Avatar({ name, photo, size = "md" }) {
   return <div className={`${sz} ${bg} rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0`}>{initials}</div>;
 }
 
+import { usePermissions } from "../../hooks/usePermissions";
+
 // --- Main Page ---------------------------------------------------
 export default function Staff() {
   const { gymId } = useAuth();
   const GID = gymId || "univo_main";
+  const { create: canCreate, edit: canEdit, delete: canDelete } = usePermissions("staff");
 
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -286,10 +289,12 @@ export default function Staff() {
           <h1 className="text-2xl font-bold text-slate-900">Staff Management</h1>
           <p className="text-slate-500 text-xs mt-1">Add staff - salary auto-appears in Expenses next month</p>
         </div>
-        <button onClick={() => { setForm(emptyForm); setAddModal(true); }}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow hover:opacity-90 transition">
-          <Plus className="w-4 h-4" /> Add Staff Member
-        </button>
+        {canCreate && (
+          <button onClick={() => { setForm(emptyForm); setAddModal(true); }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow hover:opacity-90 transition">
+            <Plus className="w-4 h-4" /> Add Staff Member
+          </button>
+        )}
       </div>
 
       {/* --- Summary Cards --- */}

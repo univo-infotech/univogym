@@ -7,7 +7,7 @@ import Modal from "../../components/ui/Modal";
 import toast from "react-hot-toast";
 
 const MODULES = [
-  { id: "dashboard", label: "Dashboard", desc: "Live occupancy, stats & quick overview" },
+  { id: "dashboard", label: "Dashboard", desc: "Live occupancy, stats & quick overview", noEditDelete: true },
   { id: "members", label: "Members", desc: "View & manage all members" },
   { id: "payments", label: "Fees & Receipts", desc: "Collect fees, invoices & receipts" },
   { id: "trainers", label: "Trainers", desc: "Manage trainers & attendance" },
@@ -16,16 +16,35 @@ const MODULES = [
   { id: "services", label: "Services", desc: "Extra amenities & services" },
   { id: "stock", label: "Stock & Equipment", desc: "Inventory & maintenance" },
   { id: "expenses", label: "Expenses & Utility", desc: "Track daily gym expenses" },
-  { id: "reports", label: "Reports", desc: "Financial & growth analytics" },
+  { id: "reports", label: "Reports", desc: "Financial & growth analytics", noEditDelete: true },
   { id: "visits", label: "Visit & Demo", desc: "Lead management & followups" },
-  { id: "offers", label: "Offer & Broadcast", desc: "Marketing & WhatsApp SMS" },
+  { id: "offers", label: "Offer & Broadcast", desc: "Marketing & WhatsApp SMS", noEditDelete: true },
   { id: "settings", label: "Settings", desc: "Gym profile & configurations" }
 ];
 
 const PRESETS = [
-  { id: "owner", title: "Owner (Super Admin)", icon: "👑", desc: "Full access to all revenue, expenses, audit reports & settings.", perms: MODULES.map(m=>m.id) },
-  { id: "receptionist", title: "Receptionist", icon: "🛎️", desc: "Front desk: admission, fee collection, visits & receipts.", perms: ["dashboard", "members", "payments", "visits"] },
-  { id: "manager", title: "Branch Manager", icon: "🏢", desc: "Branch management: admissions, fees, operational reports & expenses.", perms: ["dashboard", "members", "payments", "trainers", "staff", "expenses", "reports", "visits"] }
+  { 
+    id: "receptionist", title: "Receptionist", icon: "🛎️", desc: "Front desk: admission, fee collection, visits & receipts.", 
+    perms: {
+      dashboard: { view: true },
+      members: { view: true, create: true, edit: true, delete: false },
+      payments: { view: true, create: true, edit: true, delete: false },
+      visits: { view: true, create: true, edit: true, delete: false }
+    }
+  },
+  { 
+    id: "manager", title: "Branch Manager", icon: "🏢", desc: "Branch management: admissions, fees, operational reports & expenses.", 
+    perms: {
+      dashboard: { view: true },
+      members: { view: true, create: true, edit: true, delete: true },
+      payments: { view: true, create: true, edit: true, delete: true },
+      trainers: { view: true, create: true, edit: true, delete: false },
+      staff: { view: true, create: true, edit: false, delete: false },
+      expenses: { view: true, create: true, edit: true, delete: true },
+      reports: { view: true },
+      visits: { view: true, create: true, edit: true, delete: true }
+    }
+  }
 ];
 
 export default function RolesPermissions() {
@@ -37,7 +56,7 @@ export default function RolesPermissions() {
   
   const [modalOpen, setModalOpen] = useState(false);
   const [showPass, setShowPass] = useState({});
-  const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", role: "Receptionist", status: "Active", permissions: [] });
+  const [form, setForm] = useState({ name: "", phone: "", email: "", password: "", role: "Receptionist", status: "Active", permissions: PRESETS[0].perms });
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -65,11 +84,25 @@ export default function RolesPermissions() {
     setForm(prev => ({ ...prev, role: preset.title, permissions: preset.perms }));
   };
 
-  const handleTogglePerm = (modId) => {
+  const handleTogglePerm = (modId, action) => {
     setForm(prev => {
-      const current = prev.permissions;
-      if (current.includes(modId)) return { ...prev, permissions: current.filter(id => id !== modId) };
-      return { ...prev, permissions: [...current, modId] };
+      const currentMod = prev.permissions[modId] || { view: false, create: false, edit: false, delete: false };
+      
+      let newMod = { ...currentMod, [action]: !currentMod[action] };
+      
+      // If unchecking view, uncheck everything
+      if (action === 'view' && !newMod.view) {
+        newMod = { view: false, create: false, edit: false, delete: false };
+      }
+      // If checking create/edit/delete, auto-check view
+      if (action !== 'view' && newMod[action]) {
+        newMod.view = true;
+      }
+
+      return {
+        ...prev,
+        permissions: { ...prev.permissions, [modId]: newMod }
+      };
     });
   };
 
@@ -79,21 +112,19 @@ export default function RolesPermissions() {
       toast.error("Please provide Name, Email, and Password (min 6 chars)");
       return;
     }
-    if (form.permissions.length === 0) {
+    if (Object.keys(form.permissions).filter(k => form.permissions[k].view).length === 0) {
       toast.error("Please select at least one module permission");
       return;
     }
     
     setCreating(true);
     try {
-      // 1. Create Staff profile in DB first to get a profile ID
       const profileId = await addStaff(GID, {
         name: form.name, phone: form.phone, email: form.email,
         role: form.role, salary: "0", joinDate: new Date().toISOString().split("T")[0],
         status: form.status.toLowerCase()
       });
 
-      // 2. Create Auth User
       await createStaffUser(
         form.email, form.password, "staff", GID, form.name, profileId, form.permissions
       );
@@ -121,9 +152,15 @@ export default function RolesPermissions() {
     return <div className="p-10 text-center text-slate-500">Access Denied. Owner only.</div>;
   }
 
+  // Count active modules for display
+  const getActiveModulesCount = (perms) => {
+    if (Array.isArray(perms)) return perms.length; // old format
+    if (!perms) return 0;
+    return Object.keys(perms).filter(k => perms[k].view).length;
+  };
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-10">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -132,11 +169,8 @@ export default function RolesPermissions() {
           <p className="text-slate-500 text-sm mt-1">Manage staff accounts, edit role templates & configure module permissions</p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 transition">
-            <Plus className="w-4 h-4" /> Create New Role
-          </button>
           <button onClick={() => {
-              setForm({ name: "", phone: "", email: "", password: "", role: "Receptionist", status: "Active", permissions: PRESETS[1].perms });
+              setForm({ name: "", phone: "", email: "", password: "", role: "Receptionist", status: "Active", permissions: PRESETS[0].perms });
               setModalOpen(true);
             }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm shadow hover:bg-blue-700 transition">
@@ -145,12 +179,23 @@ export default function RolesPermissions() {
         </div>
       </div>
 
-      {/* Role Presets Section */}
       <div>
         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-          <ShieldCheck className="w-4 h-4 text-blue-600" /> Configured Roles & Permissions ({PRESETS.length})
+          <ShieldCheck className="w-4 h-4 text-blue-600" /> Configured Roles & Permissions ({PRESETS.length + 1})
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-blue-300 transition relative">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">👑</span>
+                <h3 className="font-bold text-slate-900">Owner (Super Admin)</h3>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed mb-4 h-8">Full access to all revenue, expenses, audit reports & settings.</p>
+            <div className="flex items-center justify-between mt-auto">
+              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md uppercase">Super</span>
+            </div>
+          </div>
           {PRESETS.map((p, i) => (
             <div key={i} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-blue-300 transition relative">
               <div className="flex items-start justify-between mb-2">
@@ -158,7 +203,6 @@ export default function RolesPermissions() {
                   <span className="text-xl">{p.icon}</span>
                   <h3 className="font-bold text-slate-900">{p.title}</h3>
                 </div>
-                <button className="text-slate-400 hover:text-blue-600"><Edit className="w-4 h-4" /></button>
               </div>
               <p className="text-xs text-slate-500 leading-relaxed mb-4 h-8">{p.desc}</p>
               <div className="flex items-center justify-between mt-auto">
@@ -169,7 +213,6 @@ export default function RolesPermissions() {
         </div>
       </div>
 
-      {/* Staff Accounts Section */}
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-bold text-slate-800">Configured Staff Accounts ({users.length})</h2>
@@ -204,8 +247,7 @@ export default function RolesPermissions() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit className="w-4 h-4" /></button>
-                    <button className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                    <button className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg" title="Delete is disabled for demo"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </div>
 
@@ -234,16 +276,25 @@ export default function RolesPermissions() {
 
                 <div>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">
-                    Assigned Module Access ({u.permissions?.length || 0} Modules)
+                    Assigned Module Access ({getActiveModulesCount(u.permissions)} Modules)
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {u.permissions?.map(p => {
+                    {Object.keys(u.permissions || {}).map(p => {
+                      if (Array.isArray(u.permissions)) return null; // Skip rendering detailed badges for old array format
                       const mod = MODULES.find(m => m.id === p);
-                      return mod ? (
+                      const access = u.permissions[p];
+                      if (!mod || !access.view) return null;
+                      
+                      let accessText = "view";
+                      if (access.create) accessText += ", create";
+                      if (access.edit) accessText += ", edit";
+                      if (access.delete) accessText += ", delete";
+
+                      return (
                         <span key={p} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold">
-                          <Check className="w-3 h-3" /> {mod.label}
+                          <Check className="w-3 h-3" /> {mod.label} <span className="text-emerald-600 font-normal">({accessText})</span>
                         </span>
-                      ) : null;
+                      );
                     })}
                   </div>
                 </div>
@@ -253,15 +304,11 @@ export default function RolesPermissions() {
         )}
       </div>
 
-      {/* Add Staff Account Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Add Staff Account" maxWidth="max-w-3xl">
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Add Staff Account" maxWidth="max-w-4xl">
         <form onSubmit={handleSaveAccount} className="space-y-6">
-          
-          {/* Quick Role Preset */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">Quick Role Preset</label>
-              <button type="button" className="text-blue-600 text-xs font-bold flex items-center gap-1 hover:underline"><Plus className="w-3 h-3"/> Create New Role</button>
             </div>
             <div className="flex flex-wrap gap-3">
               {PRESETS.map(p => (
@@ -311,19 +358,20 @@ export default function RolesPermissions() {
             </div>
           </div>
 
-          {/* Module Permissions Matrix */}
+          {/* Detailed Module Permissions Matrix */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">Module Permissions Matrix</label>
-              <span className="text-xs text-blue-600 cursor-pointer hover:underline">Check allowed actions</span>
             </div>
             
             <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-[400px] overflow-y-auto bg-slate-50">
               {MODULES.map((mod, i) => {
-                const isActive = form.permissions.includes(mod.id);
+                const modPerm = form.permissions[mod.id] || { view: false, create: false, edit: false, delete: false };
+                const isActive = modPerm.view;
+                
                 return (
-                  <div key={mod.id} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 ${i !== MODULES.length - 1 ? 'border-b border-slate-200' : ''} ${isActive ? 'bg-white' : ''}`}>
-                    <div className="flex items-center gap-4 mb-3 sm:mb-0">
+                  <div key={mod.id} className={`flex flex-col md:flex-row md:items-center justify-between p-4 ${i !== MODULES.length - 1 ? 'border-b border-slate-200' : ''} ${isActive ? 'bg-white' : ''}`}>
+                    <div className="flex items-center gap-4 mb-3 md:mb-0 w-1/3">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-blue-100 text-blue-600' : 'bg-slate-200 text-slate-400'}`}>
                         <ShieldCheck className="w-5 h-5" />
                       </div>
@@ -333,23 +381,32 @@ export default function RolesPermissions() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-2 sm:ml-4 flex-wrap">
-                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition ${isActive ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                        <input type="checkbox" className="w-3.5 h-3.5 text-blue-600 rounded border-slate-300 focus:ring-blue-500" 
-                          checked={isActive} onChange={() => handleTogglePerm(mod.id)} />
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition ${modPerm.view ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                        <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" 
+                          checked={modPerm.view} onChange={() => handleTogglePerm(mod.id, 'view')} />
                         View
                       </label>
                       
-                      {/* Visual mock for Create/Edit/Delete based on the image */}
-                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition opacity-50 cursor-not-allowed ${isActive ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
-                        <input type="checkbox" checked={isActive} readOnly disabled className="w-3.5 h-3.5 rounded" /> Create
-                      </label>
-                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition opacity-50 cursor-not-allowed ${isActive ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
-                        <input type="checkbox" checked={isActive} readOnly disabled className="w-3.5 h-3.5 rounded" /> Edit
-                      </label>
-                      <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 opacity-50 cursor-not-allowed">
-                        <input type="checkbox" disabled className="w-3.5 h-3.5 rounded" /> Delete
-                      </label>
+                      {!mod.noEditDelete && (
+                        <>
+                          <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition ${modPerm.create ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                            <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" 
+                              checked={modPerm.create} onChange={() => handleTogglePerm(mod.id, 'create')} />
+                            Create
+                          </label>
+                          <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition ${modPerm.edit ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                            <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" 
+                              checked={modPerm.edit} onChange={() => handleTogglePerm(mod.id, 'edit')} />
+                            Edit
+                          </label>
+                          <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition ${modPerm.delete ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                            <input type="checkbox" className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500" 
+                              checked={modPerm.delete} onChange={() => handleTogglePerm(mod.id, 'delete')} />
+                            Delete
+                          </label>
+                        </>
+                      )}
                     </div>
                   </div>
                 )

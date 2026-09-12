@@ -68,10 +68,12 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
   if (role === "trainer") links = trainerLinks;
   else if (role === "member") links = memberLinks;
   else if (role === "staff") {
-    // Only show links the staff has permission for
-    links = ownerLinks.filter(link => permissions?.includes(link.id));
+    // Support both old array and new object format
+    links = ownerLinks.filter(link => {
+      if (Array.isArray(permissions)) return permissions.includes(link.id);
+      return permissions?.[link.id]?.view;
+    });
   } else if (role === "owner") {
-    // Owner sees all, including Roles
     links = ownerLinks;
   }
 
