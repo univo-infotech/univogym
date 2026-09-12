@@ -21,7 +21,9 @@ import {
   TrendingUp,
   Edit,
   UserMinus,
-  Share2
+  Share2,
+  Sparkles,
+  CheckCircle2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getMembers, generateInviteToken, addMember } from '../../firebase/members';
@@ -124,11 +126,9 @@ function Avatar({ member, size = 'sm' }) {
 
 const TIMER_SECONDS = 300;
 
-function InviteLinkModal({ gymId, plans, onClose }) {
+function InviteLinkModal({ gymId, onClose }) {
   const [memberName, setMemberName] = useState('');
   const [phone, setPhone] = useState('');
-  const [planId, setPlanId] = useState('');
-  const [customToken, setCustomToken] = useState('');
   const [generating, setGenerating] = useState(false);
   const [link, setLink] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(TIMER_SECONDS);
@@ -160,19 +160,11 @@ function InviteLinkModal({ gymId, plans, onClose }) {
     }
     setGenerating(true);
     try {
-      if (customToken.trim()) {
-        const url = `${window.location.origin}/#/register/univo_main/${customToken.trim()}`;
-        setLink(url);
-      } else {
-        const selectedPlan = plans.find((p) => p.id === planId);
-        const url = await generateInviteToken(gymId || 'univo_main', {
-          memberName: memberName.trim(),
-          phone: phone.trim(),
-          planId,
-          planName: selectedPlan?.name || 'Pro Membership',
-        });
-        setLink(url);
-      }
+      const url = await generateInviteToken(gymId || 'univo_main', {
+        memberName: memberName.trim(),
+        phone: phone.trim(),
+      });
+      setLink(url);
       startTimer();
       toast.success('5-Minute Invite Link Ready!');
     } catch (e) {
@@ -191,7 +183,7 @@ function InviteLinkModal({ gymId, plans, onClose }) {
     const rawNum = phone.replace(/\D/g, '');
     const waPhone = rawNum.length === 10 ? `91${rawNum}` : rawNum;
     const msg = encodeURIComponent(
-      `💪 *Welcome to UNIVO GYM MANAGEMENT!*\n\nHi ${memberName || 'Athlete'},\nPlease complete your gym registration form, photo upload & waiver using this direct link:\n\n🔗 ${link}\n\n⚠️ *Important:* This secure registration link expires in 5 minutes.`
+      `💪 *Welcome to UNIVO GYM MANAGEMENT!*\n\nHi ${memberName || 'Athlete'},\nPlease complete your gym registration form, choose your membership plan & trainer, and sign your liability waiver using this direct link:\n\n🔗 ${link}\n\n⚠️ *Important:* This secure registration link expires in 5 minutes.`
     );
     window.open(`https://wa.me/${waPhone}?text=${msg}`, '_blank');
   }
@@ -206,7 +198,7 @@ function InviteLinkModal({ gymId, plans, onClose }) {
             </div>
             <div>
               <h2 className='text-base font-bold text-slate-900'>5-Min WhatsApp Invite Link</h2>
-              <p className='text-xs text-slate-500'>Member self-fills their waiver & photo</p>
+              <p className='text-xs text-slate-500'>Self-registration link for new member</p>
             </div>
           </div>
           <button onClick={onClose} className='p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100'>
@@ -236,32 +228,11 @@ function InviteLinkModal({ gymId, plans, onClose }) {
             />
           </div>
 
-          <div>
-            <label className='block text-xs font-semibold text-slate-700 mb-1'>
-              Membership Plan
-            </label>
-            <select
-              value={planId}
-              onChange={(e) => setPlanId(e.target.value)}
-              className='w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white'
-            >
-              <option value=''>Auto / Let member choose during registration</option>
-              {plans.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className='block text-xs font-semibold text-slate-700 mb-1'>
-              Custom Invite Code / Token (Optional)
-            </label>
-            <input
-              value={customToken}
-              onChange={(e) => setCustomToken(e.target.value)}
-              placeholder='Leave blank for auto 5-min link'
-              className='w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-700 font-mono placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white'
-            />
+          <div className='p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-950'>
+            <Sparkles className='w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5' />
+            <p className='leading-relaxed text-[11px] text-emerald-900'>
+              Member link open karke apna <strong>Membership Plan</strong>, <strong>Trainer</strong>, aur profile photo khud select karega aur digital waiver sign karega.
+            </p>
           </div>
 
           <button
@@ -710,12 +681,6 @@ export default function Members() {
       {showInvite && (
         <InviteLinkModal
           gymId={gymId}
-          plans={[
-            { id: 'p1', name: '1-Month Basic' },
-            { id: 'p2', name: '3-Month Pro' },
-            { id: 'p3', name: '6-Month Transformation' },
-            { id: 'p4', name: 'Annual Elite' },
-          ]}
           onClose={() => setShowInvite(false)}
         />
       )}

@@ -455,6 +455,12 @@ export default function MemberSelfRegister() {
         }
       }
 
+      let durationMonths = parseInt(selectedPlan?.duration || '1');
+      if (isNaN(durationMonths) || durationMonths <= 0) durationMonths = 1;
+      const todayDate = new Date();
+      const expDate = new Date();
+      expDate.setMonth(expDate.getMonth() + durationMonths);
+
       const memberPayload = {
         gymId: gymId || 'univo_main',
         fullName: personalData.fullName || tokenData?.memberName || typedName,
@@ -469,6 +475,8 @@ export default function MemberSelfRegister() {
         planId: selectedPlan?.id || 'p2',
         planName: selectedPlan?.name || '3-Month Pro',
         planPrice: selectedPlan?.price || 6500,
+        joinDate: todayDate.toISOString().split('T')[0],
+        expiryDate: expDate.toISOString().split('T')[0],
         trainerId: selectedTrainer?.id || null,
         trainerName: selectedTrainer?.name || 'Unassigned (General Floor)',
         hasPersonalCoach: Boolean(selectedTrainer),
@@ -844,7 +852,14 @@ export default function MemberSelfRegister() {
             </div>
 
             <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-700">Membership Plans *</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-700">Choose Membership Plan *</label>
+                {selectedPlan && (
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
+                    Selected: {selectedPlan.name}
+                  </span>
+                )}
+              </div>
 
               {plansLoading ? (
                 <div className="flex items-center justify-center py-10">
@@ -863,15 +878,22 @@ export default function MemberSelfRegister() {
                         className={cn(
                           'relative w-full text-left p-4 sm:p-5 rounded-2xl border-2 transition-all',
                           active
-                            ? 'border-emerald-600 bg-emerald-50/60 shadow-sm'
+                            ? 'border-emerald-600 bg-emerald-50/60 shadow-md ring-2 ring-emerald-500/20'
                             : 'border-slate-200 bg-white hover:border-slate-300'
                         )}
                       >
-                        {plan.popular && (
-                          <span className="absolute top-3.5 right-3.5 flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">
-                            <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Popular
-                          </span>
-                        )}
+                        <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5">
+                          {plan.popular && (
+                            <span className="flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                              <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Popular
+                            </span>
+                          )}
+                          {active && (
+                            <span className="flex items-center gap-1 bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
+                              <Check className="w-3 h-3" /> Selected
+                            </span>
+                          )}
+                        </div>
 
                         <div className="flex items-start justify-between pr-14">
                           <div>

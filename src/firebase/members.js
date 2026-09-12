@@ -1,4 +1,4 @@
-﻿import {
+import {
   collection,
   doc,
   getDoc,
@@ -57,19 +57,20 @@ export async function getMember(memberId) {
  * @returns {Promise<string>} the invite URL
  */
 export async function generateInviteToken(gymId, opts = {}) {
+  const options = typeof opts === "string" ? { phone: opts } : (opts || {});
   const expiresAt = Timestamp.fromMillis(Date.now() + 5 * 60 * 1000);
   const ref = await addDoc(collection(db, "inviteTokens"), {
-    gymId,
-    memberName: opts.memberName || "",
-    phone: opts.phone || "",
-    planId: opts.planId || "",
-    planName: opts.planName || "",
+    gymId: gymId || "univo_main",
+    memberName: options.memberName || "",
+    phone: options.phone || "",
+    planId: options.planId || "",
+    planName: options.planName || "",
     createdAt: serverTimestamp(),
     expiresAt,
     used: false,
   });
   const token = ref.id;
-  const url = `${window.location.origin}/#/register/${gymId}/${token}`;
+  const url = `${window.location.origin}/#/register/${gymId || "univo_main"}/${token}`;
   return url;
 }
 

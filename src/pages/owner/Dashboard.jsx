@@ -109,12 +109,11 @@ export default function Dashboard() {
   ];
 
   const handleGenerateLink = async () => {
-    if (!invitePhone) {
+    if (!invitePhone.trim()) {
       toast.error("Enter WhatsApp phone number first!");
       return;
     }
-    const token = await generateInviteToken("univo_main", invitePhone);
-    const link = `${window.location.origin}/#/register/univo_main/${token}`;
+    const link = await generateInviteToken("univo_main", { phone: invitePhone.trim() });
     setGeneratedLink(link);
     setLinkCountdown(300);
     toast.success("5-Minute Invite Link Generated!");
@@ -389,8 +388,11 @@ export default function Dashboard() {
                 <button
                   onClick={() => {
                     const rawNum = invitePhone.replace(/\D/g, "");
-                    const msg = generateMemberInviteMessage(settings.gymName, "tok_" + Date.now());
-                    openWhatsApp(rawNum, msg);
+                    const waPhone = rawNum.length === 10 ? `91${rawNum}` : rawNum;
+                    const msg = encodeURIComponent(
+                      `💪 *Welcome to ${settings.gymName || 'UNIVO GYM'}!*\n\nPlease complete your gym registration form, choose your membership plan & trainer, and sign your liability waiver using this direct link:\n\n🔗 ${generatedLink}\n\n⚠️ *Important:* This secure registration link expires in 5 minutes.`
+                    );
+                    window.open(`https://wa.me/${waPhone}?text=${msg}`, "_blank");
                   }}
                   className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition"
                 >
