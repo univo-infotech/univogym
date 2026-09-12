@@ -860,13 +860,13 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
             {/* Signature Selection */}
             <div className="pt-2 border-t border-slate-200">
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center justify-between mb-2">
                 <span className="font-bold text-slate-700 text-xs">Member Digital Signature</span>
                 <div className="flex rounded-xl overflow-hidden border border-slate-200 text-[10px] font-bold">
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, signatureType: "draw" })}
-                    className={`px-3 py-1 ${
+                    className={`px-3.5 py-1.5 ${
                       formData.signatureType === "draw"
                         ? "bg-indigo-600 text-white"
                         : "bg-white text-slate-600 hover:bg-slate-100"
@@ -877,7 +877,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, signatureType: "typed" })}
-                    className={`px-3 py-1 ${
+                    className={`px-3.5 py-1.5 ${
                       formData.signatureType === "typed"
                         ? "bg-indigo-600 text-white"
                         : "bg-white text-slate-600 hover:bg-slate-100"
@@ -889,24 +889,27 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
               </div>
 
               {formData.signatureType === "draw" ? (
-                <div className="space-y-1">
-                  <div className="border-2 border-dashed border-slate-300 rounded-xl overflow-hidden bg-white max-w-md">
-                    <SignaturePad
-                      onSave={(dataUrl) => setFormData((prev) => ({ ...prev, signatureURL: dataUrl }))}
-                      onClear={() => setFormData((prev) => ({ ...prev, signatureURL: "" }))}
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-400">Draw using mouse, stylus, or fingertip above</p>
+                <div className="w-full max-w-2xl bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+                  <SignaturePad
+                    onSave={(dataUrl) => setFormData((prev) => ({ ...prev, signatureURL: dataUrl }))}
+                    onClear={() => setFormData((prev) => ({ ...prev, signatureURL: "" }))}
+                  />
                 </div>
               ) : (
-                <div className="max-w-md">
+                <div className="w-full max-w-2xl bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2">
+                  <label className="text-[11px] font-bold text-slate-600 block">
+                    Type your full legal name as digital signature:
+                  </label>
                   <input
                     type="text"
-                    placeholder="Type your full legal name as digital signature"
+                    placeholder="Type your full legal name"
                     value={formData.typedSignature || formData.fullName}
                     onChange={(e) => setFormData({ ...formData, typedSignature: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-serif italic text-slate-900 focus:outline-none focus:border-indigo-500 font-bold"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-serif italic text-slate-900 focus:outline-none focus:border-indigo-500 font-bold tracking-wide"
                   />
+                  <p className="text-[10px] text-slate-400">
+                    Your typed name serves as a legally recognized electronic signature for this registration.
+                  </p>
                 </div>
               )}
             </div>
