@@ -20,30 +20,32 @@ import {
   CheckSquare,
   User,
   X,
-  Menu
+  Menu,
+  ShieldCheck
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getGymSettings } from "../../utils/settings";
 
 export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
   const navigate = useNavigate();
-  const { logoutUser } = useAuth();
+  const { logoutUser, permissions } = useAuth();
   const settings = getGymSettings();
 
   const ownerLinks = [
-    { to: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/owner/members", label: "Members", icon: Users },
-    { to: "/owner/payments", label: "Fees & Receipts", icon: Receipt },
-    { to: "/owner/trainers", label: "Trainers", icon: Dumbbell },
-    { to: "/owner/staff", label: "Staff", icon: UserCheck },
-    { to: "/owner/memberships", label: "Memberships & Plans", icon: CreditCard },
-    { to: "/owner/services", label: "Services", icon: Star },
-    { to: "/owner/stock", label: "Stock & Equipment", icon: Package },
-    { to: "/owner/expenses", label: "Expenses & Utility", icon: DollarSign },
-    { to: "/owner/reports", label: "Reports (Daily/Monthly)", icon: BarChart2 },
-    { to: "/owner/visits", label: "Visit & Demo", icon: CalendarCheck },
-    { to: "/owner/offers", label: "Offer & Broadcast", icon: Tag },
-    { to: "/owner/settings", label: "Settings", icon: Settings },
+    { id: "dashboard", to: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "members", to: "/owner/members", label: "Members", icon: Users },
+    { id: "payments", to: "/owner/payments", label: "Fees & Receipts", icon: Receipt },
+    { id: "trainers", to: "/owner/trainers", label: "Trainers", icon: Dumbbell },
+    { id: "staff", to: "/owner/staff", label: "Staff", icon: UserCheck },
+    { id: "memberships", to: "/owner/memberships", label: "Memberships & Plans", icon: CreditCard },
+    { id: "services", to: "/owner/services", label: "Services", icon: Star },
+    { id: "stock", to: "/owner/stock", label: "Stock & Equipment", icon: Package },
+    { id: "expenses", to: "/owner/expenses", label: "Expenses & Utility", icon: DollarSign },
+    { id: "reports", to: "/owner/reports", label: "Reports (Daily/Monthly)", icon: BarChart2 },
+    { id: "visits", to: "/owner/visits", label: "Visit & Demo", icon: CalendarCheck },
+    { id: "offers", to: "/owner/offers", label: "Offer & Broadcast", icon: Tag },
+    { id: "settings", to: "/owner/settings", label: "Settings", icon: Settings },
+    { id: "roles", to: "/owner/roles", label: "Roles & Permissions", icon: ShieldCheck },
   ];
 
   const trainerLinks = [
@@ -62,7 +64,16 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
     { to: "/member/payments", label: "My Payments", icon: DollarSign },
   ];
 
-  const links = role === "trainer" ? trainerLinks : role === "member" ? memberLinks : ownerLinks;
+  let links = ownerLinks;
+  if (role === "trainer") links = trainerLinks;
+  else if (role === "member") links = memberLinks;
+  else if (role === "staff") {
+    // Only show links the staff has permission for
+    links = ownerLinks.filter(link => permissions?.includes(link.id));
+  } else if (role === "owner") {
+    // Owner sees all, including Roles
+    links = ownerLinks;
+  }
 
   return (
     <>

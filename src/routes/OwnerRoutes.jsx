@@ -18,6 +18,7 @@ import Reports from "../pages/owner/Reports";
 import Visits from "../pages/owner/Visits";
 import Offers from "../pages/owner/Offers";
 import Settings from "../pages/owner/Settings";
+import RolesPermissions from "../pages/owner/RolesPermissions";
 
 export default function OwnerRoutes() {
   return (
@@ -40,6 +41,7 @@ export default function OwnerRoutes() {
         <Route path="visits" element={<Visits />} />
         <Route path="offers" element={<Offers />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="roles" element={<RolesPermissions />} />
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>
     </Layout>

@@ -22,17 +22,16 @@ export async function getUserRole(uid) {
   try {
     const userDoc = await getDoc(doc(db, "users", uid));
     if (userDoc.exists()) {
-      const data = userDoc.data();
-      return data.role || "owner";
+      return userDoc.data();
     }
-    return "owner";
+    return { role: "owner" };
   } catch (error) {
     console.error("Error fetching user role:", error);
-    return "owner";
+    return { role: "owner" };
   }
 }
 
-export async function createStaffUser(email, password, role, gymId, name = "", profileId = "") {
+export async function createStaffUser(email, password, role, gymId, name = "", profileId = "", permissions = []) {
   try {
     const secondaryApp = initializeApp(app.options, "SecondaryApp_" + Date.now());
     const secondaryAuth = getSecondaryAuth(secondaryApp);
@@ -49,6 +48,7 @@ export async function createStaffUser(email, password, role, gymId, name = "", p
       gymId,
       name,
       profileId,
+      permissions,
       createdAt: new Date().toISOString()
     });
     

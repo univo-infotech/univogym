@@ -31,7 +31,7 @@ export default function App() {
           loading ? (
             <Loader />
           ) : user ? (
-            role === "owner" ? (
+            (role === "owner" || role === "staff") ? (
               <Navigate to="/owner/dashboard" replace />
             ) : role === "trainer" ? (
               <Navigate to="/trainer/dashboard" replace />
@@ -51,11 +51,11 @@ export default function App() {
       <Route path="/register-trainer/:gymId" element={<TrainerSelfRegister />} />
       <Route path="/register-trainer/:gymId/:token" element={<TrainerSelfRegister />} />
 
-      {/* Owner Routes */}
+      {/* Owner & Staff Routes */}
       <Route
         path="/owner/*"
         element={
-          <ProtectedRoute allowedRoles={["owner"]}>
+          <ProtectedRoute allowedRoles={["owner", "staff"]}>
             <OwnerLayout />
           </ProtectedRoute>
         }
