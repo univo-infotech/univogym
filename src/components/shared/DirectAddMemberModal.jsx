@@ -313,7 +313,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 1. Member Profile & Identification
               </h4>
               <span className="text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full font-bold">
-                Step 1 of 5
+                Step 1 of 3
               </span>
             </div>
 
@@ -421,20 +421,53 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
           </div>
 
           {/* ============================================================
-              SECTION 2: MEMBERSHIP PLAN & TRAINER (STREAMLINED)
+              SECTION 2: MEMBERSHIP PLAN, TIME SLOT & ASSIGNED COACH
           ============================================================ */}
-          <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-50 border border-slate-200 space-y-3.5">
+          <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-50 border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
               <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm">
                 <Dumbbell className="w-4 h-4 text-purple-600" />
-                2. Membership Plan & Assigned Coach
+                2. Membership Plan, Workout Slot & Coach
               </h4>
               <span className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full font-bold">
-                Step 2 of 5
+                Step 2 of 3
               </span>
             </div>
 
-            {/* Selectors Row */}
+            {/* Preferred Workout Time Slot (At the start of Step 2) */}
+            <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2">
+              <label className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                <Clock className="w-4 h-4 text-amber-500" />
+                Preferred Workout Time Slot *
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {WORKOUT_SLOTS.map((s) => {
+                  const fullText = `${s.label} (${s.time})`;
+                  const isSelected = formData.preferredSlot === fullText;
+                  const Icon = s.icon;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, preferredSlot: fullText })}
+                      className={`p-2.5 rounded-xl text-left border transition ${
+                        isSelected
+                          ? "bg-amber-50 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-400"
+                          : "bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <Icon className="w-3.5 h-3.5 text-amber-500" />
+                        {s.label}
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{s.time}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Selectors Row: Plan, Date, Coach */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Membership Plan */}
               <div>
@@ -641,21 +674,21 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
             )}
 
             {/* ==========================================================
-                PERSONAL TRAINING BODY ASSESSMENT (WEIGHT, HEIGHT, BMI)
+                PERSONAL TRAINING BODY ASSESSMENT & MEDICAL HISTORY
             ========================================================== */}
             {isPersonalTrainer && (
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-50/70 to-indigo-50/70 border border-purple-200 space-y-3">
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-purple-50/70 to-indigo-50/70 border-2 border-purple-200 space-y-4">
                 <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
                   <div>
-                    <h5 className="font-bold text-purple-950 text-xs flex items-center gap-1.5">
-                      <Scale className="w-3.5 h-3.5 text-purple-600" />
-                      Member Physical Assessment (Weight, Height & BMI)
+                    <h5 className="font-bold text-purple-950 text-xs sm:text-sm flex items-center gap-1.5">
+                      <Scale className="w-4 h-4 text-purple-600" />
+                      Coach Physical Assessment & Health Profile
                     </h5>
                     <p className="text-[11px] text-purple-800/80 mt-0.5">
-                      Baseline body metrics for {selectedTrainerObj.name} to design target workout plans
+                      Baseline body metrics & medical background for {selectedTrainerObj.name} to design safe, target workout plans
                     </p>
                   </div>
-                  <span className="text-[10px] font-extrabold bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-extrabold bg-purple-200 text-purple-900 px-2.5 py-0.5 rounded-full">
                     Coach Assessment
                   </span>
                 </div>
@@ -768,79 +801,36 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     </select>
                   </div>
                 </div>
+
+                {/* Medical History / Injuries (Asked only when Personal Trainer is chosen) */}
+                <div className="pt-2 border-t border-purple-200/80">
+                  <label className="font-bold text-slate-800 block mb-1.5 flex items-center gap-1.5 text-xs">
+                    <Heart className="w-4 h-4 text-rose-500" />
+                    Medical History / Past Injuries / Health Notes (For Coach Attention)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. Lower back stiffness, old knee surgery, high BP, asthma, or any specific exercise precautions"
+                    value={formData.healthNotes}
+                    onChange={(e) => setFormData({ ...formData, healthNotes: e.target.value })}
+                    className="w-full bg-white border border-purple-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-purple-600 placeholder:text-slate-400"
+                  />
+                </div>
               </div>
             )}
           </div>
 
           {/* ============================================================
-              SECTION 3: WORKOUT SCHEDULE & HEALTH PROFILE
-          ============================================================ */}
-          <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-50 border border-slate-200 space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
-              <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm">
-                <Clock className="w-4 h-4 text-amber-600" />
-                3. Workout Schedule & Health Profile
-              </h4>
-              <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full font-bold">
-                Step 3 of 5
-              </span>
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-700 block mb-1.5">Preferred Workout Time Slot</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {WORKOUT_SLOTS.map((s) => {
-                  const fullText = `${s.label} (${s.time})`;
-                  const isSelected = formData.preferredSlot === fullText;
-                  const Icon = s.icon;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, preferredSlot: fullText })}
-                      className={`p-2 rounded-xl text-left border transition ${
-                        isSelected
-                          ? "bg-amber-50 border-amber-400 text-amber-900 shadow-xs"
-                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 font-bold text-xs">
-                        <Icon className="w-3.5 h-3.5 text-amber-500" />
-                        {s.label}
-                      </div>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{s.time}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1.5">
-                <Heart className="w-3.5 h-3.5 text-rose-500" />
-                Medical History / Injuries / Health Notes (Optional)
-              </label>
-              <textarea
-                rows={2}
-                placeholder="e.g. Previous knee injury, back pain history, high BP, asthma (optional)"
-                value={formData.healthNotes}
-                onChange={(e) => setFormData({ ...formData, healthNotes: e.target.value })}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-          </div>
-
-          {/* ============================================================
-              SECTION 4: LIABILITY WAIVER & DIGITAL SIGNATURE
+              SECTION 3: LIABILITY WAIVER & DIGITAL SIGNATURE
           ============================================================ */}
           <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-slate-50 border border-slate-200 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
               <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                4. Liability Waiver & Signature
+                3. Liability Waiver & Signature
               </h4>
               <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full font-bold">
-                Step 4 of 5
+                Step 3 of 3
               </span>
             </div>
 
