@@ -68,3 +68,35 @@ export async function getStaffUsers(gymId) {
   const snap = await getDocs(q);
   return snap.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
 }
+
+export async function updateStaffUser(uid, profileId, gymId, data) {
+  const { doc, updateDoc } = await import('firebase/firestore');
+  
+  // Update users collection
+  const userRef = doc(db, 'users', uid);
+  const userUpdates = { ...data };
+  delete userUpdates.phone; // user doc doesn't typically store phone, but let's just keep it clean
+  await updateDoc(userRef, userUpdates);
+  
+  // Update staff profile if profileId exists
+  if (profileId) {
+    const staffRef = doc(db, 'gyms', gymId, 'staff', profileId);
+    await updateDoc(staffRef, {
+      name: data.name,
+      status: data.status,
+      permissions: data.permissions
+    }).catch(e => console.log('Staff profile update skipped:', e.message));
+  }
+}
+
+export async function deleteStaffUser(uid, profileId, gymId) {
+  const { doc, deleteDoc } = await import('firebase/firestore');
+  
+  // Delete from users collection (removes their access in app)
+  await deleteDoc(doc(db, 'users', uid));
+  
+  // Delete from staff collection if linked
+  if (profileId) {
+    await deleteDoc(doc(db, 'gyms', gymId, 'staff', profileId)).catch(e => console.log('Staff profile delete skipped:', e.message));
+  }
+}
