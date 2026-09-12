@@ -3,47 +3,40 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search,
   UserPlus,
-  Download,
   LayoutGrid,
   LayoutList,
   Eye,
-  MessageCircle,
-  Link2,
-  MoreVertical,
   X,
   Copy,
   Clock,
   CheckCircle,
   AlertTriangle,
-  Users,
-  UserX,
   UserCheck,
   TrendingUp,
   Edit,
   UserMinus,
   Share2,
   Sparkles,
-  CheckCircle2,
   QrCode,
   CalendarPlus,
   RotateCcw,
   Trash2,
   Check,
   Sun,
-  Moon,
-  Dumbbell,
-  Receipt,
   IndianRupee,
   LogOut,
-  Calendar
+  Calendar,
+  CreditCard,
+  UserX,
+  User
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
 import { getMembers, generateInviteToken, addMember, updateMember, deleteMember } from '../../firebase/members';
 import { getTrainers } from '../../firebase/trainers';
+import { getPlans } from '../../firebase/plans';
 import { addPayment } from '../../firebase/payments';
 import { useAuth } from '../../contexts/AuthContext';
-import { generatePaymentReceipt } from '../../utils/pdf';
 import { getGymSettings } from '../../utils/settings';
 import Modal from '../../components/ui/Modal';
 import DirectAddMemberModal from '../../components/shared/DirectAddMemberModal';
@@ -293,7 +286,7 @@ function InviteLinkModal({ gymId, onClose }) {
                     onClick={handleWhatsApp}
                     className='w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-md shadow-emerald-600/20'
                   >
-                    <MessageCircle className='w-4 h-4' /> Send via WhatsApp
+                    Send via WhatsApp
                   </button>
                 </div>
               </div>
@@ -326,7 +319,7 @@ function InviteLinkModal({ gymId, onClose }) {
  * Modal to extend member membership date (+7, +10, +15, +30 or custom days) and collect fee
  */
 function ExtendModal({ member, onClose, onSave, gymId }) {
-  const [daysPreset, setDaysPreset] = useState(10); // Default 10 days as highlighted by user
+  const [daysPreset, setDaysPreset] = useState(10);
   const [customDays, setCustomDays] = useState('');
   const [fee, setFee] = useState('');
   const [paymentMode, setPaymentMode] = useState('cash');
@@ -337,7 +330,6 @@ function ExtendModal({ member, onClose, onSave, gymId }) {
 
   const currentExpiry = toDate(member?.expiryDate);
   const now = new Date();
-  // If expired, extension starts from today; if active, extension adds to current expiry date
   const baseDate = (currentExpiry && currentExpiry > now) ? new Date(currentExpiry) : new Date(now);
   const targetDate = new Date(baseDate.getTime() + effectiveDays * 24 * 60 * 60 * 1000);
 
@@ -357,7 +349,6 @@ function ExtendModal({ member, onClose, onSave, gymId }) {
         active: true
       });
 
-      // If fee was charged, record payment
       if (Number(fee) > 0) {
         try {
           await addPayment({
@@ -396,7 +387,6 @@ function ExtendModal({ member, onClose, onSave, gymId }) {
       maxWidth="max-w-md"
     >
       <form onSubmit={handleConfirm} className='space-y-4 text-slate-800'>
-        {/* Member Preview Banner */}
         <div className='p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-center justify-between'>
           <div>
             <p className='font-bold text-slate-900 text-sm'>{member.name || member.fullName}</p>
@@ -408,10 +398,9 @@ function ExtendModal({ member, onClose, onSave, gymId }) {
           </div>
         </div>
 
-        {/* Quick Days Selector */}
         <div>
           <label className='block text-xs font-bold text-slate-700 mb-2'>
-            Select Extension Days <span className='text-emerald-600'>(10 Days popular)</span>
+            Select Extension Days <span className='text-emerald-600'>(10 Days recommended)</span>
           </label>
           <div className='grid grid-cols-4 gap-2'>
             {[7, 10, 15, 30].map((d) => (
@@ -426,7 +415,7 @@ function ExtendModal({ member, onClose, onSave, gymId }) {
                 }`}
               >
                 <span>+{d} Days</span>
-                {d === 10 && <span className='text-[9px] opacity-90'>Recommended</span>}
+                {d === 10 && <span className='text-[9px] opacity-90'>Popular</span>}
               </button>
             ))}
           </div>
@@ -458,7 +447,6 @@ function ExtendModal({ member, onClose, onSave, gymId }) {
           </div>
         </div>
 
-        {/* New Expiry Date Card */}
         <div className='p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between'>
           <span className='text-xs font-medium text-slate-600 flex items-center gap-1.5'>
             <Calendar className='w-4 h-4 text-emerald-600' /> New Expiry Date:
@@ -468,7 +456,6 @@ function ExtendModal({ member, onClose, onSave, gymId }) {
           </span>
         </div>
 
-        {/* Fee Collection Section */}
         <div className='border-t border-slate-100 pt-3 space-y-3'>
           <div className='grid grid-cols-2 gap-2.5'>
             <div>
@@ -513,7 +500,6 @@ function ExtendModal({ member, onClose, onSave, gymId }) {
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className='flex items-center gap-2 pt-2'>
           <button
             type='button'
@@ -536,10 +522,481 @@ function ExtendModal({ member, onClose, onSave, gymId }) {
 }
 
 /**
+ * Modal to Change / Upgrade / Renew Membership Plan
+ */
+function PlanModal({ member, gymId, onClose, onSave, trainers = [] }) {
+  const PRESET_PLANS = [
+    { name: '1 Month Standard', price: 599, days: 30 },
+    { name: '3 Months Pro Transformation', price: 1499, days: 90 },
+    { name: '6 Months Fitness Pass', price: 2799, days: 180 },
+    { name: '12 Months Annual Elite', price: 4999, days: 365 },
+    { name: 'Custom Plan', price: '', days: 30 }
+  ];
+
+  const [selectedPlan, setSelectedPlan] = useState(member.planName || PRESET_PLANS[1].name);
+  const [customPlanName, setCustomPlanName] = useState('');
+  const [planPrice, setPlanPrice] = useState(member.planPrice || 1499);
+  const [durationDays, setDurationDays] = useState(90);
+  const [trainerName, setTrainerName] = useState(member.trainerName || 'Unassigned');
+  const [workoutSlot, setWorkoutSlot] = useState(member.slot || member.workoutSlot || 'General Shift');
+  const [collectPayment, setCollectPayment] = useState(true);
+  const [paymentMode, setPaymentMode] = useState('cash');
+  const [loading, setLoading] = useState(false);
+
+  // When preset plan changes, update defaults
+  const handleSelectPreset = (p) => {
+    setSelectedPlan(p.name);
+    if (p.name !== 'Custom Plan') {
+      setPlanPrice(p.price);
+      setDurationDays(p.days);
+    }
+  };
+
+  // Compute new expiry date
+  const now = new Date();
+  const targetExpiry = new Date(now.getTime() + Number(durationDays || 30) * 24 * 60 * 60 * 1000);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const finalPlanName = selectedPlan === 'Custom Plan' ? (customPlanName || 'Custom Plan') : selectedPlan;
+    const finalPrice = Number(planPrice) || 0;
+    const newExpiryIso = targetExpiry.toISOString();
+
+    try {
+      await updateMember(member.id, {
+        planName: finalPlanName,
+        planPrice: finalPrice,
+        expiryDate: newExpiryIso,
+        trainerName,
+        slot: workoutSlot,
+        workoutSlot,
+        status: 'active',
+        active: true
+      });
+
+      // Record payment if checked
+      if (collectPayment && finalPrice > 0) {
+        try {
+          await addPayment({
+            memberId: member.id,
+            memberName: member.name || member.fullName,
+            gymId: gymId || 'univo_main',
+            amount: finalPrice,
+            paidAmount: finalPrice,
+            dueAmount: 0,
+            mode: paymentMode,
+            plan: finalPlanName,
+            date: new Date().toISOString(),
+            notes: `Membership Plan Update: ${finalPlanName} (${durationDays} days)`
+          });
+        } catch (pErr) {
+          console.warn('Payment record warning:', pErr);
+        }
+      }
+
+      toast.success(`Plan updated to ${finalPlanName}!`);
+      onSave(member.id, {
+        planName: finalPlanName,
+        planPrice: finalPrice,
+        expiryDate: newExpiryIso,
+        trainerName,
+        slot: workoutSlot,
+        status: 'active',
+        active: true
+      });
+      onClose();
+    } catch (err) {
+      console.error('Error updating plan:', err);
+      toast.error('Failed to update plan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="💳 Change / Upgrade Membership Plan"
+      maxWidth="max-w-lg"
+    >
+      <form onSubmit={handleSubmit} className='space-y-4 text-slate-800'>
+        <div className='p-3 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-center justify-between'>
+          <div>
+            <p className='font-bold text-slate-900 text-sm'>{member.name || member.fullName}</p>
+            <p className='text-xs text-slate-500'>Current Plan: <span className='font-semibold text-indigo-700'>{member.planName || 'Standard'}</span></p>
+          </div>
+          <div className='text-right'>
+            <span className='text-[10px] uppercase font-bold text-slate-400 block'>Current Expiry</span>
+            <span className='text-xs font-semibold text-slate-700'>{formatDate(member.expiryDate)}</span>
+          </div>
+        </div>
+
+        {/* Preset Plan Options */}
+        <div>
+          <label className='block text-xs font-bold text-slate-700 mb-2'>Select Plan</label>
+          <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+            {PRESET_PLANS.map((p) => (
+              <button
+                type='button'
+                key={p.name}
+                onClick={() => handleSelectPreset(p)}
+                className={`p-2.5 rounded-xl border text-left transition flex items-center justify-between ${
+                  selectedPlan === p.name
+                    ? 'bg-indigo-50/90 border-indigo-500 text-indigo-950 ring-2 ring-indigo-500/20 shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div>
+                  <p className='text-xs font-bold'>{p.name}</p>
+                  <p className='text-[10px] text-slate-400'>{p.days} Days Duration</p>
+                </div>
+                {p.price && <span className='text-xs font-bold text-indigo-600'>₹{p.price}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {selectedPlan === 'Custom Plan' && (
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Custom Plan Name</label>
+            <input
+              type='text'
+              placeholder='e.g. 2 Months Bodybuilding'
+              value={customPlanName}
+              onChange={(e) => setCustomPlanName(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500'
+              required
+            />
+          </div>
+        )}
+
+        <div className='grid grid-cols-2 gap-3'>
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Plan Fee (₹)</label>
+            <div className='relative'>
+              <span className='absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold'>₹</span>
+              <input
+                type='number'
+                value={planPrice}
+                onChange={(e) => setPlanPrice(e.target.value)}
+                className='w-full bg-white border border-slate-200 rounded-xl pl-7 pr-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500'
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Duration (Days)</label>
+            <input
+              type='number'
+              min='1'
+              value={durationDays}
+              onChange={(e) => setDurationDays(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500'
+              required
+            />
+          </div>
+        </div>
+
+        <div className='grid grid-cols-2 gap-3'>
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Workout Shift / Slot</label>
+            <select
+              value={workoutSlot}
+              onChange={(e) => setWorkoutSlot(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500'
+            >
+              <option value='Morning (6am-9am)'>Morning (6am-9am)</option>
+              <option value='Afternoon (12pm-3pm)'>Afternoon (12pm-3pm)</option>
+              <option value='Evening (4pm-7pm)'>Evening (4pm-7pm)</option>
+              <option value='Night (7pm-10pm)'>Night (7pm-10pm)</option>
+              <option value='General Shift'>General Shift</option>
+            </select>
+          </div>
+
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Personal Trainer</label>
+            <select
+              value={trainerName}
+              onChange={(e) => setTrainerName(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-indigo-500'
+            >
+              <option value='Unassigned'>No Trainer (Unassigned)</option>
+              {trainers.map((t) => (
+                <option key={t.id} value={t.name || t.fullName}>
+                  {t.name || t.fullName}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Computed New Expiry */}
+        <div className='p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs'>
+          <span className='font-medium text-slate-600'>New Expiry Date (from today):</span>
+          <span className='font-bold text-indigo-700 bg-indigo-100/70 px-2.5 py-1 rounded-lg'>
+            {formatDate(targetExpiry)} ({durationDays} days)
+          </span>
+        </div>
+
+        {/* Collect Payment Toggle */}
+        <div className='border-t border-slate-100 pt-3 space-y-2.5'>
+          <label className='flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer'>
+            <input
+              type='checkbox'
+              checked={collectPayment}
+              onChange={(e) => setCollectPayment(e.target.checked)}
+              className='accent-indigo-600 rounded'
+            />
+            <span>Record Payment for this Plan</span>
+          </label>
+
+          {collectPayment && (
+            <div className='grid grid-cols-2 gap-3 pl-5'>
+              <div>
+                <label className='block text-[11px] font-medium text-slate-600 mb-1'>Payment Mode</label>
+                <select
+                  value={paymentMode}
+                  onChange={(e) => setPaymentMode(e.target.value)}
+                  className='w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-indigo-500'
+                >
+                  <option value='cash'>Cash</option>
+                  <option value='online'>UPI / Online</option>
+                  <option value='bank'>Bank Transfer</option>
+                </select>
+              </div>
+              <div className='flex items-end'>
+                <p className='text-[11px] text-slate-500 pb-2'>
+                  Amount: <strong className='text-slate-900'>₹{planPrice || 0}</strong>
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className='flex items-center gap-2 pt-2'>
+          <button
+            type='button'
+            onClick={onClose}
+            className='flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition'
+          >
+            Cancel
+          </button>
+          <button
+            type='submit'
+            disabled={loading}
+            className='flex-1 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white text-xs font-bold transition shadow-md disabled:opacity-50'
+          >
+            {loading ? 'Saving...' : 'Apply Plan Update'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Modal to Edit Member Personal Information
+ */
+function EditMemberModal({ member, onClose, onSave, trainers = [] }) {
+  const [name, setName] = useState(member.name || member.fullName || '');
+  const [phone, setPhone] = useState(member.phone || '');
+  const [email, setEmail] = useState(member.email || '');
+  const [aadharNumber, setAadharNumber] = useState(member.aadharNumber || member.aadharNo || '');
+  const [gender, setGender] = useState(member.gender || 'Male');
+  const [slot, setSlot] = useState(member.slot || member.workoutSlot || 'General Shift');
+  const [trainerName, setTrainerName] = useState(member.trainerName || 'Unassigned');
+  const [address, setAddress] = useState(member.address || '');
+  const [healthNotes, setHealthNotes] = useState(member.healthNotes || member.medicalHistory || '');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      toast.error('Member name is required');
+      return;
+    }
+    setLoading(true);
+
+    const payload = {
+      name: name.trim(),
+      fullName: name.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
+      aadharNumber: aadharNumber.trim(),
+      gender,
+      slot,
+      workoutSlot: slot,
+      trainerName,
+      address: address.trim(),
+      healthNotes: healthNotes.trim()
+    };
+
+    try {
+      await updateMember(member.id, payload);
+      toast.success('Member details updated successfully!');
+      onSave(member.id, payload);
+      onClose();
+    } catch (err) {
+      console.error('Error updating member:', err);
+      toast.error('Failed to update member');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="✏️ Edit Member Details"
+      maxWidth="max-w-lg"
+    >
+      <form onSubmit={handleSubmit} className='space-y-4 text-slate-800'>
+        <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Full Name *</label>
+            <input
+              type='text'
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-amber-500'
+              required
+            />
+          </div>
+
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Phone Number</label>
+            <input
+              type='text'
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-amber-500'
+            />
+          </div>
+        </div>
+
+        <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Email Address</label>
+            <input
+              type='email'
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-amber-500'
+            />
+          </div>
+
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Aadhar Card Number</label>
+            <input
+              type='text'
+              maxLength={14}
+              placeholder='XXXX-XXXX-XXXX'
+              value={aadharNumber}
+              onChange={(e) => setAadharNumber(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-amber-500'
+            />
+          </div>
+        </div>
+
+        <div className='grid grid-cols-3 gap-3'>
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Gender</label>
+            <select
+              value={gender}
+              onChange={(e) => setGender(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-amber-500'
+            >
+              <option value='Male'>Male</option>
+              <option value='Female'>Female</option>
+              <option value='Other'>Other</option>
+            </select>
+          </div>
+
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Shift / Slot</label>
+            <select
+              value={slot}
+              onChange={(e) => setSlot(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-amber-500'
+            >
+              <option value='Morning (6am-9am)'>Morning</option>
+              <option value='Afternoon (12pm-3pm)'>Afternoon</option>
+              <option value='Evening (4pm-7pm)'>Evening</option>
+              <option value='Night (7pm-10pm)'>Night</option>
+              <option value='General Shift'>General Shift</option>
+            </select>
+          </div>
+
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Trainer</label>
+            <select
+              value={trainerName}
+              onChange={(e) => setTrainerName(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-amber-500'
+            >
+              <option value='Unassigned'>None</option>
+              {trainers.map((t) => (
+                <option key={t.id} value={t.name || t.fullName}>
+                  {t.name || t.fullName}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className='block text-xs font-semibold text-slate-700 mb-1'>Address</label>
+          <input
+            type='text'
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-amber-500'
+            placeholder='Full address / city'
+          />
+        </div>
+
+        <div>
+          <label className='block text-xs font-semibold text-slate-700 mb-1'>Health Notes / Medical Conditions</label>
+          <textarea
+            rows={2}
+            value={healthNotes}
+            onChange={(e) => setHealthNotes(e.target.value)}
+            className='w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500'
+            placeholder='Any past injuries, blood pressure, asthma etc.'
+          />
+        </div>
+
+        <div className='flex items-center gap-2 pt-2'>
+          <button
+            type='button'
+            onClick={onClose}
+            className='flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition'
+          >
+            Cancel
+          </button>
+          <button
+            type='submit'
+            disabled={loading}
+            className='flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-bold transition shadow-md disabled:opacity-50'
+          >
+            {loading ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/**
  * Modal to mark a member as Left / Discontinued
  */
 function LeftModal({ member, onClose, onSave }) {
-  const [reason, setReason] = useState('Stopped coming');
+  const [reason, setReason] = useState('Stopped coming / Gym left');
   const [customReason, setCustomReason] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -721,6 +1178,8 @@ export default function Members() {
 
   // Modals for table actions
   const [extendMember, setExtendMember] = useState(null);
+  const [planMember, setPlanMember] = useState(null);
+  const [editMember, setEditMember] = useState(null);
   const [leftMember, setLeftMember] = useState(null);
   const [deleteTargetMember, setDeleteTargetMember] = useState(null);
 
@@ -733,7 +1192,7 @@ export default function Members() {
       email: 'ashis@gmail.com',
       planName: '1 Month (Standard)',
       planPrice: 599,
-      slot: 'Morning (6am-9am)',
+      slot: 'General Shift',
       trainerName: 'Coach Rohan Deshmukh',
       status: 'active',
       createdAt: '2026-09-01',
@@ -746,8 +1205,8 @@ export default function Members() {
       phone: '+91 9196302375',
       email: 'ajay.p@univogym.com',
       planName: '3 Months Pro Transformation',
-      planPrice: 6500,
-      slot: 'Evening (4pm-7pm)',
+      planPrice: 1499,
+      slot: 'General Shift',
       trainerName: 'Coach Amit Sharma',
       status: 'active',
       createdAt: '2026-09-10',
@@ -760,8 +1219,8 @@ export default function Members() {
       phone: '+91 9876543210',
       email: 'rahul.v@univogym.com',
       planName: '12 Months Annual Elite',
-      planPrice: 14999,
-      slot: 'Morning (6am-9am)',
+      planPrice: 4999,
+      slot: 'General Shift',
       trainerName: 'Coach Rohan Deshmukh',
       status: 'active',
       createdAt: '2026-09-08',
@@ -774,8 +1233,8 @@ export default function Members() {
       phone: '+91 9811223344',
       email: 'priya.s@gmail.com',
       planName: '6 Months Fitness Pass',
-      planPrice: 8500,
-      slot: 'Evening (4pm-7pm)',
+      planPrice: 2799,
+      slot: 'General Shift',
       trainerName: 'Coach Sneha Kapoor',
       status: 'active',
       createdAt: '2026-09-05',
@@ -788,7 +1247,7 @@ export default function Members() {
       phone: '+91 9988776655',
       email: 'aman.g@gmail.com',
       planName: '1 Month Basic',
-      planPrice: 1500,
+      planPrice: 599,
       slot: 'Morning (6am-9am)',
       trainerName: 'Unassigned',
       status: 'expiring',
@@ -802,7 +1261,7 @@ export default function Members() {
       phone: '+91 9711003322',
       email: 'karan@gmail.com',
       planName: '3 Months Pro',
-      planPrice: 6500,
+      planPrice: 1499,
       slot: 'Night (7pm-10pm)',
       trainerName: 'Coach Amit Sharma',
       status: 'expired',
@@ -811,17 +1270,17 @@ export default function Members() {
     },
     {
       id: 'm7',
-      name: 'Sandesh Sharma',
-      fullName: 'Sandesh Sharma',
-      phone: '+91 9685215724',
-      email: 'sandesh@gmail.com',
-      planName: '2 Month (Special)',
-      planPrice: 999,
-      slot: 'Morning (6am-9am)',
-      trainerName: 'Coach Rohan Deshmukh',
+      name: 'Mohit Yadav',
+      fullName: 'Mohit Yadav',
+      phone: '+91 8357897047',
+      email: 'mohit.y@gmail.com',
+      planName: '3 Months Pro Transformation',
+      planPrice: 1499,
+      slot: 'General Shift',
+      trainerName: 'Coach Sneha Kapoor',
       status: 'active',
       createdAt: '2026-09-03',
-      expiryDate: '2026-11-03'
+      expiryDate: '2026-12-03'
     }
   ];
 
@@ -850,7 +1309,7 @@ export default function Members() {
     loadData();
   }, [gymId]);
 
-  // Handlers for Extend, Left, Reactivate, Delete
+  // Handlers for Extend, Plan, Edit, Left, Delete
   const handleExtendSuccess = (memberId, newExpiryIso) => {
     setMembers((prev) =>
       prev.map((m) =>
@@ -858,6 +1317,18 @@ export default function Members() {
           ? { ...m, expiryDate: newExpiryIso, status: 'active', active: true }
           : m
       )
+    );
+  };
+
+  const handlePlanSuccess = (memberId, updatedFields) => {
+    setMembers((prev) =>
+      prev.map((m) => (m.id === memberId ? { ...m, ...updatedFields } : m))
+    );
+  };
+
+  const handleEditSuccess = (memberId, updatedFields) => {
+    setMembers((prev) =>
+      prev.map((m) => (m.id === memberId ? { ...m, ...updatedFields } : m))
     );
   };
 
@@ -873,7 +1344,6 @@ export default function Members() {
 
   const handleReactivate = async (m) => {
     try {
-      // Re-activating: give fresh 30 days if already expired, otherwise keep active
       const now = new Date();
       const currentExp = toDate(m.expiryDate);
       const newExp = (!currentExp || currentExp < now)
@@ -941,7 +1411,7 @@ export default function Members() {
             </span>
           </div>
           <p className='text-xs text-slate-500 mt-1'>
-            Manage member admissions, membership extensions, shift timings & profiles
+            Manage member admissions, membership plans, extensions, shift timings & profiles
           </p>
         </div>
 
@@ -1004,9 +1474,8 @@ export default function Members() {
         </div>
       </div>
 
-      {/* Filter Tabs & Search Bar (styled directly like reference software) */}
+      {/* Filter Tabs & Search Bar */}
       <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between'>
-        {/* Status Pill Tabs */}
         <div className='flex flex-wrap gap-1.5 w-full sm:w-auto'>
           {FILTER_TABS.map((tab) => (
             <button
@@ -1023,7 +1492,6 @@ export default function Members() {
           ))}
         </div>
 
-        {/* Right side Search & View Toggle */}
         <div className='flex items-center gap-2.5 w-full sm:w-auto'>
           <div className='relative flex-1 sm:w-64'>
             <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400' />
@@ -1054,7 +1522,7 @@ export default function Members() {
         </div>
       </div>
 
-      {/* Member Directory Table matching Reference UI */}
+      {/* Member Directory Table */}
       {view === 'table' ? (
         <div className='overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-sm'>
           <table className='w-full text-left text-xs text-slate-600'>
@@ -1129,30 +1597,50 @@ export default function Members() {
                         <StatusBadge status={status} />
                       </td>
 
-                      {/* Column 5: Action Pill Buttons (Matching Reference Design) */}
+                      {/* Column 5: Action Pill Buttons: View, Extend, Plan, Edit, Left, Delete */}
                       <td className='px-5 py-3.5 text-right'>
                         <div className='inline-flex items-center gap-1.5 justify-end'>
-                          {/* Profile Button */}
+                          {/* 1. View Button */}
                           <button
                             onClick={() => navigate(`/owner/members/${m.id}`)}
-                            className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-200/80 transition shadow-sm'
+                            className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-xs border border-slate-200 transition shadow-sm'
                             title='View Full Member Profile'
                           >
                             <Eye className='w-3.5 h-3.5 text-slate-500' />
-                            <span>Profile</span>
+                            <span>View</span>
                           </button>
 
-                          {/* Extend Date Button */}
+                          {/* 2. Extend Button */}
                           <button
                             onClick={() => setExtendMember(m)}
                             className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs border border-emerald-200 transition shadow-sm'
-                            title='Extend membership by 10 days or custom days'
+                            title='Extend membership date (+10 days / custom)'
                           >
                             <CalendarPlus className='w-3.5 h-3.5 text-emerald-600' />
                             <span>Extend</span>
                           </button>
 
-                          {/* Left or Reactivate Button */}
+                          {/* 3. Plan Button */}
+                          <button
+                            onClick={() => setPlanMember(m)}
+                            className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-sm'
+                            title='Change or Upgrade Membership Plan'
+                          >
+                            <CreditCard className='w-3.5 h-3.5 text-indigo-600' />
+                            <span>Plan</span>
+                          </button>
+
+                          {/* 4. Edit Button */}
+                          <button
+                            onClick={() => setEditMember(m)}
+                            className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs border border-amber-200 transition shadow-sm'
+                            title='Edit Member Details (Name, Phone, Slot, Trainer, Aadhar)'
+                          >
+                            <Edit className='w-3.5 h-3.5 text-amber-600' />
+                            <span>Edit</span>
+                          </button>
+
+                          {/* 5. Left or Return Button */}
                           {isLeft ? (
                             <button
                               onClick={() => handleReactivate(m)}
@@ -1173,41 +1661,10 @@ export default function Members() {
                             </button>
                           )}
 
-                          {/* Bill Receipt Download */}
-                          <button
-                            onClick={() => {
-                              generatePaymentReceipt({
-                                memberName: m.name || m.fullName,
-                                planName: m.planName || "Gym Membership",
-                                paidAmount: m.planPrice || 2500,
-                                dueAmount: 0,
-                                paymentMode: "Online",
-                                date: formatDate(m.createdAt)
-                              });
-                              toast.success("Downloading official bill receipt...");
-                            }}
-                            className='p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-emerald-700 transition'
-                            title='Download Bill Receipt PDF'
-                          >
-                            <Download className='w-3.5 h-3.5' />
-                          </button>
-
-                          {/* WhatsApp Action */}
-                          <button
-                            onClick={() => {
-                              const waPhone = (m.phone || '').replace(/\D/g, '');
-                              window.open(`https://wa.me/${waPhone}?text=Hi%20${m.name || m.fullName},%20Greetings%20from%20${settings.gymName}!`, '_blank');
-                            }}
-                            className='p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition'
-                            title='Message on WhatsApp'
-                          >
-                            <MessageCircle className='w-3.5 h-3.5' />
-                          </button>
-
-                          {/* Delete Member */}
+                          {/* 6. Delete Button */}
                           <button
                             onClick={() => setDeleteTargetMember(m)}
-                            className='p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition'
+                            className='inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-200 transition shadow-sm'
                             title='Delete Member'
                           >
                             <Trash2 className='w-3.5 h-3.5' />
@@ -1248,12 +1705,12 @@ export default function Members() {
                   </div>
                 </div>
 
-                <div className='pt-3 border-t border-slate-100 flex items-center justify-between gap-1'>
+                <div className='pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5'>
                   <button
                     onClick={() => navigate(`/owner/members/${m.id}`)}
                     className='px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition'
                   >
-                    Profile
+                    View
                   </button>
 
                   <button
@@ -1261,6 +1718,20 @@ export default function Members() {
                     className='px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold hover:bg-emerald-100 transition'
                   >
                     Extend
+                  </button>
+
+                  <button
+                    onClick={() => setPlanMember(m)}
+                    className='px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold hover:bg-indigo-100 transition'
+                  >
+                    Plan
+                  </button>
+
+                  <button
+                    onClick={() => setEditMember(m)}
+                    className='px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold hover:bg-amber-100 transition'
+                  >
+                    Edit
                   </button>
 
                   {isLeft ? (
@@ -1292,6 +1763,27 @@ export default function Members() {
           gymId={gymId}
           onClose={() => setExtendMember(null)}
           onSave={handleExtendSuccess}
+        />
+      )}
+
+      {/* Plan Change Modal */}
+      {planMember && (
+        <PlanModal
+          member={planMember}
+          gymId={gymId}
+          trainers={trainers}
+          onClose={() => setPlanMember(null)}
+          onSave={handlePlanSuccess}
+        />
+      )}
+
+      {/* Edit Member Details Modal */}
+      {editMember && (
+        <EditMemberModal
+          member={editMember}
+          trainers={trainers}
+          onClose={() => setEditMember(null)}
+          onSave={handleEditSuccess}
         />
       )}
 
