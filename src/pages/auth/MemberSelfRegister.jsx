@@ -58,9 +58,8 @@ import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 const STEPS = [
   { id: 1, label: 'Verify' },
   { id: 2, label: 'Personal Info' },
-  { id: 3, label: 'Plan & Trainer' },
-  { id: 4, label: 'Schedule' },
-  { id: 5, label: 'Waiver' },
+  { id: 3, label: 'Plan & Coach' },
+  { id: 4, label: 'Waiver' },
 ];
 
 const WAIVER_CLAUSES = [
@@ -377,15 +376,17 @@ export default function MemberSelfRegister() {
 
   const goNext = () => {
     setStepError('');
-    if (step === 3 && !selectedPlan) {
-      setStepError('Please select a membership plan to continue.');
-      return;
+    if (step === 3) {
+      if (!preferredTime) {
+        setStepError('Please select your preferred workout time slot.');
+        return;
+      }
+      if (!selectedPlan) {
+        setStepError('Please select a membership plan to continue.');
+        return;
+      }
     }
-    if (step === 4 && !preferredTime) {
-      setStepError('Please select your preferred workout time.');
-      return;
-    }
-    setStep((s) => Math.min(s + 1, 5));
+    setStep((s) => Math.min(s + 1, 4));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -802,8 +803,41 @@ export default function MemberSelfRegister() {
         {step === 3 && (
           <Card className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Step 3: Select Plan & Trainer</h2>
-              <p className="text-slate-500 text-xs mt-1">Choose your membership plan and opt for a dedicated Personal Trainer</p>
+              <h2 className="text-xl font-bold text-slate-900">Step 3: Membership Plan & Coach Selection</h2>
+              <p className="text-slate-500 text-xs mt-1">Select your preferred workout slot, membership tier, and dedicated coach</p>
+            </div>
+
+            {/* Preferred Workout Time Slot at Start of Step 3 */}
+            <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 space-y-2.5">
+              <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-amber-500" />
+                Preferred Workout Time Slot *
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {WORKOUT_TIMES.map((t) => {
+                  const active = preferredTime === t.id;
+                  const Icon = t.icon;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => { setPreferredTime(t.id); setStepError(''); }}
+                      className={cn(
+                        'p-2.5 rounded-xl border-2 transition-all text-left',
+                        active
+                          ? 'border-emerald-600 bg-white text-emerald-950 font-bold shadow-xs ring-1 ring-emerald-500/30'
+                          : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <Icon className="w-3.5 h-3.5 text-amber-500" />
+                        {t.label}
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{t.time}</p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -859,7 +893,7 @@ export default function MemberSelfRegister() {
                           </div>
                           <div className="text-right">
                             <p className="text-lg font-extrabold text-emerald-700">
-                              Rs. {Number(plan.price).toLocaleString('en-IN')}
+                              ₹{Number(plan.price).toLocaleString('en-IN')}
                             </p>
                             <p className="text-[10px] text-slate-400">Total Plan Fee</p>
                           </div>
@@ -888,7 +922,7 @@ export default function MemberSelfRegister() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xs font-bold text-slate-700">Choose Personal Trainer (Optional)</h3>
-                  <p className="text-[11px] text-slate-500">Opt for a certified coach or proceed with general floor trainer</p>
+                  <p className="text-[11px] text-slate-500">Opt for a certified dedicated coach or proceed with general gym floor training</p>
                 </div>
                 {selectedTrainer && (
                   <button
@@ -901,52 +935,34 @@ export default function MemberSelfRegister() {
                 )}
               </div>
 
-              <div className="grid gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectedTrainer(null)}
-                  className={cn(
-                    'flex items-center gap-3.5 p-3.5 rounded-2xl border-2 transition-all text-left',
-                    selectedTrainer === null
-                      ? 'border-emerald-600 bg-emerald-50 text-emerald-950 font-semibold'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  )}
-                >
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
-                    <UserCheck className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-slate-900">General Floor Trainer (Included)</p>
-                    <p className="text-[11px] text-slate-500">No dedicated coach required</p>
-                  </div>
-                  {selectedTrainer === null && (
-                    <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center text-white">
-                      <Check className="w-3 h-3" />
-                    </div>
-                  )}
-                </button>
-
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {trainers.map((trainer) => {
                   const active = selectedTrainer?.id === trainer.id;
-                  const trainerPhoto = trainer.photoUrl || trainer.photoURL;
                   return (
                     <button
                       key={trainer.id}
                       type="button"
-                      onClick={() => setSelectedTrainer(trainer)}
+                      onClick={() => {
+                        setSelectedTrainer(active ? null : trainer);
+                        setStepError('');
+                      }}
                       className={cn(
-                        'flex items-center gap-3.5 p-3.5 rounded-2xl border-2 transition-all text-left group',
+                        'flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all text-left',
                         active
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-950 shadow-sm'
+                          ? 'border-emerald-600 bg-emerald-50/70 shadow-sm ring-1 ring-emerald-500/20'
                           : 'border-slate-200 bg-white hover:border-slate-300'
                       )}
                     >
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-slate-100 border-2 border-slate-200/80 shadow-xs flex items-center justify-center flex-shrink-0">
-                        {trainerPhoto ? (
-                          <img src={trainerPhoto} alt={trainer.name} className="w-full h-full object-cover group-hover:scale-105 transition" />
+                      <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0 border border-slate-200">
+                        {(trainer.photoUrl || trainer.photoURL) ? (
+                          <img
+                            src={trainer.photoUrl || trainer.photoURL}
+                            alt={trainer.name}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
-                          <div className="w-full h-full bg-gradient-to-tr from-emerald-500 to-teal-600 text-white font-extrabold flex items-center justify-center text-xl">
-                            {trainer.name?.charAt(0)?.toUpperCase() || "C"}
+                          <div className="w-full h-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
+                            {trainer.name?.charAt(0) || 'T'}
                           </div>
                         )}
                       </div>
@@ -967,8 +983,8 @@ export default function MemberSelfRegister() {
                       </div>
 
                       {active && (
-                        <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-white flex-shrink-0 shadow-xs">
-                          <Check className="w-4 h-4" />
+                        <div className="w-6 h-6 rounded-full bg-emerald-600 flex items-center justify-center text-white flex-shrink-0 shadow-xs">
+                          <Check className="w-3.5 h-3.5" />
                         </div>
                       )}
                     </button>
@@ -978,11 +994,12 @@ export default function MemberSelfRegister() {
 
               {/* Dedicated Coach Profile & Proven Transformation Results Preview */}
               {selectedTrainer && (
-                <div className="p-4 sm:p-5 rounded-3xl bg-white border-2 border-emerald-300 shadow-sm space-y-4 mt-4">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-gradient-to-br from-emerald-50/70 to-teal-50/40 p-4 rounded-2xl border border-emerald-100">
-                    {/* Big Tall Prominent Trainer Photo Frame */}
+                <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-emerald-50/60 via-white to-teal-50/40 border-2 border-emerald-300 shadow-sm space-y-4 mt-4">
+                  {/* Coach Profile Row */}
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                    {/* Coach Photo Frame with Click-to-Zoom */}
                     <div 
-                      className="relative group cursor-pointer flex-shrink-0 mx-auto"
+                      className="relative group cursor-pointer flex-shrink-0"
                       onClick={() => {
                         const p = selectedTrainer.photoUrl || selectedTrainer.photoURL;
                         if (p) {
@@ -994,7 +1011,7 @@ export default function MemberSelfRegister() {
                         }
                       }}
                     >
-                      <div className="w-52 h-72 sm:w-60 sm:h-80 rounded-3xl overflow-hidden border-4 border-emerald-500 shadow-xl bg-slate-900 flex-shrink-0">
+                      <div className="w-24 h-28 sm:w-28 sm:h-32 rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-md bg-slate-900 flex-shrink-0">
                         {(selectedTrainer.photoUrl || selectedTrainer.photoURL) ? (
                           <img
                             src={selectedTrainer.photoUrl || selectedTrainer.photoURL}
@@ -1002,51 +1019,53 @@ export default function MemberSelfRegister() {
                             className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                           />
                         ) : (
-                          <div className="w-full h-full bg-gradient-to-tr from-emerald-500 to-teal-600 text-white font-extrabold flex items-center justify-center text-5xl shadow-inner">
+                          <div className="w-full h-full bg-gradient-to-tr from-emerald-500 to-teal-600 text-white font-extrabold flex items-center justify-center text-3xl shadow-inner">
                             {selectedTrainer.name?.charAt(0)?.toUpperCase() || "C"}
                           </div>
                         )}
                       </div>
                       {(selectedTrainer.photoUrl || selectedTrainer.photoURL) && (
-                        <div className="absolute inset-0 bg-slate-950/60 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5 shadow-lg">
-                          <Maximize2 className="w-4 h-4" /> Click for Full View
+                        <div className="absolute inset-0 bg-slate-950/60 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold gap-1 shadow-lg">
+                          <Maximize2 className="w-4 h-4" /> Full View
                         </div>
                       )}
                     </div>
 
                     {/* Coach Details Column */}
-                    <div className="flex-1 min-w-0 space-y-2.5 w-full text-left">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0 space-y-2 text-center sm:text-left w-full">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
                         <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-black text-slate-900 text-lg sm:text-xl">{selectedTrainer.name}</h4>
-                            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                          <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                            <h4 className="font-extrabold text-slate-900 text-base">{selectedTrainer.name}</h4>
+                            <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
                               <Award className="w-3 h-3 text-emerald-600" /> Dedicated Coach
                             </span>
                           </div>
-                          <p className="text-xs sm:text-sm font-bold text-emerald-700 mt-0.5">
+                          <p className="text-xs font-bold text-emerald-700 mt-0.5">
                             {selectedTrainer.specialization || "Personal Fitness Coach"}
                           </p>
                         </div>
 
                         {selectedTrainer.experience && (
-                          <span className="text-xs font-bold px-3 py-1 bg-white text-slate-700 rounded-xl border border-slate-200 shadow-xs">
-                            {selectedTrainer.experience} Experience
-                          </span>
+                          <div className="inline-flex justify-center sm:justify-end">
+                            <span className="text-[11px] font-bold px-3 py-1 bg-white text-slate-700 rounded-xl border border-slate-200 shadow-2xs">
+                              ⭐ {selectedTrainer.experience} Experience
+                            </span>
+                          </div>
                         )}
                       </div>
 
                       {/* Coach Bio */}
                       {selectedTrainer.bio && (
-                        <div className="bg-white/95 p-3.5 rounded-2xl text-xs text-slate-700 border border-slate-200/80 leading-relaxed shadow-xs">
-                          <span className="font-bold text-slate-900 block mb-1">Coach Bio & Background:</span>
+                        <div className="bg-white/95 p-3 rounded-xl text-xs text-slate-700 border border-emerald-100 leading-relaxed shadow-2xs">
+                          <span className="font-bold text-slate-900 block mb-0.5">Coach Bio & Background:</span>
                           {selectedTrainer.bio}
                         </div>
                       )}
 
                       {/* Coach Certifications */}
                       {selectedTrainer.certifications && (
-                        <p className="text-xs text-slate-600">
+                        <p className="text-[11px] text-slate-600 pt-0.5">
                           <strong className="text-slate-800">Certifications: </strong> {selectedTrainer.certifications}
                         </p>
                       )}
@@ -1055,65 +1074,77 @@ export default function MemberSelfRegister() {
 
                   {/* Transformation Results */}
                   {selectedTrainer.transformations && selectedTrainer.transformations.length > 0 && (
-                    <div className="pt-3 border-t border-slate-100">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                    <div className="pt-3 border-t border-emerald-100">
+                      <div className="flex items-center justify-between mb-2.5">
+                        <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                           <Flame className="w-4 h-4 text-amber-500" />
                           Client Transformations & Results ({selectedTrainer.transformations.length})
                         </p>
-                        <span className="text-[11px] text-slate-400 font-medium">Click photos for full view</span>
+                        <span className="text-[11px] text-slate-400 font-medium">Click photo for full view</span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {selectedTrainer.transformations.map((item, idx) => (
-                          <div key={item.id || idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-200/90 space-y-2 shadow-2xs">
-                            <div className="grid grid-cols-2 gap-2">
-                              <div 
-                                className="relative rounded-2xl overflow-hidden bg-slate-200 h-52 sm:h-64 border-2 border-slate-300/80 cursor-pointer group shadow-xs"
-                                onClick={() => item.beforeImg && setFullPhotoModal({ img: item.beforeImg, title: `${selectedTrainer.name} - Client Before Transformation`, desc: item.description })}
-                              >
-                                {item.beforeImg && <img src={item.beforeImg} alt="Before" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />}
-                                <span className="absolute top-2 left-2 bg-rose-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-md">
-                                  BEFORE
-                                </span>
-                                {item.beforeImg && (
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
-                                    <Maximize2 className="w-4 h-4" /> View
-                                  </div>
-                                )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                        {selectedTrainer.transformations.map((item, idx) => {
+                          const beforeSrc = item.beforeImg || item.beforeURL;
+                          const afterSrc = item.afterImg || item.afterURL;
+                          return (
+                            <div key={item.id || idx} className="bg-white p-2.5 rounded-2xl border border-emerald-100/90 space-y-1.5 shadow-2xs">
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div 
+                                  className="relative rounded-xl overflow-hidden bg-slate-100 h-36 sm:h-40 border border-slate-200 cursor-pointer group shadow-2xs"
+                                  onClick={() => beforeSrc && setFullPhotoModal({ img: beforeSrc, title: `${selectedTrainer.name} - Client Before Transformation`, desc: item.description })}
+                                >
+                                  {beforeSrc ? (
+                                    <img src={beforeSrc} alt="Before" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                                  ) : (
+                                    <div className="flex items-center justify-center h-full text-slate-400 text-[10px] font-semibold">No Photo</div>
+                                  )}
+                                  <span className="absolute top-1.5 left-1.5 bg-rose-600/95 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-sm">
+                                    BEFORE
+                                  </span>
+                                  {beforeSrc && (
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
+                                      <Maximize2 className="w-3.5 h-3.5" /> View
+                                    </div>
+                                  )}
+                                </div>
+                                <div 
+                                  className="relative rounded-xl overflow-hidden bg-slate-100 h-36 sm:h-40 border border-slate-200 cursor-pointer group shadow-2xs"
+                                  onClick={() => afterSrc && setFullPhotoModal({ img: afterSrc, title: `${selectedTrainer.name} - Client After Transformation`, desc: item.description })}
+                                >
+                                  {afterSrc ? (
+                                    <img src={afterSrc} alt="After" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                                  ) : (
+                                    <div className="flex items-center justify-center h-full text-slate-400 text-[10px] font-semibold">No Photo</div>
+                                  )}
+                                  <span className="absolute top-1.5 left-1.5 bg-emerald-600/95 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-sm">
+                                    AFTER
+                                  </span>
+                                  {afterSrc && (
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
+                                      <Maximize2 className="w-3.5 h-3.5" /> View
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                              <div 
-                                className="relative rounded-2xl overflow-hidden bg-slate-200 h-52 sm:h-64 border-2 border-slate-300/80 cursor-pointer group shadow-xs"
-                                onClick={() => item.afterImg && setFullPhotoModal({ img: item.afterImg, title: `${selectedTrainer.name} - Client After Transformation`, desc: item.description })}
-                              >
-                                {item.afterImg && <img src={item.afterImg} alt="After" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />}
-                                <span className="absolute top-2 left-2 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-md">
-                                  AFTER
-                                </span>
-                                {item.afterImg && (
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[11px] font-bold gap-1">
-                                    <Maximize2 className="w-4 h-4" /> View
-                                  </div>
-                                )}
-                              </div>
+                              {item.description && (
+                                <p className="text-[11px] text-slate-700 font-medium line-clamp-2 leading-relaxed px-0.5">{item.description}</p>
+                              )}
                             </div>
-                            {item.description && (
-                              <p className="text-xs text-slate-700 font-semibold px-1">{item.description}</p>
-                            )}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
 
                   {/* Physical Assessment (Weight, Height & BMI) */}
-                  <div className="pt-3 border-t border-emerald-100 space-y-3">
+                  <div className="pt-3 border-t border-emerald-200/80 space-y-3">
                     <div className="flex items-center justify-between">
                       <h5 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                         <Scale className="w-4 h-4 text-emerald-600" />
-                        Physical Baseline Assessment (Weight, Height & BMI)
+                        Physical Baseline Assessment & Health Profile
                       </h5>
-                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
                         For Coach Program
                       </span>
                     </div>
@@ -1188,6 +1219,21 @@ export default function MemberSelfRegister() {
                         />
                       </div>
                     </div>
+
+                    {/* Health Notes / Medical Conditions (Asked only when Personal Trainer selected) */}
+                    <div className="pt-2 border-t border-emerald-100">
+                      <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                        <Heart className="w-3.5 h-3.5 text-rose-500" />
+                        Medical History / Injuries / Health Notes (For Coach Attention)
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Mention any knee/back injury history, asthma, BP, or specific health precautions for your trainer..."
+                        value={healthNotes}
+                        onChange={(e) => setHealthNotes(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400 rounded-xl px-3.5 py-2 text-xs outline-none transition focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 resize-none"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -1222,89 +1268,9 @@ export default function MemberSelfRegister() {
         {step === 4 && (
           <Card className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Step 4: Workout Schedule</h2>
-              <p className="text-slate-500 text-xs mt-1">Select your regular workout slot and mention any injuries or health conditions</p>
-            </div>
-
-            <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-700">Preferred Workout Time Slot *</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {WORKOUT_TIMES.map((t) => {
-                  const active = preferredTime === t.id;
-                  const Icon = t.icon;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => { setPreferredTime(t.id); setStepError(''); }}
-                      className={cn(
-                        'flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all text-left',
-                        active
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-950 font-bold shadow-sm'
-                          : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
-                      )}
-                    >
-                      <div className={cn(
-                        'w-10 h-10 rounded-xl flex items-center justify-center',
-                        active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'
-                      )}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-slate-900">{t.label}</p>
-                        <p className="text-[11px] text-slate-500">{t.time}</p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">
-                Health Notes / Injuries (Optional)
-              </label>
-              <textarea
-                rows={4}
-                placeholder="Mention any physical restrictions, medical history, or injuries our coaches should be aware of..."
-                value={healthNotes}
-                onChange={(e) => setHealthNotes(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400 rounded-xl px-4 py-3 text-xs outline-none transition focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 resize-none"
-              />
-            </div>
-
-            {stepError && (
-              <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-xs font-semibold">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                {stepError}
-              </div>
-            )}
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={goBack}
-                className="flex items-center gap-1.5 px-5 py-3 rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition"
-              >
-                <ChevronLeft className="w-4 h-4" /> Back
-              </button>
-              <button
-                type="button"
-                onClick={goNext}
-                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm rounded-2xl py-3 px-6 shadow-md transition"
-              >
-                Continue <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </Card>
-        )}
-
-        {step === 5 && (
-          <Card className="space-y-6">
-            <div>
               <div className="flex items-center gap-2 mb-1">
                 <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                <h2 className="text-xl font-bold text-slate-900">Liability Waiver Agreement</h2>
+                <h2 className="text-xl font-bold text-slate-900">Step 4: Liability Waiver Agreement</h2>
               </div>
               <p className="text-slate-500 text-xs">Please review the waiver terms and sign below to finalize your registration</p>
             </div>
