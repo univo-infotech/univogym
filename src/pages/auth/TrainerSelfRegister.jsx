@@ -16,6 +16,7 @@ import {
   X
 } from "lucide-react";
 import { addTrainer } from "../../firebase/trainers";
+import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
 import toast from "react-hot-toast";
 
 export default function TrainerSelfRegister() {
@@ -73,6 +74,14 @@ export default function TrainerSelfRegister() {
       toast.success(`${type === "beforeImg" ? "Before" : "After"} photo uploaded!`);
     };
     reader.readAsDataURL(file);
+  };
+
+  const updateTransformationPhoto = (index, type, url) => {
+    setForm((prev) => {
+      const updated = [...prev.transformations];
+      updated[index] = { ...updated[index], [type]: url };
+      return { ...prev, transformations: updated };
+    });
   };
 
   const handleTransformationDesc = (val, index) => {
@@ -154,24 +163,20 @@ export default function TrainerSelfRegister() {
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-2xl mx-auto space-y-8">
-        <div className="text-center">
-          <label className="relative cursor-pointer group inline-block mb-3">
-            <div className="w-24 h-24 rounded-full bg-white border-4 border-emerald-100 shadow-xl overflow-hidden flex items-center justify-center transition group-hover:shadow-2xl group-hover:border-emerald-200 mx-auto">
-              {form.photoUrl ? (
-                <img src={form.photoUrl} alt="Trainer Profile" className="w-full h-full object-cover" />
-              ) : (
-                <User className="w-10 h-10 text-emerald-600" />
-              )}
-            </div>
-            <div className="absolute bottom-0 right-0 w-8 h-8 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center shadow-sm group-hover:bg-emerald-600 transition group-hover:scale-105">
-              <Camera className="w-4 h-4 text-white" />
-            </div>
-            <input type="file" accept="image/jpeg, image/png" onChange={(e) => handleFileUpload(e, 'photoUrl')} className="hidden" />
-          </label>
+        <div className="text-center space-y-3">
           <h2 className="text-3xl font-extrabold text-slate-900">Trainer Registration</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="text-sm text-slate-500">
             Create your coach profile, credentials & transformation portfolio.
           </p>
+          <div className="max-w-xs mx-auto text-left pt-2">
+            <PhotoCaptureInput
+              value={form.photoUrl}
+              onChange={(url) => setForm(prev => ({ ...prev, photoUrl: url }))}
+              label="Trainer Portrait Photo"
+              subLabel="Upload picture or take live camera photo"
+              shape="circle"
+            />
+          </div>
         </div>
 
         <div className="bg-white py-8 px-6 shadow-xl rounded-3xl border border-slate-100 sm:px-10">
@@ -280,54 +285,23 @@ export default function TrainerSelfRegister() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      {/* Before Box */}
-                      <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-white hover:border-emerald-400 transition text-center bg-white min-h-[110px]">
-                        {item.beforeImg ? (
-                          <div className="relative w-full h-24 rounded-lg overflow-hidden">
-                            <img src={item.beforeImg} alt="Before" className="w-full h-full object-cover" />
-                            <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                              Before
-                            </span>
-                          </div>
-                        ) : (
-                          <>
-                            <Camera className="w-5 h-5 text-slate-400 mb-1" />
-                            <span className="text-[11px] font-bold text-slate-700">Before Photo</span>
-                            <span className="text-[9px] text-slate-400">Click to upload</span>
-                          </>
-                        )}
-                        <input
-                          type="file"
-                          accept="image/jpeg, image/png"
-                          onChange={(e) => handleTransformationFile(e, idx, "beforeImg")}
-                          className="hidden"
-                        />
-                      </label>
-
-                      {/* After Box */}
-                      <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-white hover:border-emerald-400 transition text-center bg-white min-h-[110px]">
-                        {item.afterImg ? (
-                          <div className="relative w-full h-24 rounded-lg overflow-hidden">
-                            <img src={item.afterImg} alt="After" className="w-full h-full object-cover" />
-                            <span className="absolute bottom-1 left-1 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                              After
-                            </span>
-                          </div>
-                        ) : (
-                          <>
-                            <Camera className="w-5 h-5 text-emerald-500 mb-1" />
-                            <span className="text-[11px] font-bold text-slate-700">After Photo</span>
-                            <span className="text-[9px] text-slate-400">Click to upload</span>
-                          </>
-                        )}
-                        <input
-                          type="file"
-                          accept="image/jpeg, image/png"
-                          onChange={(e) => handleTransformationFile(e, idx, "afterImg")}
-                          className="hidden"
-                        />
-                      </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <PhotoCaptureInput
+                        value={item.beforeImg}
+                        onChange={(url) => updateTransformationPhoto(idx, "beforeImg", url)}
+                        label="Before Transformation"
+                        subLabel="Upload file or take live snap"
+                        shape="rounded"
+                        aspectRatio="square"
+                      />
+                      <PhotoCaptureInput
+                        value={item.afterImg}
+                        onChange={(url) => updateTransformationPhoto(idx, "afterImg", url)}
+                        label="After Transformation"
+                        subLabel="Upload file or take live snap"
+                        shape="rounded"
+                        aspectRatio="square"
+                      />
                     </div>
 
                     <div>

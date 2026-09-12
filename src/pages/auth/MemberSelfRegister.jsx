@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import SignatureCanvas from 'react-signature-canvas';
 import { useDropzone } from 'react-dropzone';
 import { useForm } from 'react-hook-form';
+import PhotoCaptureInput from '../../components/shared/PhotoCaptureInput';
 import {
   CheckCircle,
   ChevronRight,
@@ -432,7 +433,7 @@ export default function MemberSelfRegister() {
       const storage = getStorage();
       const auth = getAuth();
 
-      let photoURL = '';
+      let photoURL = photoPreview || '';
       if (photoFile) {
         try {
           const pRef = storageRef(storage, `gyms/${gymId || 'univo_main'}/members/photos/${Date.now()}_${photoFile.name}`);
@@ -684,74 +685,14 @@ export default function MemberSelfRegister() {
                 <p className="text-slate-500 text-xs mt-1">Enter your personal details and upload a photo for your gym profile</p>
               </div>
 
-              <div className="space-y-3">
-                <label className="block text-xs font-bold text-slate-700">
-                  Profile Photo (Gallery Upload or Camera Selfie)
-                </label>
-
-                {photoPreview ? (
-                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
-                    <img
-                      src={photoPreview}
-                      alt="Preview"
-                      className="w-20 h-20 rounded-full object-cover border-2 border-emerald-500 shadow-md"
-                    />
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-slate-900">Photo Attached</p>
-                      <p className="text-xs text-emerald-700 font-medium">Your profile photo is ready</p>
-                      <button
-                        type="button"
-                        onClick={() => { setPhotoFile(null); setPhotoPreview(null); }}
-                        className="text-xs text-rose-600 hover:text-rose-800 flex items-center gap-1 mt-1 font-semibold"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Remove & Retake Photo
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <label className="flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-emerald-50/50 hover:border-emerald-400 cursor-pointer transition">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            setPhotoFile(file);
-                            const reader = new FileReader();
-                            reader.onload = (ev) => setPhotoPreview(ev.target.result);
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                      />
-                      <Upload className="w-7 h-7 text-emerald-600 mb-2" />
-                      <span className="text-xs font-bold text-slate-900">Upload from Gallery</span>
-                      <span className="text-[10px] text-slate-500 mt-0.5">JPG, PNG up to 5MB</span>
-                    </label>
-
-                    <label className="flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-emerald-50/50 hover:border-emerald-400 cursor-pointer transition">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="user"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            setPhotoFile(file);
-                            const reader = new FileReader();
-                            reader.onload = (ev) => setPhotoPreview(ev.target.result);
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                      />
-                      <Camera className="w-7 h-7 text-teal-600 mb-2" />
-                      <span className="text-xs font-bold text-slate-900">Take Live Selfie</span>
-                      <span className="text-[10px] text-slate-500 mt-0.5">Direct camera photo</span>
-                    </label>
-                  </div>
-                )}
+              <div>
+                <PhotoCaptureInput
+                  value={photoPreview}
+                  onChange={(url) => setPhotoPreview(url)}
+                  label="Profile Photo (Optional)"
+                  subLabel="Upload selfie from device or take a live camera snapshot"
+                  shape="circle"
+                />
               </div>
 
               <Input

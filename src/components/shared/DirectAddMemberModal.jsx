@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import Modal from "../ui/Modal";
 import SignaturePad from "./SignaturePad";
+import PhotoCaptureInput from "./PhotoCaptureInput";
 import {
   User,
   Phone,
@@ -316,60 +317,14 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
               </span>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-5">
-              {/* Photo Avatar Preview */}
-              <div className="relative group w-24 h-24 rounded-2xl bg-white border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                {formData.photoURL ? (
-                  <img src={formData.photoURL} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="text-center p-2 text-slate-400">
-                    <Camera className="w-6 h-6 mx-auto mb-1 text-slate-300" />
-                    <span className="text-[10px] font-semibold">No Photo</span>
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-1.5 rounded-full bg-white text-slate-800 shadow hover:scale-105 transition"
-                    title="Upload / Capture Photo"
-                  >
-                    <Upload className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoUpload}
+            <div>
+              <PhotoCaptureInput
+                value={formData.photoURL}
+                onChange={(url) => setFormData((prev) => ({ ...prev, photoURL: url }))}
+                label="Member Portrait Photo"
+                subLabel="Upload photo from device files or take a live camera snapshot"
+                shape="rounded"
               />
-
-              <div className="space-y-1.5 text-center sm:text-left">
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-3.5 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold rounded-xl transition flex items-center gap-1.5 text-xs border border-indigo-200"
-                  >
-                    <Camera className="w-3.5 h-3.5" /> Upload / Take Photo
-                  </button>
-                  {formData.photoURL && (
-                    <button
-                      type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, photoURL: "" }))}
-                      className="px-3 py-1.5 text-rose-600 hover:bg-rose-50 font-bold rounded-xl transition text-xs flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Remove
-                    </button>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Recommended: Face portrait image or direct camera photo. Max 2MB.
-                </p>
-              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">

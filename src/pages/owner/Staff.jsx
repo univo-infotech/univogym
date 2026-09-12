@@ -9,6 +9,7 @@ import {
   UserX, Briefcase, Award, CheckCircle2, ChevronDown
 } from "lucide-react";
 import Modal from "../../components/ui/Modal";
+import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
 import { useAuth } from "../../contexts/AuthContext";
 import { usePermissions } from "../../hooks/usePermissions";
 import {
@@ -871,29 +872,13 @@ export default function Staff() {
           {activeModalTab === "basic" && (
             <div className="space-y-4">
               {/* Photo Upload */}
-              <div className="flex items-center gap-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                <div className="relative">
-                  {form.photoUrl ? (
-                    <img 
-                      src={form.photoUrl} 
-                      alt="" 
-                      className="w-16 h-16 rounded-2xl object-cover border-2 border-emerald-400 shadow-sm" 
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-2xl bg-white border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
-                      <Camera className="w-6 h-6" />
-                    </div>
-                  )}
-                  <label className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-600 text-white rounded-full flex items-center justify-center cursor-pointer shadow hover:bg-emerald-700 transition">
-                    <Camera className="w-3 h-3" />
-                    <input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, "photoUrl")} />
-                  </label>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-800">Profile Photo</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Upload a clean face photo (JPG, PNG max 1.5MB)</p>
-                </div>
-              </div>
+              <PhotoCaptureInput
+                value={form.photoUrl}
+                onChange={(url) => setForm(prev => ({ ...prev, photoUrl: url }))}
+                label="Profile Photo"
+                subLabel="Upload a clean face photo or take a live camera snapshot"
+                shape="circle"
+              />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
@@ -1065,48 +1050,26 @@ export default function Staff() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Aadhaar Front */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Aadhaar Front Photo</label>
-                  {form.aadhaarFront ? (
-                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 h-28 bg-slate-100">
-                      <img src={form.aadhaarFront} alt="Aadhaar Front" className="w-full h-full object-cover" />
-                      <button 
-                        type="button" 
-                        onClick={() => setForm(prev => ({ ...prev, aadhaarFront: "" }))}
-                        className="absolute top-1.5 right-1.5 w-6 h-6 bg-rose-600 rounded-full flex items-center justify-center text-white hover:bg-rose-700 transition"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="flex flex-col items-center justify-center gap-1 h-28 bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/20 transition">
-                      <FileText className="w-6 h-6 text-slate-400" />
-                      <span className="text-xs font-semibold text-slate-600">Upload Front Scan</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, "aadhaarFront")} />
-                    </label>
-                  )}
+                  <PhotoCaptureInput
+                    value={form.aadhaarFront}
+                    onChange={(url) => setForm(prev => ({ ...prev, aadhaarFront: url }))}
+                    label="Aadhaar Front Document"
+                    subLabel="Upload document file or snap photo with camera"
+                    shape="rounded"
+                    aspectRatio="wide"
+                  />
                 </div>
 
                 {/* Aadhaar Back */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Aadhaar Back Photo</label>
-                  {form.aadhaarBack ? (
-                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 h-28 bg-slate-100">
-                      <img src={form.aadhaarBack} alt="Aadhaar Back" className="w-full h-full object-cover" />
-                      <button 
-                        type="button" 
-                        onClick={() => setForm(prev => ({ ...prev, aadhaarBack: "" }))}
-                        className="absolute top-1.5 right-1.5 w-6 h-6 bg-rose-600 rounded-full flex items-center justify-center text-white hover:bg-rose-700 transition"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="flex flex-col items-center justify-center gap-1 h-28 bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/20 transition">
-                      <FileText className="w-6 h-6 text-slate-400" />
-                      <span className="text-xs font-semibold text-slate-600">Upload Back Scan</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, "aadhaarBack")} />
-                    </label>
-                  )}
+                  <PhotoCaptureInput
+                    value={form.aadhaarBack}
+                    onChange={(url) => setForm(prev => ({ ...prev, aadhaarBack: url }))}
+                    label="Aadhaar Back Document"
+                    subLabel="Upload document file or snap photo with camera"
+                    shape="rounded"
+                    aspectRatio="wide"
+                  />
                 </div>
               </div>
 
