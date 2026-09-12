@@ -20,7 +20,8 @@ import {
   Briefcase,
   X,
   Copy,
-  Send
+  Send,
+  Edit
 } from "lucide-react";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
@@ -54,6 +55,24 @@ export default function Trainers() {
     email: "",
     password: "",
     experience: "5 Years",
+    bio: "",
+    certifications: "",
+    photoUrl: "",
+    certUrl: "",
+    transformations: [
+      { id: 1, beforeImg: "", afterImg: "", description: "" }
+    ],
+  });
+
+  const [editTrainerModalOpen, setEditTrainerModalOpen] = useState(false);
+  const [editingTrainer, setEditingTrainer] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    specialization: "Weight Training & Hypertrophy",
+    phone: "",
+    email: "",
+    experience: "5 Years",
+    salary: "",
     bio: "",
     certifications: "",
     photoUrl: "",
@@ -141,6 +160,117 @@ export default function Trainers() {
       ...prev,
       transformations: prev.transformations.filter((_, i) => i !== index)
     }));
+  };
+
+  // --- EDIT TRAINER HANDLERS ---
+  const handleOpenEdit = (trainer) => {
+    setEditingTrainer(trainer);
+    setEditForm({
+      name: trainer.name || "",
+      specialization: trainer.specialization || "Weight Training & Hypertrophy",
+      phone: trainer.phone || "",
+      email: trainer.email || "",
+      experience: trainer.experience || "5 Years",
+      salary: trainer.salary || "",
+      bio: trainer.bio || "",
+      certifications: trainer.certifications || "",
+      photoUrl: trainer.photoUrl || "",
+      certUrl: trainer.certUrl || "",
+      transformations:
+        trainer.transformations && trainer.transformations.length > 0
+          ? trainer.transformations.map((t, idx) => ({ id: t.id || idx + 1, beforeImg: t.beforeImg || t.beforeURL || "", afterImg: t.afterImg || t.afterURL || "", description: t.description || t.notes || "" }))
+          : [{ id: 1, beforeImg: "", afterImg: "", description: "" }],
+    });
+    setOpenDropdown(null);
+    setEditTrainerModalOpen(true);
+  };
+
+  const updateEditTransformationPhoto = (index, type, url) => {
+    setEditForm((prev) => {
+      const updated = [...prev.transformations];
+      updated[index] = { ...updated[index], [type]: url };
+      return { ...prev, transformations: updated };
+    });
+  };
+
+  const handleEditTransformationDesc = (val, index) => {
+    setEditForm((prev) => {
+      const updated = [...prev.transformations];
+      updated[index] = { ...updated[index], description: val };
+      return { ...prev, transformations: updated };
+    });
+  };
+
+  const addMoreEditTransformation = () => {
+    setEditForm((prev) => ({
+      ...prev,
+      transformations: [
+        ...prev.transformations,
+        { id: Date.now(), beforeImg: "", afterImg: "", description: "" }
+      ]
+    }));
+  };
+
+  const removeEditTransformation = (index) => {
+    if (editForm.transformations.length <= 1) {
+      setEditForm((prev) => ({
+        ...prev,
+        transformations: [{ id: 1, beforeImg: "", afterImg: "", description: "" }]
+      }));
+      return;
+    }
+    setEditForm((prev) => ({
+      ...prev,
+      transformations: prev.transformations.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editForm.name) {
+      toast.error("Trainer name is required.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const updatedData = {
+        name: editForm.name,
+        specialization: editForm.specialization,
+        phone: editForm.phone,
+        email: editForm.email,
+        experience: editForm.experience,
+        salary: editForm.salary ? Number(editForm.salary) : 0,
+        bio: editForm.bio,
+        certifications: editForm.certifications,
+        photoUrl: editForm.photoUrl || "",
+        certUrl: editForm.certUrl || "",
+        transformations: editForm.transformations.filter(
+          (t) => t.beforeImg || t.afterImg || t.description
+        ),
+      };
+
+      await updateTrainer(gymId || "univo_main", editingTrainer.id, updatedData);
+
+      setTrainers((prev) =>
+        prev.map((t) =>
+          t.id === editingTrainer.id ? { ...t, ...updatedData } : t
+        )
+      );
+
+      if (viewTrainerModal && viewTrainerModal.id === editingTrainer.id) {
+        setViewTrainerModal((prev) => ({ ...prev, ...updatedData }));
+      }
+
+      toast.success("Trainer profile & transformation results updated successfully! ✨");
+      setEditTrainerModalOpen(false);
+      setEditingTrainer(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update trainer: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -382,6 +512,12 @@ export default function Trainers() {
                         <Eye className="w-4 h-4 text-emerald-600" /> View Full Profile
                       </button>
                       <button
+                        onClick={() => handleOpenEdit(t)}
+                        className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition"
+                      >
+                        <Edit className="w-4 h-4 text-emerald-600" /> Edit Trainer Profile
+                      </button>
+                      <button
                         onClick={() => {
                           handleToggleActive(t.id, t.isActive !== false);
                           setOpenDropdown(null);
@@ -422,6 +558,21 @@ export default function Trainers() {
             </div>
 
             <div className="pt-4 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleOpenEdit(t)}
+                  className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                >
+                  <Edit className="w-3.5 h-3.5 text-emerald-600" /> Edit Profile
+                </button>
+                <button
+                  onClick={() => setViewTrainerModal(t)}
+                  className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                >
+                  <Eye className="w-3.5 h-3.5 text-slate-600" /> View Profile
+                </button>
+              </div>
+
               {t.hasLogin === false ? (
                 <button
                   onClick={() => {
@@ -444,7 +595,7 @@ export default function Trainers() {
                       "_blank"
                     );
                   }}
-                  className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                  className="w-full py-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold flex items-center justify-center gap-1.5 transition"
                 >
                   <MessageCircle className="w-4 h-4 text-emerald-600" /> Message on WhatsApp
                 </button>
@@ -1058,7 +1209,17 @@ export default function Trainers() {
               </div>
             </div>
 
-            <div className="border-t border-slate-100 pt-4 flex justify-end">
+            <div className="border-t border-slate-100 pt-4 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  const tr = viewTrainerModal;
+                  setViewTrainerModal(null);
+                  handleOpenEdit(tr);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-1.5 shadow-sm"
+              >
+                <Edit className="w-4 h-4" /> Edit Profile & Results
+              </button>
               <button
                 onClick={() => setViewTrainerModal(null)}
                 className="px-5 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition"
@@ -1068,6 +1229,264 @@ export default function Trainers() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Edit Personal Trainer Modal */}
+      <Modal
+        isOpen={editTrainerModalOpen}
+        onClose={() => {
+          setEditTrainerModalOpen(false);
+          setEditingTrainer(null);
+        }}
+        title={`✏️ Edit Trainer Profile: ${editingTrainer?.name || ""}`}
+        maxWidth="max-w-2xl"
+      >
+        <form onSubmit={handleSaveEdit} className="space-y-5">
+          {/* Top Profile Photo */}
+          <div>
+            <PhotoCaptureInput
+              value={editForm.photoUrl}
+              onChange={(url) => setEditForm((prev) => ({ ...prev, photoUrl: url }))}
+              label="Trainer Portrait Photo"
+              subLabel="Upload trainer picture or take live camera photo"
+              shape="circle"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                Trainer Full Name *
+              </label>
+              <input
+                required
+                type="text"
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
+                placeholder="e.g. Vikramaditya Singh"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                Primary Specialization *
+              </label>
+              <select
+                value={editForm.specialization}
+                onChange={(e) => setEditForm({ ...editForm, specialization: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
+              >
+                <option value="Weight Training & Hypertrophy">Weight Training & Hypertrophy</option>
+                <option value="Fat Loss & HIIT Conditioning">Fat Loss & HIIT Conditioning</option>
+                <option value="Powerlifting & Strength">Powerlifting & Strength</option>
+                <option value="CrossFit & Functional Fitness">CrossFit & Functional Fitness</option>
+                <option value="Yoga & Flexibility Specialist">Yoga & Flexibility Specialist</option>
+                <option value="Clinical Rehab & Posture Correction">Clinical Rehab & Posture Correction</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                Email Address
+              </label>
+              <input
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
+                placeholder="trainer@gym.com"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                Phone Number (WhatsApp)
+              </label>
+              <input
+                type="tel"
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
+                placeholder="+91 98765 43210"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                Experience
+              </label>
+              <input
+                type="text"
+                value={editForm.experience}
+                onChange={(e) => setEditForm({ ...editForm, experience: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
+                placeholder="e.g. 5 Years"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                Monthly Salary (₹)
+              </label>
+              <input
+                type="number"
+                value={editForm.salary}
+                onChange={(e) => setEditForm({ ...editForm, salary: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
+                placeholder="30000"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+              Trainer Bio / Profile Description
+            </label>
+            <textarea
+              rows={3}
+              value={editForm.bio}
+              onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+              placeholder="Short description of trainer's background, achievements, client success..."
+              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none resize-none"
+            />
+          </div>
+
+          {/* Trainer Certification File */}
+          <div>
+            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5 mb-2">
+              <FileText className="w-4 h-4 text-emerald-600" /> Trainer Certification
+            </label>
+            <label className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200 border-dashed rounded-2xl cursor-pointer hover:bg-slate-100 transition">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-white shadow-xs text-slate-500 border border-slate-200">
+                  <Award className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">
+                    {editForm.certUrl ? "Certification File Attached" : "Upload Certification"}
+                  </p>
+                  <p className="text-[10px] text-slate-400">Supports PDF, JPG, PNG (Max 800KB)</p>
+                </div>
+              </div>
+              <div className="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 shadow-xs">
+                {editForm.certUrl ? "Change File" : "Browse"}
+              </div>
+              <input
+                type="file"
+                accept="image/jpeg, image/png, application/pdf"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 800 * 1024) {
+                    toast.error("File is too large. Please select under 800KB.");
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    setEditForm((prev) => ({ ...prev, certUrl: reader.result }));
+                    toast.success("Certificate attached!");
+                  };
+                  reader.readAsDataURL(file);
+                }}
+                className="hidden"
+              />
+            </label>
+          </div>
+
+          {/* Transformations / Before-After Section with Add More */}
+          <div className="pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <ImageIcon className="w-4 h-4 text-emerald-600" /> Client Transformation Results
+              </h4>
+              <button
+                type="button"
+                onClick={addMoreEditTransformation}
+                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add More Result
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {editForm.transformations.map((item, idx) => (
+                <div
+                  key={item.id || idx}
+                  className="p-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl relative space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-700">
+                      Result #{idx + 1}
+                    </span>
+                    {editForm.transformations.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeEditTransformation(idx)}
+                        className="text-slate-400 hover:text-rose-600 p-1 transition"
+                        title="Remove this transformation"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Side-by-side Before & After: 2 upload options */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <PhotoCaptureInput
+                      value={item.beforeImg}
+                      onChange={(url) => updateEditTransformationPhoto(idx, "beforeImg", url)}
+                      label="Before Transformation"
+                      subLabel="Upload file or take live snap"
+                      shape="rounded"
+                      aspectRatio="square"
+                    />
+                    <PhotoCaptureInput
+                      value={item.afterImg}
+                      onChange={(url) => updateEditTransformationPhoto(idx, "afterImg", url)}
+                      label="After Transformation"
+                      subLabel="Upload file or take live snap"
+                      shape="rounded"
+                      aspectRatio="square"
+                    />
+                  </div>
+
+                  {/* Description below */}
+                  <div>
+                    <input
+                      type="text"
+                      value={item.description || ""}
+                      onChange={(e) => handleEditTransformationDesc(e.target.value, idx)}
+                      placeholder="e.g. 12 Weeks Fat Loss & Muscle Gain - 14kg down"
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setEditTrainerModalOpen(false);
+                setEditingTrainer(null);
+              }}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+            >
+              Cancel
+            </button>
+            <button
+              disabled={loading}
+              type="submit"
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs shadow-md hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 flex items-center gap-1.5 transition"
+            >
+              {loading ? "Saving Changes..." : "Save Changes & Update Trainer"}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );
