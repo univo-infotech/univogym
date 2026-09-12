@@ -47,6 +47,8 @@ export default function App() {
       {/* Public Routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/register/:gymId/:token" element={<MemberSelfRegister />} />
+      <Route path="/register-trainer" element={<TrainerSelfRegister />} />
+      <Route path="/register-trainer/:gymId" element={<TrainerSelfRegister />} />
       <Route path="/register-trainer/:gymId/:token" element={<TrainerSelfRegister />} />
 
       {/* Owner Routes */}
