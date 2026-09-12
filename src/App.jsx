@@ -5,6 +5,7 @@ import Loader from "./components/ui/Loader";
 import Login from "./pages/auth/Login";
 import MemberSelfRegister from "./pages/auth/MemberSelfRegister";
 import TrainerSelfRegister from "./pages/auth/TrainerSelfRegister";
+import PublicReceipt from "./pages/receipt/PublicReceipt";
 
 // Owner Pages
 import OwnerLayout from "./routes/OwnerRoutes";
@@ -50,6 +51,7 @@ export default function App() {
       <Route path="/register-trainer" element={<TrainerSelfRegister />} />
       <Route path="/register-trainer/:gymId" element={<TrainerSelfRegister />} />
       <Route path="/register-trainer/:gymId/:token" element={<TrainerSelfRegister />} />
+      <Route path="/receipt/:receiptId" element={<PublicReceipt />} />
 
       {/* Owner & Staff Routes */}
       <Route

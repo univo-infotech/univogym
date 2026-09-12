@@ -2,6 +2,8 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
+  doc,
   query,
   where,
   orderBy,
@@ -33,6 +35,28 @@ function saveLocalPayment(payment) {
   } catch (e) {
     console.warn("Could not save to local payments cache:", e);
   }
+}
+
+/**
+ * Get single payment by ID (from local cache or Firestore)
+ */
+export async function getPaymentById(paymentId) {
+  if (!paymentId) return null;
+  // 1. Check local cache
+  const local = getLocalPayments().find((p) => p.id === paymentId);
+  if (local) return local;
+
+  // 2. Check Firestore
+  try {
+    const docRef = doc(db, "payments", paymentId);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return { id: snap.id, ...snap.data() };
+    }
+  } catch (e) {
+    console.warn("Error fetching payment from Firestore:", e);
+  }
+  return null;
 }
 
 /**

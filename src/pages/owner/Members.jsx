@@ -670,9 +670,12 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
       // 4. Generate & Download Bill PDF Receipt
       generatePaymentReceipt(newPaymentRecord, settings);
 
-      // 5. If WhatsApp requested, open WhatsApp with receipt & details
+      // 5. Generate Online Receipt Web Link (Matching study-point live link)
+      const receiptLink = `${window.location.origin}/#/receipt/${newPaymentRecord.id}`;
+
+      // 6. If WhatsApp requested, open WhatsApp with receipt link & details
       if (sendWhatsApp && phone) {
-        const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName || 'UNIVO GYM'}*\n\nHello *${memberName}*,\nThank you for your payment! Here are your membership billing details:\n\n📋 *Plan:* ${currentPlan.name}\n📅 *Validity:* ${newPaymentRecord.validityStart} to ${newPaymentRecord.validityEnd}\n💰 *Total Plan Fee:* ₹${calculatedTotal}\n✅ *Amount Paid:* ₹${payingNow} (${paymentMode.toUpperCase()})\n${remainingDue > 0 ? `⚠️ *Remaining Due:* ₹${remainingDue}\n` : "✨ *Status:* FULLY PAID\n"}\nYour official tax receipt PDF is generated. Stay fit and keep crushing your workouts! 💪`;
+        const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName || 'UNIVO GYM'}*\n\nHello *${memberName}*,\nThank you for your payment! Here are your membership billing details:\n\n📋 *Plan:* ${currentPlan.name}\n📅 *Validity:* ${newPaymentRecord.validityStart} to ${newPaymentRecord.validityEnd}\n💰 *Total Plan Fee:* ₹${calculatedTotal}\n✅ *Amount Paid:* ₹${payingNow} (${paymentMode.toUpperCase()})\n${remainingDue > 0 ? `⚠️ *Remaining Due:* ₹${remainingDue}\n` : "✨ *Status:* FULLY PAID\n"}\n🔗 *View & Download Official Receipt Online:*\n${receiptLink}\n\nStay fit and keep crushing your workouts! 💪`;
         openWhatsApp(phone, msg);
       }
 
