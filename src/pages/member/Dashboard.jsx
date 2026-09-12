@@ -49,6 +49,25 @@ export default function MemberDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Supplement Store Banner */}
+      <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-700 to-slate-900 text-white shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <span className="px-3 py-1 rounded-full bg-white/20 text-emerald-100 text-xs font-bold uppercase tracking-wider">
+            Gym Member Privilege
+          </span>
+          <h3 className="text-xl font-extrabold mt-2">Authentic Protein & Pre-Workouts at Reception</h3>
+          <p className="text-xs text-emerald-100 mt-1 max-w-xl">
+            Avail exclusive discounts on 100% genuine whey proteins, creatine monohydrate & accessories directly verified by our gym trainers.
+          </p>
+        </div>
+        <a
+          href="/member/store"
+          className="px-6 py-3 rounded-2xl bg-white text-emerald-800 font-black text-xs hover:bg-emerald-50 transition shadow-md whitespace-nowrap"
+        >
+          Browse Gym Store & Rates →
+        </a>
+      </div>
     </div>
   );
 }
