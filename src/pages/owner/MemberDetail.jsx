@@ -287,8 +287,16 @@ export default function MemberDetail() {
                   <p className="text-sm font-extrabold text-slate-900 mt-0.5">{member.weight ? `${member.weight} kg` : "-"}</p>
                 </div>
                 <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Height</p>
-                  <p className="text-sm font-extrabold text-slate-900 mt-0.5">{member.height ? `${member.height} cm` : "-"}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Height (ft & in)</p>
+                  <p className="text-sm font-extrabold text-slate-900 mt-0.5">
+                    {member.heightFeet
+                      ? `${member.heightFeet} ft ${member.heightInches || 0} in`
+                      : member.height
+                      ? String(member.height).includes('ft')
+                        ? member.height
+                        : `${Math.floor(parseFloat(member.height) / 30.48)} ft ${Math.round((parseFloat(member.height) % 30.48) / 2.54)} in`
+                      : '-'}
+                  </p>
                 </div>
                 <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
                   <p className="text-[10px] text-slate-400 font-bold uppercase">BMI Score</p>

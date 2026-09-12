@@ -809,6 +809,9 @@ function EditMemberModal({ member, onClose, onSave, trainers = [] }) {
   const [gender, setGender] = useState(member.gender || 'Male');
   const [slot, setSlot] = useState(member.slot || member.workoutSlot || 'General Shift');
   const [trainerName, setTrainerName] = useState(member.trainerName || 'Unassigned');
+  const [weight, setWeight] = useState(member.weight || '');
+  const [heightFeet, setHeightFeet] = useState(member.heightFeet || '5');
+  const [heightInches, setHeightInches] = useState(member.heightInches || '8');
   const [address, setAddress] = useState(member.address || '');
   const [healthNotes, setHealthNotes] = useState(member.healthNotes || member.medicalHistory || '');
   const [loading, setLoading] = useState(false);
@@ -821,6 +824,15 @@ function EditMemberModal({ member, onClose, onSave, trainers = [] }) {
     }
     setLoading(true);
 
+    const ft = parseFloat(heightFeet);
+    const inch = parseFloat(heightInches || 0);
+    const w = parseFloat(weight);
+    let calculatedBmi = member.bmi || '';
+    if (w > 0 && ft > 0) {
+      const hM = (ft * 12 + inch) * 0.0254;
+      calculatedBmi = parseFloat((w / (hM * hM)).toFixed(1));
+    }
+
     const payload = {
       name: name.trim(),
       fullName: name.trim(),
@@ -831,6 +843,11 @@ function EditMemberModal({ member, onClose, onSave, trainers = [] }) {
       slot,
       workoutSlot: slot,
       trainerName,
+      weight: weight ? String(weight) : '',
+      height: heightFeet ? `${heightFeet} ft ${heightInches || 0} in` : '',
+      heightFeet: heightFeet || '',
+      heightInches: heightInches || '',
+      bmi: calculatedBmi ? String(calculatedBmi) : '',
       address: address.trim(),
       healthNotes: healthNotes.trim()
     };
@@ -946,6 +963,54 @@ function EditMemberModal({ member, onClose, onSave, trainers = [] }) {
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+
+        {/* BMI Assessment: Weight (kg) & Height (ft & in) */}
+        <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200'>
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Weight (kg)</label>
+            <input
+              type='number'
+              step='0.1'
+              placeholder='e.g. 72'
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+              className='w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-amber-500'
+            />
+          </div>
+
+          <div>
+            <label className='block text-xs font-semibold text-slate-700 mb-1'>Height (ft & in)</label>
+            <div className='grid grid-cols-2 gap-1.5'>
+              <div className='relative'>
+                <input
+                  type='number'
+                  min='3'
+                  max='8'
+                  placeholder='5'
+                  value={heightFeet}
+                  onChange={(e) => setHeightFeet(e.target.value)}
+                  className='w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:outline-none focus:border-amber-500'
+                />
+                <span className='absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400'>ft</span>
+              </div>
+              <div className='relative'>
+                <input
+                  type='number'
+                  min='0'
+                  max='11'
+                  placeholder='8'
+                  value={heightInches}
+                  onChange={(e) => setHeightInches(e.target.value)}
+                  className='w-full bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:outline-none focus:border-amber-500'
+                />
+                <span className='absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400'>in</span>
+              </div>
+            </div>
+            <span className='text-[10px] text-slate-400 mt-0.5 block'>
+              {heightFeet ? `${heightFeet} ft ${heightInches || 0} in` : 'e.g. 5 ft 8 in'}
+            </span>
           </div>
         </div>
 

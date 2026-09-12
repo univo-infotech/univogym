@@ -250,16 +250,21 @@ export default function MemberSelfRegister() {
 
   // Body Assessment (when dedicated coach selected)
   const [weight, setWeight] = useState('');
-  const [height, setHeight] = useState('');
+  const [heightFeet, setHeightFeet] = useState('5');
+  const [heightInches, setHeightInches] = useState('8');
   const [fitnessGoal, setFitnessGoal] = useState('Weight Loss & Fat Burn');
   const [targetWeight, setTargetWeight] = useState('');
 
-  // Dynamic BMI Calculation
+  // Dynamic BMI Calculation from Weight (kg) and Height (ft & in)
   const bmiInfo = React.useMemo(() => {
     const w = parseFloat(weight);
-    const h = parseFloat(height);
-    if (!w || !h || w <= 0 || h <= 0) return null;
-    const hM = h / 100;
+    const ft = parseFloat(heightFeet);
+    const inch = parseFloat(heightInches || 0);
+    if (!w || !ft || w <= 0 || ft <= 0) return null;
+
+    // 1 ft = 12 in, 1 in = 0.0254 m
+    const totalInches = ft * 12 + inch;
+    const hM = totalInches * 0.0254;
     const val = parseFloat((w / (hM * hM)).toFixed(1));
     let category = "Normal";
     let color = "text-emerald-700 bg-emerald-50 border-emerald-200";
@@ -278,7 +283,7 @@ export default function MemberSelfRegister() {
       color = "text-rose-700 bg-rose-50 border-rose-200";
     }
     return { val, category, color };
-  }, [weight, height]);
+  }, [weight, heightFeet, heightInches]);
 
   // Step 4: Schedule
   const [preferredTime, setPreferredTime] = useState('morning');
@@ -481,7 +486,9 @@ export default function MemberSelfRegister() {
         trainerName: selectedTrainer?.name || 'Unassigned (General Floor)',
         hasPersonalCoach: Boolean(selectedTrainer),
         weight: weight || '',
-        height: height || '',
+        height: heightFeet ? `${heightFeet} ft ${heightInches || 0} in` : '',
+        heightFeet: heightFeet || '',
+        heightInches: heightInches || '',
         bmi: bmiInfo ? String(bmiInfo.val) : '',
         bmiCategory: bmiInfo ? bmiInfo.category : '',
         fitnessGoal: fitnessGoal || '',
@@ -1158,14 +1165,38 @@ export default function MemberSelfRegister() {
                       </div>
 
                       <div>
-                        <label className="font-bold text-slate-700 block mb-1 text-[11px]">Height (cm) *</label>
-                        <input
-                          type="number"
-                          placeholder="e.g. 175"
-                          value={height}
-                          onChange={(e) => setHeight(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                        />
+                        <label className="font-bold text-slate-700 block mb-1 text-[11px]">Height (ft & in) *</label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="3"
+                              max="8"
+                              step="1"
+                              placeholder="5"
+                              value={heightFeet}
+                              onChange={(e) => setHeightFeet(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:bg-white focus:outline-none focus:border-emerald-500"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">ft</span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              max="11"
+                              step="1"
+                              placeholder="8"
+                              value={heightInches}
+                              onChange={(e) => setHeightInches(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:bg-white focus:outline-none focus:border-emerald-500"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">in</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">
+                          {heightFeet ? `${heightFeet} ft ${heightInches || 0} in` : "e.g. 5 ft 8 in"}
+                        </span>
                       </div>
 
                       <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-col justify-between">

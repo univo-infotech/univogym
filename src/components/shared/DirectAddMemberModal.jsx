@@ -119,7 +119,8 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     healthNotes: "",
     // Personal Training & Assessment metrics
     weight: "",
-    height: "",
+    heightFeet: "5",
+    heightInches: "8",
     fitnessGoal: "Weight Loss & Fat Burn",
     targetWeight: "",
     targetTimeline: "90 Days",
@@ -141,13 +142,16 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
   const isPersonalTrainer = selectedTrainerObj && selectedTrainerObj.name !== "General Floor Trainer (Included)";
 
-  // Dynamic BMI Calculation
+  // Dynamic BMI Calculation from Weight in kg and Height in ft & in
   const bmiInfo = useMemo(() => {
     const w = parseFloat(formData.weight);
-    const h = parseFloat(formData.height);
-    if (!w || !h || w <= 0 || h <= 0) return null;
+    const ft = parseFloat(formData.heightFeet);
+    const inch = parseFloat(formData.heightInches || 0);
+    if (!w || !ft || w <= 0 || ft <= 0) return null;
 
-    const hM = h / 100;
+    // 1 ft = 12 in, 1 in = 0.0254 meters
+    const totalInches = ft * 12 + inch;
+    const hM = totalInches * 0.0254;
     const val = parseFloat((w / (hM * hM)).toFixed(1));
     let category = "Normal";
     let color = "text-emerald-700 bg-emerald-50 border-emerald-200";
@@ -172,7 +176,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     }
 
     return { val, category, color, message };
-  }, [formData.weight, formData.height]);
+  }, [formData.weight, formData.heightFeet, formData.heightInches]);
 
   // Handle Photo Upload
   const handlePhotoUpload = (e) => {
@@ -237,7 +241,9 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       hasPersonalCoach: isPersonalTrainer,
       // Physical Assessment Metrics
       weight: formData.weight ? String(formData.weight) : "",
-      height: formData.height ? String(formData.height) : "",
+      height: formData.heightFeet ? `${formData.heightFeet} ft ${formData.heightInches || 0} in` : "",
+      heightFeet: formData.heightFeet || "",
+      heightInches: formData.heightInches || "",
       bmi: bmiInfo ? String(bmiInfo.val) : "",
       bmiCategory: bmiInfo ? bmiInfo.category : "",
       fitnessGoal: formData.fitnessGoal,
@@ -283,7 +289,8 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       preferredSlot: "Morning (6:00 AM - 9:00 AM)",
       healthNotes: "",
       weight: "",
-      height: "",
+      heightFeet: "5",
+      heightInches: "8",
       fitnessGoal: "Weight Loss & Fat Burn",
       targetWeight: "",
       targetTimeline: "90 Days",
@@ -733,21 +740,42 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     <span className="text-[10px] text-slate-400 mt-0.5 block">Recorded in kg</span>
                   </div>
 
-                  {/* Height Input */}
+                  {/* Height Input (Feet & Inches) */}
                   <div>
                     <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1 text-xs">
-                      <Activity className="w-3.5 h-3.5 text-purple-600" /> Height (cm) *
+                      <Activity className="w-3.5 h-3.5 text-purple-600" /> Height (ft & in) *
                     </label>
-                    <input
-                      type="number"
-                      min="100"
-                      max="230"
-                      placeholder="e.g. 175"
-                      value={formData.height}
-                      onChange={(e) => setFormData({ ...formData, height: e.target.value })}
-                      className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-purple-600"
-                    />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">In centimeters</span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="3"
+                          max="8"
+                          step="1"
+                          placeholder="5"
+                          value={formData.heightFeet}
+                          onChange={(e) => setFormData({ ...formData, heightFeet: e.target.value })}
+                          className="w-full bg-white border border-purple-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:outline-none focus:border-purple-600"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">ft</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="11"
+                          step="1"
+                          placeholder="8"
+                          value={formData.heightInches}
+                          onChange={(e) => setFormData({ ...formData, heightInches: e.target.value })}
+                          className="w-full bg-white border border-purple-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:outline-none focus:border-purple-600"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">in</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      {formData.heightFeet ? `${formData.heightFeet} ft ${formData.heightInches || 0} in` : "e.g. 5 ft 8 in"}
+                    </span>
                   </div>
 
                   {/* Auto Calculated BMI Card */}
