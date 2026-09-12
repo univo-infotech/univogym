@@ -19,7 +19,8 @@ import {
   Award,
   ShieldCheck,
   Scale,
-  Sparkles
+  Sparkles,
+  Sun
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getMember } from "../../firebase/members";
@@ -30,9 +31,18 @@ import Modal from "../../components/ui/Modal";
 import { collection, getDocs, query } from "firebase/firestore";
 import { db } from "../../firebase/config";
 
+function formatDate(val) {
+  if (!val) return '—';
+  const d = val.toDate ? val.toDate() : new Date(val);
+  if (isNaN(d.getTime())) return String(val);
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 export default function MemberDetail() {
-  const { id } = useParams();
+  const params = useParams();
+  const targetMemberId = params.memberId || params.id;
   const navigate = useNavigate();
+
   const [activeTab, setActiveTab] = useState("overview");
   const [member, setMember] = useState(null);
   const [payments, setPayments] = useState([]);
@@ -41,8 +51,8 @@ export default function MemberDetail() {
   const [settings] = useState(getGymSettings());
 
   const [payForm, setPayForm] = useState({
-    amount: "6500",
-    paidAmount: "6500",
+    amount: "1499",
+    paidAmount: "1499",
     dueAmount: "0",
     paymentMode: "online",
     date: new Date().toISOString().split("T")[0],
@@ -51,53 +61,77 @@ export default function MemberDetail() {
   useEffect(() => {
     async function load() {
       try {
-        const m = await getMember("univo_main", id);
+        if (!targetMemberId) return;
+
+        const m = await getMember("univo_main", targetMemberId);
         if (m) {
           setMember(m);
+          setPayForm((prev) => ({
+            ...prev,
+            amount: String(m.planPrice || 1499),
+            paidAmount: String(m.planPrice || 1499)
+          }));
         } else {
-          setMember({
-            id: id || "m1",
-            name: "Ajay Prajapati",
-            fullName: "Ajay Prajapati",
-            phone: "+91 9196302375",
-            email: "ajay@univogym.com",
-            gender: "Male",
-            planName: "3-Month Pro Transformation",
-            trainerName: "Coach Amit Kumar",
+          // Dynamic fallback with target ID
+          const fallbackMem = {
+            id: targetMemberId,
+            name: "Gym Member",
+            fullName: "Gym Member",
+            phone: "—",
+            email: "—",
+            gender: "Not specified",
+            planName: "Standard Plan",
+            planPrice: 599,
+            trainerName: "Unassigned",
+            slot: "General Shift",
             status: "active",
-            createdAt: "2026-09-10",
-            expiryDate: "2026-12-10",
+            createdAt: new Date().toISOString(),
+            expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             waiverSigned: true,
-            waiverSignedDate: "2026-09-10",
-            waiverSignatureURL: "https://via.placeholder.com/200x80?text=Ajay+Prajapati+Signature",
-          });
+            waiverSignedDate: new Date().toISOString()
+          };
+          setMember(fallbackMem);
         }
-        const p = await getMemberPayments("univo_main", id);
-        setPayments(p && p.length > 0 ? p : [
-          { id: "p1", memberName: "Ajay Prajapati", planName: "3-Month Pro", paidAmount: 6500, amount: 6500, dueAmount: 0, paymentMode: "online", date: "2026-09-10" }
-        ]);
 
-        // Load transformations for this member
+        // Load payments
+        const p = await getMemberPayments(targetMemberId);
+        if (p && p.length > 0) {
+          setPayments(p);
+        } else {
+          setPayments([
+            {
+              id: "p_" + targetMemberId,
+              memberName: m ? (m.name || m.fullName) : "Gym Member",
+              planName: m ? (m.planName || "Membership Plan") : "Standard Plan",
+              paidAmount: m?.planPrice || 1499,
+              amount: m?.planPrice || 1499,
+              dueAmount: 0,
+              paymentMode: "online",
+              date: m?.createdAt ? formatDate(m.createdAt) : formatDate(new Date())
+            }
+          ]);
+        }
+
+        // Load transformations
         try {
           const baSnap = await getDocs(collection(db, "gyms", "univo_main", "beforeAfter"));
           if (!baSnap.empty) {
             const allBa = baSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             const memberBa = allBa.filter(
-              item => item.memberId === id ||
-                (m && item.memberName?.toLowerCase() === (m.name || m.fullName || "").toLowerCase()) ||
-                (!m && item.memberName?.toLowerCase().includes("ajay"))
+              item => item.memberId === targetMemberId ||
+                (m && item.memberName?.toLowerCase() === (m.name || m.fullName || "").toLowerCase())
             );
-            setTransformations(memberBa.length > 0 ? memberBa : [allBa[0]]);
+            setTransformations(memberBa);
           }
         } catch (baErr) {
           console.warn("Notice loading member transformations:", baErr);
         }
       } catch (err) {
-        console.error(err);
+        console.error("MemberDetail load error:", err);
       }
     }
     load();
-  }, [id]);
+  }, [targetMemberId]);
 
   if (!member) {
     return (
@@ -113,16 +147,23 @@ export default function MemberDetail() {
       ...payForm,
       id: "p_" + Date.now(),
       memberName: member.name || member.fullName,
-      planName: member.planName,
+      planName: member.planName || "Membership Plan",
     };
     setPayments([newP, ...payments]);
     setPayModalOpen(false);
     toast.success("Payment recorded!");
   };
 
+  const initials = (member.name || member.fullName || "?")
+    .split(" ")
+    .map(w => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
   return (
     <div className="space-y-6 max-w-5xl">
-      {/* Back button & Profile Header */}
+      {/* Back button */}
       <button
         onClick={() => navigate("/owner/members")}
         className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-emerald-700 transition"
@@ -130,21 +171,31 @@ export default function MemberDetail() {
         <ArrowLeft className="w-4 h-4" /> Back to Members List
       </button>
 
-      {/* Athlete Header Card */}
+      {/* Member Header Card */}
       <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center font-bold text-white text-2xl shadow-sm">
-            {(member.name || "A").split(" ").map(w => w[0]).join("").slice(0, 2)}
-          </div>
+          {member.photoURL ? (
+            <img
+              src={member.photoURL}
+              alt={member.name || member.fullName}
+              className="w-16 h-16 rounded-2xl object-cover ring-2 ring-slate-100 shadow-sm"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center font-bold text-white text-2xl shadow-sm">
+              {initials}
+            </div>
+          )}
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold text-slate-900">{member.fullName || member.name}</h2>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
-                {member.status?.toUpperCase()}
+                {(member.status || 'ACTIVE').toUpperCase()}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">{member.phone} • {member.email}</p>
-            <p className="text-xs text-emerald-700 font-semibold mt-1">Plan: {member.planName}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{member.phone || 'No phone'} • {member.email || 'No email'}</p>
+            <p className="text-xs text-emerald-700 font-semibold mt-1">
+              Plan: {member.planName || 'Standard Plan'} {member.planPrice ? `(₹${Number(member.planPrice).toLocaleString('en-IN')})` : ''}
+            </p>
           </div>
         </div>
 
@@ -152,7 +203,7 @@ export default function MemberDetail() {
           <button
             onClick={() => {
               const num = (member.phone || "").replace(/\D/g, "");
-              window.open(`https://wa.me/${num}?text=Hi%20${member.name},%20Greetings%20from%20${settings.gymName}!`, "_blank");
+              window.open(`https://wa.me/${num}?text=Hi%20${member.name || member.fullName},%20Greetings%20from%20${settings.gymName}!`, "_blank");
             }}
             className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
           >
@@ -195,20 +246,28 @@ export default function MemberDetail() {
           <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-3">
             <h3 className="text-base font-bold text-slate-900">Personal Information</h3>
             <div className="space-y-2 text-xs text-slate-600">
-              <p><span className="font-semibold text-slate-800">Gender: </span>{member.gender || "Male"}</p>
-              <p><span className="font-semibold text-slate-800">Aadhaar No: </span>{member.aadhaar || "—"}</p>
+              <p><span className="font-semibold text-slate-800">Full Name: </span>{member.fullName || member.name}</p>
+              <p><span className="font-semibold text-slate-800">Gender: </span>{member.gender || "Not specified"}</p>
+              <p><span className="font-semibold text-slate-800">Aadhaar No: </span>{member.aadharNumber || member.aadharNo || member.aadhaar || "—"}</p>
               <p><span className="font-semibold text-slate-800">Phone: </span>{member.phone || "—"}</p>
               <p><span className="font-semibold text-slate-800">Email: </span>{member.email || "—"}</p>
-              <p><span className="font-semibold text-slate-800">Joined Date: </span>{member.createdAt || "2026-09-10"}</p>
-              <p><span className="font-semibold text-slate-800">Plan Expiry: </span>{member.expiryDate || "2026-12-10"}</p>
+              <p><span className="font-semibold text-slate-800">Joined Date: </span>{formatDate(member.createdAt)}</p>
+              <p><span className="font-semibold text-slate-800">Plan Expiry: </span>{formatDate(member.expiryDate)}</p>
+              {member.address && <p><span className="font-semibold text-slate-800">Address: </span>{member.address}</p>}
+              {member.healthNotes && (
+                <p className="p-2 bg-amber-50 rounded-xl text-amber-900 border border-amber-200 mt-2">
+                  <span className="font-bold">Medical / Health Notes: </span>{member.healthNotes}
+                </p>
+              )}
             </div>
           </div>
 
           <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-3">
-            <h3 className="text-base font-bold text-slate-900">Coaching & Training</h3>
+            <h3 className="text-base font-bold text-slate-900">Coaching & Shift</h3>
             <div className="space-y-2 text-xs text-slate-600">
-              <p><span className="font-semibold text-slate-800">Assigned Trainer: </span>{member.trainerName || "Coach Amit Kumar"}</p>
-              <p><span className="font-semibold text-slate-800">Membership Tier: </span>{member.planName}</p>
+              <p><span className="font-semibold text-slate-800">Assigned Trainer: </span>{member.trainerName || "Unassigned"}</p>
+              <p><span className="font-semibold text-slate-800">Workout Shift: </span>{member.slot || member.workoutSlot || "General Shift"}</p>
+              <p><span className="font-semibold text-slate-800">Membership Tier: </span>{member.planName || "Standard Plan"}</p>
               <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100 text-emerald-800 mt-2">
                 <span className="font-bold flex items-center gap-1"><ShieldCheck className="w-4 h-4 text-emerald-600" /> Digital Liability Waiver Verified</span>
                 <p className="text-[11px] text-emerald-700 mt-0.5">Signed during member onboarding with e-signature</p>
@@ -288,7 +347,7 @@ export default function MemberDetail() {
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-emerald-600" /> Signed Gym Liability Waiver
               </h3>
-              <p className="text-xs text-slate-500">Signed on {member.waiverSignedDate || "2026-09-10"}</p>
+              <p className="text-xs text-slate-500">Signed on {formatDate(member.waiverSignedDate || member.createdAt)}</p>
             </div>
             <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
               Legally Binding
@@ -304,20 +363,28 @@ export default function MemberDetail() {
             <p>I agree to inform gym staff of any health or cardiovascular conditions affecting my training.</p>
           </div>
 
-          {/* Member E-Signature Display */}
+          {/* Member Signature Display */}
           <div className="pt-2">
             <p className="text-xs font-bold text-slate-700 mb-1">Athlete Digital Signature / Verification Stamp:</p>
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 inline-block">
-              <span className="font-serif italic font-bold text-lg text-slate-900 tracking-wide">
-                {member.fullName || member.name}
-              </span>
+              {member.waiverSignatureURL ? (
+                <img
+                  src={member.waiverSignatureURL}
+                  alt="Signature"
+                  className="h-14 max-w-[200px] object-contain"
+                />
+              ) : (
+                <span className="font-serif italic font-bold text-lg text-slate-900 tracking-wide">
+                  {member.fullName || member.name}
+                </span>
+              )}
               <p className="text-[10px] text-slate-400 font-mono mt-1">Verified e-Signature • IP logged</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Tab 3: Transformations */}
+      {/* Tab 4: Transformations */}
       {activeTab === "transformations" && (
         <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
           <div className="flex items-center justify-between">
@@ -340,7 +407,7 @@ export default function MemberDetail() {
           {transformations.length === 0 ? (
             <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-100">
               <Camera className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <p className="text-xs font-bold text-slate-600">No transformation photos uploaded for this member yet</p>
+              <p className="text-xs font-bold text-slate-600">No transformation photos uploaded for {member.name || member.fullName} yet</p>
               <p className="text-[11px] text-slate-400 mt-0.5">Upload before & after progress photos in the Trainer section.</p>
             </div>
           ) : (
@@ -357,11 +424,10 @@ export default function MemberDetail() {
                       </p>
                     </div>
                     <span className="text-xs font-bold text-slate-400">
-                      {t.date ? new Date(t.date).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" }) : "Verified"}
+                      {t.date ? formatDate(t.date) : "Verified"}
                     </span>
                   </div>
 
-                  {/* Side-by-side photos */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs">
@@ -394,7 +460,6 @@ export default function MemberDetail() {
                     </div>
                   </div>
 
-                  {/* Metrics bar */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
                     <div className="bg-white p-3 rounded-xl border border-slate-200 text-center">
                       <p className="text-[10px] font-bold text-slate-400 uppercase">Weight Difference</p>

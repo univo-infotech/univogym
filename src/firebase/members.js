@@ -71,6 +71,107 @@ export async function getMembers(gymId) {
   return membersList;
 }
 
+const DEMO_MEMBERS = [
+  {
+    id: 'm1',
+    name: 'Ashis',
+    fullName: 'Ashis',
+    phone: '+91 7000670416',
+    email: 'ashis@gmail.com',
+    planName: '1 (Copy) (₹2)',
+    planPrice: 2,
+    slot: 'General Shift',
+    trainerName: 'Coach Rohan Deshmukh',
+    status: 'active',
+    createdAt: '2026-09-01',
+    expiryDate: '2029-03-01'
+  },
+  {
+    id: 'm2',
+    name: 'Ajay Prajapati',
+    fullName: 'Ajay Prajapati',
+    phone: '+91 9196302375',
+    email: 'ajay.p@univogym.com',
+    planName: '3 Months Pro Transformation',
+    planPrice: 1499,
+    slot: 'General Shift',
+    trainerName: 'Coach Amit Sharma',
+    status: 'active',
+    createdAt: '2026-09-10',
+    expiryDate: '2026-12-10'
+  },
+  {
+    id: 'm3',
+    name: 'Rahul Verma',
+    fullName: 'Rahul Verma',
+    phone: '+91 9876543210',
+    email: 'rahul.v@univogym.com',
+    planName: '12 Months Annual Elite',
+    planPrice: 4999,
+    slot: 'General Shift',
+    trainerName: 'Coach Rohan Deshmukh',
+    status: 'active',
+    createdAt: '2026-09-08',
+    expiryDate: '2027-09-08'
+  },
+  {
+    id: 'm4',
+    name: 'Priya Sharma',
+    fullName: 'Priya Sharma',
+    phone: '+91 9811223344',
+    email: 'priya.s@gmail.com',
+    planName: '6 Months Fitness Pass',
+    planPrice: 2799,
+    slot: 'General Shift',
+    trainerName: 'Coach Sneha Kapoor',
+    status: 'active',
+    createdAt: '2026-09-05',
+    expiryDate: '2027-03-05'
+  },
+  {
+    id: 'm5',
+    name: 'Aman Gupta',
+    fullName: 'Aman Gupta',
+    phone: '+91 9988776655',
+    email: 'aman.g@gmail.com',
+    planName: '1 Month Basic',
+    planPrice: 599,
+    slot: 'Morning (6am-9am)',
+    trainerName: 'Unassigned',
+    status: 'expiring',
+    createdAt: '2026-08-14',
+    expiryDate: '2026-09-16'
+  },
+  {
+    id: 'm6',
+    name: 'Karan Johar',
+    fullName: 'Karan Johar',
+    phone: '+91 9711003322',
+    email: 'karan@gmail.com',
+    planName: '3 Months Pro',
+    planPrice: 1499,
+    slot: 'Night (7pm-10pm)',
+    trainerName: 'Coach Amit Sharma',
+    status: 'expired',
+    createdAt: '2026-05-10',
+    expiryDate: '2026-08-10'
+  },
+  {
+    id: 'm7',
+    name: 'Mohit Yadav',
+    fullName: 'Mohit Yadav',
+    phone: '+91 8357897047',
+    email: 'mohit.y@gmail.com',
+    planName: '3 Months Pro Transformation',
+    planPrice: 1499,
+    slot: 'General Shift',
+    trainerName: 'Coach Sneha Kapoor',
+    status: 'active',
+    createdAt: '2026-09-03',
+    expiryDate: '2026-12-03'
+  }
+];
+
 /**
  * Fetch a single member by ID (supports both getMember(id) and getMember(gymId, id)).
  * @param {string} gymIdOrMemberId
@@ -79,6 +180,8 @@ export async function getMembers(gymId) {
  */
 export async function getMember(gymIdOrMemberId, optionalMemberId) {
   const memberId = optionalMemberId || gymIdOrMemberId;
+  if (!memberId) return null;
+
   try {
     const snap = await getDoc(doc(db, "members", memberId));
     if (snap.exists()) {
@@ -88,16 +191,33 @@ export async function getMember(gymIdOrMemberId, optionalMemberId) {
     console.error("getMember firestore error:", err);
   }
 
+  // Also query by memberId field in Firestore if doc id differs
+  try {
+    const q = query(collection(db, "members"), where("id", "==", memberId));
+    const qSnap = await getDocs(q);
+    if (!qSnap.empty) {
+      return { id: qSnap.docs[0].id, ...qSnap.docs[0].data() };
+    }
+  } catch (e) {
+    // Ignore
+  }
+
   // Check local cache
   try {
     const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-    const found = cached.find((m) => m.id === memberId);
+    const found = cached.find((m) => m.id === memberId || (m.phone && m.phone === memberId));
     if (found) return found;
   } catch (e) {
     // Ignore
   }
+
+  // Check DEMO_MEMBERS fallback
+  const demoFound = DEMO_MEMBERS.find((m) => m.id === memberId || m.name?.toLowerCase() === memberId.toLowerCase());
+  if (demoFound) return demoFound;
+
   return null;
 }
+
 
 /**
  * Generate an invite token for self-registration.
