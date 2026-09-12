@@ -14,8 +14,10 @@ import {
   ChevronRight,
   MessageCircle,
   Bell,
-  Check
+  Check,
+  QrCode
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar, Legend
@@ -45,6 +47,7 @@ export default function Dashboard() {
   const [renewalsModalOpen, setRenewalsModalOpen] = useState(false);
   const [directMember, setDirectMember] = useState({ name: "", phone: "", email: "", planName: "3-Month Pro", gender: "Male" });
 
+  const [inviteName, setInviteName] = useState("");
   const [invitePhone, setInvitePhone] = useState("");
   const [generatedLink, setGeneratedLink] = useState("");
   const [linkCountdown, setLinkCountdown] = useState(300);
@@ -113,10 +116,13 @@ export default function Dashboard() {
       toast.error("Enter WhatsApp phone number first!");
       return;
     }
-    const link = await generateInviteToken("univo_main", { phone: invitePhone.trim() });
+    const link = await generateInviteToken("univo_main", {
+      memberName: inviteName.trim(),
+      phone: invitePhone.trim(),
+    });
     setGeneratedLink(link);
     setLinkCountdown(300);
-    toast.success("5-Minute Invite Link Generated!");
+    toast.success("5-Minute Invite Link & QR Code Generated!");
   };
 
   const handleSendReminder = (m) => {
@@ -337,15 +343,29 @@ export default function Dashboard() {
       <Modal
         isOpen={inviteModalOpen}
         onClose={() => setInviteModalOpen(false)}
-        title="📲 Generate 5-Minute Member WhatsApp Link"
+        title="📲 Generate 5-Minute Member WhatsApp Link & QR"
       >
         <div className="space-y-4 text-slate-800">
-          <p className="text-xs text-slate-500">
-            Owner sirf WhatsApp number daalega. Member ke paas link jayegi, wo photo (Gallery ya Camera), details, PT selection, aur **Liability Waiver par digital signature** khud bharega!
-          </p>
-          
+          <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-950">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+            <p className="leading-relaxed text-[11px] text-emerald-900">
+              Owner sirf Name aur WhatsApp number daalega. Member link ya <strong>QR Code scan</strong> karke photo, plan, trainer aur digital waiver khud bharega!
+            </p>
+          </div>
+
           <div>
-            <label className="text-xs font-bold text-slate-700">Member WhatsApp Number</label>
+            <label className="text-xs font-bold text-slate-700">Member Name (Optional)</label>
+            <input
+              type="text"
+              placeholder="e.g. Rahul Sharma"
+              value={inviteName}
+              onChange={(e) => setInviteName(e.target.value)}
+              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-700">Member WhatsApp Number *</label>
             <input
               type="text"
               placeholder="e.g. 9876543210"
@@ -358,9 +378,9 @@ export default function Dashboard() {
           {!generatedLink ? (
             <button
               onClick={handleGenerateLink}
-              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-md transition"
             >
-              Generate Instant 5-Min Link
+              Generate Link & QR Code
             </button>
           ) : (
             <div className="space-y-3 pt-2">
@@ -368,7 +388,9 @@ export default function Dashboard() {
                 <span className="text-emerald-800 font-semibold flex items-center gap-1">
                   <Clock className="w-4 h-4 text-emerald-600" /> Active 5-Minute Link:
                 </span>
-                <span className="font-mono font-bold text-emerald-900">04:58 Left</span>
+                <span className={`font-mono font-bold px-2 py-0.5 rounded-full ${linkCountdown <= 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-900'}`}>
+                  {linkCountdown <= 0 ? 'EXPIRED' : `${String(Math.floor(linkCountdown / 60)).padStart(2, '0')}:${String(linkCountdown % 60).padStart(2, '0')} Left`}
+                </span>
               </div>
               <input
                 readOnly
@@ -381,7 +403,7 @@ export default function Dashboard() {
                     navigator.clipboard.writeText(generatedLink);
                     toast.success("Link copied!");
                   }}
-                  className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center justify-center gap-1.5"
                 >
                   Copy Link
                 </button>
@@ -390,14 +412,32 @@ export default function Dashboard() {
                     const rawNum = invitePhone.replace(/\D/g, "");
                     const waPhone = rawNum.length === 10 ? `91${rawNum}` : rawNum;
                     const msg = encodeURIComponent(
-                      `💪 *Welcome to ${settings.gymName || 'UNIVO GYM'}!*\n\nPlease complete your gym registration form, choose your membership plan & trainer, and sign your liability waiver using this direct link:\n\n🔗 ${generatedLink}\n\n⚠️ *Important:* This secure registration link expires in 5 minutes.`
+                      `💪 *Welcome to ${settings.gymName || 'UNIVO GYM'}!*\n\nHi ${inviteName || 'Athlete'},\nPlease complete your gym registration form, choose your membership plan & trainer, and sign your liability waiver using this direct link:\n\n🔗 ${generatedLink}\n\n⚠️ *Important:* This secure registration link expires in 5 minutes.`
                     );
                     window.open(`https://wa.me/${waPhone}?text=${msg}`, "_blank");
                   }}
-                  className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition"
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
                 >
-                  Send via WhatsApp
+                  <MessageCircle className="w-4 h-4" /> Send via WhatsApp
                 </button>
+              </div>
+
+              {/* Instant QR Code Box */}
+              <div className="p-4 bg-white border-2 border-emerald-100 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 mb-2">
+                  <QrCode className="w-4 h-4 text-emerald-600" /> Scan QR to Register Instantly
+                </div>
+                <div className="p-3 bg-white rounded-2xl border-2 border-slate-100 shadow-inner flex items-center justify-center">
+                  <QRCodeSVG
+                    value={generatedLink}
+                    size={160}
+                    level="H"
+                    includeMargin={true}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2.5 max-w-xs leading-relaxed">
+                  Member can scan this QR code directly with their phone camera to open the form and create their gym ID right now!
+                </p>
               </div>
             </div>
           )}

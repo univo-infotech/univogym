@@ -23,8 +23,10 @@ import {
   UserMinus,
   Share2,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  QrCode
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
 import { getMembers, generateInviteToken, addMember } from '../../firebase/members';
 import { getTrainers } from '../../firebase/trainers';
@@ -263,16 +265,34 @@ function InviteLinkModal({ gymId, onClose }) {
               <div className='flex gap-2'>
                 <button
                   onClick={handleCopy}
-                  className='flex-1 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition'
+                  className='flex-1 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition'
                 >
-                  <Copy className='w-3.5 h-3.5' /> Copy Link
+                  <Copy className='w-4 h-4' /> Copy Link
                 </button>
                 <button
                   onClick={handleWhatsApp}
-                  className='flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-sm'
+                  className='flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm'
                 >
-                  <MessageCircle className='w-3.5 h-3.5' /> Open WhatsApp
+                  <MessageCircle className='w-4 h-4' /> Send via WhatsApp
                 </button>
+              </div>
+
+              {/* Instant QR Code Box */}
+              <div className='p-4 bg-white border-2 border-emerald-100 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm'>
+                <div className='flex items-center gap-1.5 text-xs font-bold text-slate-900 mb-2'>
+                  <QrCode className='w-4 h-4 text-emerald-600' /> Scan QR to Register Instantly
+                </div>
+                <div className='p-3 bg-white rounded-2xl border-2 border-slate-100 shadow-inner flex items-center justify-center'>
+                  <QRCodeSVG
+                    value={link}
+                    size={160}
+                    level="H"
+                    includeMargin={true}
+                  />
+                </div>
+                <p className='text-[11px] text-slate-500 mt-2.5 max-w-xs leading-relaxed'>
+                  Member can scan this QR code directly with their phone camera to open the form and create their gym ID right now!
+                </p>
               </div>
             </div>
           )}
