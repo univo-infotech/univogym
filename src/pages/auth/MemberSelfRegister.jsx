@@ -927,10 +927,13 @@ export default function MemberSelfRegister() {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-slate-700">Choose Membership Plan *</label>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700">Choose Gym Membership Plan *</label>
+                  <p className="text-[11px] text-slate-500">Select base gym access duration and fee</p>
+                </div>
                 {selectedPlan && (
                   <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
-                    Selected: {selectedPlan.name}
+                    Gym Plan: {selectedPlan.name}
                   </span>
                 )}
               </div>

@@ -498,7 +498,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
             <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
               <h4 className="font-bold text-slate-900 flex items-center gap-2 text-sm">
                 <Dumbbell className="w-4 h-4 text-purple-600" />
-                2. Membership Plan, Workout Slot & Coach
+                2. Gym Membership Plan, Workout Slot & Coach
               </h4>
               <span className="text-[10px] text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full font-bold">
                 Step 2 of 3
@@ -540,9 +540,11 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
             {/* Selectors Row: Plan, Date, Coach */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Membership Plan */}
+              {/* Gym Membership Plan */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Membership Plan</label>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Gym Membership Plan *
+                </label>
                 <select
                   value={formData.planId}
                   onChange={(e) => setFormData({ ...formData, planId: e.target.value })}
@@ -554,6 +556,9 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     </option>
                   ))}
                 </select>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Base gym access plan
+                </span>
               </div>
 
               {/* Admission / Joining Date */}
