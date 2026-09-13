@@ -583,16 +583,23 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
   const settings = getGymSettings();
 
   const DEFAULT_PLANS_CATALOG = [
-    { id: "p1", name: "1 Month Standard", durationMonths: 1, durationDays: 30, price: 599, label: "1 Month Standard — ₹599" },
-    { id: "p2", name: "1 Month with Locker", durationMonths: 1, durationDays: 30, price: 699, label: "1 Month + Locker — ₹699" },
-    { id: "p3", name: "3 Months Pro Transformation", durationMonths: 3, durationDays: 90, price: 1499, label: "3 Months Pro — ₹1,499" },
-    { id: "p4", name: "6 Months Fitness Pass", durationMonths: 6, durationDays: 180, price: 2799, label: "6 Months — ₹2,799" },
-    { id: "p5", name: "12 Months Annual Elite", durationMonths: 12, durationDays: 365, price: 4999, label: "12 Months / Annual — ₹4,999" },
+    { id: "p1", name: "1-Month Basic", durationMonths: 1, durationDays: 30, price: 2500, label: "1-Month Basic — ₹2,500" },
+    { id: "p2", name: "3-Month Pro", durationMonths: 3, durationDays: 90, price: 6500, label: "3-Month Pro — ₹6,500" },
+    { id: "p3", name: "6-Month Transformation", durationMonths: 6, durationDays: 180, price: 11000, label: "6-Month Transformation — ₹11,000" },
+    { id: "p4", name: "Annual Elite Plan", durationMonths: 12, durationDays: 365, price: 18000, label: "Annual Elite Plan — ₹18,000" },
+  ];
+
+  const DEFAULT_PT_PLANS = [
+    { id: "pt1", name: "1 Month 1-on-1 PT", price: 4500, duration: "1 Month" },
+    { id: "pt2", name: "3 Months Transformation PT", price: 12000, duration: "3 Months" },
+    { id: "pt3", name: "6 Months Elite PT", price: 21000, duration: "6 Months" },
+    { id: "pt4", name: "Annual Pro VIP PT", price: 36000, duration: "12 Months" },
   ];
 
   const PLANS_CATALOG = useMemo(() => {
+    let list = [];
     if (plans && plans.length > 0) {
-      return plans.map(p => ({
+      list = plans.map(p => ({
         id: p.id,
         name: p.name,
         durationMonths: Number(p.durationMonths || Math.round(Number(p.duration || 30) / 30) || 1),
@@ -600,14 +607,30 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
         price: Number(p.price || 0),
         label: `${p.name} — ₹${Number(p.price || 0).toLocaleString("en-IN")}`
       }));
+    } else {
+      list = [...DEFAULT_PLANS_CATALOG];
     }
-    return DEFAULT_PLANS_CATALOG;
-  }, [plans]);
+
+    // Always include member's assigned plan if not present in the list
+    if (member?.planName) {
+      const exists = list.some(p => p.id === member.planId || p.name.toLowerCase() === member.planName.toLowerCase());
+      if (!exists) {
+        list.unshift({
+          id: member.planId || "m_cur_plan",
+          name: member.planName,
+          durationMonths: Number(member.durationMonths || 1),
+          durationDays: Number(member.durationMonths ? member.durationMonths * 30 : 30),
+          price: Number(member.planPrice || 2500),
+          label: `${member.planName} — ₹${Number(member.planPrice || 2500).toLocaleString("en-IN")}`
+        });
+      }
+    }
+    return list;
+  }, [plans, member]);
 
   // Only true if member previously paid partially during collection
   const hasPartialPaymentDue = Number(member.dueAmount || 0) > 0 && !!member.lastPaymentDate;
   const existingDueAmount = Number(member.dueAmount || 0);
-  const ptAddonPrice = Number(member.ptPlanPrice || 0);
 
   // Check if member is renewing an ending soon, expired, or overdue plan
   const memberStatus = getMemberStatus(member);
@@ -615,20 +638,61 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
 
   // Match initial plan from member or default to first
   const initialPlan = PLANS_CATALOG.find((p) =>
-    (member.planName || "").toLowerCase().includes(p.name.toLowerCase())
+    (member.planId && p.id === member.planId) ||
+    (member.planName && p.name.toLowerCase() === member.planName.toLowerCase()) ||
+    (member.planName && (p.name.toLowerCase().includes(member.planName.toLowerCase()) || member.planName.toLowerCase().includes(p.name.toLowerCase())))
   ) || PLANS_CATALOG[0];
 
   const [selectedPlanId, setSelectedPlanId] = useState(initialPlan.id);
   const [discountAmount, setDiscountAmount] = useState(0);
 
-  // Smart validity start: if member's current plan is ending soon in the future, start the new plan from their current expiry date!
-  // If already expired or no expiry, start from today.
+  // Available trainers and PT states
+  const availableTrainers = useMemo(() => {
+    return trainers && trainers.length > 0 ? trainers : [];
+  }, [trainers]);
+
+  const [selectedTrainerName, setSelectedTrainerName] = useState(member.trainerName || "General Floor Trainer (Included)");
+  const [selectedPtPlanId, setSelectedPtPlanId] = useState(member.ptPlanId || (member.ptPlanName ? "pt_cur" : ""));
+  const [selectedPtPlanName, setSelectedPtPlanName] = useState(member.ptPlanName || "");
+  const [selectedPtPrice, setSelectedPtPrice] = useState(Number(member.ptPlanPrice || 0));
+
+  const isTrainerSelected = selectedTrainerName && selectedTrainerName !== "General Floor Trainer (Included)" && selectedTrainerName !== "No Trainer";
+  const selectedTrainerObj = availableTrainers.find(t => (t.name || t.fullName) === selectedTrainerName);
+
+  const currentTrainerPtPlans = useMemo(() => {
+    let list = [];
+    if (selectedTrainerObj && selectedTrainerObj.ptPlans && selectedTrainerObj.ptPlans.length > 0) {
+      list = [...selectedTrainerObj.ptPlans];
+    } else {
+      list = [...DEFAULT_PT_PLANS];
+    }
+    if (member.ptPlanName && !list.some(p => p.name.toLowerCase() === member.ptPlanName.toLowerCase())) {
+      list.unshift({
+        id: member.ptPlanId || "pt_existing",
+        name: member.ptPlanName,
+        price: Number(member.ptPlanPrice || 4500),
+        duration: member.ptDuration || "1 Month"
+      });
+    }
+    return list;
+  }, [selectedTrainerObj, member]);
+
+  // Smart validity start: if member has never paid yet, start from admission/joining date or today!
   const getSmartValidityStart = () => {
+    if (!member.lastPaymentDate) {
+      if (member.joiningDate) {
+        return toDate(member.joiningDate)?.toISOString().split("T")[0] || new Date().toISOString().split("T")[0];
+      }
+      if (member.createdAt) {
+        return toDate(member.createdAt)?.toISOString().split("T")[0] || new Date().toISOString().split("T")[0];
+      }
+      return new Date().toISOString().split("T")[0];
+    }
+
     if (member.expiryDate) {
       const expDate = toDate(member.expiryDate);
       const now = new Date();
       if (expDate && expDate > now) {
-        // Future expiry (Ending Soon) -> Start next day after current expiry
         const nextDay = new Date(expDate);
         nextDay.setDate(nextDay.getDate() + 1);
         return nextDay.toISOString().split("T")[0];
@@ -649,10 +713,10 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
   const currentPlan = PLANS_CATALOG.find((p) => p.id === selectedPlanId) || PLANS_CATALOG[0];
   const targetPayableTotal = hasPartialPaymentDue
     ? existingDueAmount
-    : Math.max(0, currentPlan.price + ptAddonPrice - Number(discountAmount || 0));
+    : Math.max(0, currentPlan.price + Number(selectedPtPrice || 0) - Number(discountAmount || 0));
   const calculatedTotal = targetPayableTotal;
 
-  const [payingNow, setPayingNow] = useState(hasPartialPaymentDue ? existingDueAmount : (initialPlan.price + ptAddonPrice));
+  const [payingNow, setPayingNow] = useState(hasPartialPaymentDue ? existingDueAmount : (initialPlan.price + Number(member.ptPlanPrice || 0)));
 
   // Auto calculate validity end date
   useEffect(() => {
@@ -709,12 +773,13 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
       slot: memberSlot,
       batch: member.batch || "Alpha Gym",
       planName: hasPartialPaymentDue 
-        ? `${member.planName || currentPlan.name}${member.ptPlanName ? ` + PT (${member.ptPlanName})` : ''} (Due Balance Settlement)` 
-        : `${currentPlan.name}${member.ptPlanName ? ` + PT (${member.ptPlanName})` : ''}`,
+        ? `${member.planName || currentPlan.name}${selectedPtPlanName ? ` + PT (${selectedPtPlanName})` : ''} (Due Balance Settlement)` 
+        : `${currentPlan.name}${selectedPtPlanName ? ` + PT (${selectedPtPlanName})` : ''}`,
       validityStart: toIndianDate(validityStart),
       validityEnd: hasPartialPaymentDue && member.expiryDate ? toIndianDate(member.expiryDate) : validityEnd,
       dueDate: validityEnd,
       planPrice: currentPlan.price,
+      ptPlanPrice: Number(selectedPtPrice || 0),
       discount: Number(discountAmount || 0),
       amount: calculatedTotal,
       paidAmount: Number(payingNow),
@@ -729,7 +794,16 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
     try {
       // 1. Update Member in Firestore & UI
       const updatedFields = {
-        ...(hasPartialPaymentDue ? {} : { planName: currentPlan.name, planPrice: calculatedTotal }),
+        ...(hasPartialPaymentDue ? {} : { 
+          planName: currentPlan.name, 
+          planPrice: currentPlan.price,
+          trainerName: selectedTrainerName,
+          trainerId: selectedTrainerObj?.id || member.trainerId || '',
+          hasPersonalCoach: isTrainerSelected && Number(selectedPtPrice) > 0,
+          ptPlanId: selectedPtPlanId,
+          ptPlanName: selectedPtPlanName,
+          ptPlanPrice: Number(selectedPtPrice || 0)
+        }),
         expiryDate: newExpiryIso,
         status: "active",
         active: true,
@@ -752,15 +826,12 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
       // 3. Update parent list
       onSave(member.id, updatedFields);
 
-      // 4. Generate & Download Bill PDF Receipt
-      generatePaymentReceipt(newPaymentRecord, settings);
-
-      // 5. Generate Online Receipt Web Link (Matching study-point live link)
+      // 4. Online Receipt Web Link (Member can click link anytime to view & download official receipt)
       const receiptLink = `${window.location.origin}/#/receipt/${newPaymentRecord.id}`;
 
-      // 6. If WhatsApp requested, open WhatsApp with receipt link & details
+      // 5. If WhatsApp requested, open WhatsApp with receipt link & details
       if (sendWhatsApp && phone) {
-        const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName || 'UNIVO GYM'}*\n\nHello *${memberName}*,\nThank you for your payment! Here are your membership billing details:\n\n📋 *Plan:* ${currentPlan.name}\n📅 *Validity:* ${newPaymentRecord.validityStart} to ${newPaymentRecord.validityEnd}\n💰 *Total Plan Fee:* ₹${calculatedTotal}\n✅ *Amount Paid:* ₹${payingNow} (${paymentMode.toUpperCase()})\n${remainingDue > 0 ? `⚠️ *Remaining Due:* ₹${remainingDue}\n` : "✨ *Status:* FULLY PAID\n"}\n🔗 *View & Download Official Receipt Online:*\n${receiptLink}\n\nStay fit and keep crushing your workouts! 💪`;
+        const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName || 'UNIVO GYM'}*\n\nHello *${memberName}*,\nThank you for your payment! Here are your membership billing details:\n\n📋 *Plan:* ${currentPlan.name}${selectedPtPlanName ? ` + PT (${selectedPtPlanName})` : ''}\n🏋️ *Trainer:* ${selectedTrainerName || 'General Floor Trainer'}\n📅 *Validity:* ${newPaymentRecord.validityStart} to ${newPaymentRecord.validityEnd}\n💰 *Total Plan Fee:* ₹${calculatedTotal}\n✅ *Amount Paid:* ₹${payingNow} (${paymentMode.toUpperCase()})\n${remainingDue > 0 ? `⚠️ *Remaining Due:* ₹${remainingDue}\n` : "✨ *Status:* FULLY PAID\n"}\n🔗 *View & Download Official Receipt Online:*\n${receiptLink}\n\nStay fit and keep crushing your workouts! 💪`;
         openWhatsApp(phone, msg);
       }
 
@@ -917,6 +988,99 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
           </div>
         </div>
 
+        {/* Coach & Personal Training (PT) Selection Card */}
+        <div className={`p-3.5 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-purple-50/40 to-slate-50 border border-indigo-200 space-y-2.5 shadow-2xs ${hasPartialPaymentDue ? 'opacity-60 pointer-events-none' : ''}`}>
+          <div className="flex items-center justify-between">
+            <span className="font-extrabold text-indigo-950 text-xs flex items-center gap-1.5">
+              <Dumbbell className="w-4 h-4 text-purple-600" />
+              Coach & Personal Training (PT) Add-on
+            </span>
+            {selectedPtPrice > 0 ? (
+              <span className="px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-extrabold text-[10px] border border-purple-300">
+                ✨ PT Active (+₹{Number(selectedPtPrice).toLocaleString('en-IN')})
+              </span>
+            ) : (
+              <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold text-[10px]">
+                No PT (Floor Only)
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Assigned Trainer Dropdown */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide block">
+                Assigned Coach / Trainer
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedTrainerName}
+                  onChange={(e) => {
+                    const newTName = e.target.value;
+                    setSelectedTrainerName(newTName);
+                    const tObj = availableTrainers.find(t => (t.name || t.fullName) === newTName);
+                    if (!tObj || newTName === 'General Floor Trainer (Included)' || newTName === 'No Trainer') {
+                      setSelectedPtPlanId('');
+                      setSelectedPtPlanName('');
+                      setSelectedPtPrice(0);
+                    } else if (tObj.ptPlans && tObj.ptPlans.length > 0) {
+                      setSelectedPtPlanId(tObj.ptPlans[0].id);
+                      setSelectedPtPlanName(tObj.ptPlans[0].name);
+                      setSelectedPtPrice(Number(tObj.ptPlans[0].price || 0));
+                    }
+                  }}
+                  className="w-full appearance-none bg-white border border-slate-300 hover:border-indigo-400 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                >
+                  <option value="General Floor Trainer (Included)">General Floor Trainer (Included)</option>
+                  {availableTrainers.filter(t => t.name !== 'General Floor Trainer (Included)').map(t => (
+                    <option key={t.id || t.name} value={t.name || t.fullName}>
+                      🏋️ Coach {t.name || t.fullName} {t.specialization ? `(${t.specialization})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* PT Package Selection Dropdown */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide block">
+                PT Package / Coaching Plan
+              </label>
+              <div className="relative">
+                <select
+                  disabled={!isTrainerSelected}
+                  value={selectedPtPlanName || "none"}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val || val === 'none') {
+                      setSelectedPtPlanId('');
+                      setSelectedPtPlanName('');
+                      setSelectedPtPrice(0);
+                    } else {
+                      const foundPkg = currentTrainerPtPlans.find(p => p.name === val);
+                      if (foundPkg) {
+                        setSelectedPtPlanId(foundPkg.id || '');
+                        setSelectedPtPlanName(foundPkg.name);
+                        setSelectedPtPrice(Number(foundPkg.price || 0));
+                      }
+                    }
+                  }}
+                  className="w-full appearance-none bg-white border border-slate-300 hover:border-purple-400 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500/20 disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  <option value="none">No PT Package (₹0)</option>
+                  {currentTrainerPtPlans.map((pkg, idx) => (
+                    <option key={pkg.id || idx} value={pkg.name}>
+                      {pkg.name} — (+₹{Number(pkg.price || 0).toLocaleString('en-IN')})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Membership Bill Validity Period Box (Enhanced) */}
         <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50/70 to-teal-50/40 border border-emerald-200 space-y-2.5 shadow-2xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -959,14 +1123,14 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
 
         {/* Fee Summary Banner */}
         <div className="p-3 px-4 rounded-xl bg-slate-900 text-white flex items-center justify-between text-xs shadow-sm">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-slate-300 font-semibold">
               {currentPlan.name} (₹{currentPlan.price})
             </span>
-            {ptAddonPrice > 0 && (
+            {selectedPtPrice > 0 && (
               <span className="px-2 py-0.5 rounded-md bg-purple-900/70 text-purple-200 font-bold text-[10px] border border-purple-700/60">
-                + PT {member.ptPlanName ? `(${member.ptPlanName})` : ''}: ₹{ptAddonPrice}
+                + PT {selectedPtPlanName ? `(${selectedPtPlanName})` : ''}: ₹{selectedPtPrice}
               </span>
             )}
             {discountAmount > 0 && (
