@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
 import { getUserRole } from "../firebase/auth";
 
@@ -22,23 +22,53 @@ export function AuthProvider({ children }) {
         setGymId(userData.gymId || "univo_main");
         setProfileId(userData.profileId || null);
         setPermissions(userData.permissions || []);
+        localStorage.removeItem("univo_trainer_session");
       } else {
-        setUser(null);
-        setRole(null);
-        setGymId("univo_main");
-        setProfileId(null);
-        setPermissions([]);
+        // Check for custom trainer session
+        const savedTrainer = localStorage.getItem("univo_trainer_session");
+        if (savedTrainer) {
+          try {
+            const parsed = JSON.parse(savedTrainer);
+            setUser({ uid: parsed.id, displayName: parsed.name, email: parsed.email || parsed.loginEmail, ...parsed });
+            setRole("trainer");
+            setGymId(parsed.gymId || "univo_main");
+            setProfileId(parsed.id);
+            setPermissions([]);
+          } catch (e) {
+            setUser(null);
+            setRole(null);
+            setGymId("univo_main");
+            setProfileId(null);
+            setPermissions([]);
+          }
+        } else {
+          setUser(null);
+          setRole(null);
+          setGymId("univo_main");
+          setProfileId(null);
+          setPermissions([]);
+        }
       }
       setLoading(false);
     });
     return unsub;
   }, []);
 
+  const logoutUser = async () => {
+    localStorage.removeItem("univo_trainer_session");
+    await signOut(auth).catch(() => {});
+    setUser(null);
+    setRole(null);
+    setProfileId(null);
+    setPermissions([]);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, role, setRole, gymId, profileId, permissions, loading }}>
+    <AuthContext.Provider value={{ user, setUser, role, setRole, gymId, setGymId, profileId, setProfileId, permissions, loading, logoutUser }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export const useAuth = () => useContext(AuthContext);
+

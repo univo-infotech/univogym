@@ -4,6 +4,8 @@ import {
   MessageCircle,
   MoreVertical,
   Link2,
+  KeyRound,
+  ShieldCheck,
   CheckCircle2,
   UserPlus,
   Image as ImageIcon,
@@ -58,6 +60,7 @@ export default function Trainers() {
     specialization: "Weight Training & Hypertrophy",
     phone: "",
     email: "",
+    password: "Coach@123",
     experience: "5 Years",
     bio: "",
     certifications: "",
@@ -288,6 +291,7 @@ export default function Trainers() {
       specialization: trainer.specialization || "Weight Training & Hypertrophy",
       phone: trainer.phone || "",
       email: trainer.email || "",
+      password: trainer.password || trainer.loginPassword || "Coach@123",
       experience: trainer.experience || "5 Years",
       salary: trainer.salary || "",
       bio: trainer.bio || "",
@@ -443,6 +447,9 @@ export default function Trainers() {
         specialization: editForm.specialization,
         phone: editForm.phone,
         email: editForm.email,
+        loginEmail: editForm.email,
+        password: editForm.password || editingTrainer.password || editingTrainer.loginPassword || "Coach@123",
+        loginPassword: editForm.password || editingTrainer.password || editingTrainer.loginPassword || "Coach@123",
         experience: editForm.experience,
         salary: editForm.salary ? Number(editForm.salary) : 0,
         bio: editForm.bio,
@@ -532,6 +539,9 @@ export default function Trainers() {
         specialization: form.specialization,
         phone: form.phone,
         email: form.email || "",
+        loginEmail: form.email || "",
+        password: form.password || "Coach@123",
+        loginPassword: form.password || "Coach@123",
         experience: form.experience,
         bio: form.bio,
         certifications: form.certifications,
@@ -544,11 +554,12 @@ export default function Trainers() {
           .map((p) => ({ ...p, price: Number(p.price) })),
         transformations: form.transformations.filter(t => t.beforeImg || t.afterImg || t.description),
         membersCount: 0,
+        payoutsPaid: 0,
       };
       const trainerId = await addTrainer(gymId || "univo_main", newT);
 
       setTrainers([{ ...newT, id: trainerId }, ...trainers]);
-      toast.success("Trainer created successfully with PT membership packages!");
+      toast.success("Trainer created with Login ID & PT packages!");
       setModalOpen(false);
 
       // Reset form
@@ -557,6 +568,7 @@ export default function Trainers() {
         specialization: "Weight Training & Hypertrophy",
         phone: "",
         email: "",
+        password: "Coach@123",
         experience: "5 Years",
         bio: "",
         certifications: "",
@@ -769,6 +781,30 @@ export default function Trainers() {
                     : `${t.commissionValue !== undefined ? t.commissionValue : 30}% Gym / ${100 - (t.commissionValue !== undefined ? t.commissionValue : 30)}% Trainer`}
                 </span>
               </div>
+
+              {/* Login Credentials & Quick WhatsApp Share */}
+              <div className="mt-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-[11px]">
+                <div className="flex items-center gap-1.5 truncate">
+                  <KeyRound className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span className="text-slate-600 truncate text-[10px]">
+                    ID: <strong className="text-slate-900">{t.email || t.loginEmail || "N/A"}</strong> • Pass: <span className="font-mono text-emerald-700 font-bold">{t.password || t.loginPassword || "Coach@123"}</span>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const num = (t.phone || "").replace(/\D/g, "");
+                    const msg = encodeURIComponent(
+                      `🏋️ *UNIVO GYM TRAINER PORTAL LOGIN*\n\nHi Coach *${t.name}*,\nHere are your login credentials to access your Trainer Portal:\n\n👤 *Login ID:* ${t.email || t.loginEmail}\n🔑 *Password:* ${t.password || t.loginPassword || "Coach@123"}\n🔗 *Login Link:* ${window.location.origin}/#/login\n\nYou can now log in, view your assigned PT athletes, track their progress, and create custom diet plans!`
+                    );
+                    window.open(`https://wa.me/${num}?text=${msg}`, "_blank");
+                  }}
+                  className="shrink-0 text-[10px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-1 transition ml-1"
+                  title="Share Login Credentials via WhatsApp"
+                >
+                  <Send className="w-2.5 h-2.5" /> Share
+                </button>
+              </div>
             </div>
 
             <div className="pt-4 flex flex-col gap-2">
@@ -863,31 +899,60 @@ export default function Trainers() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-                  Phone Number *
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
-                  placeholder="9876543210"
-                />
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                Phone Number (WhatsApp) *
+              </label>
+              <input
+                required
+                type="text"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
+                placeholder="9876543210"
+              />
+            </div>
+
+            {/* Trainer Portal Login Access */}
+            <div className="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200/80 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <KeyRound className="w-4 h-4 text-emerald-600" /> Trainer Portal Login ID & Password
+                </span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-md">
+                  Coach App Access
+                </span>
               </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-                  Email Address (Optional)
-                </label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
-                  placeholder="trainer@gym.com"
-                />
+              <p className="text-[11px] text-slate-500">
+                Coach will use these credentials to log in to their personal Trainer Portal to manage assigned members & diet plans.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-700 uppercase">
+                    Login ID / Email *
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:border-emerald-500 outline-none"
+                    placeholder="coach@univogym.com"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-700 uppercase">
+                    Login Password *
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:border-emerald-500 outline-none font-mono font-bold text-emerald-800"
+                    placeholder="e.g. Coach@123"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1814,7 +1879,7 @@ export default function Trainers() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-                Email Address
+                Login Email / ID *
               </label>
               <input
                 type="email"
@@ -1826,7 +1891,22 @@ export default function Trainers() {
             </div>
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-                Phone Number (WhatsApp)
+                Login Password *
+              </label>
+              <input
+                type="text"
+                value={editForm.password}
+                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none font-mono font-bold text-emerald-800"
+                placeholder="Coach@123"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                Phone Number (WhatsApp) *
               </label>
               <input
                 type="tel"
@@ -1836,9 +1916,6 @@ export default function Trainers() {
                 placeholder="+91 98765 43210"
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
                 Experience
