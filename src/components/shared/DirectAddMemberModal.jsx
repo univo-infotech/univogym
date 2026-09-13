@@ -36,8 +36,6 @@ import {
 import toast from "react-hot-toast";
 import { addMember } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
-import { addPayment } from "../../firebase/payments";
-import { generatePaymentReceipt } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -134,13 +132,6 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     signatureType: "draw",
     typedSignature: "",
     joiningDate: new Date().toISOString().split("T")[0],
-    // Payment & Fee details
-    paymentMode: "online", // "cash", "online", "bank", "split"
-    paymentType: "full", // "full" or "partial"
-    paidAmount: "",
-    discount: 0,
-    remarks: "",
-    downloadReceiptOnSubmit: true,
   });
 
   const [saving, setSaving] = useState(false);
@@ -232,12 +223,6 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       ? formData.signatureURL
       : formData.typedSignature || formData.fullName;
 
-    const basePrice = Number(selectedPlan.price || 0);
-    const discountAmt = Number(formData.discount || 0);
-    const finalPlanAmount = Math.max(0, basePrice - discountAmt);
-    const payingNow = formData.paidAmount !== "" ? Number(formData.paidAmount) : finalPlanAmount;
-    const remainingDue = Math.max(0, finalPlanAmount - payingNow);
-
     const newMember = {
       id: "m_" + Date.now(),
       name: formData.fullName.trim(),
@@ -279,62 +264,14 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       renewalFee: selectedPlan.price ? String(selectedPlan.price) : "2500"
     };
 
-    // Format dates for receipt and subscription view
-    const formatToIndian = (d) => {
-      const dt = new Date(d);
-      const day = String(dt.getDate()).padStart(2, "0");
-      const month = String(dt.getMonth() + 1).padStart(2, "0");
-      const year = dt.getFullYear();
-      return `${day}/${month}/${year}`;
-    };
-
-    const paymentRecord = {
-      id: "bill_" + Date.now(),
-      memberId: newMember.id,
-      memberName: newMember.fullName,
-      phone: newMember.phone,
-      slot: newMember.slot || "General Floor",
-      batch: "Direct Registration • Alpha Gym",
-      planName: selectedPlan.name,
-      planPrice: basePrice,
-      discount: discountAmt,
-      amount: finalPlanAmount,
-      paidAmount: payingNow,
-      dueAmount: remainingDue,
-      paymentMode: formData.paymentMode || "online",
-      paymentType: remainingDue > 0 ? "partial" : "full",
-      validityStart: formatToIndian(formData.joiningDate),
-      validityEnd: formatToIndian(expiry),
-      dueDate: formatToIndian(expiry),
-      date: formatToIndian(formData.joiningDate),
-      status: remainingDue > 0 ? "partial" : "paid",
-      remarks: formData.remarks || `Admission & Plan Activation: ${selectedPlan.name}`,
-    };
-
     try {
       await addMember(GID, newMember);
     } catch (err) {
       console.warn("Direct member recorded in offline state:", err);
     }
 
-    try {
-      await addPayment(GID, paymentRecord);
-    } catch (payErr) {
-      console.warn("Direct payment recorded in offline state:", payErr);
-    }
-
-    // Auto-generate official PDF receipt if selected
-    if (formData.downloadReceiptOnSubmit) {
-      try {
-        const gymSettings = getGymSettings();
-        generatePaymentReceipt(paymentRecord, gymSettings);
-      } catch (pdfErr) {
-        console.warn("Could not auto-download receipt:", pdfErr);
-      }
-    }
-
     if (onSuccess) onSuccess(newMember);
-    toast.success(`${newMember.fullName} registered & fee receipt created!`);
+    toast.success(`${newMember.fullName} registered successfully!`);
     setSaving(false);
     onClose();
 
@@ -365,12 +302,6 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       signatureType: "draw",
       typedSignature: "",
       joiningDate: new Date().toISOString().split("T")[0],
-      paymentMode: "online",
-      paymentType: "full",
-      paidAmount: "",
-      discount: 0,
-      remarks: "",
-      downloadReceiptOnSubmit: true,
     });
   };
 
@@ -611,140 +542,6 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
               </div>
             </div>
 
-            {/* ==========================================================
-                FEE COLLECTION, PAYMENT MODE & RECEIPT OPTIONS
-            ========================================================== */}
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/70 to-teal-50/50 border-2 border-emerald-200/80 space-y-3">
-              <div className="flex items-center justify-between border-b border-emerald-200/70 pb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
-                    ₹
-                  </div>
-                  <div>
-                    <h5 className="font-extrabold text-emerald-950 text-xs sm:text-sm">
-                      Membership Fee & Payment Details
-                    </h5>
-                    <p className="text-[11px] text-emerald-800/80">
-                      Auto-records in Fee & Subscriptions directory and generates official bill receipt
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-900 border border-emerald-300">
-                  Instant Bill Sync
-                </span>
-              </div>
-
-              {/* Payment Mode Selector */}
-              <div>
-                <label className="font-bold text-slate-800 block mb-1.5 text-xs">
-                  Payment Mode *
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {[
-                    { id: "online", label: "UPI / Online", icon: "📱" },
-                    { id: "cash", label: "Cash Payment", icon: "💵" },
-                    { id: "bank", label: "Bank Transfer", icon: "🏦" },
-                    { id: "split", label: "Mixed / Split", icon: "💳" }
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, paymentMode: m.id })}
-                      className={`p-2 rounded-xl text-left border transition text-xs font-bold flex items-center gap-2 ${
-                        formData.paymentMode === m.id
-                          ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
-                          : "bg-white text-slate-700 border-emerald-200 hover:bg-emerald-100/50"
-                      }`}
-                    >
-                      <span>{m.icon}</span>
-                      <span>{m.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Pricing Breakdown: Plan Price, Discount, Paid Amount */}
-              {(() => {
-                const currentPlanObj = availablePlans.find((p) => p.id === formData.planId) || availablePlans[0];
-                const basePrice = Number(currentPlanObj.price || 0);
-                const discountVal = Number(formData.discount || 0);
-                const netAmount = Math.max(0, basePrice - discountVal);
-                const currentPaid = formData.paidAmount !== "" ? Number(formData.paidAmount) : netAmount;
-                const balanceDue = Math.max(0, netAmount - currentPaid);
-
-                return (
-                  <div className="space-y-3 pt-1">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {/* Plan Base Price (Read-only reference) */}
-                      <div>
-                        <label className="font-bold text-slate-700 block mb-1 text-xs">Plan Fee</label>
-                        <div className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 shadow-2xs">
-                          ₹{basePrice.toLocaleString("en-IN")}
-                        </div>
-                      </div>
-
-                      {/* Discount Amount */}
-                      <div>
-                        <label className="font-bold text-slate-700 block mb-1 text-xs">Discount (₹)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max={basePrice}
-                          placeholder="0"
-                          value={formData.discount || ""}
-                          onChange={(e) => setFormData({ ...formData, discount: e.target.value })}
-                          className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-600"
-                        />
-                      </div>
-
-                      {/* Amount Paid Now */}
-                      <div>
-                        <label className="font-bold text-slate-700 block mb-1 text-xs">Amount Received (₹) *</label>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder={`Full: ₹${netAmount}`}
-                          value={formData.paidAmount}
-                          onChange={(e) => setFormData({ ...formData, paidAmount: e.target.value })}
-                          className="w-full bg-white border border-emerald-400 rounded-xl px-3 py-2 text-xs font-extrabold text-emerald-950 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-400"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Summary row with Balance Due indicator */}
-                    <div className="p-2.5 rounded-xl bg-white border border-emerald-200 flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <div className="flex items-center gap-4">
-                        <div>
-                          <span className="text-slate-500 font-medium text-[11px]">Net Plan Total: </span>
-                          <span className="font-bold text-slate-900">₹{netAmount.toLocaleString("en-IN")}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-500 font-medium text-[11px]">Paid: </span>
-                          <span className="font-extrabold text-emerald-700">₹{currentPaid.toLocaleString("en-IN")}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-500 font-medium text-[11px]">Balance Due: </span>
-                          <span className={`font-black ${balanceDue > 0 ? "text-rose-600" : "text-slate-600"}`}>
-                            ₹{balanceDue.toLocaleString("en-IN")}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Auto download receipt checkbox */}
-                      <label className="flex items-center gap-2 cursor-pointer font-bold text-[11px] text-emerald-900">
-                        <input
-                          type="checkbox"
-                          checked={formData.downloadReceiptOnSubmit}
-                          onChange={(e) => setFormData({ ...formData, downloadReceiptOnSubmit: e.target.checked })}
-                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
-                        />
-                        <span>Auto-download PDF Bill Receipt</span>
-                      </label>
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
 
             {/* ==========================================================
                 COACH DETAILS & PROPER RESIZED PROFILE CARD
