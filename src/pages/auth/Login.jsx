@@ -138,19 +138,35 @@ export default function Login() {
         const inputPhone = cleanEmail.replace(/\D/g, '');
 
         const matchedMember = membersList.find((m) => {
-          const mEmail = (m.email || m.loginEmail || '').trim().toLowerCase();
+          const mEmail = (m.loginEmail || m.email || '').trim().toLowerCase();
           const mPhone = (m.phone || '').trim().replace(/\D/g, '');
-          const mPass = m.loginPassword || m.password || 'Member@123';
+          const mPass = m.loginPassword || m.password || '';
 
           const isIdMatch =
             (mEmail && mEmail === cleanEmail) ||
             (inputPhone && mPhone && mPhone.endsWith(inputPhone.slice(-10))) ||
             (cleanEmail === 'member@univogym.com');
-          const isPassMatch = mPass === password || password === 'Member@123' || password.length >= 4;
+          const isPassMatch = mPass ? (mPass === password || password === 'Member@123') : (password === 'Member@123');
           return isIdMatch && isPassMatch;
         });
 
         if (matchedMember) {
+          // Check if this member has Personal Training (PT)
+          const hasPT =
+            matchedMember.isPTMember === true ||
+            matchedMember.hasPersonalCoach === true ||
+            Boolean(matchedMember.ptPlanName) ||
+            Boolean(matchedMember.ptPlanPrice) ||
+            Boolean(matchedMember.loginPassword);
+
+          if (!hasPT) {
+            setError(
+              "⚠️ Access Restricted: Member login portal sirf un members ke liye hai jinhone Personal Training (PT) li hai. General gym members ko login ki zaroorat nahi hai."
+            );
+            setLoading(false);
+            return;
+          }
+
           // Check Membership / PT Expiry status
           let isExpired = false;
           if (matchedMember.status === 'left' || matchedMember.status === 'expired' || matchedMember.active === false) {
@@ -164,7 +180,7 @@ export default function Login() {
 
           if (isExpired) {
             setError(
-              `⚠️ Membership / PT Expired: Aapka gym membership / PT session khatam ho chuka hai (${matchedMember.expiryDate ? new Date(matchedMember.expiryDate).toLocaleDateString('en-IN') : 'Expired'}). Login blocked hai. Gym owner se renew karwane ke baad aapka account wahi se turant shuru ho jayega.`
+              `⚠️ PT Session Expired: Aapka PT session / membership khatam ho chuka hai (${matchedMember.expiryDate ? new Date(matchedMember.expiryDate).toLocaleDateString('en-IN') : 'Expired'}). Login blocked hai. Gym owner se renew karwane ke baad aapka account wahi se turant shuru ho jayega.`
             );
             setLoading(false);
             return;
@@ -178,14 +194,26 @@ export default function Login() {
           return;
         }
 
-        // If selectedRole is member and gym has members
+        // If selectedRole is member and gym has PT members
         if (selectedRole === 'member' && membersList.length > 0 && (password === 'Member@123' || password.length >= 4)) {
-          const primaryMember = membersList[0];
-          // Check Expiry for fallback member as well
+          const ptMembers = membersList.filter(
+            (m) => m.isPTMember || m.hasPersonalCoach || m.ptPlanName || m.loginPassword
+          );
+          const primaryMember = ptMembers.length > 0 ? ptMembers[0] : null;
+
+          if (!primaryMember) {
+            setError(
+              "⚠️ Koi active PT member nahi mila. Member login id/password sirf un members ke liye banta hai jo Personal Training (PT) lete hain."
+            );
+            setLoading(false);
+            return;
+          }
+
+          // Check Expiry for PT member
           const expTime = primaryMember.expiryDate ? new Date(primaryMember.expiryDate).getTime() : 0;
           if (primaryMember.status === 'left' || (expTime > 0 && expTime < Date.now())) {
             setError(
-              `⚠️ Membership Expired: Gym membership / PT expired ho chuka hai. Renew karne ke baad login wahi se reactivate ho jayega.`
+              `⚠️ PT Session Expired: Gym PT session expired ho chuka hai. Renew karne ke baad login wahi se reactivate ho jayega.`
             );
             setLoading(false);
             return;

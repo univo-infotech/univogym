@@ -360,10 +360,17 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       trainerName: formData.trainerName,
       trainerId: selectedTrainerObj?.id || "",
       hasPersonalCoach: isPersonalTrainer,
-      // Portal Access Credentials
-      loginEmail: formData.loginEmail.trim() || formData.email.trim() || formData.phone.trim(),
-      password: formData.loginPassword.trim() || "Member@123",
-      loginPassword: formData.loginPassword.trim() || "Member@123",
+      isPTMember: isPersonalTrainer,
+      // Portal Access Credentials - ONLY created when member opts for PT
+      loginEmail: isPersonalTrainer
+        ? (formData.loginEmail.trim() || formData.email.trim() || formData.phone.trim())
+        : "",
+      password: isPersonalTrainer
+        ? (formData.loginPassword.trim() || "Member@123")
+        : "",
+      loginPassword: isPersonalTrainer
+        ? (formData.loginPassword.trim() || "Member@123")
+        : "",
       // Physical Assessment Metrics
       weight: formData.weight ? String(formData.weight) : "",
       height: formData.heightFeet ? `${formData.heightFeet} ft ${formData.heightInches || 0} in` : "",
@@ -571,47 +578,6 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                     />
-                  </div>
-                </div>
-
-                {/* Member Portal Login Credentials Card */}
-                <div className="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200/80 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-emerald-600" /> Member App / Portal Login Credentials
-                    </span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-md">
-                      Athlete Portal Access
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500">
-                    Member can log in using their Phone/Email & Password to interact with their Personal Trainer, view diet & workout plans. (Login will be active while membership/PT is valid).
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-700 uppercase">
-                        Login ID / User (Defaults to Phone)
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.loginEmail}
-                        onChange={(e) => setFormData({ ...formData, loginEmail: e.target.value })}
-                        className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:border-emerald-500 outline-none"
-                        placeholder={formData.phone || "e.g. 9876543210"}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-700 uppercase">
-                        Login Password
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.loginPassword}
-                        onChange={(e) => setFormData({ ...formData, loginPassword: e.target.value })}
-                        className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:border-emerald-500 outline-none font-mono font-bold text-emerald-800"
-                        placeholder="e.g. Member@123"
-                      />
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1246,9 +1212,63 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     className="w-full bg-white border border-purple-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-purple-600 placeholder:text-slate-400"
                   />
                 </div>
-              </div>
-            )}
-          </div>
+
+                  {/* ==========================================================
+                      PT ATHLETE APP & PORTAL LOGIN CREDENTIALS (ONLY WHEN PT TAKEN)
+                  ========================================================== */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 border-2 border-indigo-500/40 text-white space-y-3 shadow-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-500/30 text-indigo-300 flex items-center justify-center">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h5 className="font-extrabold text-white text-xs sm:text-sm flex items-center gap-1.5">
+                            PT Member Portal Login Credentials
+                          </h5>
+                          <p className="text-[11px] text-indigo-300">
+                            Member ne PT liya hai. In credentials se member app/portal me login karke Coach {selectedTrainerObj.name} se 1-on-1 live chat, customized diet aur workout routine access karega.
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0">
+                        PT Access Only
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                          Login ID / Phone *
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.loginEmail}
+                          onChange={(e) => setFormData({ ...formData, loginEmail: e.target.value })}
+                          placeholder={formData.phone || formData.email || "e.g. 9876543210"}
+                          className="w-full bg-slate-900 border border-indigo-500/40 rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-400 font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                          Create Login Password *
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.loginPassword}
+                          onChange={(e) => setFormData({ ...formData, loginPassword: e.target.value })}
+                          placeholder="Member@123"
+                          className="w-full bg-slate-900 border border-indigo-500/40 rounded-xl px-3.5 py-2 text-xs text-emerald-400 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400 font-mono font-bold tracking-wider"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-indigo-300/80 italic">
+                      💡 Note: PT membership expire hote hi login block ho jayega aur renew hone par wahi se continue hoga.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
 
           {/* ============================================================
               SECTION 3: LIABILITY WAIVER & DIGITAL SIGNATURE

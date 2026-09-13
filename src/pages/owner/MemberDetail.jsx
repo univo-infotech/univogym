@@ -289,20 +289,32 @@ export default function MemberDetail() {
               <p><span className="font-semibold text-slate-800">Plan Expiry: </span>{formatDate(member.expiryDate)}</p>
               {member.address && <p><span className="font-semibold text-slate-800">Address: </span>{member.address}</p>}
               
-              {/* Member Portal Login Credentials */}
-              <div className="p-3 bg-emerald-50/80 rounded-2xl border border-emerald-200 mt-2 space-y-1">
-                <span className="font-bold text-xs text-emerald-950 flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Member App Credentials:
-                </span>
-                <p className="text-[11px] text-slate-700">
-                  <span className="font-semibold text-slate-900">User / Phone: </span>
-                  <span className="font-mono font-bold text-emerald-800">{member.loginEmail || member.phone || "—"}</span>
-                </p>
-                <p className="text-[11px] text-slate-700">
-                  <span className="font-semibold text-slate-900">Password: </span>
-                  <span className="font-mono font-bold text-teal-700">{member.loginPassword || member.password || "Member@123"}</span>
-                </p>
-              </div>
+              {/* Member Portal Login Credentials (Only for PT Members) */}
+              {(member.isPTMember || member.hasPersonalCoach || member.ptPlanName || member.loginPassword) ? (
+                <div className="p-3 bg-indigo-50/90 rounded-2xl border border-indigo-200 mt-2 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-indigo-950 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" /> PT Member App Credentials:
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-200/80 text-indigo-900">
+                      Active PT Portal
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-700">
+                    <span className="font-semibold text-slate-900">User / Phone: </span>
+                    <span className="font-mono font-bold text-indigo-800">{member.loginEmail || member.phone || "—"}</span>
+                  </p>
+                  <p className="text-[11px] text-slate-700">
+                    <span className="font-semibold text-slate-900">Password: </span>
+                    <span className="font-mono font-bold text-teal-700">{member.loginPassword || member.password || "Member@123"}</span>
+                  </p>
+                </div>
+              ) : (
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 mt-2 text-xs text-slate-500 flex items-center justify-between">
+                  <span>General Member (No PT Login Assigned)</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">Non-PT</span>
+                </div>
+              )}
 
               {member.healthNotes && (
                 <p className="p-2 bg-amber-50 rounded-xl text-amber-900 border border-amber-200 mt-2">
