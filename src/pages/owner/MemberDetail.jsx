@@ -192,9 +192,14 @@ export default function MemberDetail() {
                 {(member.status || 'ACTIVE').toUpperCase()}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">{member.phone || 'No phone'} • {member.email || 'No email'}</p>
-            <p className="text-xs text-emerald-700 font-semibold mt-1">
-              Plan: {member.planName || 'Standard Plan'} {member.planPrice ? `(₹${Number(member.planPrice).toLocaleString('en-IN')})` : ''}
+            <p className="text-xs text-emerald-700 font-semibold mt-1 flex items-center gap-1.5 flex-wrap">
+              <span>Plan: {member.planName || 'Standard Plan'} {member.planPrice ? `(₹${Number(member.planPrice).toLocaleString('en-IN')})` : ''}</span>
+              {member.ptPlanName && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 font-bold text-[11px] border border-indigo-200 shadow-2xs">
+                  <Sparkles className="w-3 h-3 text-indigo-600" />
+                  PT Add-on: {member.ptPlanName} {member.ptPlanPrice ? `(+₹${Number(member.ptPlanPrice).toLocaleString('en-IN')})` : ''}
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -268,6 +273,19 @@ export default function MemberDetail() {
               <p><span className="font-semibold text-slate-800">Assigned Trainer: </span>{member.trainerName || "Unassigned"}</p>
               <p><span className="font-semibold text-slate-800">Workout Shift: </span>{member.slot || member.workoutSlot || "General Shift"}</p>
               <p><span className="font-semibold text-slate-800">Membership Tier: </span>{member.planName || "Standard Plan"}</p>
+              {member.ptPlanName && (
+                <div className="p-3 bg-indigo-50/80 rounded-2xl border border-indigo-200 text-indigo-900 mt-2 space-y-0.5">
+                  <span className="font-bold flex items-center gap-1.5 text-xs text-indigo-950">
+                    <Sparkles className="w-4 h-4 text-indigo-600" /> Dedicated Personal Training (PT) Add-on
+                  </span>
+                  <p className="text-[11px] font-semibold text-indigo-800">
+                    Package: <span className="font-bold">{member.ptPlanName}</span> {member.ptDuration ? `(${member.ptDuration})` : ""}
+                  </p>
+                  <p className="text-[11px] text-indigo-700">
+                    Fee: <span className="font-extrabold text-indigo-900">₹{Number(member.ptPlanPrice || 0).toLocaleString("en-IN")}</span> added to membership
+                  </p>
+                </div>
+              )}
               <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100 text-emerald-800 mt-2">
                 <span className="font-bold flex items-center gap-1"><ShieldCheck className="w-4 h-4 text-emerald-600" /> Digital Liability Waiver Verified</span>
                 <p className="text-[11px] text-emerald-700 mt-0.5">Signed during member onboarding with e-signature</p>

@@ -2114,9 +2114,14 @@ export default function Members() {
                             <Sun className='w-3 h-3 text-indigo-500' />
                             <span>{m.slot || m.workoutSlot || 'General Shift'}</span>
                           </div>
-                          <p className='text-[11px] text-slate-500 pl-0.5'>
+                          <p className='text-[11px] text-slate-600 pl-0.5 font-medium'>
                             {m.trainerName ? `🏋️ ${m.trainerName}` : 'No Trainer'}
                           </p>
+                          {m.ptPlanName && (
+                            <span className='inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-bold text-[10px] border border-purple-200'>
+                              ✨ PT: {m.ptPlanName} {m.ptPlanPrice ? `(+₹${m.ptPlanPrice})` : ''}
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -2313,6 +2318,11 @@ export default function Members() {
                   </div>
                   <div className='mt-3 space-y-1'>
                     <p className='text-xs font-semibold text-slate-800'>{m.planName || 'Standard Plan'}</p>
+                    {m.ptPlanName && (
+                      <p className='text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 truncate'>
+                        ✨ PT: {m.ptPlanName} (+₹{m.ptPlanPrice})
+                      </p>
+                    )}
                     <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${daysInfo.cls}`}>
                       {daysInfo.text}
                     </span>

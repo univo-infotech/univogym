@@ -31,7 +31,9 @@ import {
   Flame,
   Image as ImageIcon,
   Eye,
-  Maximize2
+  Maximize2,
+  CheckCircle2,
+  IndianRupee
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { addMember } from "../../firebase/members";
@@ -116,6 +118,10 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     photoURL: "",
     planId: "p2",
     trainerName: "General Floor Trainer (Included)",
+    ptPlanId: "",
+    ptPlanName: "",
+    ptPlanPrice: 0,
+    ptDuration: "",
     preferredSlot: "Morning (6:00 AM - 9:00 AM)",
     healthNotes: "",
     // Personal Training & Assessment metrics
@@ -142,6 +148,16 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
   }, [availableTrainers, formData.trainerName]);
 
   const isPersonalTrainer = selectedTrainerObj && selectedTrainerObj.name !== "General Floor Trainer (Included)";
+
+  // Selected base gym membership plan
+  const currentBasePlan = useMemo(() => {
+    return availablePlans.find((p) => p.id === formData.planId) || availablePlans[0];
+  }, [availablePlans, formData.planId]);
+
+  // Combined Fee Calculation: Gym Membership Plan Fee + Personal Trainer PT Package Add-on Fee
+  const basePlanPrice = Number(currentBasePlan?.price || 0);
+  const ptAddonPrice = Number(formData.ptPlanPrice || 0);
+  const totalPayableFee = basePlanPrice + ptAddonPrice;
 
   // Dynamic BMI Calculation from Weight in kg and Height in ft & in
   const bmiInfo = useMemo(() => {
@@ -224,6 +240,8 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       : formData.typedSignature || formData.fullName;
 
     const basePrice = Number(selectedPlan.price || 0);
+    const ptPrice = Number(formData.ptPlanPrice || 0);
+    const combinedTotalFee = basePrice + ptPrice;
 
     const newMember = {
       id: "m_" + Date.now(),
@@ -240,7 +258,13 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       planId: selectedPlan.id,
       planName: selectedPlan.name,
       planPrice: basePrice,
-      dueAmount: basePrice,
+      ptPlanId: formData.ptPlanId || "",
+      ptPlanName: formData.ptPlanName || "",
+      ptPlanPrice: ptPrice,
+      ptDuration: formData.ptDuration || "",
+      totalAmount: combinedTotalFee,
+      dueAmount: combinedTotalFee,
+      paidAmount: 0,
       trainerName: formData.trainerName,
       trainerId: selectedTrainerObj?.id || "",
       hasPersonalCoach: isPersonalTrainer,
@@ -533,7 +557,15 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 <label className="font-bold text-slate-700 block mb-1">Assigned Coach / Trainer</label>
                 <select
                   value={formData.trainerName}
-                  onChange={(e) => setFormData({ ...formData, trainerName: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const isGen = !val || val === GENERAL_TRAINER.name;
+                    setFormData((prev) => ({
+                      ...prev,
+                      trainerName: val,
+                      ...(isGen ? { ptPlanId: "", ptPlanName: "", ptPlanPrice: 0, ptDuration: "" } : {})
+                    }));
+                  }}
                   className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-500"
                 >
                   {availableTrainers.map((t) => (
@@ -627,12 +659,32 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       </p>
                     )}
 
-                    {/* Trainer Custom PT Packages */}
+                    {/* Trainer Custom PT Packages (Interactive Add-on Selection) */}
                     {selectedTrainerObj.ptPlans && selectedTrainerObj.ptPlans.length > 0 && (
                       <div className="pt-2">
-                        <span className="text-[11px] font-bold text-slate-800 block mb-1.5 flex items-center gap-1">
-                          <Sparkles className="w-3 h-3 text-indigo-600" /> Trainer PT Packages & Pricing:
-                        </span>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Select Personal Training (PT) Add-on Package:
+                          </span>
+                          {formData.ptPlanId && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  ptPlanId: "",
+                                  ptPlanName: "",
+                                  ptPlanPrice: 0,
+                                  ptDuration: "",
+                                }))
+                              }
+                              className="text-[10px] font-bold text-rose-600 hover:text-rose-700 underline"
+                            >
+                              Remove PT Add-on
+                            </button>
+                          )}
+                        </div>
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {selectedTrainerObj.ptPlans.map((pkg, pidx) => {
                             const pPrice = Number(pkg.price || 0);
@@ -640,34 +692,78 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                             const durVal = Number(pkg.durationValue) || (pkg.duration?.toLowerCase().includes("3 month") ? 3 : pkg.duration?.toLowerCase().includes("6 month") ? 6 : pkg.duration?.toLowerCase().includes("1 year") ? 1 : 1);
                             const totalMonths = durType === "years" ? durVal * 12 : durVal;
                             const perMonth = (totalMonths > 1 && pPrice > 0) ? Math.round(pPrice / totalMonths) : null;
+                            const isSelected = formData.ptPlanId === (pkg.id || `pt_${pidx}`) || formData.ptPlanName === pkg.name;
 
                             return (
                               <div
                                 key={pkg.id || pidx}
-                                className="bg-white/90 border border-indigo-200/90 rounded-xl p-2.5 text-left shadow-2xs space-y-1"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    // Deselect
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      ptPlanId: "",
+                                      ptPlanName: "",
+                                      ptPlanPrice: 0,
+                                      ptDuration: "",
+                                    }));
+                                  } else {
+                                    // Select as Add-on
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      ptPlanId: pkg.id || `pt_${pidx}`,
+                                      ptPlanName: pkg.name,
+                                      ptPlanPrice: pPrice,
+                                      ptDuration: pkg.duration || `${durVal} ${durType}`,
+                                    }));
+                                    toast.success(`Added ${pkg.name} (+₹${pPrice.toLocaleString("en-IN")})`);
+                                  }
+                                }}
+                                className={`rounded-2xl p-3 text-left transition cursor-pointer border-2 space-y-1.5 relative ${
+                                  isSelected
+                                    ? "bg-indigo-50/90 border-indigo-600 shadow-sm ring-2 ring-indigo-500/20"
+                                    : "bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50/80 shadow-2xs"
+                                }`}
                               >
-                                <div className="flex items-center justify-between gap-1">
-                                  <span className="text-xs font-bold text-indigo-950 truncate">
-                                    {pkg.name}
-                                  </span>
-                                  <span className="text-xs font-extrabold text-emerald-700 shrink-0 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
-                                    ₹{pPrice.toLocaleString("en-IN")}
+                                <div className="flex items-start justify-between gap-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <div
+                                      className={`w-4 h-4 rounded-full flex items-center justify-center text-white text-[10px] shrink-0 ${
+                                        isSelected ? "bg-indigo-600" : "border-2 border-slate-300"
+                                      }`}
+                                    >
+                                      {isSelected && <Check className="w-2.5 h-2.5" />}
+                                    </div>
+                                    <span className="text-xs font-extrabold text-indigo-950 truncate">
+                                      {pkg.name}
+                                    </span>
+                                  </div>
+                                  <span
+                                    className={`text-xs font-black shrink-0 px-2 py-0.5 rounded-lg border ${
+                                      isSelected
+                                        ? "bg-indigo-600 text-white border-indigo-600"
+                                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    }`}
+                                  >
+                                    +₹{pPrice.toLocaleString("en-IN")}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+
+                                <div className="flex items-center gap-1.5 flex-wrap text-[10px] pl-5">
                                   {pkg.duration && (
-                                    <span className="text-slate-600 font-semibold">
+                                    <span className="text-slate-600 font-semibold bg-slate-100 px-1.5 py-0.5 rounded">
                                       ⏳ {pkg.duration}
                                     </span>
                                   )}
                                   {perMonth && (
-                                    <span className="font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded">
+                                    <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
                                       ₹{perMonth.toLocaleString("en-IN")}/mo
                                     </span>
                                   )}
                                 </div>
+
                                 {pkg.description && (
-                                  <p className="text-[10px] text-slate-600 line-clamp-1">
+                                  <p className="text-[10px] text-slate-600 line-clamp-1 pl-5">
                                     {pkg.description}
                                   </p>
                                 )}
@@ -675,6 +771,19 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                             );
                           })}
                         </div>
+
+                        {/* Add-on Summary Pill */}
+                        {formData.ptPlanName && (
+                          <div className="mt-2.5 p-2.5 rounded-xl bg-gradient-to-r from-indigo-50 via-purple-50 to-emerald-50 border border-indigo-200 flex items-center justify-between text-xs">
+                            <span className="font-bold text-indigo-900 flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              PT Add-on: <span className="text-emerald-800 font-extrabold">{formData.ptPlanName}</span>
+                            </span>
+                            <span className="font-extrabold text-indigo-950">
+                              +₹{Number(formData.ptPlanPrice || 0).toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1017,6 +1126,35 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Live Order Fee Summary & Breakdown Banner */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md border border-slate-800">
+            <div className="flex items-center gap-3 text-xs w-full sm:w-auto justify-between sm:justify-start">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-300 font-medium">Gym Plan:</span>
+                <span className="font-bold text-white">₹{basePlanPrice.toLocaleString("en-IN")}</span>
+              </div>
+              {ptAddonPrice > 0 && (
+                <>
+                  <span className="text-indigo-400 font-extrabold">+</span>
+                  <div className="flex items-center gap-1.5 bg-indigo-500/20 px-2 py-0.5 rounded-lg border border-indigo-500/40">
+                    <Sparkles className="w-3 h-3 text-indigo-300" />
+                    <span className="text-indigo-200 font-medium truncate max-w-[120px] sm:max-w-[180px]">
+                      {formData.ptPlanName || "PT Add-on"}:
+                    </span>
+                    <span className="font-bold text-indigo-300">₹{ptAddonPrice.toLocaleString("en-IN")}</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-slate-800 pt-2 sm:pt-0">
+              <span className="text-slate-300 text-xs font-bold uppercase tracking-wider">Total Fee:</span>
+              <span className="text-lg font-black text-emerald-400">
+                ₹{totalPayableFee.toLocaleString("en-IN")}
+              </span>
             </div>
           </div>
 

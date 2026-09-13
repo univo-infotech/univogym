@@ -36,7 +36,10 @@ import {
   Flame,
   Target,
   Maximize2,
-  X
+  X,
+  Sparkles,
+  IndianRupee,
+  CheckCircle2
 } from 'lucide-react';
 import {
   validateInviteToken,
@@ -246,8 +249,14 @@ export default function MemberSelfRegister() {
   const [trainers, setTrainers] = useState([]);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [selectedTrainer, setSelectedTrainer] = useState(null);
+  const [selectedPtPlan, setSelectedPtPlan] = useState(null); // { id, name, price, duration, description }
   const [plansLoading, setPlansLoading] = useState(false);
   const [fullPhotoModal, setFullPhotoModal] = useState(null);
+
+  // Dynamic fee calculation (Base Plan + Trainer PT Add-on)
+  const basePlanPrice = Number(selectedPlan?.price || 0);
+  const ptAddonPrice = Number(selectedPtPlan?.price || 0);
+  const totalRegistrationFee = basePlanPrice + ptAddonPrice;
 
   // Body Assessment (when dedicated coach selected)
   const [weight, setWeight] = useState('');
@@ -466,6 +475,10 @@ export default function MemberSelfRegister() {
       const expDate = new Date();
       expDate.setMonth(expDate.getMonth() + durationMonths);
 
+      const baseFee = Number(selectedPlan?.price || 0);
+      const ptFee = Number(selectedPtPlan?.price || 0);
+      const combinedTotalFee = baseFee + ptFee;
+
       const memberPayload = {
         gymId: gymId || 'univo_main',
         fullName: personalData.fullName || tokenData?.memberName || typedName,
@@ -480,7 +493,14 @@ export default function MemberSelfRegister() {
         address: personalData.address || '',
         planId: selectedPlan?.id || 'p2',
         planName: selectedPlan?.name || '3-Month Pro',
-        planPrice: selectedPlan?.price || 6500,
+        planPrice: baseFee,
+        // Coach PT Add-on details
+        ptPlanId: selectedPtPlan?.id || '',
+        ptPlanName: selectedPtPlan?.name || '',
+        ptPlanPrice: ptFee,
+        ptDuration: selectedPtPlan?.duration || '',
+        totalAmount: combinedTotalFee,
+        dueAmount: combinedTotalFee,
         joinDate: todayDate.toISOString().split('T')[0],
         expiryDate: expDate.toISOString().split('T')[0],
         trainerId: selectedTrainer?.id || null,
@@ -519,7 +539,10 @@ export default function MemberSelfRegister() {
           return `${day}/${month}/${year}`;
         };
 
-        const planPriceNum = Number(selectedPlan?.price || 6500);
+        const planDisplayName = selectedPtPlan?.name
+          ? `${selectedPlan?.name || 'Gym Plan'} + ${selectedPtPlan.name}`
+          : (selectedPlan?.name || 'Membership Plan');
+
         await addPayment(gymId || 'univo_main', {
           id: 'bill_' + Date.now(),
           memberId: createdMemberId || 'm_' + Date.now(),
@@ -527,11 +550,14 @@ export default function MemberSelfRegister() {
           phone: memberPayload.phone,
           slot: preferredTime || 'General Floor',
           batch: 'Self Registration • Link Access',
-          planName: selectedPlan?.name || 'Membership Plan',
-          planPrice: planPriceNum,
+          planName: planDisplayName,
+          planPrice: combinedTotalFee,
+          basePlanPrice: baseFee,
+          ptPlanName: selectedPtPlan?.name || '',
+          ptPlanPrice: ptFee,
           discount: 0,
-          amount: planPriceNum,
-          paidAmount: planPriceNum,
+          amount: combinedTotalFee,
+          paidAmount: combinedTotalFee,
           dueAmount: 0,
           paymentMode: 'online',
           paymentType: 'full',
@@ -967,7 +993,10 @@ export default function MemberSelfRegister() {
                 {selectedTrainer && (
                   <button
                     type="button"
-                    onClick={() => setSelectedTrainer(null)}
+                    onClick={() => {
+                      setSelectedTrainer(null);
+                      setSelectedPtPlan(null);
+                    }}
                     className="text-xs text-rose-600 font-semibold hover:underline"
                   >
                     Clear Selection
@@ -983,7 +1012,13 @@ export default function MemberSelfRegister() {
                       key={trainer.id}
                       type="button"
                       onClick={() => {
-                        setSelectedTrainer(active ? null : trainer);
+                        if (active) {
+                          setSelectedTrainer(null);
+                          setSelectedPtPlan(null);
+                        } else {
+                          setSelectedTrainer(trainer);
+                          setSelectedPtPlan(null);
+                        }
                         setStepError('');
                       }}
                       className={cn(
@@ -1110,15 +1145,30 @@ export default function MemberSelfRegister() {
                         </p>
                       )}
 
-                      {/* Coach Custom PT Packages */}
+                      {/* Coach Custom PT Packages (Clickable Add-on) */}
                       {selectedTrainer.ptPlans && selectedTrainer.ptPlans.length > 0 && (
                         <div className="pt-2">
-                          <span className="text-[11px] font-bold text-slate-800 block mb-1.5 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3 text-emerald-600" /> Coach Personal Training (PT) Packages & Pricing:
-                          </span>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                              <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Coach Personal Training (PT) Packages & Add-on:
+                            </span>
+                            {selectedPtPlan && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPtPlan(null)}
+                                className="text-[10px] text-rose-600 hover:text-rose-700 font-bold hover:underline"
+                              >
+                                Remove PT Add-on
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-500 mb-2">
+                            Select a personal training package to add dedicated 1-on-1 coaching to your membership.
+                          </p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {selectedTrainer.ptPlans.map((pkg, pidx) => {
                               const pPrice = Number(pkg.price || 0);
+                              const isSelected = selectedPtPlan?.id === (pkg.id || `pt_${pidx}`) || selectedPtPlan?.name === pkg.name;
                               const durType = pkg.durationType || (pkg.duration?.toLowerCase().includes("year") ? "years" : "months");
                               const durVal = Number(pkg.durationValue) || (pkg.duration?.toLowerCase().includes("3 month") ? 3 : pkg.duration?.toLowerCase().includes("6 month") ? 6 : pkg.duration?.toLowerCase().includes("1 year") ? 1 : 1);
                               const totalMonths = durType === "years" ? durVal * 12 : durVal;
@@ -1127,37 +1177,82 @@ export default function MemberSelfRegister() {
                               return (
                                 <div
                                   key={pkg.id || pidx}
-                                  className="bg-white/95 border border-emerald-200/90 rounded-xl p-2.5 text-left shadow-2xs space-y-1"
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setSelectedPtPlan(null);
+                                    } else {
+                                      setSelectedPtPlan({
+                                        id: pkg.id || `pt_${pidx}`,
+                                        name: pkg.name,
+                                        price: pPrice,
+                                        duration: pkg.duration || `${totalMonths} Month(s)`,
+                                        description: pkg.description || ""
+                                      });
+                                    }
+                                  }}
+                                  className={`border-2 rounded-xl p-3 text-left shadow-2xs space-y-1.5 transition-all cursor-pointer relative ${
+                                    isSelected
+                                      ? "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-600 shadow-md ring-2 ring-emerald-500/20"
+                                      : "bg-white/95 border-emerald-200/90 hover:border-emerald-400 hover:bg-emerald-50/30"
+                                  }`}
                                 >
                                   <div className="flex items-center justify-between gap-1">
-                                    <span className="text-xs font-bold text-emerald-950 truncate">
-                                      {pkg.name}
-                                    </span>
-                                    <span className="text-xs font-extrabold text-emerald-700 shrink-0 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
-                                      ₹{pPrice.toLocaleString("en-IN")}
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                                        isSelected ? "bg-emerald-600 text-white" : "border border-slate-300 bg-slate-50"
+                                      }`}>
+                                        {isSelected ? "✓" : ""}
+                                      </span>
+                                      <span className="text-xs font-bold text-slate-900 truncate">
+                                        {pkg.name}
+                                      </span>
+                                    </div>
+                                    <span className={`text-xs font-extrabold shrink-0 px-2 py-0.5 rounded-lg border ${
+                                      isSelected
+                                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                        : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                    }`}>
+                                      +₹{pPrice.toLocaleString("en-IN")}
                                     </span>
                                   </div>
-                                  <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                                  <div className="flex items-center gap-1.5 flex-wrap text-[10px] pl-5">
                                     {pkg.duration && (
                                       <span className="text-slate-600 font-semibold">
                                         ⏳ {pkg.duration}
                                       </span>
                                     )}
                                     {perMonth && (
-                                      <span className="font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded">
+                                      <span className="font-bold text-emerald-700 bg-emerald-100/60 px-1 py-0.2 rounded">
                                         ₹{perMonth.toLocaleString("en-IN")}/mo
                                       </span>
                                     )}
                                   </div>
                                   {pkg.description && (
-                                    <p className="text-[10px] text-slate-600 line-clamp-1">
+                                    <p className="text-[10px] text-slate-600 line-clamp-1 pl-5">
                                       {pkg.description}
                                     </p>
+                                  )}
+                                  {isSelected && (
+                                    <div className="text-[9px] font-black tracking-wider text-emerald-800 bg-emerald-100/80 rounded-md py-0.5 px-2 text-center uppercase mt-1">
+                                      ✓ PT Add-on Added to Total
+                                    </div>
                                   )}
                                 </div>
                               );
                             })}
                           </div>
+
+                          {selectedPtPlan && (
+                            <div className="mt-2.5 p-2 rounded-xl bg-emerald-100/80 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between">
+                              <span className="flex items-center gap-1.5">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                                PT Add-on: {selectedPtPlan.name}
+                              </span>
+                              <span className="font-extrabold text-emerald-800">
+                                +₹{Number(selectedPtPlan.price).toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1354,6 +1449,35 @@ export default function MemberSelfRegister() {
               )}
             </div>
 
+            {/* Live Fee Summary & Breakdown Banner */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md border border-slate-800">
+              <div className="flex items-center gap-3 text-xs w-full sm:w-auto justify-between sm:justify-start">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-300 font-medium">Gym Membership:</span>
+                  <span className="font-bold text-white">₹{basePlanPrice.toLocaleString('en-IN')}</span>
+                </div>
+                {ptAddonPrice > 0 && (
+                  <>
+                    <span className="text-emerald-400 font-extrabold">+</span>
+                    <div className="flex items-center gap-1.5 bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/40">
+                      <Sparkles className="w-3 h-3 text-emerald-300" />
+                      <span className="text-emerald-200 font-medium truncate max-w-[120px] sm:max-w-[180px]">
+                        {selectedPtPlan?.name || 'Coach PT'}:
+                      </span>
+                      <span className="font-bold text-emerald-300">₹{ptAddonPrice.toLocaleString('en-IN')}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-slate-800 pt-2 sm:pt-0">
+                <span className="text-slate-300 text-xs font-bold uppercase tracking-wider">Total Payable:</span>
+                <span className="text-lg font-black text-emerald-400">
+                  ₹{totalRegistrationFee.toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+
             {stepError && (
               <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-xs font-semibold">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -1454,6 +1578,28 @@ export default function MemberSelfRegister() {
               <div>
                 <p className="text-[10px] text-slate-500 uppercase font-bold">Agreement Date</p>
                 <p className="text-xs text-slate-900 font-bold">{formatDate(Date.now())}</p>
+              </div>
+            </div>
+
+            {/* Order / Fee Breakdown Summary */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white space-y-2 border border-slate-800 shadow-sm">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-300">Base Gym Plan ({selectedPlan?.name || 'Selected Plan'}):</span>
+                <span className="font-bold text-white">₹{basePlanPrice.toLocaleString('en-IN')}</span>
+              </div>
+              {ptAddonPrice > 0 && (
+                <div className="flex items-center justify-between text-xs text-emerald-300">
+                  <span className="flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> Coach PT Add-on ({selectedPtPlan?.name}):
+                  </span>
+                  <span className="font-bold">+₹{ptAddonPrice.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                <span className="text-xs uppercase font-bold text-slate-300">Total Registration Payable:</span>
+                <span className="text-lg font-black text-emerald-400">
+                  ₹{totalRegistrationFee.toLocaleString('en-IN')}
+                </span>
               </div>
             </div>
 
