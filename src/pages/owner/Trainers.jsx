@@ -38,6 +38,7 @@ import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
 import { getTrainers, addTrainer, updateTrainer, deleteTrainer } from "../../firebase/trainers";
+import { getMembers } from "../../firebase/members";
 import { useAuth } from "../../contexts/AuthContext";
 import toast from "react-hot-toast";
 
@@ -492,9 +493,34 @@ export default function Trainers() {
   useEffect(() => {
     async function load() {
       try {
-        const t = await getTrainers(gymId || "univo_main");
-        setTrainers(t && t.length > 0 ? t : []);
+        const [t, m] = await Promise.all([
+          getTrainers(gymId || "univo_main"),
+          getMembers(gymId || "univo_main")
+        ]);
+
+        const allMembers = m || [];
+        const enrichedTrainers = (t || []).map((tr) => {
+          const assignedMembers = allMembers.filter((mem) => {
+            const matchId = tr.id && (mem.trainerId === tr.id || mem.coachId === tr.id);
+            const trName = tr.name || tr.fullName || "";
+            const matchName = trName && mem.trainerName && (
+              mem.trainerName.toLowerCase() === trName.toLowerCase() ||
+              mem.trainerName.toLowerCase().includes(trName.toLowerCase()) ||
+              trName.toLowerCase().includes(mem.trainerName.toLowerCase())
+            );
+            return matchId || matchName;
+          });
+
+          return {
+            ...tr,
+            membersCount: assignedMembers.length,
+            assignedMembers
+          };
+        });
+
+        setTrainers(enrichedTrainers);
       } catch (e) {
+        console.warn("Could not load trainers/members:", e);
         setTrainers([]);
       }
     }
@@ -1627,6 +1653,64 @@ export default function Trainers() {
                   </>
                 )}
               </p>
+            </div>
+
+            {/* Assigned PT Athletes / Members Card */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Dumbbell className="w-3.5 h-3.5 text-emerald-600" /> Assigned Athletes / PT Members
+                </p>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  {viewTrainerModal.assignedMembers?.length || viewTrainerModal.membersCount || 0} Active Clients
+                </span>
+              </div>
+
+              {viewTrainerModal.assignedMembers && viewTrainerModal.assignedMembers.length > 0 ? (
+                <div className="space-y-2">
+                  {viewTrainerModal.assignedMembers.map((mem) => (
+                    <div
+                      key={mem.id}
+                      className="p-3 bg-white rounded-2xl border border-slate-200 flex items-center justify-between shadow-2xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        {mem.photoURL || mem.photo ? (
+                          <img
+                            src={mem.photoURL || mem.photo}
+                            alt={mem.name || mem.fullName}
+                            className="w-10 h-10 rounded-xl object-cover border border-slate-100"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-bold flex items-center justify-center text-xs">
+                            {(mem.name || mem.fullName || "M").slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-bold text-slate-900 text-xs">{mem.name || mem.fullName}</p>
+                          <p className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                            <span>{mem.phone || "No phone"}</span>
+                            <span>•</span>
+                            <span className="font-semibold text-indigo-700">{mem.slot || "General Shift"}</span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-extrabold text-[10px] border border-purple-200 block mb-1">
+                          {mem.ptPlanName || "1-on-1 PT"}
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          Paid: ₹{(Number(mem.paidAmount || 0) || Number(mem.ptPlanPrice || 0) + Number(mem.planPrice || 0)).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center text-xs text-slate-400">
+                  No athletes currently assigned to this trainer.
+                </div>
+              )}
             </div>
 
             {/* Custom Trainer PT Membership Packages */}
