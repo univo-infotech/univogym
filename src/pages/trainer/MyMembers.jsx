@@ -18,7 +18,7 @@ import {
   Filter
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
-import { getTrainerMembers, getTrainer } from "../../firebase/trainers";
+import { getTrainerMembers, getTrainer, getTrainers } from "../../firebase/trainers";
 import AthleteHealthDietModal from "../../components/trainer/AthleteHealthDietModal";
 
 export default function MyMembers() {
@@ -34,16 +34,43 @@ export default function MyMembers() {
     async function loadData() {
       setLoading(true);
       try {
-        let tName = user?.displayName || user?.name || "";
-        if (profileId && !tName) {
-          const t = await getTrainer(gymId || "univo_main", profileId);
-          if (t) {
-            setTrainerInfo(t);
-            tName = t.name || "";
+        const GID = gymId || "univo_main";
+        let tData = null;
+
+        if (profileId) {
+          try {
+            tData = await getTrainer(GID, profileId);
+          } catch (e) {}
+        }
+
+        if (!tData) {
+          const savedSession = localStorage.getItem("univo_trainer_session");
+          if (savedSession) {
+            try {
+              tData = JSON.parse(savedSession);
+            } catch (e) {}
           }
         }
 
-        const data = await getTrainerMembers(gymId || "univo_main", profileId, tName);
+        if (!tData || !tData.name) {
+          try {
+            const allTrainers = await getTrainers(GID);
+            const searchEmail = (user?.email || "").toLowerCase().trim();
+            const searchName = (user?.displayName || "").toLowerCase().trim();
+            const found = allTrainers.find((t) => {
+              const tEmail = (t.email || t.loginEmail || "").toLowerCase().trim();
+              const tName = (t.name || t.fullName || "").toLowerCase().trim();
+              return (searchEmail && tEmail === searchEmail) || (searchName && tName === searchName);
+            });
+            if (found) tData = found;
+          } catch (e) {}
+        }
+
+        if (tData) setTrainerInfo(tData);
+
+        const tId = tData?.id || profileId || "";
+        const tName = tData?.name || user?.displayName || "";
+        const data = await getTrainerMembers(GID, tId, tName);
         setMembers(data);
       } catch (err) {
         console.error("Failed to load trainer members:", err);

@@ -23,7 +23,7 @@ import StatCard from "../../components/ui/StatCard";
 import Modal from "../../components/ui/Modal";
 import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
 import { useAuth } from "../../contexts/AuthContext";
-import { getTrainerMembers, getTrainer, updateTrainer } from "../../firebase/trainers";
+import { getTrainerMembers, getTrainer, getTrainers, updateTrainer } from "../../firebase/trainers";
 import AthleteHealthDietModal from "../../components/trainer/AthleteHealthDietModal";
 import toast from "react-hot-toast";
 
@@ -56,17 +56,48 @@ export default function TrainerDashboard() {
         const GID = gymId || "univo_main";
         let trainerData = null;
 
+        // 1. Check direct profileId
         if (profileId) {
-          trainerData = await getTrainer(GID, profileId);
+          try {
+            trainerData = await getTrainer(GID, profileId);
+          } catch (e) {}
         }
 
-        if (!trainerData) {
-          const savedSession = localStorage.getItem("univo_trainer_session");
-          if (savedSession) {
+        // 2. Check stored session
+        let sessionData = null;
+        const savedSession = localStorage.getItem("univo_trainer_session");
+        if (savedSession) {
+          try {
+            sessionData = JSON.parse(savedSession);
+          } catch (e) {}
+        }
+
+        if (!trainerData && sessionData) {
+          trainerData = sessionData;
+          // Refresh from Firestore if session has id
+          if (sessionData.id) {
             try {
-              trainerData = JSON.parse(savedSession);
+              const fresh = await getTrainer(GID, sessionData.id);
+              if (fresh) trainerData = { ...sessionData, ...fresh };
             } catch (e) {}
           }
+        }
+
+        // 3. Fallback: match by email or user displayName from all trainers in gym
+        if (!trainerData || !trainerData.commissionValue) {
+          try {
+            const allTrainers = await getTrainers(GID);
+            const searchEmail = (user?.email || sessionData?.email || sessionData?.loginEmail || "").toLowerCase().trim();
+            const searchName = (user?.displayName || sessionData?.name || "").toLowerCase().trim();
+            const found = allTrainers.find((t) => {
+              const tEmail = (t.email || t.loginEmail || "").toLowerCase().trim();
+              const tName = (t.name || t.fullName || "").toLowerCase().trim();
+              return (searchEmail && tEmail === searchEmail) || (searchName && tName === searchName);
+            });
+            if (found) {
+              trainerData = { ...trainerData, ...found };
+            }
+          } catch (e) {}
         }
 
         if (trainerData) {
@@ -82,8 +113,9 @@ export default function TrainerDashboard() {
           });
         }
 
+        const tId = trainerData?.id || profileId || "";
         const tName = trainerData?.name || user?.displayName || "";
-        const mList = await getTrainerMembers(GID, profileId, tName);
+        const mList = await getTrainerMembers(GID, tId, tName);
         setMembers(mList);
       } catch (e) {
         console.error("Failed to load trainer portal data:", e);
@@ -249,9 +281,15 @@ export default function TrainerDashboard() {
               Member pays full fee to Gym Owner. The system calculates Gym Owner cut and Trainer payout share.
             </p>
           </div>
-          <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-xl shrink-0">
-            Deal: {trainerProfile?.commissionType === "fixed" ? `₹${trainerProfile.commissionValue} Flat Gym Cut` : `${trainerProfile?.commissionValue || 30}% Gym Cut`}
-          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs font-black text-indigo-950 bg-indigo-50 border border-indigo-200 px-3.5 py-1.5 rounded-xl shadow-2xs flex items-center gap-1.5">
+              <HandCoins className="w-4 h-4 text-indigo-600" />
+              Deal:{" "}
+              {trainerProfile?.commissionType === "fixed"
+                ? `Flat ₹${Number(trainerProfile.commissionValue || 0).toLocaleString("en-IN")} Gym Cut`
+                : `${trainerProfile?.commissionValue !== undefined ? trainerProfile.commissionValue : 20}% Gym / ${100 - (trainerProfile?.commissionValue !== undefined ? trainerProfile.commissionValue : 20)}% Trainer Share`}
+            </span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
