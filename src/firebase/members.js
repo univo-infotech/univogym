@@ -278,19 +278,37 @@ export async function generateInviteToken(gymId, opts = {}) {
  * @param {Object} data
  */
 export async function updateMember(memberId, data) {
+  if (!memberId) return;
+
   try {
     await updateDoc(doc(db, "members", memberId), {
       ...data,
       updatedAt: serverTimestamp(),
     });
   } catch (err) {
-    console.warn("updateDoc error:", err);
+    // If not found by doc id, attempt to query by member 'id' field or 'phone'
+    try {
+      const q = query(collection(db, "members"), where("id", "==", memberId));
+      const qSnap = await getDocs(q);
+      if (!qSnap.empty) {
+        await updateDoc(doc(db, "members", qSnap.docs[0].id), {
+          ...data,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    } catch (qErr) {
+      console.warn("updateDoc query fallback error:", qErr);
+    }
   }
 
   // Update in local cache as well
   try {
     const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-    const idx = cached.findIndex((m) => m.id === memberId);
+    const rawTargetPhone = (data.phone || "").replace(/\D/g, "");
+    const idx = cached.findIndex((m) => 
+      m.id === memberId || 
+      (rawTargetPhone && (m.phone || "").replace(/\D/g, "") === rawTargetPhone)
+    );
     if (idx !== -1) {
       cached[idx] = { ...cached[idx], ...data, updatedAt: new Date().toISOString() };
       localStorage.setItem("univo_recent_members", JSON.stringify(cached));

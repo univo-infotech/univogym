@@ -381,7 +381,10 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     };
 
     try {
-      await addMember(GID, newMember);
+      const createdId = await addMember(GID, newMember);
+      if (createdId) {
+        newMember.id = createdId;
+      }
     } catch (err) {
       console.warn("Direct member recorded in offline state:", err);
     }

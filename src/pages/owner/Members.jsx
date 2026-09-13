@@ -148,7 +148,18 @@ const STATUS_CONFIG = {
 };
 
 function StatusBadge({ status, dueAmount, member }) {
-  // Only show "Due" badge if member has actually made a partial payment during collection
+  // 1. If member has paid and due is 0 (or paid full amount), show Paid badge
+  const isFullyPaid = !!member?.lastPaymentDate && Number(member?.dueAmount ?? dueAmount ?? 0) <= 0 && status !== 'left';
+  if (isFullyPaid) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
+        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+        Paid
+      </span>
+    );
+  }
+
+  // 2. Only show "Due" badge if member has actually made a partial payment during collection
   const hasPartialDue = Number(member?.dueAmount ?? dueAmount) > 0 && !!member?.lastPaymentDate && status !== 'left';
   if (hasPartialDue) {
     return (
