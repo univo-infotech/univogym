@@ -626,6 +626,42 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                         <strong className="text-slate-800">Certifications: </strong> {selectedTrainerObj.certifications}
                       </p>
                     )}
+
+                    {/* Trainer Custom PT Packages */}
+                    {selectedTrainerObj.ptPlans && selectedTrainerObj.ptPlans.length > 0 && (
+                      <div className="pt-2">
+                        <span className="text-[11px] font-bold text-slate-800 block mb-1.5 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-indigo-600" /> Trainer PT Packages & Pricing:
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {selectedTrainerObj.ptPlans.map((pkg, pidx) => (
+                            <div
+                              key={pkg.id || pidx}
+                              className="bg-white/90 border border-indigo-200/90 rounded-xl p-2 text-left shadow-2xs"
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-xs font-bold text-indigo-950 truncate">
+                                  {pkg.name}
+                                </span>
+                                <span className="text-xs font-extrabold text-emerald-700 shrink-0 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
+                                  ₹{Number(pkg.price || 0).toLocaleString("en-IN")}
+                                </span>
+                              </div>
+                              {pkg.duration && (
+                                <span className="text-[10px] text-slate-500 font-semibold block mt-0.5">
+                                  ⏳ {pkg.duration}
+                                </span>
+                              )}
+                              {pkg.description && (
+                                <p className="text-[10px] text-slate-600 line-clamp-1 mt-0.5">
+                                  {pkg.description}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

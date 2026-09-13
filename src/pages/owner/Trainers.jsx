@@ -21,7 +21,11 @@ import {
   X,
   Copy,
   Send,
-  Edit
+  Edit,
+  Tag,
+  Dumbbell,
+  IndianRupee,
+  Sparkles
 } from "lucide-react";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
@@ -59,6 +63,10 @@ export default function Trainers() {
     certifications: "",
     photoUrl: "",
     certUrl: "",
+    ptPlans: [
+      { id: 1, name: "1 Month 1-on-1 PT", duration: "1 Month (24 Sessions)", price: 4500, description: "Personalized workout routine, daily form check & diet guidance" },
+      { id: 2, name: "3 Months Transformation PT", duration: "3 Months (72 Sessions)", price: 11000, description: "Dedicated 1-on-1 coaching, supplement strategy & weekly body fat audit" }
+    ],
     transformations: [
       { id: 1, beforeImg: "", afterImg: "", description: "" }
     ],
@@ -77,6 +85,7 @@ export default function Trainers() {
     certifications: "",
     photoUrl: "",
     certUrl: "",
+    ptPlans: [],
     transformations: [
       { id: 1, beforeImg: "", afterImg: "", description: "" }
     ],
@@ -162,6 +171,38 @@ export default function Trainers() {
     }));
   };
 
+  // --- PT MEMBERSHIP PACKAGE HANDLERS (MANUAL FORM) ---
+  const handlePtPlanChange = (index, field, value) => {
+    setForm((prev) => {
+      const updated = [...prev.ptPlans];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, ptPlans: updated };
+    });
+  };
+
+  const addPtPlan = () => {
+    setForm((prev) => ({
+      ...prev,
+      ptPlans: [
+        ...prev.ptPlans,
+        {
+          id: Date.now(),
+          name: "",
+          duration: "1 Month (24 Sessions)",
+          price: "",
+          description: "1-on-1 personalized training & diet tracking"
+        }
+      ]
+    }));
+  };
+
+  const removePtPlan = (index) => {
+    setForm((prev) => ({
+      ...prev,
+      ptPlans: prev.ptPlans.filter((_, i) => i !== index)
+    }));
+  };
+
   // --- EDIT TRAINER HANDLERS ---
   const handleOpenEdit = (trainer) => {
     setEditingTrainer(trainer);
@@ -176,6 +217,11 @@ export default function Trainers() {
       certifications: trainer.certifications || "",
       photoUrl: trainer.photoUrl || "",
       certUrl: trainer.certUrl || "",
+      ptPlans: Array.isArray(trainer.ptPlans) && trainer.ptPlans.length > 0
+        ? trainer.ptPlans.map((p, idx) => ({ id: p.id || idx + 1, name: p.name || "", duration: p.duration || "", price: p.price || "", description: p.description || "" }))
+        : [
+            { id: 1, name: "1 Month 1-on-1 PT", duration: "1 Month (24 Sessions)", price: 4500, description: "Personalized workout routine, form guidance & diet" }
+          ],
       transformations:
         trainer.transformations && trainer.transformations.length > 0
           ? trainer.transformations.map((t, idx) => ({ id: t.id || idx + 1, beforeImg: t.beforeImg || t.beforeURL || "", afterImg: t.afterImg || t.afterURL || "", description: t.description || t.notes || "" }))
@@ -183,6 +229,38 @@ export default function Trainers() {
     });
     setOpenDropdown(null);
     setEditTrainerModalOpen(true);
+  };
+
+  // --- PT MEMBERSHIP PACKAGE HANDLERS (EDIT FORM) ---
+  const handleEditPtPlanChange = (index, field, value) => {
+    setEditForm((prev) => {
+      const updated = [...prev.ptPlans];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, ptPlans: updated };
+    });
+  };
+
+  const addEditPtPlan = () => {
+    setEditForm((prev) => ({
+      ...prev,
+      ptPlans: [
+        ...prev.ptPlans,
+        {
+          id: Date.now(),
+          name: "",
+          duration: "1 Month (24 Sessions)",
+          price: "",
+          description: "1-on-1 coaching & diet tracking"
+        }
+      ]
+    }));
+  };
+
+  const removeEditPtPlan = (index) => {
+    setEditForm((prev) => ({
+      ...prev,
+      ptPlans: prev.ptPlans.filter((_, i) => i !== index)
+    }));
   };
 
   const updateEditTransformationPhoto = (index, type, url) => {
@@ -245,6 +323,9 @@ export default function Trainers() {
         certifications: editForm.certifications,
         photoUrl: editForm.photoUrl || "",
         certUrl: editForm.certUrl || "",
+        ptPlans: (editForm.ptPlans || [])
+          .filter((p) => p.name && p.price)
+          .map((p) => ({ ...p, price: Number(p.price) })),
         transformations: editForm.transformations.filter(
           (t) => t.beforeImg || t.afterImg || t.description
         ),
@@ -262,7 +343,7 @@ export default function Trainers() {
         setViewTrainerModal((prev) => ({ ...prev, ...updatedData }));
       }
 
-      toast.success("Trainer profile & transformation results updated successfully! ✨");
+      toast.success("Trainer profile, PT membership packages & transformations updated! ✨");
       setEditTrainerModalOpen(false);
       setEditingTrainer(null);
     } catch (err) {
@@ -328,6 +409,9 @@ export default function Trainers() {
         certifications: form.certifications,
         photoUrl: form.photoUrl || "",
         certUrl: form.certUrl || "",
+        ptPlans: (form.ptPlans || [])
+          .filter((p) => p.name && p.price)
+          .map((p) => ({ ...p, price: Number(p.price) })),
         transformations: form.transformations.filter(t => t.beforeImg || t.afterImg || t.description),
         membersCount: 0,
         hasLogin: true,
@@ -345,7 +429,7 @@ export default function Trainers() {
       );
 
       setTrainers([{ ...newT, id: trainerId }, ...trainers]);
-      toast.success("Trainer created & account generated!");
+      toast.success("Trainer created with PT membership packages & login account!");
       setModalOpen(false);
 
       // Reset form
@@ -360,6 +444,10 @@ export default function Trainers() {
         certifications: "",
         photoUrl: "",
         certUrl: "",
+        ptPlans: [
+          { id: 1, name: "1 Month 1-on-1 PT", duration: "1 Month (24 Sessions)", price: 4500, description: "Personalized workout routine, daily form check & diet guidance" },
+          { id: 2, name: "3 Months Transformation PT", duration: "3 Months (72 Sessions)", price: 11000, description: "Dedicated 1-on-1 coaching, supplement strategy & weekly body fat audit" }
+        ],
         transformations: [{ id: 1, beforeImg: "", afterImg: "", description: "" }],
       });
     } catch (err) {
@@ -541,7 +629,7 @@ export default function Trainers() {
                 </div>
               </div>
 
-              <div className="mt-5 p-3 rounded-2xl bg-slate-50 border border-slate-100 grid grid-cols-2 gap-2 text-center text-xs">
+              <div className="mt-4 p-3 rounded-2xl bg-slate-50 border border-slate-100 grid grid-cols-2 gap-2 text-center text-xs">
                 <div>
                   <p className="text-slate-500 font-medium">Active PT Clients</p>
                   <p className="font-extrabold text-slate-900 text-sm mt-0.5">
@@ -554,6 +642,21 @@ export default function Trainers() {
                     {t.experience || "N/A"}
                   </p>
                 </div>
+              </div>
+
+              {/* PT Packages Pill */}
+              <div className="mt-2.5 px-3 py-1.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between text-xs">
+                <span className="font-bold text-emerald-800 flex items-center gap-1.5">
+                  <Dumbbell className="w-3.5 h-3.5 text-emerald-600" />
+                  {t.ptPlans && t.ptPlans.length > 0
+                    ? `${t.ptPlans.length} PT Packages`
+                    : "Custom PT Available"}
+                </span>
+                <span className="font-extrabold text-emerald-700">
+                  {t.ptPlans && t.ptPlans.length > 0
+                    ? `From ₹${Math.min(...t.ptPlans.map((p) => Number(p.price) || 0)).toLocaleString("en-IN")}`
+                    : "Flexible"}
+                </span>
               </div>
             </div>
 
@@ -787,6 +890,111 @@ export default function Trainers() {
                   className="hidden"
                 />
               </label>
+            </div>
+
+            {/* Trainer PT Membership Packages (Custom Packages per Trainer) */}
+            <div className="pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2.5">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600" /> Trainer PT Packages (व्यक्तिगत प्रशिक्षण पैकेज)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Define custom membership & PT pricing packages specific to this trainer.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addPtPlan}
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add PT Package
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {form.ptPlans.map((plan, idx) => (
+                  <div
+                    key={plan.id || idx}
+                    className="p-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl relative space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-extrabold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md flex items-center gap-1">
+                        <Dumbbell className="w-3 h-3 text-emerald-600" /> Package #{idx + 1}
+                      </span>
+                      {form.ptPlans.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePtPlan(idx)}
+                          className="text-slate-400 hover:text-rose-600 p-1 transition"
+                          title="Remove package"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="sm:col-span-1">
+                        <label className="text-[10px] font-bold text-slate-600 uppercase">
+                          Package Name *
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={plan.name}
+                          onChange={(e) => handlePtPlanChange(idx, "name", e.target.value)}
+                          placeholder="e.g. 1 Month 1-on-1 PT"
+                          className="w-full mt-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                        />
+                      </div>
+                      <div className="sm:col-span-1">
+                        <label className="text-[10px] font-bold text-slate-600 uppercase">
+                          Duration / Sessions
+                        </label>
+                        <input
+                          type="text"
+                          value={plan.duration}
+                          onChange={(e) => handlePtPlanChange(idx, "duration", e.target.value)}
+                          placeholder="e.g. 1 Month (24 Sessions)"
+                          className="w-full mt-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                        />
+                      </div>
+                      <div className="sm:col-span-1">
+                        <label className="text-[10px] font-bold text-slate-600 uppercase">
+                          Fees (₹) *
+                        </label>
+                        <div className="relative mt-1">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">
+                            ₹
+                          </span>
+                          <input
+                            required
+                            type="number"
+                            value={plan.price}
+                            onChange={(e) => handlePtPlanChange(idx, "price", e.target.value)}
+                            placeholder="4500"
+                            className="w-full pl-6 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-emerald-700 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 uppercase">
+                        What's Included / Description
+                      </label>
+                      <input
+                        type="text"
+                        value={plan.description}
+                        onChange={(e) => handlePtPlanChange(idx, "description", e.target.value)}
+                        placeholder="e.g. Customized workout split, daily form check & personalized diet plan"
+                        className="w-full mt-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Transformations / Before-After Section with Add More */}
@@ -1110,6 +1318,54 @@ export default function Trainers() {
               </div>
             )}
 
+            {/* Custom Trainer PT Membership Packages */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Personal Training (PT) Packages
+                </p>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  {viewTrainerModal.ptPlans?.length || 0} Packages Available
+                </span>
+              </div>
+
+              {viewTrainerModal.ptPlans && viewTrainerModal.ptPlans.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {viewTrainerModal.ptPlans.map((plan, idx) => (
+                    <div
+                      key={plan.id || idx}
+                      className="p-3.5 bg-slate-50 hover:bg-emerald-50/40 rounded-2xl border border-slate-200/80 hover:border-emerald-300 transition flex flex-col justify-between group"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-900 leading-snug group-hover:text-emerald-900">
+                            {plan.name || `Package #${idx + 1}`}
+                          </span>
+                          <span className="text-xs font-extrabold text-emerald-600 shrink-0 bg-emerald-100/80 px-2 py-0.5 rounded-lg">
+                            ₹{Number(plan.price || 0).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        {plan.duration && (
+                          <span className="text-[11px] font-semibold text-slate-500 mt-1 inline-block">
+                            ⏳ {plan.duration}
+                          </span>
+                        )}
+                        {plan.description && (
+                          <p className="text-[11px] text-slate-600 mt-2 leading-relaxed bg-white/80 p-2 rounded-xl border border-slate-100">
+                            {plan.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center text-xs text-slate-400">
+                  No custom PT packages configured for this trainer yet. Click Edit to add packages.
+                </div>
+              )}
+            </div>
+
             {/* Documents & Results Preview */}
             <div className="space-y-4">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -1393,6 +1649,111 @@ export default function Trainers() {
                 className="hidden"
               />
             </label>
+          </div>
+
+          {/* Trainer PT Membership Packages (Custom Packages per Trainer) */}
+          <div className="pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between mb-2.5">
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-600" /> Trainer PT Packages (व्यक्तिगत प्रशिक्षण पैकेज)
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Customize fees and training packages specific to {editForm.name || "this trainer"}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={addEditPtPlan}
+                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add PT Package
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {(editForm.ptPlans || []).map((plan, idx) => (
+                <div
+                  key={plan.id || idx}
+                  className="p-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl relative space-y-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <Dumbbell className="w-3 h-3 text-emerald-600" /> Package #{idx + 1}
+                    </span>
+                    {(editForm.ptPlans || []).length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeEditPtPlan(idx)}
+                        className="text-slate-400 hover:text-rose-600 p-1 transition"
+                        title="Remove package"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="sm:col-span-1">
+                      <label className="text-[10px] font-bold text-slate-600 uppercase">
+                        Package Name *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={plan.name}
+                        onChange={(e) => handleEditPtPlanChange(idx, "name", e.target.value)}
+                        placeholder="e.g. 1 Month 1-on-1 PT"
+                        className="w-full mt-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                      />
+                    </div>
+                    <div className="sm:col-span-1">
+                      <label className="text-[10px] font-bold text-slate-600 uppercase">
+                        Duration / Sessions
+                      </label>
+                      <input
+                        type="text"
+                        value={plan.duration}
+                        onChange={(e) => handleEditPtPlanChange(idx, "duration", e.target.value)}
+                        placeholder="e.g. 1 Month (24 Sessions)"
+                        className="w-full mt-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                      />
+                    </div>
+                    <div className="sm:col-span-1">
+                      <label className="text-[10px] font-bold text-slate-600 uppercase">
+                        Fees (₹) *
+                      </label>
+                      <div className="relative mt-1">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">
+                          ₹
+                        </span>
+                        <input
+                          required
+                          type="number"
+                          value={plan.price}
+                          onChange={(e) => handleEditPtPlanChange(idx, "price", e.target.value)}
+                          placeholder="4500"
+                          className="w-full pl-6 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-emerald-700 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 uppercase">
+                      What's Included / Description
+                    </label>
+                    <input
+                      type="text"
+                      value={plan.description}
+                      onChange={(e) => handleEditPtPlanChange(idx, "description", e.target.value)}
+                      placeholder="e.g. Customized workout split, daily form check & personalized diet plan"
+                      className="w-full mt-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Transformations / Before-After Section with Add More */}
