@@ -602,13 +602,14 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
     return DEFAULT_PLANS_CATALOG;
   }, [plans]);
 
-  // Check if member already has remaining dues from previous partial payment
-  const hasExistingDue = Number(member.dueAmount || 0) > 0 && !!member.lastPaymentDate;
+  // Check if member already has remaining dues (from initial registration or previous partial payment)
+  const hasExistingDue = Number(member.dueAmount || 0) > 0;
   const existingDueAmount = Number(member.dueAmount || 0);
+  const ptAddonPrice = Number(member.ptPlanPrice || 0);
 
   // Check if member is renewing an ending soon, expired, or overdue plan
   const memberStatus = getMemberStatus(member);
-  const isRenewing = ['ending_soon', 'expired', 'overdue'].includes(memberStatus) || (member.lastPaymentDate && hasExistingDue === false);
+  const isRenewing = ['ending_soon', 'expired', 'overdue'].includes(memberStatus) || (member.lastPaymentDate && !hasExistingDue);
 
   // Match initial plan from member or default to first
   const initialPlan = PLANS_CATALOG.find((p) =>
@@ -637,7 +638,6 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
   const [validityStart, setValidityStart] = useState(getSmartValidityStart());
   const [validityEnd, setValidityEnd] = useState("");
   const [paymentType, setPaymentType] = useState("full"); // "full" or "partial"
-  const [payingNow, setPayingNow] = useState(hasExistingDue ? existingDueAmount : initialPlan.price);
   const [paymentMode, setPaymentMode] = useState("cash"); // "cash", "online", "bank", "split"
   const [cashAmount, setCashAmount] = useState("");
   const [onlineAmount, setOnlineAmount] = useState("");
@@ -645,8 +645,12 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
   const [loading, setLoading] = useState(false);
 
   const currentPlan = PLANS_CATALOG.find((p) => p.id === selectedPlanId) || PLANS_CATALOG[0];
-  const targetPayableTotal = hasExistingDue ? existingDueAmount : Math.max(0, currentPlan.price - Number(discountAmount || 0));
+  const targetPayableTotal = hasExistingDue
+    ? existingDueAmount
+    : Math.max(0, currentPlan.price + ptAddonPrice - Number(discountAmount || 0));
   const calculatedTotal = targetPayableTotal;
+
+  const [payingNow, setPayingNow] = useState(hasExistingDue ? existingDueAmount : (initialPlan.price + ptAddonPrice));
 
   // Auto calculate validity end date
   useEffect(() => {
@@ -954,8 +958,13 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-slate-300 font-semibold">
-              {currentPlan.name} ({currentPlan.durationMonths} Month)
+              {currentPlan.name} (₹{currentPlan.price})
             </span>
+            {ptAddonPrice > 0 && (
+              <span className="px-2 py-0.5 rounded-md bg-purple-900/70 text-purple-200 font-bold text-[10px] border border-purple-700/60">
+                + PT {member.ptPlanName ? `(${member.ptPlanName})` : ''}: ₹{ptAddonPrice}
+              </span>
+            )}
             {discountAmount > 0 && (
               <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
                 Discount -₹{discountAmount}
@@ -963,7 +972,7 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
             )}
           </div>
           <div>
-            <span className="text-[11px] text-slate-400 uppercase font-bold mr-2">TOTAL PLAN FEE:</span>
+            <span className="text-[11px] text-slate-400 uppercase font-bold mr-2">TOTAL PAYABLE:</span>
             <span className="font-black text-emerald-400 text-base tracking-tight">
               ₹{calculatedTotal}
             </span>
@@ -2879,26 +2888,33 @@ export default function Members() {
                             <Sun className='w-3 h-3 text-indigo-500' />
                             <span>{m.slot || m.workoutSlot || 'General Shift'}</span>
                           </div>
-                          <p className='text-[11px] text-slate-600 pl-0.5 font-medium'>
-                            {m.trainerName ? `🏋️ ${m.trainerName}` : 'No Trainer'}
+                          <p className='text-[11px] text-slate-700 pl-0.5 font-bold flex items-center gap-1'>
+                            <span>{m.trainerName ? `🏋️ Coach ${m.trainerName}` : 'No Trainer'}</span>
                           </p>
-                          {m.ptPlanName && (
-                            <span className='inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-bold text-[10px] border border-purple-200'>
-                              ✨ PT: {m.ptPlanName} {m.ptPlanPrice ? `(+₹${m.ptPlanPrice})` : ''}
-                            </span>
-                          )}
                         </div>
                       </td>
 
-                      {/* Column 3: Plan & Fee with Days Left Pill */}
+                      {/* Column 3: Plan & Fee with Days Left Pill & Combined Total */}
                       <td className='px-5 py-3.5'>
                         <div className='space-y-1'>
                           <p className='font-bold text-slate-900 text-xs'>
                             {m.planName || 'Standard Plan'} {m.planPrice ? `(₹${Number(m.planPrice).toLocaleString('en-IN')})` : ''}
                           </p>
-                          <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${daysInfo.cls}`}>
-                            {daysInfo.text}
-                          </span>
+                          {m.ptPlanName && (
+                            <div className='inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-bold text-[10px] border border-purple-200'>
+                              ✨ PT: {m.ptPlanName} {m.ptPlanPrice ? `(+₹${Number(m.ptPlanPrice).toLocaleString('en-IN')})` : ''}
+                            </div>
+                          )}
+                          <div className='flex items-center gap-2 pt-0.5'>
+                            <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${daysInfo.cls}`}>
+                              {daysInfo.text}
+                            </span>
+                            {m.ptPlanName && (
+                              <span className='text-[10px] font-extrabold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200'>
+                                Total: ₹{(Number(m.planPrice || 0) + Number(m.ptPlanPrice || 0)).toLocaleString('en-IN')}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
 
