@@ -1810,7 +1810,9 @@ export default function Members() {
 
   // Status counts
   const isPaid = (m) => Number(m.dueAmount || 0) <= 0 && !!m.lastPaymentDate;
+  const isPartial = (m) => Number(m.dueAmount || 0) > 0;
   const paidCount = members.filter((m) => isPaid(m) && m.status !== 'left').length;
+  const partialCount = members.filter((m) => isPartial(m) && m.status !== 'left').length;
   const activeCount = members.filter((m) => getMemberStatus(m) === 'active').length;
   const endingSoonCount = members.filter((m) => getMemberStatus(m) === 'ending_soon').length;
   const expiredCount = members.filter((m) => getMemberStatus(m) === 'expired').length;
@@ -1820,6 +1822,7 @@ export default function Members() {
   const FILTER_TABS = [
     { key: 'active', label: `Active (${activeCount})` },
     { key: 'paid', label: `Paid (${paidCount})` },
+    { key: 'partial', label: `Partial / Due (${partialCount})` },
     { key: 'ending_soon', label: `Ending Soon (${endingSoonCount})` },
     { key: 'expired', label: `Expired (${expiredCount})` },
     { key: 'overdue', label: `Overdue (${overdueCount})` },
@@ -1839,6 +1842,8 @@ export default function Members() {
       matchTab = true;
     } else if (filterTab === 'paid') {
       matchTab = isPaid(m) && m.status !== 'left';
+    } else if (filterTab === 'partial') {
+      matchTab = isPartial(m) && m.status !== 'left';
     } else {
       matchTab = status === filterTab;
     }
@@ -1879,54 +1884,64 @@ export default function Members() {
       </div>
 
       {/* KPI Cards Row */}
-      <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3'>
-        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3'>
-          <div className='w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0'>
-            <CheckCircle className='w-5 h-5' />
+      <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3'>
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
+          <div className='w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0'>
+            <CheckCircle className='w-4.5 h-4.5' />
           </div>
           <div className='min-w-0'>
-            <p className='text-[11px] text-slate-500 font-medium truncate'>Fully Paid</p>
-            <p className='text-lg font-bold text-slate-900'>{paidCount}</p>
+            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Fully Paid</p>
+            <p className='text-base font-bold text-slate-900'>{paidCount}</p>
           </div>
         </div>
 
-        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3'>
-          <div className='w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0'>
-            <Clock className='w-5 h-5' />
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
+          <div className='w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0'>
+            <IndianRupee className='w-4.5 h-4.5' />
           </div>
           <div className='min-w-0'>
-            <p className='text-[11px] text-slate-500 font-medium truncate'>Ending Soon (≤3d)</p>
-            <p className='text-lg font-bold text-amber-700'>{endingSoonCount}</p>
+            <p className='text-[10.5px] text-amber-800 font-medium truncate'>Partial Due</p>
+            <p className='text-base font-bold text-amber-700'>{partialCount}</p>
           </div>
         </div>
 
-        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3'>
-          <div className='w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0'>
-            <AlertTriangle className='w-5 h-5' />
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
+          <div className='w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0'>
+            <Clock className='w-4.5 h-4.5' />
           </div>
           <div className='min-w-0'>
-            <p className='text-[11px] text-slate-500 font-medium truncate'>Expired (1-3d)</p>
-            <p className='text-lg font-bold text-rose-600'>{expiredCount}</p>
+            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Ending Soon (≤3d)</p>
+            <p className='text-base font-bold text-amber-700'>{endingSoonCount}</p>
           </div>
         </div>
 
-        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3'>
-          <div className='w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0'>
-            <UserX className='w-5 h-5' />
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
+          <div className='w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0'>
+            <AlertTriangle className='w-4.5 h-4.5' />
           </div>
           <div className='min-w-0'>
-            <p className='text-[11px] text-slate-500 font-medium truncate'>Overdue (&gt;3d)</p>
-            <p className='text-lg font-bold text-red-700'>{overdueCount}</p>
+            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Expired (1-3d)</p>
+            <p className='text-base font-bold text-rose-600'>{expiredCount}</p>
           </div>
         </div>
 
-        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3'>
-          <div className='w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0'>
-            <LogOut className='w-5 h-5' />
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
+          <div className='w-9 h-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0'>
+            <UserX className='w-4.5 h-4.5' />
           </div>
           <div className='min-w-0'>
-            <p className='text-[11px] text-slate-500 font-medium truncate'>Left / Inactive</p>
-            <p className='text-lg font-bold text-slate-900'>{leftCount}</p>
+            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Overdue (&gt;3d)</p>
+            <p className='text-base font-bold text-red-700'>{overdueCount}</p>
+          </div>
+        </div>
+
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
+          <div className='w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0'>
+            <LogOut className='w-4.5 h-4.5' />
+          </div>
+          <div className='min-w-0'>
+            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Left / Inactive</p>
+            <p className='text-base font-bold text-slate-900'>{leftCount}</p>
           </div>
         </div>
       </div>
