@@ -16,6 +16,7 @@ const MODULES = [
   { id: "members", label: "Members", desc: "View, register, edit and manage gym members" },
   { id: "payments", label: "Fees & Receipts", desc: "Collect payments, record receipts and track dues" },
   { id: "trainers", label: "Trainers", desc: "Manage fitness coaches and workout assignments" },
+  { id: "pt-memberships", label: "PT Memberships", desc: "Personal training packages, client allocations & trainer commission payouts" },
   { id: "staff", label: "Staff Management", desc: "Payroll, records and attendance tracking" },
   { id: "memberships", label: "Memberships & Plans", desc: "Pricing tiers, packages and membership terms" },
   { id: "services", label: "Services & Amenities", desc: "Extra facilities, lockers and add-on services" },
