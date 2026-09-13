@@ -1151,117 +1151,6 @@ export default function Trainers() {
               </div>
             </div>
 
-            {/* Gym Owner & Trainer PT Commission & Revenue Share Deal in Edit Modal */}
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/50 border-2 border-indigo-200/90 shadow-2xs space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
-                <div>
-                  <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
-                    <HandCoins className="w-4 h-4 text-indigo-600" /> Gym Owner & Trainer PT Commission Deal (कमीशन समझौता)
-                  </h4>
-                  <p className="text-[11px] text-slate-600 mt-0.5">
-                    PT membership sale hone par Trainer dwara Gym Owner ko diya jane wala share:
-                  </p>
-                </div>
-                <div className="flex rounded-xl overflow-hidden border border-indigo-200 text-[11px] font-bold self-start sm:self-auto bg-white">
-                  <button
-                    type="button"
-                    onClick={() => setEditForm((prev) => ({ ...prev, commissionType: "percentage" }))}
-                    className={`px-3 py-1.5 transition flex items-center gap-1 ${
-                      editForm.commissionType === "percentage"
-                        ? "bg-indigo-600 text-white"
-                        : "text-slate-600 hover:bg-indigo-50"
-                    }`}
-                  >
-                    <Percent className="w-3.5 h-3.5" /> Percentage (%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditForm((prev) => ({ ...prev, commissionType: "fixed" }))}
-                    className={`px-3 py-1.5 transition flex items-center gap-1 ${
-                      editForm.commissionType === "fixed"
-                        ? "bg-indigo-600 text-white"
-                        : "text-slate-600 hover:bg-indigo-50"
-                    }`}
-                  >
-                    <IndianRupee className="w-3.5 h-3.5" /> Fixed Amount (₹)
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                {editForm.commissionType === "percentage" ? (
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                      Gym Owner Share (%):
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={editForm.commissionValue}
-                        onChange={(e) => setEditForm((prev) => ({ ...prev, commissionValue: Math.min(100, Math.max(0, Number(e.target.value))) }))}
-                        className="w-full bg-white border border-indigo-200 rounded-xl px-3 py-2 text-xs font-black text-indigo-950 focus:outline-none focus:border-indigo-500 pr-8"
-                        placeholder="30"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
-                    </div>
-                    <span className="text-[10px] text-slate-500 mt-1 block">
-                      Gym ko <strong>{editForm.commissionValue || 0}%</strong> milega, Trainer ka <strong>{Math.max(0, 100 - (editForm.commissionValue || 0))}%</strong> bachega.
-                    </span>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                      Gym Owner Fixed Cut per PT Sale (₹):
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={editForm.commissionValue}
-                        onChange={(e) => setEditForm((prev) => ({ ...prev, commissionValue: Math.max(0, Number(e.target.value)) }))}
-                        className="w-full bg-white border border-indigo-200 rounded-xl pl-7 pr-3 py-2 text-xs font-black text-indigo-950 focus:outline-none focus:border-indigo-500"
-                        placeholder="1500"
-                      />
-                    </div>
-                    <span className="text-[10px] text-slate-500 mt-1 block">
-                      Har PT admission par flat <strong>₹{Number(editForm.commissionValue || 0).toLocaleString("en-IN")}</strong> Gym ka share hoga.
-                    </span>
-                  </div>
-                )}
-
-                {/* Live Split Example Simulation */}
-                <div className="p-3 bg-white rounded-xl border border-indigo-100 shadow-2xs space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 border-b border-slate-100 pb-1">
-                    <span>Example on ₹5,000 PT Sale:</span>
-                    <span className="text-indigo-600 font-extrabold">Auto Split</span>
-                  </div>
-                  {(() => {
-                    const samplePrice = 5000;
-                    const ownerCut = editForm.commissionType === "percentage"
-                      ? Math.round(samplePrice * ((Number(editForm.commissionValue) || 0) / 100))
-                      : Math.min(samplePrice, Number(editForm.commissionValue) || 0);
-                    const trainerCut = Math.max(0, samplePrice - ownerCut);
-
-                    return (
-                      <div className="grid grid-cols-2 gap-2 text-center pt-0.5">
-                        <div className="p-1.5 rounded-lg bg-indigo-50/70 border border-indigo-200/70">
-                          <p className="text-[10px] font-bold text-indigo-700">🏢 Gym Owner Cut</p>
-                          <p className="text-xs font-black text-indigo-950 mt-0.5">₹{ownerCut.toLocaleString("en-IN")}</p>
-                        </div>
-                        <div className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-200/70">
-                          <p className="text-[10px] font-bold text-emerald-700">🏋️ Trainer Earning</p>
-                          <p className="text-xs font-black text-emerald-950 mt-0.5">₹{trainerCut.toLocaleString("en-IN")}</p>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
-
             {/* Trainer PT Membership Packages (Custom Packages per Trainer) */}
             <div className="pt-3 border-t border-slate-100">
               <div className="flex items-center justify-between mb-2.5">
@@ -2165,6 +2054,117 @@ export default function Trainers() {
                 className="hidden"
               />
             </label>
+          </div>
+
+          {/* Gym Owner & Trainer PT Commission & Revenue Share Deal (Edit) */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/50 border-2 border-indigo-200/90 shadow-2xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
+              <div>
+                <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <HandCoins className="w-4 h-4 text-indigo-600" /> Gym Owner & Trainer PT Commission Deal (कमीशन समझौता)
+                </h4>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  PT membership sale hone par Trainer dwara Gym Owner ko diya jane wala share:
+                </p>
+              </div>
+              <div className="flex rounded-xl overflow-hidden border border-indigo-200 text-[11px] font-bold self-start sm:self-auto bg-white">
+                <button
+                  type="button"
+                  onClick={() => setEditForm((prev) => ({ ...prev, commissionType: "percentage" }))}
+                  className={`px-3 py-1.5 transition flex items-center gap-1 ${
+                    editForm.commissionType === "percentage"
+                      ? "bg-indigo-600 text-white"
+                      : "text-slate-600 hover:bg-indigo-50"
+                  }`}
+                >
+                  <Percent className="w-3.5 h-3.5" /> Percentage (%)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditForm((prev) => ({ ...prev, commissionType: "fixed" }))}
+                  className={`px-3 py-1.5 transition flex items-center gap-1 ${
+                    editForm.commissionType === "fixed"
+                      ? "bg-indigo-600 text-white"
+                      : "text-slate-600 hover:bg-indigo-50"
+                  }`}
+                >
+                  <IndianRupee className="w-3.5 h-3.5" /> Fixed Amount (₹)
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+              {editForm.commissionType === "percentage" ? (
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Gym Owner Share (%):
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={editForm.commissionValue ?? 30}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, commissionValue: Math.min(100, Math.max(0, Number(e.target.value))) }))}
+                      className="w-full bg-white border border-indigo-200 rounded-xl px-3 py-2 text-xs font-black text-indigo-950 focus:outline-none focus:border-indigo-500 pr-8"
+                      placeholder="30"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    Gym ko <strong>{editForm.commissionValue || 0}%</strong> milega, Trainer ka <strong>{Math.max(0, 100 - (editForm.commissionValue || 0))}%</strong> bachega.
+                  </span>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    Gym Owner Fixed Cut per PT Sale (₹):
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editForm.commissionValue ?? 1500}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, commissionValue: Math.max(0, Number(e.target.value)) }))}
+                      className="w-full bg-white border border-indigo-200 rounded-xl pl-7 pr-3 py-2 text-xs font-black text-indigo-950 focus:outline-none focus:border-indigo-500"
+                      placeholder="1500"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    Har PT admission par flat <strong>₹{Number(editForm.commissionValue || 0).toLocaleString("en-IN")}</strong> Gym ka share hoga.
+                  </span>
+                </div>
+              )}
+
+              {/* Live Split Example Simulation */}
+              <div className="p-3 bg-white rounded-xl border border-indigo-100 shadow-2xs space-y-1.5 text-xs">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 border-b border-slate-100 pb-1">
+                  <span>Example on ₹5,000 PT Sale:</span>
+                  <span className="text-indigo-600 font-extrabold">Auto Split</span>
+                </div>
+                {(() => {
+                  const samplePrice = 5000;
+                  const ownerCut = editForm.commissionType === "percentage"
+                    ? Math.round(samplePrice * ((Number(editForm.commissionValue) || 0) / 100))
+                    : Math.min(samplePrice, Number(editForm.commissionValue) || 0);
+                  const trainerCut = Math.max(0, samplePrice - ownerCut);
+
+                  return (
+                    <div className="grid grid-cols-2 gap-2 text-center pt-0.5">
+                      <div className="p-1.5 rounded-lg bg-indigo-50/70 border border-indigo-200/70">
+                        <p className="text-[10px] font-bold text-indigo-700">🏢 Gym Owner Cut</p>
+                        <p className="text-xs font-black text-indigo-950 mt-0.5">₹{ownerCut.toLocaleString("en-IN")}</p>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-200/70">
+                        <p className="text-[10px] font-bold text-emerald-700">🏋️ Trainer Earning</p>
+                        <p className="text-xs font-black text-emerald-950 mt-0.5">₹{trainerCut.toLocaleString("en-IN")}</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
           </div>
 
           {/* Trainer PT Membership Packages (Custom Packages per Trainer) */}
