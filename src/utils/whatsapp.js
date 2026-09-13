@@ -31,6 +31,16 @@ export function generateRenewalReminderMessage(memberName, planName, expiryDate,
     .replace("{gym_name}", settings.gymName);
 }
 
+export function generatePartialDueReminderMessage(memberName, dueAmount, planName) {
+  const settings = getGymSettings();
+  return `⚠️ *Payment Reminder - ${settings.gymName}*\n\nHi ${memberName || "Athlete"},\nThis is a friendly reminder regarding your pending fee balance for *${planName || "Membership"}*.\n\n💰 *Remaining Due: ₹${dueAmount}*\n\nPlease clear your balance at the gym reception or via UPI.\nThank you! Keep training hard! 💪`;
+}
+
+export function generateOverdueReminderMessage(memberName, planName, daysOverdue, amount) {
+  const settings = getGymSettings();
+  return `🚨 *Membership Overdue Alert - ${settings.gymName}*\n\nHi ${memberName || "Athlete"},\nYour gym membership for *${planName || "Membership"}* has ended *${daysOverdue || "few"} days ago* and is currently overdue.\n\n💵 *Renewal Amount: ₹${amount || "2,500"}*\n\nPlease renew today at the reception to restart your workout sessions and retain your slot! 🔥`;
+}
+
 export function generatePaymentReceiptMessage(memberName, amount, planName, date) {
   const settings = getGymSettings();
   return `🧾 *Payment Confirmation - ${settings.gymName}*\n\nHi ${memberName},\nWe have successfully received your payment of *₹${amount}* for *${planName}* on ${date || "today"}.\n\nThank you for choosing us! Keep crushing your workouts! 💪`;
