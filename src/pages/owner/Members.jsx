@@ -37,7 +37,8 @@ import {
   ShieldCheck,
   Tag,
   HelpCircle,
-  ArrowRight
+  ArrowRight,
+  ChevronDown
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
