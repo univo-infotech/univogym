@@ -38,6 +38,7 @@ import {
 import toast from "react-hot-toast";
 import { addMember } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
+import { getPlans, getActivePlans } from "../../firebase/plans";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -78,26 +79,53 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
   const fileInputRef = useRef(null);
 
   const [dbTrainers, setDbTrainers] = useState([]);
+  const [dbPlans, setDbPlans] = useState([]);
   const [fullPhotoModal, setFullPhotoModal] = useState(null); // { img, title, desc }
 
-  // Fetch real trainers from Firestore
+  // Fetch real trainers & membership plans created by owner from Firestore
   useEffect(() => {
-    async function loadTrainersList() {
+    async function loadData() {
       try {
-        const list = await getTrainers(GID);
-        if (list && list.length > 0) {
-          setDbTrainers(list);
+        const [trainerList, planList] = await Promise.all([
+          getTrainers(GID),
+          getPlans(GID)
+        ]);
+        if (trainerList && trainerList.length > 0) {
+          setDbTrainers(trainerList);
+        }
+        if (planList && planList.length > 0) {
+          // Filter only active plans
+          const activeOnly = planList.filter(p => p.isActive !== false);
+          setDbPlans(activeOnly.length > 0 ? activeOnly : planList);
         }
       } catch (err) {
-        console.warn("Could not load trainers in AddMemberModal:", err);
+        console.warn("Could not load data in AddMemberModal:", err);
       }
     }
     if (isOpen) {
-      loadTrainersList();
+      loadData();
     }
   }, [GID, isOpen]);
 
-  const availablePlans = plans && plans.length > 0 ? plans : DEFAULT_PLANS;
+  // Use plans passed via props OR loaded from Firestore. If owner has created plans, use ONLY their plans!
+  const availablePlans = useMemo(() => {
+    if (plans && plans.length > 0) return plans;
+    if (dbPlans && dbPlans.length > 0) return dbPlans;
+    return DEFAULT_PLANS;
+  }, [plans, dbPlans]);
+
+  // Keep formData.planId in sync with availablePlans if current planId is not in availablePlans
+  useEffect(() => {
+    if (availablePlans.length > 0) {
+      setFormData((prev) => {
+        const exists = availablePlans.some((p) => p.id === prev.planId);
+        if (!exists) {
+          return { ...prev, planId: availablePlans[0].id };
+        }
+        return prev;
+      });
+    }
+  }, [availablePlans]);
 
   // Load custom workout slots configured by owner in Settings
   const gymSettings = useMemo(() => getGymSettings(), [isOpen]);

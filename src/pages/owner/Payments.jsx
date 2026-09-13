@@ -33,6 +33,7 @@ import { getMembers, updateMember } from "../../firebase/members";
 import { generatePaymentReceipt } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
 import { openWhatsApp, formatPhone } from "../../utils/whatsapp";
+import { useAuth } from "../../contexts/AuthContext";
 
 // Available plans for quick selection
 const PLANS_CATALOG = [
@@ -332,10 +333,13 @@ export default function Payments() {
     }
   ];
 
+  const { gymId } = useAuth();
+  const activeGymId = gymId || "univo_main";
+
   const loadData = async () => {
     try {
-      const storedPayments = await getAllPayments("univo_main");
-      const storedMembers = await getMembers("univo_main");
+      const storedPayments = await getAllPayments(activeGymId);
+      const storedMembers = await getMembers(activeGymId);
       if (storedPayments && storedPayments.length > 0) {
         const storedIds = new Set(storedPayments.map((p) => p.id));
         const remainingDummies = initialSubscriptions.filter((d) => !storedIds.has(d.id));
@@ -353,7 +357,7 @@ export default function Payments() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeGymId]);
 
   // Map of memberId -> member object for checking real-time member status
   const membersMap = useMemo(() => {

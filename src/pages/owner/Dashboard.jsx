@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { 
   Users, 
   DollarSign, 
@@ -31,15 +31,21 @@ import { getMembers, generateInviteToken } from "../../firebase/members";
 import { getAllPayments } from "../../firebase/payments";
 import { getStock } from "../../firebase/stock";
 import { getVisits } from "../../firebase/visits";
+import { getPlans } from "../../firebase/plans";
 import { openWhatsApp, generateMemberInviteMessage, generateRenewalReminderMessage } from "../../utils/whatsapp";
 import { getGymSettings } from "../../utils/settings";
 import DirectAddMemberModal from "../../components/shared/DirectAddMemberModal";
+import { useAuth } from "../../contexts/AuthContext";
 
 export default function Dashboard() {
+  const { gymId: currentGymId } = useAuth();
+  const gymId = currentGymId || "univo_main";
+
   const [members, setMembers] = useState([]);
   const [payments, setPayments] = useState([]);
   const [stockItems, setStockItems] = useState([]);
   const [visits, setVisits] = useState([]);
+  const [plans, setPlans] = useState([]);
   const [settings, setSettings] = useState(getGymSettings());
 
   // Modals
@@ -57,51 +63,82 @@ export default function Dashboard() {
     setSettings(getGymSettings());
     async function loadData() {
       try {
-        const m = await getMembers("univo_main");
-        const p = await getAllPayments("univo_main");
-        const s = await getStock("univo_main");
-        const v = await getVisits("univo_main");
-        const defaultM = [
-          { id: "m1", fullName: "Ajay Prajapati", name: "Ajay Prajapati", phone: "+91 9196302375", planName: "3-Month Pro", status: "active", createdAt: "2026-09-10", expiryDate: "2026-12-10", renewalFee: "6500" },
-          { id: "m2", fullName: "Rahul Verma", name: "Rahul Verma", phone: "+91 9876543210", planName: "Annual Elite", status: "active", createdAt: "2026-09-08", expiryDate: "2027-09-08", renewalFee: "18000" },
-          { id: "m3", fullName: "Priya Sharma", name: "Priya Sharma", phone: "+91 9811223344", planName: "6-Month Transformation", status: "active", createdAt: "2026-09-05", expiryDate: "2027-03-05", renewalFee: "11000" },
-          { id: "m4", fullName: "Aman Gupta", name: "Aman Gupta", phone: "+91 9988776655", planName: "1-Month Basic", status: "expiring", createdAt: "2026-08-14", expiryDate: "2026-09-14", renewalFee: "2500" },
-          { id: "m5", fullName: "Karan Johar", name: "Karan Johar", phone: "+91 9711003322", planName: "3-Month Pro", status: "expiring", createdAt: "2026-06-15", expiryDate: "2026-09-15", renewalFee: "6500" },
-        ];
-        if (m && m.length > 0) {
-          const realPhoneSet = new Set(m.map((rm) => (rm.phone || '').replace(/\D/g, '')));
-          const remainingDefault = defaultM.filter((dm) => !realPhoneSet.has((dm.phone || '').replace(/\D/g, '')));
-          setMembers([...m, ...remainingDefault]);
-        } else {
-          setMembers(defaultM);
+        const [m, p, s, v, pl] = await Promise.all([
+          getMembers(gymId),
+          getAllPayments(gymId),
+          getStock(gymId),
+          getVisits(gymId),
+          getPlans(gymId)
+        ]);
+
+        if (pl && pl.length > 0) {
+          const activeOnly = pl.filter(item => item.isActive !== false);
+          setPlans(activeOnly.length > 0 ? activeOnly : pl);
         }
-        setPayments(p && p.length > 0 ? p : [
-          { id: "p1", memberName: "Ajay Prajapati", planName: "3-Month Pro", paidAmount: 6500, amount: 6500, dueAmount: 0, paymentMode: "online", date: "12 Sep 2026" },
-          { id: "p2", memberName: "Rahul Verma", planName: "Annual Elite", paidAmount: 18000, amount: 18000, dueAmount: 0, paymentMode: "cash", date: "11 Sep 2026" },
-          { id: "p3", memberName: "Priya Sharma", planName: "6-Month Transformation", paidAmount: 8000, amount: 11000, dueAmount: 3000, paymentMode: "mixed", date: "10 Sep 2026" },
-        ]);
-        setStockItems(s && s.length > 0 ? s : [
-          { id: "s1", name: "Lat Pulldown Machine", type: "Machine", condition: "Operational", lastServiceDate: "2026-08-15" },
-          { id: "s2", name: "Olympic Barbell & 20kg Plates", type: "Weights", condition: "Good", lastServiceDate: "2026-07-20" },
-          { id: "s3", name: "Commercial Treadmill T90", type: "Cardio", condition: "Service Due Soon", lastServiceDate: "2026-06-10" },
-        ]);
-        setVisits(v && v.length > 0 ? v : [
-          { id: "v1", name: "Sunil Kapoor", phone: "+91 9711002233", interestedIn: "Weight Loss Trial", status: "demo_done", createdAt: "2026-09-11" },
-          { id: "v2", name: "Kavita Rao", phone: "+91 9822334455", interestedIn: "Personal Training", status: "new", createdAt: "2026-09-12" },
-        ]);
+        
+        if (m && m.length > 0) {
+          setMembers(m);
+        } else {
+          // Default initial sample for empty gym
+          setMembers([
+            { id: "m1", fullName: "Ajay Prajapati", name: "Ajay Prajapati", phone: "+91 9196302375", planName: "3-Month Pro", status: "active", createdAt: "2026-09-10", expiryDate: "2026-12-10", renewalFee: "6500" },
+            { id: "m2", fullName: "Rahul Verma", name: "Rahul Verma", phone: "+91 9876543210", planName: "Annual Elite", status: "active", createdAt: "2026-09-08", expiryDate: "2027-09-08", renewalFee: "18000" },
+            { id: "m3", fullName: "Priya Sharma", name: "Priya Sharma", phone: "+91 9811223344", planName: "6-Month Transformation", status: "active", createdAt: "2026-09-05", expiryDate: "2027-03-05", renewalFee: "11000" },
+            { id: "m4", fullName: "Aman Gupta", name: "Aman Gupta", phone: "+91 9988776655", planName: "1-Month Basic", status: "expiring", createdAt: "2026-08-14", expiryDate: "2026-09-14", renewalFee: "2500" },
+            { id: "m5", fullName: "Karan Johar", name: "Karan Johar", phone: "+91 9711003322", planName: "3-Month Pro", status: "expiring", createdAt: "2026-06-15", expiryDate: "2026-09-15", renewalFee: "6500" },
+          ]);
+        }
+
+        if (p && p.length > 0) {
+          setPayments(p);
+        } else {
+          setPayments([
+            { id: "p1", memberName: "Ajay Prajapati", planName: "3-Month Pro", paidAmount: 6500, amount: 6500, dueAmount: 0, paymentMode: "online", date: "12 Sep 2026" },
+            { id: "p2", memberName: "Rahul Verma", planName: "Annual Elite", paidAmount: 18000, amount: 18000, dueAmount: 0, paymentMode: "cash", date: "11 Sep 2026" },
+            { id: "p3", memberName: "Priya Sharma", planName: "6-Month Transformation", paidAmount: 8000, amount: 11000, dueAmount: 3000, paymentMode: "mixed", date: "10 Sep 2026" },
+          ]);
+        }
+
+        if (s && s.length > 0) {
+          setStockItems(s);
+        } else {
+          setStockItems([
+            { id: "s1", name: "Lat Pulldown Machine", type: "Machine", condition: "Operational", lastServiceDate: "2026-08-15" },
+            { id: "s2", name: "Olympic Barbell & 20kg Plates", type: "Weights", condition: "Good", lastServiceDate: "2026-07-20" },
+            { id: "s3", name: "Commercial Treadmill T90", type: "Cardio", condition: "Service Due Soon", lastServiceDate: "2026-06-10" },
+          ]);
+        }
+
+        if (v && v.length > 0) {
+          setVisits(v);
+        } else {
+          setVisits([
+            { id: "v1", name: "Sunil Kapoor", phone: "+91 9711002233", interestedIn: "Weight Loss Trial", status: "demo_done", createdAt: "2026-09-11" },
+            { id: "v2", name: "Kavita Rao", phone: "+91 9822334455", interestedIn: "Personal Training", status: "new", createdAt: "2026-09-12" },
+          ]);
+        }
       } catch (err) {
-        console.error(err);
+        console.error("Dashboard load data error:", err);
       }
     }
     loadData();
-  }, []);
+  }, [gymId]);
 
   const totalMembers = members.length;
-  const activeMembers = members.filter(m => m.status === "active").length || 148;
-  const totalRevenue = payments.reduce((acc, curr) => acc + (Number(curr.paidAmount) || Number(curr.amount) || 0), 0) || 184500;
+  // Real active members (status !== 'left' and status !== 'inactive')
+  const activeMembers = members.filter((m) => {
+    if (m.status === "left" || m.active === false || m.status === "inactive") return false;
+    if (m.status === "active") return true;
+    if (!m.expiryDate) return true;
+    const exp = new Date(m.expiryDate?.seconds ? m.expiryDate.seconds * 1000 : m.expiryDate);
+    return isNaN(exp.getTime()) ? true : exp >= new Date();
+  }).length;
+
+  const totalRevenue = payments.reduce((acc, curr) => acc + (Number(curr.paidAmount) || Number(curr.amount) || 0), 0);
   
   // Real expiring members calculation (within next 7 days or status === 'expiring')
   const expiringMembers = members.filter((m) => {
+    if (m.status === "left" || m.status === "inactive") return false;
     if (m.status === "expiring") return true;
     if (!m.expiryDate) return false;
     const exp = new Date(m.expiryDate?.seconds ? m.expiryDate.seconds * 1000 : m.expiryDate);
@@ -111,23 +148,83 @@ export default function Dashboard() {
     return diffDays >= 0 && diffDays <= 7;
   });
 
-  // Chart dummy data
-  const revenueData = [
-    { day: "Mon", revenue: 8200 },
-    { day: "Tue", revenue: 12400 },
-    { day: "Wed", revenue: 9800 },
-    { day: "Thu", revenue: 15600 },
-    { day: "Fri", revenue: 21400 },
-    { day: "Sat", revenue: 28900 },
-    { day: "Sun", revenue: 19500 },
-  ];
+  // Calculate real payment modes breakdown from payments
+  const paymentModesData = useMemo(() => {
+    if (!payments || payments.length === 0) {
+      return [
+        { name: "Online UPI", value: 52, color: "#10b981" },
+        { name: "Cash", value: 30, color: "#06b6d4" },
+        { name: "Bank Transfer", value: 11, color: "#8b5cf6" },
+        { name: "Mixed Mode", value: 7, color: "#f59e0b" },
+      ];
+    }
 
-  const paymentModesData = [
-    { name: "Online UPI", value: 52, color: "#10b981" },
-    { name: "Cash", value: 30, color: "#06b6d4" },
-    { name: "Bank Transfer", value: 11, color: "#8b5cf6" },
-    { name: "Mixed Mode", value: 7, color: "#f59e0b" },
-  ];
+    let upiCount = 0;
+    let cashCount = 0;
+    let bankCount = 0;
+    let splitCount = 0;
+
+    payments.forEach((p) => {
+      const mode = (p.paymentMode || "").toLowerCase();
+      if (mode === "online" || mode === "upi") upiCount++;
+      else if (mode === "cash") cashCount++;
+      else if (mode === "bank") bankCount++;
+      else splitCount++;
+    });
+
+    const total = upiCount + cashCount + bankCount + splitCount || 1;
+    return [
+      { name: "Online UPI", value: Math.round((upiCount / total) * 100), color: "#10b981" },
+      { name: "Cash", value: Math.round((cashCount / total) * 100), color: "#06b6d4" },
+      { name: "Bank Transfer", value: Math.round((bankCount / total) * 100), color: "#8b5cf6" },
+      { name: "Mixed Mode", value: Math.round((splitCount / total) * 100), color: "#f59e0b" },
+    ];
+  }, [payments]);
+
+  // Compute dynamic daily revenue for last 7 days from actual payments
+  const revenueData = useMemo(() => {
+    const daysArr = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const result = [];
+    const now = new Date();
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dayName = daysArr[d.getDay()];
+      const dateStr = d.toISOString().split("T")[0]; // YYYY-MM-DD
+      const dayNum = String(d.getDate()).padStart(2, "0");
+      const monthNum = String(d.getMonth() + 1).padStart(2, "0");
+      const indianDateStr = `${dayNum}/${monthNum}/${d.getFullYear()}`;
+
+      // Sum payments matching this day
+      let daySum = 0;
+      payments.forEach((p) => {
+        const pDate = p.date || p.createdAt || "";
+        const amount = Number(p.paidAmount || p.amount || 0);
+        if (pDate.includes(dateStr) || pDate.includes(indianDateStr)) {
+          daySum += amount;
+        }
+      });
+
+      result.push({ day: dayName, revenue: daySum });
+    }
+
+    // If all zeroes (e.g. initial demo setup), provide smooth baseline
+    const totalWeek = result.reduce((acc, r) => acc + r.revenue, 0);
+    if (totalWeek === 0) {
+      return [
+        { day: "Mon", revenue: 8200 },
+        { day: "Tue", revenue: 12400 },
+        { day: "Wed", revenue: 9800 },
+        { day: "Thu", revenue: 15600 },
+        { day: "Fri", revenue: 21400 },
+        { day: "Sat", revenue: 28900 },
+        { day: "Sun", revenue: 19500 },
+      ];
+    }
+
+    return result;
+  }, [payments]);
 
   const handleGenerateLink = async () => {
     if (!invitePhone.trim()) {
@@ -478,6 +575,7 @@ export default function Dashboard() {
         isOpen={directAddOpen}
         onClose={() => setDirectAddOpen(false)}
         onSuccess={(newMem) => setMembers([newMem, ...members])}
+        plans={plans}
       />
 
       {/* Modal 3: Renewals & WhatsApp Reminders Blast */}

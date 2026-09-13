@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Search,
@@ -564,19 +564,30 @@ function ExtendModal({ member, onClose, onSave, gymId }) {
   );
 }
 
-/**
- * Modal to Collect Fee & Renew Membership (Matching User's Design & Screenshots)
- */
-function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
+function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans = [] }) {
   const settings = getGymSettings();
 
-  const PLANS_CATALOG = [
+  const DEFAULT_PLANS_CATALOG = [
     { id: "p1", name: "1 Month Standard", durationMonths: 1, durationDays: 30, price: 599, label: "1 Month Standard — ₹599" },
     { id: "p2", name: "1 Month with Locker", durationMonths: 1, durationDays: 30, price: 699, label: "1 Month + Locker — ₹699" },
     { id: "p3", name: "3 Months Pro Transformation", durationMonths: 3, durationDays: 90, price: 1499, label: "3 Months Pro — ₹1,499" },
     { id: "p4", name: "6 Months Fitness Pass", durationMonths: 6, durationDays: 180, price: 2799, label: "6 Months — ₹2,799" },
     { id: "p5", name: "12 Months Annual Elite", durationMonths: 12, durationDays: 365, price: 4999, label: "12 Months / Annual — ₹4,999" },
   ];
+
+  const PLANS_CATALOG = useMemo(() => {
+    if (plans && plans.length > 0) {
+      return plans.map(p => ({
+        id: p.id,
+        name: p.name,
+        durationMonths: Number(p.durationMonths || Math.round(Number(p.duration || 30) / 30) || 1),
+        durationDays: Number(p.duration || (p.durationMonths ? p.durationMonths * 30 : 30)),
+        price: Number(p.price || 0),
+        label: `${p.name} — ₹${Number(p.price || 0).toLocaleString("en-IN")}`
+      }));
+    }
+    return DEFAULT_PLANS_CATALOG;
+  }, [plans]);
 
   // Check if member already has remaining dues from previous partial payment
   const hasExistingDue = Number(member.dueAmount || 0) > 0 && !!member.lastPaymentDate;
@@ -1568,6 +1579,7 @@ export default function Members() {
 
   const [members, setMembers] = useState([]);
   const [trainers, setTrainers] = useState([]);
+  const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('table');
   const [search, setSearch] = useState('');
@@ -1728,9 +1740,10 @@ export default function Members() {
     async function loadData() {
       setLoading(true);
       try {
-        const [m, t] = await Promise.all([
+        const [m, t, p] = await Promise.all([
           getMembers(gymId || 'univo_main'),
           getTrainers(gymId || 'univo_main'),
+          getPlans(gymId || 'univo_main'),
         ]);
         if (m && m.length > 0) {
           const realPhoneSet = new Set(m.map((rm) => (rm.phone || '').replace(/\D/g, '')));
@@ -1740,6 +1753,10 @@ export default function Members() {
           setMembers(dummyMembers);
         }
         setTrainers(t || []);
+        if (p && p.length > 0) {
+          const activeOnly = p.filter(item => item.isActive !== false);
+          setPlans(activeOnly.length > 0 ? activeOnly : p);
+        }
       } catch (err) {
         setMembers(dummyMembers);
       } finally {
@@ -2468,6 +2485,7 @@ export default function Members() {
           member={planMember}
           gymId={gymId}
           trainers={trainers}
+          plans={plans}
           onClose={() => setPlanMember(null)}
           onSave={handlePlanSuccess}
         />
@@ -2514,6 +2532,7 @@ export default function Members() {
         isOpen={showDirectAdd}
         onClose={() => setShowDirectAdd(false)}
         onSuccess={(newMem) => setMembers([newMem, ...members])}
+        plans={plans}
         trainers={trainers}
       />
     </div>

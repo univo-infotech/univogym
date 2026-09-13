@@ -3,8 +3,12 @@ import { Receipt, Plus, Trash2, TrendingDown } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import { getExpenses, addExpense, deleteExpense } from "../../firebase/expenses";
+import { useAuth } from "../../contexts/AuthContext";
 
 export default function Expenses() {
+  const { gymId: currentGymId } = useAuth();
+  const gymId = currentGymId || "univo_main";
+
   const [expenses, setExpenses] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({
@@ -26,20 +30,20 @@ export default function Expenses() {
   useEffect(() => {
     async function load() {
       try {
-        const exp = await getExpenses("univo_main");
+        const exp = await getExpenses(gymId);
         setExpenses(exp && exp.length > 0 ? exp : dummyExpenses);
       } catch (err) {
         setExpenses(dummyExpenses);
       }
     }
     load();
-  }, []);
+  }, [gymId]);
 
   const handleAdd = async (e) => {
     e.preventDefault();
     const newE = { ...form, id: "e_" + Date.now() };
     try {
-      await addExpense("univo_main", newE);
+      await addExpense(gymId, newE);
     } catch (e) {
       console.warn("Simulated expense add:", e);
     }
@@ -50,7 +54,7 @@ export default function Expenses() {
 
   const handleDelete = async (id) => {
     try {
-      await deleteExpense("univo_main", id);
+      await deleteExpense(gymId, id);
     } catch (e) {
       console.warn("Simulated expense delete:", e);
     }
