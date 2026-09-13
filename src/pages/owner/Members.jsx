@@ -62,16 +62,24 @@ function toDate(val) {
 
 function getMemberStatus(member) {
   if (member.status === 'left') return 'left';
-  if (member.status === 'expired') return 'expired';
-  if (member.status === 'expiring') return 'expiring';
   if (member.active === false) return 'inactive';
 
   const expiry = toDate(member.expiryDate);
   if (!expiry) return member.status || 'active';
   const now = new Date();
-  const diff = (expiry - now) / (1000 * 60 * 60 * 24);
-  if (diff < 0) return 'expired';
-  if (diff <= 7) return 'expiring';
+  const diffDays = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+
+  // 1. Expired conditions:
+  // If plan expired more than 3 days ago -> overdue
+  if (diffDays < -3) return 'overdue';
+  // If plan expired within last 1, 2, or 3 days -> expired
+  if (diffDays <= 0) return 'expired';
+
+  // 2. Active conditions:
+  // If plan ending in 1, 2, or 3 days (or today) -> ending_soon
+  if (diffDays <= 3) return 'ending_soon';
+
+  // 3. Normal active
   return 'active';
 }
 
@@ -83,11 +91,16 @@ function getMemberDaysInfo(member) {
   const expiry = toDate(member.expiryDate);
   if (!expiry) return { text: 'No Expiry Set', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
   const diff = Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24));
-  if (diff < 0) {
-    return { text: `Expired (${Math.abs(diff)} days ago)`, cls: 'bg-rose-50 text-rose-700 border-rose-200' };
+  
+  if (diff < -3) {
+    return { text: `Overdue (${Math.abs(diff)} days ago)`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold' };
   }
-  if (diff <= 7) {
-    return { text: `Expiring (${diff} days left)`, cls: 'bg-amber-50 text-amber-700 border-amber-200' };
+  if (diff <= 0) {
+    const daysAgo = Math.abs(diff) === 0 ? 'Today' : `${Math.abs(diff)}d ago`;
+    return { text: `Expired (${daysAgo})`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
+  }
+  if (diff <= 3) {
+    return { text: `Ending Soon (${diff}d left)`, cls: 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' };
   }
   return { text: `Active (${diff} days left)`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
 }
@@ -106,11 +119,11 @@ function fmtCountdown(sec) {
 
 const STATUS_CONFIG = {
   paid: { label: 'Paid', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
-  active: { label: 'Active (Paid)', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
-  partial: { label: 'Partial Due', dot: 'bg-amber-500', cls: 'bg-amber-50 text-amber-800 border border-amber-300' },
-  left: { label: 'Left', dot: 'bg-rose-500', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
+  active: { label: 'Active', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  ending_soon: { label: 'Ending Soon', dot: 'bg-amber-500', cls: 'bg-amber-100 text-amber-900 border border-amber-300' },
   expired: { label: 'Expired', dot: 'bg-rose-500', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
-  expiring: { label: 'Expiring Soon', dot: 'bg-amber-500', cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
+  overdue: { label: 'Overdue (3+ Days)', dot: 'bg-red-600', cls: 'bg-red-100 text-red-800 border border-red-300' },
+  left: { label: 'Left', dot: 'bg-slate-500', cls: 'bg-slate-100 text-slate-700 border border-slate-300' },
   inactive: { label: 'Inactive', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
 };
 
@@ -128,7 +141,7 @@ function StatusBadge({ status, dueAmount }) {
   return (
     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${cfg.cls}`}>
       <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-      {status === 'active' ? 'Paid' : cfg.label}
+      {cfg.label}
     </span>
   );
 }
@@ -1588,17 +1601,36 @@ export default function Members() {
       email: 'aman.g@gmail.com',
       planName: '1 Month Basic',
       planPrice: 599,
-      dueAmount: 599,
-      paidAmount: 0,
-      lastPaymentDate: null,
+      dueAmount: 0,
+      paidAmount: 599,
+      lastPaymentDate: '2026-08-15T10:00:00.000Z',
       slot: 'Morning (6am-9am)',
       trainerName: 'Unassigned',
-      status: 'expiring',
-      createdAt: '2026-08-14',
-      expiryDate: '2026-09-16'
+      status: 'active',
+      createdAt: '2026-08-15',
+      // Ending soon: within 2 days from today (2026-09-15)
+      expiryDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     },
     {
       id: 'm6',
+      name: 'Vikram Singh',
+      fullName: 'Vikram Singh',
+      phone: '+91 9822334455',
+      email: 'vikram.s@gmail.com',
+      planName: '1 Month Standard',
+      planPrice: 599,
+      dueAmount: 0,
+      paidAmount: 599,
+      lastPaymentDate: '2026-08-12T10:00:00.000Z',
+      slot: 'Evening (4pm-7pm)',
+      trainerName: 'Coach Rohan Deshmukh',
+      status: 'active',
+      createdAt: '2026-08-12',
+      // Expired within last 1-2 days
+      expiryDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    },
+    {
+      id: 'm7',
       name: 'Karan Johar',
       fullName: 'Karan Johar',
       phone: '+91 9711003322',
@@ -1610,12 +1642,13 @@ export default function Members() {
       lastPaymentDate: null,
       slot: 'Night (7pm-10pm)',
       trainerName: 'Coach Amit Sharma',
-      status: 'expired',
+      status: 'active',
       createdAt: '2026-05-10',
-      expiryDate: '2026-08-10'
+      // Overdue: expired more than 3 days ago (e.g. 15 days ago)
+      expiryDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     },
     {
-      id: 'm7',
+      id: 'm8',
       name: 'Mohit Yadav',
       fullName: 'Mohit Yadav',
       phone: '+91 8357897047',
@@ -1725,16 +1758,21 @@ export default function Members() {
   };
 
   // Status counts
+  const isPaid = (m) => Number(m.dueAmount || 0) <= 0 && !!m.lastPaymentDate;
+  const paidCount = members.filter((m) => isPaid(m) && m.status !== 'left').length;
   const activeCount = members.filter((m) => getMemberStatus(m) === 'active').length;
-  const leftCount = members.filter((m) => getMemberStatus(m) === 'left').length;
-  const expiringCount = members.filter((m) => getMemberStatus(m) === 'expiring').length;
+  const endingSoonCount = members.filter((m) => getMemberStatus(m) === 'ending_soon').length;
   const expiredCount = members.filter((m) => getMemberStatus(m) === 'expired').length;
+  const overdueCount = members.filter((m) => getMemberStatus(m) === 'overdue').length;
+  const leftCount = members.filter((m) => getMemberStatus(m) === 'left').length;
 
   const FILTER_TABS = [
     { key: 'active', label: `Active (${activeCount})` },
-    { key: 'left', label: `Left / Inactive (${leftCount})` },
-    { key: 'expiring', label: `Expiring (${expiringCount})` },
+    { key: 'paid', label: `Paid (${paidCount})` },
+    { key: 'ending_soon', label: `Ending Soon (${endingSoonCount})` },
     { key: 'expired', label: `Expired (${expiredCount})` },
+    { key: 'overdue', label: `Overdue (${overdueCount})` },
+    { key: 'left', label: `Left / Inactive (${leftCount})` },
     { key: 'all', label: `All (${members.length})` },
   ];
 
@@ -1744,7 +1782,16 @@ export default function Members() {
       (m.name || m.fullName || '').toLowerCase().includes(q) ||
       (m.phone || '').includes(q);
     const status = getMemberStatus(m);
-    const matchTab = filterTab === 'all' || status === filterTab;
+    
+    let matchTab = false;
+    if (filterTab === 'all') {
+      matchTab = true;
+    } else if (filterTab === 'paid') {
+      matchTab = isPaid(m) && m.status !== 'left';
+    } else {
+      matchTab = status === filterTab;
+    }
+
     return matchSearch && matchTab;
   });
 
@@ -1781,44 +1828,54 @@ export default function Members() {
       </div>
 
       {/* KPI Cards Row */}
-      <div className='grid grid-cols-2 lg:grid-cols-4 gap-3.5'>
-        <div className='p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3'>
-          <div className='w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center'>
-            <UserCheck className='w-5 h-5' />
+      <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3'>
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3'>
+          <div className='w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0'>
+            <CheckCircle className='w-5 h-5' />
           </div>
-          <div>
-            <p className='text-xs text-slate-500 font-medium'>Active Members</p>
-            <p className='text-lg font-bold text-slate-900'>{activeCount}</p>
-          </div>
-        </div>
-
-        <div className='p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3'>
-          <div className='w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center'>
-            <LogOut className='w-5 h-5' />
-          </div>
-          <div>
-            <p className='text-xs text-slate-500 font-medium'>Left / Discontinued</p>
-            <p className='text-lg font-bold text-slate-900'>{leftCount}</p>
+          <div className='min-w-0'>
+            <p className='text-[11px] text-slate-500 font-medium truncate'>Fully Paid</p>
+            <p className='text-lg font-bold text-slate-900'>{paidCount}</p>
           </div>
         </div>
 
-        <div className='p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3'>
-          <div className='w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center'>
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3'>
+          <div className='w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0'>
+            <Clock className='w-5 h-5' />
+          </div>
+          <div className='min-w-0'>
+            <p className='text-[11px] text-slate-500 font-medium truncate'>Ending Soon (≤3d)</p>
+            <p className='text-lg font-bold text-amber-700'>{endingSoonCount}</p>
+          </div>
+        </div>
+
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3'>
+          <div className='w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0'>
             <AlertTriangle className='w-5 h-5' />
           </div>
-          <div>
-            <p className='text-xs text-slate-500 font-medium'>Expiring This Week</p>
-            <p className='text-lg font-bold text-slate-900'>{expiringCount}</p>
+          <div className='min-w-0'>
+            <p className='text-[11px] text-slate-500 font-medium truncate'>Expired (1-3d)</p>
+            <p className='text-lg font-bold text-rose-600'>{expiredCount}</p>
           </div>
         </div>
 
-        <div className='p-4 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex items-center gap-3'>
-          <div className='w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center'>
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3'>
+          <div className='w-10 h-10 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0'>
             <UserX className='w-5 h-5' />
           </div>
-          <div>
-            <p className='text-xs text-slate-500 font-medium'>Expired Plans</p>
-            <p className='text-lg font-bold text-slate-900'>{expiredCount}</p>
+          <div className='min-w-0'>
+            <p className='text-[11px] text-slate-500 font-medium truncate'>Overdue (&gt;3d)</p>
+            <p className='text-lg font-bold text-red-700'>{overdueCount}</p>
+          </div>
+        </div>
+
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3'>
+          <div className='w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0'>
+            <LogOut className='w-5 h-5' />
+          </div>
+          <div className='min-w-0'>
+            <p className='text-[11px] text-slate-500 font-medium truncate'>Left / Inactive</p>
+            <p className='text-lg font-bold text-slate-900'>{leftCount}</p>
           </div>
         </div>
       </div>
