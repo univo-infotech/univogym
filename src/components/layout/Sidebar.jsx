@@ -22,8 +22,7 @@ import {
   X,
   Menu,
   ShieldCheck,
-  ShoppingBag,
-  Medal
+  ShoppingBag
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getGymSettings } from "../../utils/settings";
@@ -37,7 +36,6 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
     { id: "dashboard", to: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "members", to: "/owner/members", label: "Members", icon: Users },
     { id: "trainers", to: "/owner/trainers", label: "Trainers", icon: Dumbbell },
-    { id: "pt-memberships", to: "/owner/pt-memberships", label: "PT Memberships", icon: Medal },
     { id: "staff", to: "/owner/staff", label: "Staff", icon: UserCheck },
     { id: "memberships", to: "/owner/memberships", label: "Memberships & Plans", icon: CreditCard },
     { id: "services", to: "/owner/services", label: "Services", icon: Star },

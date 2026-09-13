@@ -8,7 +8,6 @@ import Members from "../pages/owner/Members";
 import MemberDetail from "../pages/owner/MemberDetail";
 import Trainers from "../pages/owner/Trainers";
 import TrainerDetail from "../pages/owner/TrainerDetail";
-import PtMemberships from "../pages/owner/PtMemberships";
 import Staff from "../pages/owner/Staff";
 import Memberships from "../pages/owner/Memberships";
 import Services from "../pages/owner/Services";
@@ -44,7 +43,6 @@ export default function OwnerRoutes() {
         <Route path="members/:memberId" element={<PermissionRoute moduleId="members"><MemberDetail /></PermissionRoute>} />
         <Route path="trainers" element={<PermissionRoute moduleId="trainers"><Trainers /></PermissionRoute>} />
         <Route path="trainers/:trainerId" element={<PermissionRoute moduleId="trainers"><TrainerDetail /></PermissionRoute>} />
-        <Route path="pt-memberships" element={<PermissionRoute moduleId="pt-memberships"><PtMemberships /></PermissionRoute>} />
         <Route path="staff" element={<PermissionRoute moduleId="staff"><Staff /></PermissionRoute>} />
         <Route path="memberships" element={<PermissionRoute moduleId="memberships"><Memberships /></PermissionRoute>} />
         <Route path="services" element={<PermissionRoute moduleId="services"><Services /></PermissionRoute>} />
