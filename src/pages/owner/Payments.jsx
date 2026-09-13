@@ -340,18 +340,12 @@ export default function Payments() {
     try {
       const storedPayments = await getAllPayments(activeGymId);
       const storedMembers = await getMembers(activeGymId);
-      if (storedPayments && storedPayments.length > 0) {
-        const storedIds = new Set(storedPayments.map((p) => p.id));
-        const remainingDummies = initialSubscriptions.filter((d) => !storedIds.has(d.id));
-        setPaymentsList([...storedPayments, ...remainingDummies]);
-      } else {
-        setPaymentsList(initialSubscriptions);
-      }
-      if (storedMembers && storedMembers.length > 0) {
-        setMembersList(storedMembers);
-      }
+      setPaymentsList(storedPayments || []);
+      setMembersList(storedMembers || []);
     } catch (err) {
-      setPaymentsList(initialSubscriptions);
+      console.warn("Could not load payments:", err);
+      setPaymentsList([]);
+      setMembersList([]);
     }
   };
 

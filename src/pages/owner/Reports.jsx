@@ -127,15 +127,15 @@ export default function Reports() {
           getMembers(gymId)
         ]);
 
-        setPayments(pSnap && pSnap.length > 0 ? pSnap : fallbackPayments);
-        setExpenses(eSnap && eSnap.length > 0 ? eSnap : fallbackExpenses);
-        setSupplementSales(sSnap && sSnap.length > 0 ? sSnap : fallbackSupplementSales);
+        setPayments(pSnap || []);
+        setExpenses(eSnap || []);
+        setSupplementSales(sSnap || []);
         setMembers(mSnap || []);
       } catch (err) {
-        console.warn("Reports data load fallback:", err);
-        setPayments(fallbackPayments);
-        setExpenses(fallbackExpenses);
-        setSupplementSales(fallbackSupplementSales);
+        console.warn("Reports data load error:", err);
+        setPayments([]);
+        setExpenses([]);
+        setSupplementSales([]);
       } finally {
         setLoading(false);
       }

@@ -306,13 +306,14 @@ export default function Stock() {
           getMembers(gymId)
         ]);
 
-        setSupplements(sups && sups.length > 0 ? sups : DEFAULT_SUPPLEMENTS);
-        setEquipmentList(eqs && eqs.length > 0 ? eqs : DEFAULT_EQUIPMENT);
+        setSupplements(sups || []);
+        setEquipmentList(eqs || []);
         setMembersList(mems || []);
       } catch (err) {
         console.warn("Stock data fetch fallback:", err);
-        setSupplements(DEFAULT_SUPPLEMENTS);
-        setEquipmentList(DEFAULT_EQUIPMENT);
+        setSupplements([]);
+        setEquipmentList([]);
+        setMembersList([]);
       }
     }
     loadData();

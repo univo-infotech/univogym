@@ -15,44 +15,75 @@ import { db } from "./config";
  */
 
 export async function clearAllGymData(gymId = "univo_main") {
-  const collectionsToClear = [
-    "members",
-    "payments",
-    "inviteTokens",
-    `gyms/${gymId}/expenses`,
-    `gyms/${gymId}/supplements`,
-    `gyms/${gymId}/supplement_sales`,
-    `gyms/${gymId}/equipment`,
-    `gyms/${gymId}/visits`,
-    `gyms/${gymId}/trainers`,
-    `gyms/${gymId}/staff`,
-    `gyms/${gymId}/beforeAfter`,
-  ];
-
-  // 1. Clear local storage caches
+  // 1. Clear all local storage caches related to gym data
   try {
-    const keysToRemove = [
+    const keysToKeep = new Set(["univo_gym_settings", "firebase:authUser:"]);
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("univo_") && !keysToKeep.has(key)) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.push(
       "univo_recent_members",
+      "univo_recent_payments",
       "univo_invite_tokens",
-      "univo_recent_self_registered_members"
-    ];
-    keysToRemove.forEach((k) => localStorage.removeItem(k));
+      "univo_recent_self_registered_members",
+      "univo_cached_plans",
+      "univo_cached_trainers"
+    );
+    Array.from(new Set(keysToRemove)).forEach((k) => localStorage.removeItem(k));
+    localStorage.setItem("univo_data_cleared", "true");
   } catch (e) {
     console.warn("Local storage clear notice:", e);
   }
 
-  // 2. Clear Firestore collections
+  // 2. Identify all targets to wipe (top-level collections + all gym IDs)
+  const targetGymIds = Array.from(new Set([gymId, "univo_main"].filter(Boolean)));
+  const collectionsToClear = [
+    "members",
+    "payments",
+    "inviteTokens",
+    "attendance"
+  ];
+
+  for (const gId of targetGymIds) {
+    collectionsToClear.push(
+      `gyms/${gId}/members`,
+      `gyms/${gId}/payments`,
+      `gyms/${gId}/expenses`,
+      `gyms/${gId}/supplements`,
+      `gyms/${gId}/supplement_sales`,
+      `gyms/${gId}/equipment`,
+      `gyms/${gId}/stock`,
+      `gyms/${gId}/visits`,
+      `gyms/${gId}/trainers`,
+      `gyms/${gId}/staff`,
+      `gyms/${gId}/plans`,
+      `gyms/${gId}/services`,
+      `gyms/${gId}/workoutPlans`,
+      `gyms/${gId}/beforeAfter`,
+      `gyms/${gId}/notifications`,
+      `gyms/${gId}/roles`,
+      `gyms/${gId}/attendance`
+    );
+  }
+
+  // 3. Clear Firestore collections in chunks of 400 (never exceeding Firestore 500 batch limit)
   let totalDeleted = 0;
   for (const colPath of collectionsToClear) {
     try {
       const snap = await getDocs(collection(db, colPath));
       if (!snap.empty) {
-        const batch = writeBatch(db);
-        snap.docs.forEach((d) => {
-          batch.delete(d.ref);
-          totalDeleted++;
-        });
-        await batch.commit();
+        const docs = snap.docs;
+        for (let i = 0; i < docs.length; i += 400) {
+          const chunk = docs.slice(i, i + 400);
+          const batch = writeBatch(db);
+          chunk.forEach((d) => batch.delete(d.ref));
+          await batch.commit();
+          totalDeleted += chunk.length;
+        }
       }
     } catch (err) {
       console.warn(`Could not clear collection ${colPath}:`, err.message);

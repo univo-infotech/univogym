@@ -31,9 +31,10 @@ export default function Expenses() {
     async function load() {
       try {
         const exp = await getExpenses(gymId);
-        setExpenses(exp && exp.length > 0 ? exp : dummyExpenses);
+        setExpenses(exp || []);
       } catch (err) {
-        setExpenses(dummyExpenses);
+        console.warn("Could not load expenses:", err);
+        setExpenses([]);
       }
     }
     load();

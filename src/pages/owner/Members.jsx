@@ -2417,20 +2417,15 @@ export default function Members() {
           getTrainers(gymId || 'univo_main'),
           getPlans(gymId || 'univo_main'),
         ]);
-        if (m && m.length > 0) {
-          const realPhoneSet = new Set(m.map((rm) => (rm.phone || '').replace(/\D/g, '')));
-          const remainingDummy = dummyMembers.filter((dm) => !realPhoneSet.has((dm.phone || '').replace(/\D/g, '')));
-          setMembers([...m, ...remainingDummy]);
-        } else {
-          setMembers(dummyMembers);
-        }
+        setMembers(m || []);
         setTrainers(t || []);
         if (p && p.length > 0) {
           const activeOnly = p.filter(item => item.isActive !== false);
           setPlans(activeOnly.length > 0 ? activeOnly : p);
         }
       } catch (err) {
-        setMembers(dummyMembers);
+        console.warn("Could not load members:", err);
+        setMembers([]);
       } finally {
         setLoading(false);
       }

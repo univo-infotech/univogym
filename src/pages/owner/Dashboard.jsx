@@ -76,47 +76,10 @@ export default function Dashboard() {
           setPlans(activeOnly.length > 0 ? activeOnly : pl);
         }
         
-        if (m && m.length > 0) {
-          setMembers(m);
-        } else {
-          // Default initial sample for empty gym
-          setMembers([
-            { id: "m1", fullName: "Ajay Prajapati", name: "Ajay Prajapati", phone: "+91 9196302375", planName: "3-Month Pro", status: "active", createdAt: "2026-09-10", expiryDate: "2026-12-10", renewalFee: "6500" },
-            { id: "m2", fullName: "Rahul Verma", name: "Rahul Verma", phone: "+91 9876543210", planName: "Annual Elite", status: "active", createdAt: "2026-09-08", expiryDate: "2027-09-08", renewalFee: "18000" },
-            { id: "m3", fullName: "Priya Sharma", name: "Priya Sharma", phone: "+91 9811223344", planName: "6-Month Transformation", status: "active", createdAt: "2026-09-05", expiryDate: "2027-03-05", renewalFee: "11000" },
-            { id: "m4", fullName: "Aman Gupta", name: "Aman Gupta", phone: "+91 9988776655", planName: "1-Month Basic", status: "expiring", createdAt: "2026-08-14", expiryDate: "2026-09-14", renewalFee: "2500" },
-            { id: "m5", fullName: "Karan Johar", name: "Karan Johar", phone: "+91 9711003322", planName: "3-Month Pro", status: "expiring", createdAt: "2026-06-15", expiryDate: "2026-09-15", renewalFee: "6500" },
-          ]);
-        }
-
-        if (p && p.length > 0) {
-          setPayments(p);
-        } else {
-          setPayments([
-            { id: "p1", memberName: "Ajay Prajapati", planName: "3-Month Pro", paidAmount: 6500, amount: 6500, dueAmount: 0, paymentMode: "online", date: "12 Sep 2026" },
-            { id: "p2", memberName: "Rahul Verma", planName: "Annual Elite", paidAmount: 18000, amount: 18000, dueAmount: 0, paymentMode: "cash", date: "11 Sep 2026" },
-            { id: "p3", memberName: "Priya Sharma", planName: "6-Month Transformation", paidAmount: 8000, amount: 11000, dueAmount: 3000, paymentMode: "mixed", date: "10 Sep 2026" },
-          ]);
-        }
-
-        if (s && s.length > 0) {
-          setStockItems(s);
-        } else {
-          setStockItems([
-            { id: "s1", name: "Lat Pulldown Machine", type: "Machine", condition: "Operational", lastServiceDate: "2026-08-15" },
-            { id: "s2", name: "Olympic Barbell & 20kg Plates", type: "Weights", condition: "Good", lastServiceDate: "2026-07-20" },
-            { id: "s3", name: "Commercial Treadmill T90", type: "Cardio", condition: "Service Due Soon", lastServiceDate: "2026-06-10" },
-          ]);
-        }
-
-        if (v && v.length > 0) {
-          setVisits(v);
-        } else {
-          setVisits([
-            { id: "v1", name: "Sunil Kapoor", phone: "+91 9711002233", interestedIn: "Weight Loss Trial", status: "demo_done", createdAt: "2026-09-11" },
-            { id: "v2", name: "Kavita Rao", phone: "+91 9822334455", interestedIn: "Personal Training", status: "new", createdAt: "2026-09-12" },
-          ]);
-        }
+        setMembers(m || []);
+        setPayments(p || []);
+        setStockItems(s || []);
+        setVisits(v || []);
       } catch (err) {
         console.error("Dashboard load data error:", err);
       }
@@ -151,12 +114,7 @@ export default function Dashboard() {
   // Calculate real payment modes breakdown from payments
   const paymentModesData = useMemo(() => {
     if (!payments || payments.length === 0) {
-      return [
-        { name: "Online UPI", value: 52, color: "#10b981" },
-        { name: "Cash", value: 30, color: "#06b6d4" },
-        { name: "Bank Transfer", value: 11, color: "#8b5cf6" },
-        { name: "Mixed Mode", value: 7, color: "#f59e0b" },
-      ];
+      return [{ name: "No Payments", value: 100, color: "#e2e8f0" }];
     }
 
     let upiCount = 0;
@@ -178,7 +136,7 @@ export default function Dashboard() {
       { name: "Cash", value: Math.round((cashCount / total) * 100), color: "#06b6d4" },
       { name: "Bank Transfer", value: Math.round((bankCount / total) * 100), color: "#8b5cf6" },
       { name: "Mixed Mode", value: Math.round((splitCount / total) * 100), color: "#f59e0b" },
-    ];
+    ].filter(item => item.value > 0);
   }, [payments]);
 
   // Compute dynamic daily revenue for last 7 days from actual payments
@@ -207,20 +165,6 @@ export default function Dashboard() {
       });
 
       result.push({ day: dayName, revenue: daySum });
-    }
-
-    // If all zeroes (e.g. initial demo setup), provide smooth baseline
-    const totalWeek = result.reduce((acc, r) => acc + r.revenue, 0);
-    if (totalWeek === 0) {
-      return [
-        { day: "Mon", revenue: 8200 },
-        { day: "Tue", revenue: 12400 },
-        { day: "Wed", revenue: 9800 },
-        { day: "Thu", revenue: 15600 },
-        { day: "Fri", revenue: 21400 },
-        { day: "Sat", revenue: 28900 },
-        { day: "Sun", revenue: 19500 },
-      ];
     }
 
     return result;

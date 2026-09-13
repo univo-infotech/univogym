@@ -142,9 +142,9 @@ export default function Staff() {
     setLoading(true);
     try {
       const data = await getStaff(GID);
-      setStaffList(data.length ? data : DUMMY_STAFF);
+      setStaffList(data || []);
     } catch {
-      setStaffList(DUMMY_STAFF);
+      setStaffList([]);
     } finally {
       setLoading(false);
     }

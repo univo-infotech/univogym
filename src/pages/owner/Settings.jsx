@@ -147,14 +147,35 @@ export default function Settings() {
     setDeleteConfirmOpen(false);
     try {
       toast.loading("Deleting all gym data and clearing database collections...", { id: "data_action" });
-      const res = await clearAllGymData(gymId);
-      toast.success(`All gym data cleared successfully (${res.deletedCount} documents deleted).`, {
-        id: "data_action",
-        duration: 5000
-      });
+      const res = await clearAllGymData(gymId || "univo_main");
+
+      // Clear local storage caches directly
+      try {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("univo_") && key !== "univo_gym_settings") {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.push(
+          "univo_recent_members",
+          "univo_recent_payments",
+          "univo_invite_tokens",
+          "univo_recent_self_registered_members"
+        );
+        Array.from(new Set(keysToRemove)).forEach((k) => localStorage.removeItem(k));
+      } catch (storageErr) {
+        console.warn("Storage clear notice:", storageErr);
+      }
+
+      toast.success(
+        `All gym data cleared successfully (${res?.deletedCount || 0} records deleted). Database is now completely clean!`,
+        { id: "data_action", duration: 4000 }
+      );
       setTimeout(() => {
         window.location.reload();
-      }, 1500);
+      }, 1200);
     } catch (err) {
       console.error("Delete all data error:", err);
       toast.error("Failed to delete all data: " + err.message, { id: "data_action" });

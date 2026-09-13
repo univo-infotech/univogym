@@ -188,12 +188,12 @@ export default function Visits() {
           getTrainers(gymId)
         ]);
 
-        setVisits(vSnap && vSnap.length > 0 ? vSnap : DEFAULT_VISITS);
+        setVisits(vSnap || []);
         setPlans(pSnap || []);
         setTrainers(tSnap || []);
       } catch (err) {
         console.warn("Visits data fallback:", err);
-        setVisits(DEFAULT_VISITS);
+        setVisits([]);
       } finally {
         setLoading(false);
       }
