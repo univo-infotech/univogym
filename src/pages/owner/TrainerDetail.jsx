@@ -20,6 +20,12 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  HandCoins,
+  Percent,
+  TrendingUp,
+  IndianRupee,
+  Award,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import {
@@ -45,6 +51,7 @@ const SPEC_COLORS = {
 
 const TABS = [
   { id: "profile", label: "Profile", icon: UserCircle },
+  { id: "commission", label: "PT Commission & Earnings", icon: HandCoins },
   { id: "members", label: "My Members", icon: Users },
   { id: "beforeafter", label: "Before & After", icon: ImagePlus },
   { id: "plans", label: "Plans", icon: ClipboardList },
@@ -163,6 +170,264 @@ function InfoCard({ icon: Icon, label, value, color = "teal" }) {
       <div>
         <p className="text-xs text-slate-500 mb-0.5">{label}</p>
         <p className="text-sm font-semibold text-white">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab: PT Commission & Earnings ──────────────────────────────────────────
+function CommissionTab({ trainer, members, loading }) {
+  if (loading) return <TabLoader />;
+
+  // Filter members who bought a PT package with this trainer
+  const ptMembers = members.filter(
+    (m) =>
+      Number(m.ptPrice || m.ptFee || 0) > 0 ||
+      Boolean(m.ptPackageName) ||
+      Boolean(m.hasPt)
+  );
+
+  const commType = trainer?.commissionType || "percentage";
+  const commVal = Number(trainer?.commissionValue ?? 30);
+
+  // Compute metrics across all PT members
+  let totalPtRevenue = 0;
+  let totalGymCut = 0;
+  let totalTrainerPayout = 0;
+
+  const rows = ptMembers.map((m) => {
+    const fee = Number(m.ptPrice || m.ptFee || 0);
+    totalPtRevenue += fee;
+
+    let gymCut = 0;
+    let trainerCut = 0;
+
+    if (m.ptOwnerCommission !== undefined && m.ptTrainerPayout !== undefined) {
+      gymCut = Number(m.ptOwnerCommission || 0);
+      trainerCut = Number(m.ptTrainerPayout || 0);
+    } else {
+      // Historical fallback calculation using trainer's active deal
+      if (commType === "percentage") {
+        gymCut = Math.round((fee * commVal) / 100);
+        trainerCut = Math.max(0, fee - gymCut);
+      } else {
+        gymCut = Math.min(fee, commVal);
+        trainerCut = Math.max(0, fee - gymCut);
+      }
+    }
+
+    totalGymCut += gymCut;
+    totalTrainerPayout += trainerCut;
+
+    return {
+      ...m,
+      computedFee: fee,
+      computedGymCut: gymCut,
+      computedTrainerCut: trainerCut,
+    };
+  });
+
+  const baseSalary = Number(trainer?.salary || 0);
+  const grandTrainerEarnings = baseSalary + totalTrainerPayout;
+
+  return (
+    <div className="space-y-6">
+      {/* ── Active Deal Agreement Card ── */}
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-teal-950/40 via-slate-900 to-slate-900 border border-teal-500/30">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-teal-500/10 border border-teal-500/25 flex items-center justify-center text-teal-400">
+              <HandCoins className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-white">Active PT Revenue Share Deal</h3>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 font-semibold border border-teal-500/30">
+                  {commType === "percentage" ? "Percentage Share" : "Fixed Cut Per Sale"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Commission deal agreed between Gym Owner and {trainer?.name || "Trainer"} on all PT package sales.
+              </p>
+            </div>
+          </div>
+
+          {/* Deal Pill Summary */}
+          <div className="flex items-center gap-3 bg-slate-800/80 px-4 py-2.5 rounded-xl border border-slate-700/60">
+            <div className="text-right">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Gym Commission</p>
+              <p className="text-sm font-bold text-emerald-400">
+                {commType === "percentage" ? `${commVal}% of Fee` : `₹${commVal.toLocaleString("en-IN")} Flat / sale`}
+              </p>
+            </div>
+            <div className="h-7 w-px bg-slate-700" />
+            <div className="text-left">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Trainer Share</p>
+              <p className="text-sm font-bold text-teal-400">
+                {commType === "percentage" ? `${100 - commVal}% of Fee` : "Remaining Balance"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Summary Financial Metrics Cards ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-slate-400 font-medium">PT Clients Enrolled</span>
+            <Users className="w-4 h-4 text-sky-400" />
+          </div>
+          <p className="text-2xl font-black text-white">{ptMembers.length}</p>
+          <p className="text-[11px] text-slate-500 mt-1">Total personal training buyers</p>
+        </div>
+
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-slate-400 font-medium">Total PT Sales Volume</span>
+            <IndianRupee className="w-4 h-4 text-emerald-400" />
+          </div>
+          <p className="text-2xl font-black text-white">₹{totalPtRevenue.toLocaleString("en-IN")}</p>
+          <p className="text-[11px] text-slate-500 mt-1">Gross PT revenue generated</p>
+        </div>
+
+        <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-emerald-400 font-medium">Gym Owner Cut</span>
+            <TrendingUp className="w-4 h-4 text-emerald-400" />
+          </div>
+          <p className="text-2xl font-black text-emerald-400">₹{totalGymCut.toLocaleString("en-IN")}</p>
+          <p className="text-[11px] text-emerald-300/70 mt-1">Total gym profit retained</p>
+        </div>
+
+        <div className="bg-teal-950/20 border border-teal-500/30 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-teal-300 font-medium">Trainer Net PT Payout</span>
+            <HandCoins className="w-4 h-4 text-teal-400" />
+          </div>
+          <p className="text-2xl font-black text-teal-300">₹{totalTrainerPayout.toLocaleString("en-IN")}</p>
+          {baseSalary > 0 ? (
+            <p className="text-[11px] text-teal-300/70 mt-1">
+              + ₹{baseSalary.toLocaleString("en-IN")} Base = ₹{grandTrainerEarnings.toLocaleString("en-IN")} Total
+            </p>
+          ) : (
+            <p className="text-[11px] text-teal-300/70 mt-1">Total payout to coach</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Detailed PT Sales & Commission Ledger Table ── */}
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-700/50 flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h4 className="text-sm font-semibold text-white">PT Sales Ledger & Commission Breakdown</h4>
+            <p className="text-xs text-slate-400">
+              Individual PT member package bookings and owner/trainer revenue split
+            </p>
+          </div>
+          <span className="text-xs px-2.5 py-1 bg-slate-700/60 text-slate-300 rounded-lg">
+            {rows.length} {rows.length === 1 ? "Record" : "Records"}
+          </span>
+        </div>
+
+        {rows.length === 0 ? (
+          <div className="py-12 px-4 text-center">
+            <HandCoins className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+            <p className="text-slate-400 text-sm font-medium">No PT sales recorded for this trainer yet</p>
+            <p className="text-slate-500 text-xs mt-1">
+              When members choose this trainer and select a PT membership, the commission will automatically calculate and appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-700/50 bg-slate-900/40 text-slate-400 font-medium">
+                  <th className="text-left py-3.5 px-5">Member</th>
+                  <th className="text-left py-3.5 px-5">PT Package</th>
+                  <th className="text-right py-3.5 px-5">PT Fee</th>
+                  <th className="text-center py-3.5 px-5">Deal Type</th>
+                  <th className="text-right py-3.5 px-5 text-emerald-400">Gym Share</th>
+                  <th className="text-right py-3.5 px-5 text-teal-400">Trainer Payout</th>
+                  <th className="text-center py-3.5 px-5">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-700/30">
+                {rows.map((m) => {
+                  const dealLabel =
+                    m.ptCommissionType === "fixed"
+                      ? `Flat ₹${m.ptCommissionValue || commVal}`
+                      : `${m.ptCommissionValue || commVal}% Gym`;
+                  const isActive = m.status === "active";
+
+                  return (
+                    <tr key={m.id} className="hover:bg-slate-700/20 transition-colors">
+                      <td className="py-3.5 px-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal-500 to-green-600 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                            {m.name?.charAt(0)?.toUpperCase() || "?"}
+                          </div>
+                          <div>
+                            <p className="font-medium text-white">{m.name}</p>
+                            <p className="text-slate-500 text-xs">{m.phone || ""}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <span className="font-medium text-slate-200">
+                          {m.ptPackageName || m.selectedPtPackage || "Personal Training"}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-bold text-white">
+                        ₹{m.computedFee.toLocaleString("en-IN")}
+                      </td>
+                      <td className="py-3.5 px-5 text-center">
+                        <span className="text-[11px] px-2 py-0.5 rounded bg-slate-700/80 text-slate-300 font-mono">
+                          {dealLabel}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-bold text-emerald-400">
+                        +₹{m.computedGymCut.toLocaleString("en-IN")}
+                      </td>
+                      <td className="py-3.5 px-5 text-right font-bold text-teal-300">
+                        ₹{m.computedTrainerCut.toLocaleString("en-IN")}
+                      </td>
+                      <td className="py-3.5 px-5 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium border ${
+                            isActive
+                              ? "bg-green-500/15 text-green-400 border-green-500/30"
+                              : "bg-slate-700/50 text-slate-400 border-slate-600"
+                          }`}
+                        >
+                          {isActive ? "Active" : "Completed"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-slate-700 bg-slate-900/60 font-semibold text-white">
+                  <td colSpan={2} className="py-3.5 px-5 text-slate-300">
+                    Total PT Revenue & Distribution
+                  </td>
+                  <td className="py-3.5 px-5 text-right text-white">
+                    ₹{totalPtRevenue.toLocaleString("en-IN")}
+                  </td>
+                  <td className="py-3.5 px-5" />
+                  <td className="py-3.5 px-5 text-right text-emerald-400">
+                    ₹{totalGymCut.toLocaleString("en-IN")}
+                  </td>
+                  <td className="py-3.5 px-5 text-right text-teal-300">
+                    ₹{totalTrainerPayout.toLocaleString("en-IN")}
+                  </td>
+                  <td className="py-3.5 px-5" />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -416,7 +681,7 @@ export default function TrainerDetail() {
     (async () => {
       setLoadingTab(true);
       try {
-        if (activeTab === "members" && members.length === 0) {
+        if ((activeTab === "members" || activeTab === "commission") && members.length === 0) {
           const data = await getTrainerMembers(gymId, trainerId);
           setMembers(data);
         } else if (activeTab === "beforeafter" && beforeAfter.length === 0) {
@@ -565,6 +830,13 @@ export default function TrainerDetail() {
         {/* ── Tab Content ── */}
         <div>
           {activeTab === "profile" && <ProfileTab trainer={trainer} />}
+          {activeTab === "commission" && (
+            <CommissionTab
+              trainer={trainer}
+              members={members}
+              loading={loadingTab}
+            />
+          )}
           {activeTab === "members" && (
             <MembersTab members={members} loading={loadingTab} />
           )}

@@ -258,6 +258,22 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     const ptPrice = Number(formData.ptPlanPrice || 0);
     const combinedTotalFee = basePrice + ptPrice;
 
+    // Calculate Gym Owner Commission and Trainer Payout on PT Sale
+    let ptOwnerCommission = 0;
+    let ptTrainerPayout = 0;
+    let commissionType = selectedTrainerObj?.commissionType || "percentage";
+    let commissionValue = selectedTrainerObj?.commissionValue !== undefined ? Number(selectedTrainerObj.commissionValue) : 30;
+
+    if (ptPrice > 0 && isPersonalTrainer) {
+      if (commissionType === "fixed") {
+        ptOwnerCommission = Math.min(ptPrice, commissionValue);
+        ptTrainerPayout = Math.max(0, ptPrice - ptOwnerCommission);
+      } else {
+        ptOwnerCommission = Math.round(ptPrice * (commissionValue / 100));
+        ptTrainerPayout = Math.max(0, ptPrice - ptOwnerCommission);
+      }
+    }
+
     const newMember = {
       id: "m_" + Date.now(),
       name: formData.fullName.trim(),
@@ -277,6 +293,11 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       ptPlanName: formData.ptPlanName || "",
       ptPlanPrice: ptPrice,
       ptDuration: formData.ptDuration || "",
+      // PT Deal Commission & Payout Tracking
+      ptCommissionType: commissionType,
+      ptCommissionValue: commissionValue,
+      ptOwnerCommission,
+      ptTrainerPayout,
       totalAmount: combinedTotalFee,
       dueAmount: combinedTotalFee,
       paidAmount: 0,

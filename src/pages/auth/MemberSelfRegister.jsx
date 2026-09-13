@@ -497,6 +497,22 @@ export default function MemberSelfRegister() {
       const ptFee = Number(selectedPtPlan?.price || 0);
       const combinedTotalFee = baseFee + ptFee;
 
+      // Calculate Gym Owner Commission and Trainer Payout on PT Sale
+      let ptOwnerCommission = 0;
+      let ptTrainerPayout = 0;
+      let commissionType = selectedTrainer?.commissionType || "percentage";
+      let commissionValue = selectedTrainer?.commissionValue !== undefined ? Number(selectedTrainer.commissionValue) : 30;
+
+      if (ptFee > 0 && selectedTrainer) {
+        if (commissionType === "fixed") {
+          ptOwnerCommission = Math.min(ptFee, commissionValue);
+          ptTrainerPayout = Math.max(0, ptFee - ptOwnerCommission);
+        } else {
+          ptOwnerCommission = Math.round(ptFee * (commissionValue / 100));
+          ptTrainerPayout = Math.max(0, ptFee - ptOwnerCommission);
+        }
+      }
+
       const memberPayload = {
         gymId: gymId || 'univo_main',
         fullName: personalData.fullName || tokenData?.memberName || typedName,
@@ -512,11 +528,15 @@ export default function MemberSelfRegister() {
         planId: selectedPlan?.id || 'p2',
         planName: selectedPlan?.name || '3-Month Pro',
         planPrice: baseFee,
-        // Coach PT Add-on details
+        // Coach PT Add-on details & Commission tracking
         ptPlanId: selectedPtPlan?.id || '',
         ptPlanName: selectedPtPlan?.name || '',
         ptPlanPrice: ptFee,
         ptDuration: selectedPtPlan?.duration || '',
+        ptCommissionType: commissionType,
+        ptCommissionValue: commissionValue,
+        ptOwnerCommission,
+        ptTrainerPayout,
         totalAmount: combinedTotalFee,
         dueAmount: combinedTotalFee,
         joinDate: todayDate.toISOString().split('T')[0],
