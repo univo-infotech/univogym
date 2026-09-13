@@ -59,7 +59,7 @@ import toast from 'react-hot-toast';
 import { getMembers, generateInviteToken, addMember, updateMember, deleteMember } from '../../firebase/members';
 import { getTrainers } from '../../firebase/trainers';
 import { getPlans } from '../../firebase/plans';
-import { addPayment } from '../../firebase/payments';
+import { addPayment, getAllPayments } from '../../firebase/payments';
 import { useAuth } from '../../contexts/AuthContext';
 import { getGymSettings } from '../../utils/settings';
 import { generatePaymentReceipt } from '../../utils/pdf';
@@ -2681,12 +2681,38 @@ export default function Members() {
     async function loadData() {
       setLoading(true);
       try {
-        const [m, t, p] = await Promise.all([
+        const [m, t, p, pay] = await Promise.all([
           getMembers(gymId || 'univo_main'),
           getTrainers(gymId || 'univo_main'),
           getPlans(gymId || 'univo_main'),
+          getAllPayments(gymId || 'univo_main'),
         ]);
-        setMembers(m || []);
+
+        // Auto-reconcile members with payments collection
+        const enrichedMembers = (m || []).map((mem) => {
+          const rawPhone = (mem.phone || '').replace(/\D/g, '');
+          const memPayments = (pay || []).filter(
+            (py) =>
+              py.memberId === mem.id ||
+              (rawPhone && (py.phone || '').replace(/\D/g, '') === rawPhone) ||
+              (mem.name && py.memberName && py.memberName.toLowerCase() === mem.name.toLowerCase())
+          );
+
+          if (memPayments.length > 0) {
+            // Pick most recent payment
+            const latest = memPayments[0];
+            const isFullyPaidRecord = Number(latest.dueAmount || 0) <= 0 && Number(latest.paidAmount || latest.amount || 0) > 0;
+            return {
+              ...mem,
+              paidAmount: Number(mem.paidAmount || 0) || Number(latest.paidAmount || latest.amount || 0),
+              dueAmount: isFullyPaidRecord ? 0 : Number(latest.dueAmount ?? mem.dueAmount ?? 0),
+              lastPaymentDate: mem.lastPaymentDate || latest.date || latest.createdAt || new Date().toISOString()
+            };
+          }
+          return mem;
+        });
+
+        setMembers(enrichedMembers);
         setTrainers(t || []);
         if (p && p.length > 0) {
           const activeOnly = p.filter(item => item.isActive !== false);

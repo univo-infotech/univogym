@@ -30,14 +30,14 @@ export async function getMembers(gymId) {
       where("gymId", "==", targetGymId)
     );
     const snap = await getDocs(q);
-    membersList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    membersList = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
   } catch (err) {
     console.warn("getMembers filtered query warning:", err);
     try {
       // Fallback: fetch collection and filter client-side
       const allSnap = await getDocs(collection(db, "members"));
       membersList = allSnap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
+        .map((d) => ({ ...d.data(), id: d.id }))
         .filter((m) => !m.gymId || m.gymId === targetGymId);
     } catch (fallbackErr) {
       console.error("getMembers fallback error:", fallbackErr);
