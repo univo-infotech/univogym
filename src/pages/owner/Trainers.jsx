@@ -25,7 +25,10 @@ import {
   Tag,
   Dumbbell,
   IndianRupee,
-  Sparkles
+  Sparkles,
+  Calculator,
+  Calendar,
+  Clock
 } from "lucide-react";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
@@ -64,8 +67,26 @@ export default function Trainers() {
     photoUrl: "",
     certUrl: "",
     ptPlans: [
-      { id: 1, name: "1 Month 1-on-1 PT", duration: "1 Month (24 Sessions)", price: 4500, description: "Personalized workout routine, daily form check & diet guidance" },
-      { id: 2, name: "3 Months Transformation PT", duration: "3 Months (72 Sessions)", price: 11000, description: "Dedicated 1-on-1 coaching, supplement strategy & weekly body fat audit" }
+      {
+        id: 1,
+        name: "1 Month 1-on-1 PT",
+        durationType: "months",
+        durationValue: 1,
+        sessionsCount: 24,
+        duration: "1 Month (24 Sessions)",
+        price: 4500,
+        description: "Personalized workout routine, daily form check & diet guidance"
+      },
+      {
+        id: 2,
+        name: "3 Months Transformation PT",
+        durationType: "months",
+        durationValue: 3,
+        sessionsCount: 72,
+        duration: "3 Months (72 Sessions)",
+        price: 11000,
+        description: "Dedicated 1-on-1 coaching, supplement strategy & weekly body fat audit"
+      }
     ],
     transformations: [
       { id: 1, beforeImg: "", afterImg: "", description: "" }
@@ -171,11 +192,62 @@ export default function Trainers() {
     }));
   };
 
-  // --- PT MEMBERSHIP PACKAGE HANDLERS (MANUAL FORM) ---
+  // --- PT MEMBERSHIP PACKAGE HELPERS & HANDLERS ---
+  const formatPtDuration = (type, value, sessions) => {
+    const val = Number(value) || 1;
+    let durText = "";
+    if (type === "days") {
+      durText = `${val} Day${val > 1 ? "s" : ""}`;
+    } else if (type === "years") {
+      durText = `${val} Year${val > 1 ? "s" : ""}`;
+    } else {
+      durText = `${val} Month${val > 1 ? "s" : ""}`;
+    }
+
+    if (sessions && Number(sessions) > 0) {
+      return `${durText} (${sessions} Sessions)`;
+    }
+    return durText;
+  };
+
+  const getPtTotalDays = (type, value) => {
+    const val = Number(value) || 1;
+    if (type === "days") return val;
+    if (type === "years") return val * 365;
+    return val * 30; // months
+  };
+
   const handlePtPlanChange = (index, field, value) => {
     setForm((prev) => {
       const updated = [...prev.ptPlans];
-      updated[index] = { ...updated[index], [field]: value };
+      const plan = { ...updated[index], [field]: value };
+
+      // Recalculate duration text if durationType, durationValue, or sessionsCount changed
+      if (field === "durationType" || field === "durationValue" || field === "sessionsCount") {
+        const dType = field === "durationType" ? value : (plan.durationType || "months");
+        const dVal = field === "durationValue" ? value : (plan.durationValue || 1);
+        const sess = field === "sessionsCount" ? value : plan.sessionsCount;
+        plan.duration = formatPtDuration(dType, dVal, sess);
+      }
+
+      updated[index] = plan;
+      return { ...prev, ptPlans: updated };
+    });
+  };
+
+  const applyPtPreset = (index, presetType, presetVal, presetSess) => {
+    setForm((prev) => {
+      const updated = [...prev.ptPlans];
+      const plan = { ...updated[index] };
+      plan.durationType = presetType;
+      plan.durationValue = presetVal;
+      plan.sessionsCount = presetSess;
+      plan.duration = formatPtDuration(presetType, presetVal, presetSess);
+      if (!plan.name || plan.name.includes("Month") || plan.name.includes("Year") || plan.name.includes("Day")) {
+        const prefix = presetType === "years" ? `${presetVal} Year` : presetType === "days" ? `${presetVal} Days` : `${presetVal} Month`;
+        plan.name = `${prefix} 1-on-1 PT`;
+      }
+      updated[index] = plan;
       return { ...prev, ptPlans: updated };
     });
   };
@@ -187,7 +259,10 @@ export default function Trainers() {
         ...prev.ptPlans,
         {
           id: Date.now(),
-          name: "",
+          name: "1 Month 1-on-1 PT",
+          durationType: "months",
+          durationValue: 1,
+          sessionsCount: 24,
           duration: "1 Month (24 Sessions)",
           price: "",
           description: "1-on-1 personalized training & diet tracking"
@@ -218,9 +293,27 @@ export default function Trainers() {
       photoUrl: trainer.photoUrl || "",
       certUrl: trainer.certUrl || "",
       ptPlans: Array.isArray(trainer.ptPlans) && trainer.ptPlans.length > 0
-        ? trainer.ptPlans.map((p, idx) => ({ id: p.id || idx + 1, name: p.name || "", duration: p.duration || "", price: p.price || "", description: p.description || "" }))
+        ? trainer.ptPlans.map((p, idx) => ({
+            id: p.id || idx + 1,
+            name: p.name || "",
+            durationType: p.durationType || (p.duration?.toLowerCase().includes("year") ? "years" : p.duration?.toLowerCase().includes("day") ? "days" : "months"),
+            durationValue: p.durationValue || (p.duration?.toLowerCase().includes("3 month") ? 3 : p.duration?.toLowerCase().includes("6 month") ? 6 : p.duration?.toLowerCase().includes("1 year") ? 1 : 1),
+            sessionsCount: p.sessionsCount || (p.duration?.match(/\d+(?=\s*sessions)/i)?.[0] ? Number(p.duration.match(/\d+(?=\s*sessions)/i)[0]) : 24),
+            duration: p.duration || "1 Month (24 Sessions)",
+            price: p.price || "",
+            description: p.description || ""
+          }))
         : [
-            { id: 1, name: "1 Month 1-on-1 PT", duration: "1 Month (24 Sessions)", price: 4500, description: "Personalized workout routine, form guidance & diet" }
+            {
+              id: 1,
+              name: "1 Month 1-on-1 PT",
+              durationType: "months",
+              durationValue: 1,
+              sessionsCount: 24,
+              duration: "1 Month (24 Sessions)",
+              price: 4500,
+              description: "Personalized workout routine, form guidance & diet"
+            }
           ],
       transformations:
         trainer.transformations && trainer.transformations.length > 0
@@ -235,7 +328,33 @@ export default function Trainers() {
   const handleEditPtPlanChange = (index, field, value) => {
     setEditForm((prev) => {
       const updated = [...prev.ptPlans];
-      updated[index] = { ...updated[index], [field]: value };
+      const plan = { ...updated[index], [field]: value };
+
+      if (field === "durationType" || field === "durationValue" || field === "sessionsCount") {
+        const dType = field === "durationType" ? value : (plan.durationType || "months");
+        const dVal = field === "durationValue" ? value : (plan.durationValue || 1);
+        const sess = field === "sessionsCount" ? value : plan.sessionsCount;
+        plan.duration = formatPtDuration(dType, dVal, sess);
+      }
+
+      updated[index] = plan;
+      return { ...prev, ptPlans: updated };
+    });
+  };
+
+  const applyEditPtPreset = (index, presetType, presetVal, presetSess) => {
+    setEditForm((prev) => {
+      const updated = [...prev.ptPlans];
+      const plan = { ...updated[index] };
+      plan.durationType = presetType;
+      plan.durationValue = presetVal;
+      plan.sessionsCount = presetSess;
+      plan.duration = formatPtDuration(presetType, presetVal, presetSess);
+      if (!plan.name || plan.name.includes("Month") || plan.name.includes("Year") || plan.name.includes("Day")) {
+        const prefix = presetType === "years" ? `${presetVal} Year` : presetType === "days" ? `${presetVal} Days` : `${presetVal} Month`;
+        plan.name = `${prefix} 1-on-1 PT`;
+      }
+      updated[index] = plan;
       return { ...prev, ptPlans: updated };
     });
   };
@@ -247,7 +366,10 @@ export default function Trainers() {
         ...prev.ptPlans,
         {
           id: Date.now(),
-          name: "",
+          name: "1 Month 1-on-1 PT",
+          durationType: "months",
+          durationValue: 1,
+          sessionsCount: 24,
           duration: "1 Month (24 Sessions)",
           price: "",
           description: "1-on-1 coaching & diet tracking"
@@ -934,8 +1056,44 @@ export default function Trainers() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      <div className="sm:col-span-1">
+                    {/* Quick Duration Presets */}
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1 mb-1.5">
+                        <Clock className="w-3 h-3 text-emerald-600" /> Quick Duration Presets (तुरंत पैकेज चुनें):
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        {[
+                          { label: "1 Month", type: "months", val: 1, sess: 24 },
+                          { label: "3 Months", type: "months", val: 3, sess: 72 },
+                          { label: "6 Months", type: "months", val: 6, sess: 144 },
+                          { label: "1 Year", type: "years", val: 1, sess: 288 }
+                        ].map((preset) => {
+                          const isMatch = (plan.durationType || "months") === preset.type && Number(plan.durationValue || 1) === preset.val;
+                          return (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => applyPtPreset(idx, preset.type, preset.val, preset.sess)}
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition text-center ${
+                                isMatch
+                                  ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                              }`}
+                            >
+                              {preset.label}
+                              <span className={`block text-[9px] font-normal ${isMatch ? "text-emerald-100" : "text-slate-400"}`}>
+                                ({preset.sess} sessions)
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Detailed Inputs */}
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                      {/* Package Name */}
+                      <div className="sm:col-span-4">
                         <label className="text-[10px] font-bold text-slate-600 uppercase">
                           Package Name *
                         </label>
@@ -948,24 +1106,54 @@ export default function Trainers() {
                           className="w-full mt-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
                         />
                       </div>
-                      <div className="sm:col-span-1">
+
+                      {/* Month / Year / Days Value & Unit */}
+                      <div className="sm:col-span-4">
+                        <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-slate-400" /> Month / Year Duration *
+                        </label>
+                        <div className="flex gap-1.5 mt-1">
+                          <input
+                            required
+                            type="number"
+                            min="1"
+                            value={plan.durationValue || 1}
+                            onChange={(e) => handlePtPlanChange(idx, "durationValue", Math.max(1, Number(e.target.value)))}
+                            className="w-20 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-emerald-500 outline-none text-center"
+                          />
+                          <select
+                            value={plan.durationType || "months"}
+                            onChange={(e) => handlePtPlanChange(idx, "durationType", e.target.value)}
+                            className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:border-emerald-500 outline-none"
+                          >
+                            <option value="months">Month(s)</option>
+                            <option value="years">Year(s)</option>
+                            <option value="days">Day(s)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Planned Sessions */}
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-bold text-slate-600 uppercase">
-                          Duration / Sessions
+                          Sessions
                         </label>
                         <input
-                          type="text"
-                          value={plan.duration}
-                          onChange={(e) => handlePtPlanChange(idx, "duration", e.target.value)}
-                          placeholder="e.g. 1 Month (24 Sessions)"
-                          className="w-full mt-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                          type="number"
+                          value={plan.sessionsCount || 24}
+                          onChange={(e) => handlePtPlanChange(idx, "sessionsCount", Number(e.target.value))}
+                          placeholder="24"
+                          className="w-full mt-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-emerald-500 outline-none text-center font-bold"
                         />
                       </div>
-                      <div className="sm:col-span-1">
+
+                      {/* Package Total Fees */}
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-bold text-slate-600 uppercase">
                           Fees (₹) *
                         </label>
                         <div className="relative mt-1">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">
                             ₹
                           </span>
                           <input
@@ -974,10 +1162,44 @@ export default function Trainers() {
                             value={plan.price}
                             onChange={(e) => handlePtPlanChange(idx, "price", e.target.value)}
                             placeholder="4500"
-                            className="w-full pl-6 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-emerald-700 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                            className="w-full pl-5 pr-2 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-emerald-700 focus:border-emerald-500 outline-none"
                           />
                         </div>
                       </div>
+                    </div>
+
+                    {/* Automatic Calculation Banner */}
+                    <div className="p-2.5 bg-emerald-50/80 rounded-xl border border-emerald-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                          <Calculator className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <span className="font-extrabold text-emerald-950">
+                            {plan.duration || formatPtDuration(plan.durationType || "months", plan.durationValue || 1, plan.sessionsCount)}
+                          </span>
+                          <span className="text-[10px] text-emerald-700 font-medium ml-1.5">
+                            (Total: ~{getPtTotalDays(plan.durationType || "months", plan.durationValue || 1)} Days valid)
+                          </span>
+                        </div>
+                      </div>
+
+                      {plan.price && Number(plan.price) > 0 && (
+                        <div className="flex items-center gap-3 font-semibold text-[11px] text-emerald-900 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-100">
+                          {/* Per Month Calculation if > 1 month or year */}
+                          {(plan.durationType === "years" || (plan.durationType === "months" && Number(plan.durationValue) > 1)) && (
+                            <span>
+                              Monthly Rate: <strong className="text-emerald-700 font-extrabold">₹{Math.round(Number(plan.price) / ((plan.durationType === "years" ? Number(plan.durationValue || 1) * 12 : Number(plan.durationValue || 1)))).toLocaleString("en-IN")}/mo</strong>
+                            </span>
+                          )}
+                          {/* Per Session Calculation */}
+                          {plan.sessionsCount && Number(plan.sessionsCount) > 0 && (
+                            <span>
+                              Per Session: <strong className="text-emerald-700 font-extrabold">₹{Math.round(Number(plan.price) / Number(plan.sessionsCount)).toLocaleString("en-IN")}</strong>
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -1331,33 +1553,56 @@ export default function Trainers() {
 
               {viewTrainerModal.ptPlans && viewTrainerModal.ptPlans.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {viewTrainerModal.ptPlans.map((plan, idx) => (
-                    <div
-                      key={plan.id || idx}
-                      className="p-3.5 bg-slate-50 hover:bg-emerald-50/40 rounded-2xl border border-slate-200/80 hover:border-emerald-300 transition flex flex-col justify-between group"
-                    >
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="text-xs font-bold text-slate-900 leading-snug group-hover:text-emerald-900">
-                            {plan.name || `Package #${idx + 1}`}
-                          </span>
-                          <span className="text-xs font-extrabold text-emerald-600 shrink-0 bg-emerald-100/80 px-2 py-0.5 rounded-lg">
-                            ₹{Number(plan.price || 0).toLocaleString("en-IN")}
-                          </span>
+                  {viewTrainerModal.ptPlans.map((plan, idx) => {
+                    const price = Number(plan.price || 0);
+                    const durType = plan.durationType || (plan.duration?.toLowerCase().includes("year") ? "years" : "months");
+                    const durVal = Number(plan.durationValue) || (plan.duration?.toLowerCase().includes("3 month") ? 3 : plan.duration?.toLowerCase().includes("6 month") ? 6 : plan.duration?.toLowerCase().includes("1 year") ? 1 : 1);
+                    const sessCount = Number(plan.sessionsCount) || (plan.duration?.match(/\d+(?=\s*sessions)/i)?.[0] ? Number(plan.duration.match(/\d+(?=\s*sessions)/i)[0]) : 0);
+                    const totalMonths = durType === "years" ? durVal * 12 : durVal;
+                    const perMonth = (totalMonths > 1 && price > 0) ? Math.round(price / totalMonths) : null;
+                    const perSession = (sessCount > 0 && price > 0) ? Math.round(price / sessCount) : null;
+
+                    return (
+                      <div
+                        key={plan.id || idx}
+                        className="p-4 bg-slate-50 hover:bg-emerald-50/40 rounded-2xl border border-slate-200/80 hover:border-emerald-300 transition flex flex-col justify-between group shadow-xs"
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-xs font-bold text-slate-900 leading-snug group-hover:text-emerald-900">
+                              {plan.name || `Package #${idx + 1}`}
+                            </span>
+                            <span className="text-xs font-extrabold text-emerald-600 shrink-0 bg-emerald-100/80 px-2 py-0.5 rounded-lg border border-emerald-200">
+                              ₹{price.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            <span className="text-[11px] font-semibold text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200 inline-flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-emerald-600" />
+                              {plan.duration || `${durVal} ${durType}`}
+                            </span>
+                            {perMonth && (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/60 px-1.5 py-0.5 rounded-md">
+                                ₹{perMonth.toLocaleString("en-IN")}/mo
+                              </span>
+                            )}
+                            {perSession && (
+                              <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-200">
+                                ₹{perSession.toLocaleString("en-IN")}/session
+                              </span>
+                            )}
+                          </div>
+
+                          {plan.description && (
+                            <p className="text-[11px] text-slate-600 mt-2.5 leading-relaxed bg-white/90 p-2.5 rounded-xl border border-slate-100">
+                              {plan.description}
+                            </p>
+                          )}
                         </div>
-                        {plan.duration && (
-                          <span className="text-[11px] font-semibold text-slate-500 mt-1 inline-block">
-                            ⏳ {plan.duration}
-                          </span>
-                        )}
-                        {plan.description && (
-                          <p className="text-[11px] text-slate-600 mt-2 leading-relaxed bg-white/80 p-2 rounded-xl border border-slate-100">
-                            {plan.description}
-                          </p>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center text-xs text-slate-400">
@@ -1693,8 +1938,44 @@ export default function Trainers() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    <div className="sm:col-span-1">
+                  {/* Quick Duration Presets */}
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1 mb-1.5">
+                      <Clock className="w-3 h-3 text-emerald-600" /> Quick Duration Presets (तुरंत पैकेज चुनें):
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {[
+                        { label: "1 Month", type: "months", val: 1, sess: 24 },
+                        { label: "3 Months", type: "months", val: 3, sess: 72 },
+                        { label: "6 Months", type: "months", val: 6, sess: 144 },
+                        { label: "1 Year", type: "years", val: 1, sess: 288 }
+                      ].map((preset) => {
+                        const isMatch = (plan.durationType || "months") === preset.type && Number(plan.durationValue || 1) === preset.val;
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => applyEditPtPreset(idx, preset.type, preset.val, preset.sess)}
+                            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition text-center ${
+                              isMatch
+                                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                            }`}
+                          >
+                            {preset.label}
+                            <span className={`block text-[9px] font-normal ${isMatch ? "text-emerald-100" : "text-slate-400"}`}>
+                              ({preset.sess} sessions)
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Detailed Inputs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                    {/* Package Name */}
+                    <div className="sm:col-span-4">
                       <label className="text-[10px] font-bold text-slate-600 uppercase">
                         Package Name *
                       </label>
@@ -1707,24 +1988,54 @@ export default function Trainers() {
                         className="w-full mt-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
                       />
                     </div>
-                    <div className="sm:col-span-1">
+
+                    {/* Month / Year / Days Value & Unit */}
+                    <div className="sm:col-span-4">
+                      <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-slate-400" /> Month / Year Duration *
+                      </label>
+                      <div className="flex gap-1.5 mt-1">
+                        <input
+                          required
+                          type="number"
+                          min="1"
+                          value={plan.durationValue || 1}
+                          onChange={(e) => handleEditPtPlanChange(idx, "durationValue", Math.max(1, Number(e.target.value)))}
+                          className="w-20 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-emerald-500 outline-none text-center"
+                        />
+                        <select
+                          value={plan.durationType || "months"}
+                          onChange={(e) => handleEditPtPlanChange(idx, "durationType", e.target.value)}
+                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:border-emerald-500 outline-none"
+                        >
+                          <option value="months">Month(s)</option>
+                          <option value="years">Year(s)</option>
+                          <option value="days">Day(s)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Planned Sessions */}
+                    <div className="sm:col-span-2">
                       <label className="text-[10px] font-bold text-slate-600 uppercase">
-                        Duration / Sessions
+                        Sessions
                       </label>
                       <input
-                        type="text"
-                        value={plan.duration}
-                        onChange={(e) => handleEditPtPlanChange(idx, "duration", e.target.value)}
-                        placeholder="e.g. 1 Month (24 Sessions)"
-                        className="w-full mt-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                        type="number"
+                        value={plan.sessionsCount || 24}
+                        onChange={(e) => handleEditPtPlanChange(idx, "sessionsCount", Number(e.target.value))}
+                        placeholder="24"
+                        className="w-full mt-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-emerald-500 outline-none text-center font-bold"
                       />
                     </div>
-                    <div className="sm:col-span-1">
+
+                    {/* Package Total Fees */}
+                    <div className="sm:col-span-2">
                       <label className="text-[10px] font-bold text-slate-600 uppercase">
                         Fees (₹) *
                       </label>
                       <div className="relative mt-1">
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">
                           ₹
                         </span>
                         <input
@@ -1733,10 +2044,44 @@ export default function Trainers() {
                           value={plan.price}
                           onChange={(e) => handleEditPtPlanChange(idx, "price", e.target.value)}
                           placeholder="4500"
-                          className="w-full pl-6 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-emerald-700 placeholder-slate-400 focus:border-emerald-500 outline-none"
+                          className="w-full pl-5 pr-2 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-emerald-700 focus:border-emerald-500 outline-none"
                         />
                       </div>
                     </div>
+                  </div>
+
+                  {/* Automatic Calculation Banner */}
+                  <div className="p-2.5 bg-emerald-50/80 rounded-xl border border-emerald-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                        <Calculator className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <span className="font-extrabold text-emerald-950">
+                          {plan.duration || formatPtDuration(plan.durationType || "months", plan.durationValue || 1, plan.sessionsCount)}
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-medium ml-1.5">
+                          (Total: ~{getPtTotalDays(plan.durationType || "months", plan.durationValue || 1)} Days valid)
+                        </span>
+                      </div>
+                    </div>
+
+                    {plan.price && Number(plan.price) > 0 && (
+                      <div className="flex items-center gap-3 font-semibold text-[11px] text-emerald-900 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-100">
+                        {/* Per Month Calculation if > 1 month or year */}
+                        {(plan.durationType === "years" || (plan.durationType === "months" && Number(plan.durationValue) > 1)) && (
+                          <span>
+                            Monthly Rate: <strong className="text-emerald-700 font-extrabold">₹{Math.round(Number(plan.price) / ((plan.durationType === "years" ? Number(plan.durationValue || 1) * 12 : Number(plan.durationValue || 1)))).toLocaleString("en-IN")}/mo</strong>
+                          </span>
+                        )}
+                        {/* Per Session Calculation */}
+                        {plan.sessionsCount && Number(plan.sessionsCount) > 0 && (
+                          <span>
+                            Per Session: <strong className="text-emerald-700 font-extrabold">₹{Math.round(Number(plan.price) / Number(plan.sessionsCount)).toLocaleString("en-IN")}</strong>
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div>

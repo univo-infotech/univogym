@@ -634,31 +634,46 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                           <Sparkles className="w-3 h-3 text-indigo-600" /> Trainer PT Packages & Pricing:
                         </span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {selectedTrainerObj.ptPlans.map((pkg, pidx) => (
-                            <div
-                              key={pkg.id || pidx}
-                              className="bg-white/90 border border-indigo-200/90 rounded-xl p-2 text-left shadow-2xs"
-                            >
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="text-xs font-bold text-indigo-950 truncate">
-                                  {pkg.name}
-                                </span>
-                                <span className="text-xs font-extrabold text-emerald-700 shrink-0 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
-                                  ₹{Number(pkg.price || 0).toLocaleString("en-IN")}
-                                </span>
+                          {selectedTrainerObj.ptPlans.map((pkg, pidx) => {
+                            const pPrice = Number(pkg.price || 0);
+                            const durType = pkg.durationType || (pkg.duration?.toLowerCase().includes("year") ? "years" : "months");
+                            const durVal = Number(pkg.durationValue) || (pkg.duration?.toLowerCase().includes("3 month") ? 3 : pkg.duration?.toLowerCase().includes("6 month") ? 6 : pkg.duration?.toLowerCase().includes("1 year") ? 1 : 1);
+                            const totalMonths = durType === "years" ? durVal * 12 : durVal;
+                            const perMonth = (totalMonths > 1 && pPrice > 0) ? Math.round(pPrice / totalMonths) : null;
+
+                            return (
+                              <div
+                                key={pkg.id || pidx}
+                                className="bg-white/90 border border-indigo-200/90 rounded-xl p-2.5 text-left shadow-2xs space-y-1"
+                              >
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-xs font-bold text-indigo-950 truncate">
+                                    {pkg.name}
+                                  </span>
+                                  <span className="text-xs font-extrabold text-emerald-700 shrink-0 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
+                                    ₹{pPrice.toLocaleString("en-IN")}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                                  {pkg.duration && (
+                                    <span className="text-slate-600 font-semibold">
+                                      ⏳ {pkg.duration}
+                                    </span>
+                                  )}
+                                  {perMonth && (
+                                    <span className="font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded">
+                                      ₹{perMonth.toLocaleString("en-IN")}/mo
+                                    </span>
+                                  )}
+                                </div>
+                                {pkg.description && (
+                                  <p className="text-[10px] text-slate-600 line-clamp-1">
+                                    {pkg.description}
+                                  </p>
+                                )}
                               </div>
-                              {pkg.duration && (
-                                <span className="text-[10px] text-slate-500 font-semibold block mt-0.5">
-                                  ⏳ {pkg.duration}
-                                </span>
-                              )}
-                              {pkg.description && (
-                                <p className="text-[10px] text-slate-600 line-clamp-1 mt-0.5">
-                                  {pkg.description}
-                                </p>
-                              )}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}
