@@ -182,7 +182,8 @@ function CommissionTab({ trainer, members, loading }) {
   // Filter members who bought a PT package with this trainer
   const ptMembers = members.filter(
     (m) =>
-      Number(m.ptPrice || m.ptFee || 0) > 0 ||
+      Number(m.ptPlanPrice || m.ptPrice || m.ptFee || 0) > 0 ||
+      Boolean(m.ptPlanName) ||
       Boolean(m.ptPackageName) ||
       Boolean(m.hasPt)
   );
@@ -196,7 +197,7 @@ function CommissionTab({ trainer, members, loading }) {
   let totalTrainerPayout = 0;
 
   const rows = ptMembers.map((m) => {
-    const fee = Number(m.ptPrice || m.ptFee || 0);
+    const fee = Number(m.ptPlanPrice || m.ptPrice || m.ptFee || 0);
     totalPtRevenue += fee;
 
     let gymCut = 0;
@@ -375,7 +376,7 @@ function CommissionTab({ trainer, members, loading }) {
                       </td>
                       <td className="py-3.5 px-5">
                         <span className="font-medium text-slate-200">
-                          {m.ptPackageName || m.selectedPtPackage || "Personal Training"}
+                          {m.ptPlanName || m.ptPackageName || m.selectedPtPackage || "Personal Training"}
                         </span>
                       </td>
                       <td className="py-3.5 px-5 text-right font-bold text-white">

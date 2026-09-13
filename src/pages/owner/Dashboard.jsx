@@ -99,7 +99,17 @@ export default function Dashboard() {
   const totalMembers = members.length;
   const activeMembers = members.filter(m => m.status === "active").length || 148;
   const totalRevenue = payments.reduce((acc, curr) => acc + (Number(curr.paidAmount) || Number(curr.amount) || 0), 0) || 184500;
-  const expiringMembers = members.filter(m => m.status === "expiring" || m.id === "m4" || m.id === "m5");
+  
+  // Real expiring members calculation (within next 7 days or status === 'expiring')
+  const expiringMembers = members.filter((m) => {
+    if (m.status === "expiring") return true;
+    if (!m.expiryDate) return false;
+    const exp = new Date(m.expiryDate?.seconds ? m.expiryDate.seconds * 1000 : m.expiryDate);
+    if (isNaN(exp.getTime())) return false;
+    const now = new Date();
+    const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 7;
+  });
 
   // Chart dummy data
   const revenueData = [
@@ -482,21 +492,26 @@ export default function Dashboard() {
           </p>
 
           <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto pr-1">
-            {expiringMembers.map((m) => (
-              <div key={m.id} className="py-3 flex items-center justify-between gap-2">
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">{m.fullName || m.name}</h4>
-                  <p className="text-xs text-slate-500">{m.planName} • Expiring: <span className="font-bold text-amber-600">{m.expiryDate}</span></p>
-                  <p className="text-xs text-emerald-700 font-semibold">Renewal Fee: ₹{m.renewalFee || "2,500"}</p>
+            {expiringMembers.map((m) => {
+              const expFormatted = m.expiryDate
+                ? new Date(m.expiryDate?.seconds ? m.expiryDate.seconds * 1000 : m.expiryDate).toLocaleDateString("en-IN")
+                : "Soon";
+              return (
+                <div key={m.id} className="py-3 flex items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">{m.fullName || m.name}</h4>
+                    <p className="text-xs text-slate-500">{m.planName} • Expiring: <span className="font-bold text-amber-600">{expFormatted}</span></p>
+                    <p className="text-xs text-emerald-700 font-semibold">Renewal Fee: ₹{m.renewalFee || "2,500"}</p>
+                  </div>
+                  <button
+                    onClick={() => handleSendReminder(m)}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition"
+                  >
+                    <MessageCircle className="w-4 h-4 text-emerald-600" /> Send Reminder
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleSendReminder(m)}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition"
-                >
-                  <MessageCircle className="w-4 h-4 text-emerald-600" /> Send Reminder
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="pt-2 border-t border-slate-100">
