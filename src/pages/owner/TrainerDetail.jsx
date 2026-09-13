@@ -67,18 +67,26 @@ function ProfileTab({ trainer }) {
       {trainer.bio && (
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
           <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">
-            Bio
+            Bio & Professional Summary
           </h3>
-          <p className="text-slate-200 leading-relaxed">{trainer.bio}</p>
+          <p className="text-slate-200 leading-relaxed whitespace-pre-line">{trainer.bio}</p>
         </div>
       )}
 
       {/* Info Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {trainer.salary && (
+        {trainer.designation && (
+          <InfoCard
+            icon={Award}
+            label="Designation"
+            value={trainer.designation}
+            color="teal"
+          />
+        )}
+        {trainer.salary !== undefined && trainer.salary !== "" && (
           <InfoCard
             icon={DollarSign}
-            label="Monthly Salary"
+            label="Base Monthly Salary"
             value={`₹${Number(trainer.salary).toLocaleString("en-IN")}`}
             color="green"
           />
@@ -87,14 +95,14 @@ function ProfileTab({ trainer }) {
           <InfoCard
             icon={Briefcase}
             label="Experience"
-            value={`${trainer.experience} year${trainer.experience !== 1 ? "s" : ""}`}
+            value={`${trainer.experience}`}
             color="teal"
           />
         )}
         {trainer.joinDate && (
           <InfoCard
             icon={Calendar}
-            label="Joined"
+            label="Joined Date"
             value={new Date(trainer.joinDate).toLocaleDateString("en-IN", {
               year: "numeric",
               month: "long",
@@ -104,51 +112,318 @@ function ProfileTab({ trainer }) {
           />
         )}
         {trainer.phone && (
-          <InfoCard icon={Phone} label="Phone" value={trainer.phone} color="blue" />
+          <InfoCard icon={Phone} label="Phone Number" value={trainer.phone} color="blue" />
+        )}
+        {trainer.altPhone && (
+          <InfoCard icon={Phone} label="Alt Phone" value={trainer.altPhone} color="blue" />
         )}
         {trainer.email && (
-          <InfoCard icon={Mail} label="Email" value={trainer.email} color="orange" />
+          <InfoCard icon={Mail} label="Email Address" value={trainer.email} color="orange" />
+        )}
+        {trainer.gender && (
+          <InfoCard icon={UserCircle} label="Gender" value={trainer.gender} color="purple" />
+        )}
+        {trainer.dob && (
+          <InfoCard icon={Calendar} label="Date of Birth" value={trainer.dob} color="teal" />
         )}
       </div>
 
+      {/* ── Section: Portal Login Credentials ── */}
+      {(trainer.email || trainer.loginPassword) && (
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                  Trainer Portal Credentials
+                </h3>
+                <p className="text-xs text-slate-400">Gym owner reference for coach login assistance</p>
+              </div>
+            </div>
+            <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+              Self-Serve Enabled
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/50">
+              <span className="text-xs text-slate-400 block mb-1 font-medium">Login ID / Email</span>
+              <span className="text-sm font-semibold text-white font-mono">{trainer.email || "Not configured"}</span>
+            </div>
+            <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/50">
+              <span className="text-xs text-slate-400 block mb-1 font-medium">Portal Password</span>
+              <span className="text-sm font-semibold text-teal-300 font-mono">
+                {trainer.loginPassword || "••••••••"}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Section: Identity & Emergency Contact ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Identity & Address */}
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 space-y-4">
+          <div className="flex items-center gap-2 text-teal-400">
+            <ShieldCheck className="w-5 h-5" />
+            <h3 className="text-sm font-bold uppercase tracking-wider text-white">Identity & KYC</h3>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs text-slate-400">Aadhaar / National ID</p>
+              <p className="text-sm font-medium text-white font-mono mt-0.5">
+                {trainer.aadhaar ? trainer.aadhaar : "Not uploaded / provided"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">Residential Address</p>
+              <p className="text-sm font-medium text-slate-200 mt-0.5 whitespace-pre-line">
+                {trainer.address || "Not specified"}
+              </p>
+            </div>
+            {trainer.instagram && (
+              <div>
+                <p className="text-xs text-slate-400">Instagram Handle</p>
+                <a
+                  href={`https://instagram.com/${trainer.instagram.replace("@", "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-semibold text-pink-400 hover:underline inline-block mt-0.5"
+                >
+                  {trainer.instagram.startsWith("@") ? trainer.instagram : `@${trainer.instagram}`}
+                </a>
+              </div>
+            )}
+            {trainer.certifications && (
+              <div>
+                <p className="text-xs text-slate-400">Certifications</p>
+                <p className="text-sm font-medium text-slate-200 mt-0.5">
+                  {trainer.certifications}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Emergency Contact */}
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 space-y-4">
+          <div className="flex items-center gap-2 text-rose-400">
+            <Phone className="w-5 h-5" />
+            <h3 className="text-sm font-bold uppercase tracking-wider text-white">Emergency Contact</h3>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs text-slate-400">Contact Person</p>
+              <p className="text-sm font-medium text-white mt-0.5">
+                {trainer.emergencyContactName || "Not configured"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">Relationship</p>
+              <p className="text-sm font-medium text-slate-200 mt-0.5">
+                {trainer.emergencyRelation || "Family"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">Emergency Phone</p>
+              <p className="text-sm font-medium text-white font-mono mt-0.5">
+                {trainer.emergencyContactPhone ? (
+                  <a href={`tel:${trainer.emergencyContactPhone}`} className="text-teal-400 hover:underline">
+                    {trainer.emergencyContactPhone}
+                  </a>
+                ) : (
+                  "Not provided"
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section: Bank & UPI Payout Details ── */}
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 text-emerald-400">
+            <HandCoins className="w-5 h-5" />
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+                Bank & UPI Details for Payouts
+              </h3>
+              <p className="text-xs text-slate-400">Use these details to disburse PT earnings and salary</p>
+            </div>
+          </div>
+          {trainer.upiId && (
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(trainer.upiId);
+                toast.success("UPI ID copied!");
+              }}
+              className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            >
+              Copy UPI ID
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-700/60">
+            <p className="text-xs text-slate-400 mb-1">UPI ID (VPA)</p>
+            <p className="text-sm font-bold text-teal-300 font-mono">
+              {trainer.upiId || "Not provided"}
+            </p>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-700/60">
+            <p className="text-xs text-slate-400 mb-1">Account Holder Name</p>
+            <p className="text-sm font-semibold text-white">
+              {trainer.bankAccountName || trainer.name || "Not provided"}
+            </p>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-700/60">
+            <p className="text-xs text-slate-400 mb-1">Bank Name</p>
+            <p className="text-sm font-semibold text-white">
+              {trainer.bankName || "Not provided"}
+            </p>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-700/60">
+            <p className="text-xs text-slate-400 mb-1">Account Number</p>
+            <p className="text-sm font-semibold text-white font-mono">
+              {trainer.bankAccountNumber || "Not provided"}
+            </p>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-700/60">
+            <p className="text-xs text-slate-400 mb-1">IFSC Code</p>
+            <p className="text-sm font-semibold text-emerald-400 font-mono">
+              {trainer.ifscCode || "Not provided"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section: Custom PT Packages Configured by Trainer ── */}
+      {Array.isArray(trainer.ptPlans) && trainer.ptPlans.length > 0 && (
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Dumbbell className="w-5 h-5 text-teal-400" />
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+                  Personal Training Packages Offered
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Custom rates configured for members choosing {trainer.name}
+                </p>
+              </div>
+            </div>
+            <span className="text-xs px-2.5 py-1 rounded-full bg-teal-500/10 text-teal-300 font-semibold border border-teal-500/20">
+              {trainer.ptPlans.length} Package{trainer.ptPlans.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {trainer.ptPlans.map((pkg, idx) => {
+              const price = Number(pkg.price || 0);
+              const commVal = Number(trainer.commissionValue ?? 20);
+              const isPerc = (trainer.commissionType || "percentage") === "percentage";
+              const gymCut = isPerc ? Math.round((price * commVal) / 100) : Math.min(price, commVal);
+              const coachCut = Math.max(0, price - gymCut);
+
+              return (
+                <div
+                  key={pkg.id || idx}
+                  className="p-4 rounded-xl bg-slate-900/70 border border-slate-700/60 hover:border-teal-500/40 transition-colors"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h4 className="text-sm font-bold text-white">{pkg.name}</h4>
+                      <p className="text-xs text-slate-400">{pkg.duration}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-base font-black text-emerald-400">
+                        ₹{price.toLocaleString("en-IN")}
+                      </span>
+                      {pkg.sessionsCount && (
+                        <p className="text-[10px] text-slate-400">{pkg.sessionsCount} Sessions</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {pkg.description && (
+                    <p className="text-xs text-slate-300 mb-3 bg-slate-800/50 p-2.5 rounded-lg border border-slate-700/40">
+                      {pkg.description}
+                    </p>
+                  )}
+
+                  <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-800">
+                    <span className="text-slate-400">
+                      Gym Cut: <strong className="text-emerald-400 font-medium">₹{gymCut.toLocaleString("en-IN")}</strong>
+                    </span>
+                    <span className="text-slate-400">
+                      Coach Cut: <strong className="text-teal-400 font-medium">₹{coachCut.toLocaleString("en-IN")}</strong>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Schedule Table */}
       <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
-        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
-          Weekly Schedule
-        </h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr>
-                {SCHEDULE_DAYS.map((d) => (
-                  <th key={d} className="text-center text-slate-400 font-medium pb-3 px-2">
-                    {d}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                {SCHEDULE_DAYS.map((d) => {
-                  const slot = trainer.schedule?.[d];
-                  return (
-                    <td key={d} className="text-center px-2 pb-2">
-                      <div
-                        className={`rounded-lg py-2 px-1 text-xs ${
-                          slot
-                            ? "bg-teal-500/20 text-teal-300 border border-teal-500/30"
-                            : "bg-slate-700/30 text-slate-600 border border-slate-700/30"
-                        }`}
-                      >
-                        {slot || "Off"}
-                      </div>
-                    </td>
-                  );
-                })}
-              </tr>
-            </tbody>
-          </table>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">
+              Shift Timing & Weekly Off
+            </h3>
+            {trainer.shiftType && (
+              <p className="text-xs text-slate-400 mt-0.5">
+                Shift Type: <span className="text-teal-300 font-medium capitalize">{trainer.shiftType}</span> • Weekly Off: <span className="text-rose-300 font-medium">{trainer.weeklyOff || "Sunday"}</span>
+              </p>
+            )}
+          </div>
+          {typeof trainer.schedule === "string" && (
+            <span className="text-xs px-3 py-1 bg-slate-800 text-teal-400 font-medium rounded-lg border border-slate-700">
+              {trainer.schedule}
+            </span>
+          )}
         </div>
+        {typeof trainer.schedule === "object" && trainer.schedule !== null ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  {SCHEDULE_DAYS.map((d) => (
+                    <th key={d} className="text-center text-slate-400 font-medium pb-3 px-2">
+                      {d}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  {SCHEDULE_DAYS.map((d) => {
+                    const slot = trainer.schedule?.[d];
+                    return (
+                      <td key={d} className="text-center px-2 pb-2">
+                        <div
+                          className={`rounded-lg py-2 px-1 text-xs ${
+                            slot
+                              ? "bg-teal-500/20 text-teal-300 border border-teal-500/30"
+                              : "bg-slate-700/30 text-slate-600 border border-slate-700/30"
+                          }`}
+                        >
+                          {slot || "Off"}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </div>
     </div>
   );
