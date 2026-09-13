@@ -58,6 +58,7 @@ import {
 } from 'firebase/storage';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getGymSettings } from '../../utils/settings';
 
 const STEPS = [
   { id: 1, label: 'Verify' },
@@ -295,8 +296,25 @@ export default function MemberSelfRegister() {
     return { val, category, color };
   }, [weight, heightFeet, heightInches]);
 
+  // Load dynamic workout slots configured by owner in Settings
+  const gymSettings = React.useMemo(() => getGymSettings(), []);
+  const activeWorkoutSlots = React.useMemo(() => {
+    const configured = gymSettings?.workoutSlots;
+    if (Array.isArray(configured) && configured.length > 0) {
+      return configured.map((s) => ({
+        id: s.id || s.label,
+        label: s.label,
+        time: s.time,
+        icon: s.iconName === 'Sunset' ? Sunset : s.iconName === 'Moon' ? Moon : Sun
+      }));
+    }
+    return WORKOUT_TIMES;
+  }, [gymSettings]);
+
   // Step 4: Schedule
-  const [preferredTime, setPreferredTime] = useState('morning');
+  const [preferredTime, setPreferredTime] = useState(
+    activeWorkoutSlots[0] ? `${activeWorkoutSlots[0].label} (${activeWorkoutSlots[0].time})` : 'Morning (6:00 AM - 9:00 AM)'
+  );
   const [healthNotes, setHealthNotes] = useState('');
 
   // Step 5: Waiver
@@ -880,14 +898,15 @@ export default function MemberSelfRegister() {
                 Preferred Workout Time Slot *
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {WORKOUT_TIMES.map((t) => {
-                  const active = preferredTime === t.id;
-                  const Icon = t.icon;
+                {activeWorkoutSlots.map((t) => {
+                  const fullSlotText = `${t.label} (${t.time})`;
+                  const active = preferredTime === fullSlotText || preferredTime === t.id;
+                  const Icon = t.icon || Sun;
                   return (
                     <button
                       key={t.id}
                       type="button"
-                      onClick={() => { setPreferredTime(t.id); setStepError(''); }}
+                      onClick={() => { setPreferredTime(fullSlotText); setStepError(''); }}
                       className={cn(
                         'p-2.5 rounded-xl border-2 transition-all text-left',
                         active

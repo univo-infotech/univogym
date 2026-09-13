@@ -98,6 +98,21 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
   }, [GID, isOpen]);
 
   const availablePlans = plans && plans.length > 0 ? plans : DEFAULT_PLANS;
+
+  // Load custom workout slots configured by owner in Settings
+  const gymSettings = useMemo(() => getGymSettings(), [isOpen]);
+  const activeSlots = useMemo(() => {
+    const configured = gymSettings?.workoutSlots;
+    if (Array.isArray(configured) && configured.length > 0) {
+      return configured.map((s) => ({
+        id: s.id || s.label,
+        label: s.label,
+        time: s.time,
+        icon: s.iconName === "Sunset" ? Sunset : s.iconName === "Moon" ? Moon : Sun
+      }));
+    }
+    return WORKOUT_SLOTS;
+  }, [gymSettings]);
   
   // Combine general floor trainer with trainers
   const availableTrainers = useMemo(() => {
@@ -122,7 +137,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     ptPlanName: "",
     ptPlanPrice: 0,
     ptDuration: "",
-    preferredSlot: "Morning (6:00 AM - 9:00 AM)",
+    preferredSlot: activeSlots[0] ? `${activeSlots[0].label} (${activeSlots[0].time})` : "Morning (6:00 AM - 9:00 AM)",
     healthNotes: "",
     // Personal Training & Assessment metrics
     weight: "",
@@ -497,10 +512,10 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 Preferred Workout Time Slot *
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {WORKOUT_SLOTS.map((s) => {
+                {activeSlots.map((s) => {
                   const fullText = `${s.label} (${s.time})`;
                   const isSelected = formData.preferredSlot === fullText;
-                  const Icon = s.icon;
+                  const Icon = s.icon || Sun;
                   return (
                     <button
                       key={s.id}

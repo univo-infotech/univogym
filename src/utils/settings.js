@@ -10,13 +10,28 @@ const DEFAULT_SETTINGS = {
   ownerSignatureName: "Authorized Signatory",
   ownerSignatureTitle: "Gym Manager / Owner",
   logoUrl: "/logo-icon.png",
-  signatureUrl: ""
+  signatureUrl: "",
+  workoutSlots: [
+    { id: "morning", label: "Morning", time: "6:00 AM - 9:00 AM", iconName: "Sun" },
+    { id: "afternoon", label: "Afternoon", time: "12:00 PM - 3:00 PM", iconName: "Sun" },
+    { id: "evening", label: "Evening", time: "4:00 PM - 7:00 PM", iconName: "Sunset" },
+    { id: "night", label: "Night", time: "7:00 PM - 10:00 PM", iconName: "Moon" }
+  ]
 };
 
 export function getGymSettings() {
   try {
     const saved = localStorage.getItem("univo_gym_settings");
-    if (saved) return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        ...DEFAULT_SETTINGS,
+        ...parsed,
+        workoutSlots: Array.isArray(parsed.workoutSlots) && parsed.workoutSlots.length > 0
+          ? parsed.workoutSlots
+          : DEFAULT_SETTINGS.workoutSlots
+      };
+    }
   } catch (e) {
     console.error(e);
   }
