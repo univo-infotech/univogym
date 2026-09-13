@@ -548,6 +548,10 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
     { id: "p5", name: "12 Months Annual Elite", durationMonths: 12, durationDays: 365, price: 4999, label: "12 Months / Annual — ₹4,999" },
   ];
 
+  // Check if member already has remaining dues from previous partial payment
+  const hasExistingDue = Number(member.dueAmount || 0) > 0 && !!member.lastPaymentDate;
+  const existingDueAmount = Number(member.dueAmount || 0);
+
   // Match initial plan from member or default to first
   const initialPlan = PLANS_CATALOG.find((p) =>
     (member.planName || "").toLowerCase().includes(p.name.toLowerCase())
@@ -557,8 +561,8 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [validityStart, setValidityStart] = useState(new Date().toISOString().split("T")[0]);
   const [validityEnd, setValidityEnd] = useState("");
-  const [paymentType, setPaymentType] = useState("full"); // "full" or "partial"
-  const [payingNow, setPayingNow] = useState(initialPlan.price);
+  const [paymentType, setPaymentType] = useState(hasExistingDue ? "full" : "full"); // "full" or "partial"
+  const [payingNow, setPayingNow] = useState(hasExistingDue ? existingDueAmount : initialPlan.price);
   const [paymentMode, setPaymentMode] = useState("cash"); // "cash", "online", "bank", "split"
   const [cashAmount, setCashAmount] = useState("");
   const [onlineAmount, setOnlineAmount] = useState("");
@@ -566,7 +570,8 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
   const [loading, setLoading] = useState(false);
 
   const currentPlan = PLANS_CATALOG.find((p) => p.id === selectedPlanId) || PLANS_CATALOG[0];
-  const calculatedTotal = Math.max(0, currentPlan.price - Number(discountAmount || 0));
+  const targetPayableTotal = hasExistingDue ? existingDueAmount : Math.max(0, currentPlan.price - Number(discountAmount || 0));
+  const calculatedTotal = targetPayableTotal;
 
   // Auto calculate validity end date
   useEffect(() => {
@@ -604,9 +609,11 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
     const phone = member.phone || "";
     const memberSlot = member.slot || member.workoutSlot || "General Shift";
 
-    // Target expiry ISO for member doc
+    // Target expiry ISO for member doc (keep existing expiry if collecting remaining balance)
     let newExpiryIso;
-    if (validityEnd && validityEnd.includes("/")) {
+    if (hasExistingDue && member.expiryDate) {
+      newExpiryIso = member.expiryDate;
+    } else if (validityEnd && validityEnd.includes("/")) {
       const [d, m, y] = validityEnd.split("/");
       newExpiryIso = new Date(`${y}-${m}-${d}T23:59:59.000Z`).toISOString();
     } else {
@@ -620,9 +627,9 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
       phone,
       slot: memberSlot,
       batch: member.batch || "Alpha Gym",
-      planName: currentPlan.name,
+      planName: hasExistingDue ? `${member.planName || currentPlan.name} (Due Balance Settlement)` : currentPlan.name,
       validityStart: toIndianDate(validityStart),
-      validityEnd: validityEnd,
+      validityEnd: hasExistingDue && member.expiryDate ? toIndianDate(member.expiryDate) : validityEnd,
       dueDate: validityEnd,
       planPrice: currentPlan.price,
       discount: Number(discountAmount || 0),
@@ -631,22 +638,24 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
       dueAmount: remainingDue,
       paymentMode,
       paymentType,
-      remarks: remarks || (paymentMode === "split" ? `Cash: ₹${cashAmount}, Online: ₹${onlineAmount}` : ""),
+      remarks: remarks || (paymentMode === "split" ? `Cash: ₹${cashAmount}, Online: ₹${onlineAmount}` : (hasExistingDue ? "Balance Due Payment" : "")),
       date: toIndianDate(new Date()),
       status: remainingDue > 0 ? "partial" : "paid",
     };
 
     try {
       // 1. Update Member in Firestore & UI
-      await updateMember(member.id, {
-        planName: currentPlan.name,
-        planPrice: calculatedTotal,
+      const updatedFields = {
+        ...(hasExistingDue ? {} : { planName: currentPlan.name, planPrice: calculatedTotal }),
         expiryDate: newExpiryIso,
         status: "active",
         active: true,
         dueAmount: remainingDue,
+        paidAmount: Number(member.paidAmount || 0) + Number(payingNow),
         lastPaymentDate: new Date().toISOString()
-      });
+      };
+
+      await updateMember(member.id, updatedFields);
 
       // 2. Record Payment in payments
       try {
@@ -658,14 +667,7 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
       toast.success(`Fee collected successfully for ${memberName}!`);
 
       // 3. Update parent list
-      onSave(member.id, {
-        planName: currentPlan.name,
-        planPrice: calculatedTotal,
-        expiryDate: newExpiryIso,
-        status: "active",
-        active: true,
-        dueAmount: remainingDue
-      });
+      onSave(member.id, updatedFields);
 
       // 4. Generate & Download Bill PDF Receipt
       generatePaymentReceipt(newPaymentRecord, settings);
@@ -692,10 +694,30 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
     <Modal
       isOpen={true}
       onClose={onClose}
-      title="Collect Fee & Renew Membership"
+      title={hasExistingDue ? `Collect Remaining Due — ${member.name || member.fullName}` : "Collect Fee & Renew Membership"}
       maxWidth="max-w-xl"
     >
       <div className="space-y-4 text-slate-800 text-xs">
+        {/* Due Balance Alert Banner if Member has pending dues */}
+        {hasExistingDue && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-300 text-amber-900 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⚠️</span>
+              <div>
+                <p className="font-bold text-xs">Pending Remaining Due (पिछली बाकी फीस)</p>
+                <p className="text-[11px] text-amber-800">
+                  Total Remaining Balance to pay: <b>₹{existingDueAmount}</b> for current plan ({member.planName || "Active Plan"}).
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-extrabold text-xs shadow-xs">
+                Due: ₹{existingDueAmount}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Member Card Header */}
         <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -722,7 +744,7 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
         </div>
 
         {/* Select Membership Plan and Discount */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${hasExistingDue ? 'opacity-60 pointer-events-none' : ''}`}>
           <div>
             <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1">
               SELECT MEMBERSHIP PLAN (प्लान चुनें) *
@@ -1449,6 +1471,9 @@ export default function Members() {
       email: 'ashis@gmail.com',
       planName: '1 Month (Standard)',
       planPrice: 599,
+      dueAmount: 0,
+      paidAmount: 599,
+      lastPaymentDate: '2026-09-01T10:00:00.000Z',
       slot: 'General Shift',
       trainerName: 'Coach Rohan Deshmukh',
       status: 'active',
@@ -1463,6 +1488,9 @@ export default function Members() {
       email: 'ajay.p@univogym.com',
       planName: '3 Months Pro Transformation',
       planPrice: 1499,
+      dueAmount: 500,
+      paidAmount: 999,
+      lastPaymentDate: '2026-09-10T11:30:00.000Z',
       slot: 'General Shift',
       trainerName: 'Coach Amit Sharma',
       status: 'active',
@@ -1477,6 +1505,9 @@ export default function Members() {
       email: 'rahul.v@univogym.com',
       planName: '12 Months Annual Elite',
       planPrice: 4999,
+      dueAmount: 0,
+      paidAmount: 4999,
+      lastPaymentDate: '2026-09-08T09:15:00.000Z',
       slot: 'General Shift',
       trainerName: 'Coach Rohan Deshmukh',
       status: 'active',
@@ -1491,6 +1522,9 @@ export default function Members() {
       email: 'priya.s@gmail.com',
       planName: '6 Months Fitness Pass',
       planPrice: 2799,
+      dueAmount: 800,
+      paidAmount: 1999,
+      lastPaymentDate: '2026-09-05T16:00:00.000Z',
       slot: 'General Shift',
       trainerName: 'Coach Sneha Kapoor',
       status: 'active',
@@ -1505,6 +1539,9 @@ export default function Members() {
       email: 'aman.g@gmail.com',
       planName: '1 Month Basic',
       planPrice: 599,
+      dueAmount: 599,
+      paidAmount: 0,
+      lastPaymentDate: null,
       slot: 'Morning (6am-9am)',
       trainerName: 'Unassigned',
       status: 'expiring',
@@ -1519,6 +1556,9 @@ export default function Members() {
       email: 'karan@gmail.com',
       planName: '3 Months Pro',
       planPrice: 1499,
+      dueAmount: 1499,
+      paidAmount: 0,
+      lastPaymentDate: null,
       slot: 'Night (7pm-10pm)',
       trainerName: 'Coach Amit Sharma',
       status: 'expired',
@@ -1533,6 +1573,9 @@ export default function Members() {
       email: 'mohit.y@gmail.com',
       planName: '3 Months Pro Transformation',
       planPrice: 1499,
+      dueAmount: 0,
+      paidAmount: 1499,
+      lastPaymentDate: '2026-09-03T18:00:00.000Z',
       slot: 'General Shift',
       trainerName: 'Coach Sneha Kapoor',
       status: 'active',
@@ -1877,15 +1920,51 @@ export default function Members() {
                             <span>Extend</span>
                           </button>
 
-                          {/* 3. Collect Fee & Renew Button */}
-                          <button
-                            onClick={() => setPlanMember(m)}
-                            className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-sm'
-                            title='Collect Fee & Renew Membership'
-                          >
-                            <IndianRupee className='w-3.5 h-3.5 text-indigo-600' />
-                            <span>Collect</span>
-                          </button>
+                          {/* 3. Collect / Due / Paid Dynamic Status Button */}
+                          {(() => {
+                            const due = Number(m.dueAmount ?? (m.lastPaymentDate ? 0 : (m.planPrice || 0)));
+                            const hasPaidAtLeastOnce = !!m.lastPaymentDate;
+                            const isFullyPaid = hasPaidAtLeastOnce && due <= 0;
+                            const isPartialDue = hasPaidAtLeastOnce && due > 0;
+
+                            if (isFullyPaid) {
+                              return (
+                                <button
+                                  disabled
+                                  className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-300 cursor-default opacity-90'
+                                  title='Membership Fee Fully Paid'
+                                >
+                                  <CheckCircle className='w-3.5 h-3.5 text-emerald-600' />
+                                  <span>Paid</span>
+                                </button>
+                              );
+                            }
+
+                            if (isPartialDue) {
+                              return (
+                                <button
+                                  onClick={() => setPlanMember(m)}
+                                  className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-extrabold text-xs border border-amber-400 transition shadow-xs'
+                                  title={`Partial Payment - Click to Collect Remaining Due: ₹${due}`}
+                                >
+                                  <IndianRupee className='w-3.5 h-3.5 text-amber-700' />
+                                  <span>Due: ₹{due}</span>
+                                </button>
+                              );
+                            }
+
+                            // Unpaid or New Member
+                            return (
+                              <button
+                                onClick={() => setPlanMember(m)}
+                                className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition shadow-sm'
+                                title='Collect Membership Fee & Activate Plan'
+                              >
+                                <IndianRupee className='w-3.5 h-3.5 text-indigo-600' />
+                                <span>Collect</span>
+                              </button>
+                            );
+                          })()}
 
                           {/* 4. Edit Button */}
                           <button
@@ -1977,12 +2056,47 @@ export default function Members() {
                     Extend
                   </button>
 
-                  <button
-                    onClick={() => setPlanMember(m)}
-                    className='px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold hover:bg-indigo-100 transition'
-                  >
-                    Collect
-                  </button>
+                  {/* Dynamic Collect / Due / Paid Button */}
+                  {(() => {
+                    const due = Number(m.dueAmount ?? (m.lastPaymentDate ? 0 : (m.planPrice || 0)));
+                    const hasPaidAtLeastOnce = !!m.lastPaymentDate;
+                    const isFullyPaid = hasPaidAtLeastOnce && due <= 0;
+                    const isPartialDue = hasPaidAtLeastOnce && due > 0;
+
+                    if (isFullyPaid) {
+                      return (
+                        <button
+                          disabled
+                          className='px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 text-xs font-bold cursor-default opacity-90'
+                          title='Membership Fee Fully Paid'
+                        >
+                          ✓ Paid
+                        </button>
+                      );
+                    }
+
+                    if (isPartialDue) {
+                      return (
+                        <button
+                          onClick={() => setPlanMember(m)}
+                          className='px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-400 text-xs font-extrabold hover:bg-amber-200 transition shadow-xs'
+                          title={`Click to collect remaining balance: ₹${due}`}
+                        >
+                          Due: ₹{due}
+                        </button>
+                      );
+                    }
+
+                    return (
+                      <button
+                        onClick={() => setPlanMember(m)}
+                        className='px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold hover:bg-indigo-100 transition'
+                        title='Collect Fee & Activate Plan'
+                      >
+                        Collect
+                      </button>
+                    );
+                  })()}
 
                   <button
                     onClick={() => setEditMember(m)}

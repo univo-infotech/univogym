@@ -223,6 +223,8 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       ? formData.signatureURL
       : formData.typedSignature || formData.fullName;
 
+    const basePrice = Number(selectedPlan.price || 0);
+
     const newMember = {
       id: "m_" + Date.now(),
       name: formData.fullName.trim(),
@@ -238,6 +240,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       planId: selectedPlan.id,
       planName: selectedPlan.name,
       planPrice: basePrice,
+      dueAmount: basePrice,
       trainerName: formData.trainerName,
       trainerId: selectedTrainerObj?.id || "",
       hasPersonalCoach: isPersonalTrainer,
