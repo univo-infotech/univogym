@@ -151,6 +151,25 @@ export default function Login() {
         });
 
         if (matchedMember) {
+          // Check Membership / PT Expiry status
+          let isExpired = false;
+          if (matchedMember.status === 'left' || matchedMember.status === 'expired' || matchedMember.active === false) {
+            isExpired = true;
+          } else if (matchedMember.expiryDate) {
+            const expTime = new Date(matchedMember.expiryDate).getTime();
+            if (!isNaN(expTime) && expTime < Date.now()) {
+              isExpired = true;
+            }
+          }
+
+          if (isExpired) {
+            setError(
+              `⚠️ Membership / PT Expired: Aapka gym membership / PT session khatam ho chuka hai (${matchedMember.expiryDate ? new Date(matchedMember.expiryDate).toLocaleDateString('en-IN') : 'Expired'}). Login blocked hai. Gym owner se renew karwane ke baad aapka account wahi se turant shuru ho jayega.`
+            );
+            setLoading(false);
+            return;
+          }
+
           localStorage.setItem('univo_member_session', JSON.stringify(matchedMember));
           if (setRole) setRole('member');
           if (setProfileId) setProfileId(matchedMember.id);
@@ -162,6 +181,16 @@ export default function Login() {
         // If selectedRole is member and gym has members
         if (selectedRole === 'member' && membersList.length > 0 && (password === 'Member@123' || password.length >= 4)) {
           const primaryMember = membersList[0];
+          // Check Expiry for fallback member as well
+          const expTime = primaryMember.expiryDate ? new Date(primaryMember.expiryDate).getTime() : 0;
+          if (primaryMember.status === 'left' || (expTime > 0 && expTime < Date.now())) {
+            setError(
+              `⚠️ Membership Expired: Gym membership / PT expired ho chuka hai. Renew karne ke baad login wahi se reactivate ho jayega.`
+            );
+            setLoading(false);
+            return;
+          }
+
           localStorage.setItem('univo_member_session', JSON.stringify(primaryMember));
           if (setRole) setRole('member');
           if (setProfileId) setProfileId(primaryMember.id);

@@ -548,6 +548,25 @@ export default function Payments() {
 
     try {
       await addPayment("univo_main", newRecord);
+
+      // Auto-reactivate member upon renewal / fee collection
+      const targetMemberId = selectedMember?.id || selectedMember?.memberId;
+      if (targetMemberId && !String(targetMemberId).startsWith("bill_")) {
+        const updatePayload = {
+          status: "active",
+          active: true,
+          dueAmount: collectMode === "clear_due" ? (newRecord.dueAmount || 0) : remainingDue,
+        };
+        if (collectMode === "renew") {
+          updatePayload.expiryDate = validityEnd;
+          updatePayload.plan = currentPlan.name;
+          updatePayload.planName = currentPlan.name;
+          if (newRecord.planName?.toLowerCase().includes("pt") || selectedMember?.ptPlanName) {
+            updatePayload.ptEndDate = validityEnd;
+          }
+        }
+        await updateMember("univo_main", targetMemberId, updatePayload);
+      }
     } catch (e) {
       console.warn("Offline record stored:", e);
     }

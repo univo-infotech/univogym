@@ -273,11 +273,22 @@ export async function generateInviteToken(gymId, opts = {}) {
 }
 
 /**
- * Update a member document.
- * @param {string} memberId
- * @param {Object} data
+ * Update a member document in Firestore and sync with local cache & session.
+ * Supports both signatures:
+ *   updateMember(memberId, data)
+ *   updateMember(gymId, memberId, data)
  */
-export async function updateMember(memberId, data) {
+export async function updateMember(arg1, arg2, arg3) {
+  let gymId = "univo_main";
+  let memberId = arg1;
+  let data = arg2;
+
+  if (typeof arg2 === "string" && arg3 && typeof arg3 === "object") {
+    gymId = arg1 || "univo_main";
+    memberId = arg2;
+    data = arg3;
+  }
+
   if (!memberId) return;
 
   try {
@@ -304,7 +315,7 @@ export async function updateMember(memberId, data) {
   // Update in local cache as well
   try {
     const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-    const rawTargetPhone = (data.phone || "").replace(/\D/g, "");
+    const rawTargetPhone = (data?.phone || "").replace(/\D/g, "");
     const idx = cached.findIndex((m) => 
       m.id === memberId || 
       (rawTargetPhone && (m.phone || "").replace(/\D/g, "") === rawTargetPhone)
@@ -312,6 +323,19 @@ export async function updateMember(memberId, data) {
     if (idx !== -1) {
       cached[idx] = { ...cached[idx], ...data, updatedAt: new Date().toISOString() };
       localStorage.setItem("univo_recent_members", JSON.stringify(cached));
+    }
+  } catch (e) {
+    // Ignore
+  }
+
+  // Update in active member session if matches
+  try {
+    const sessionStr = localStorage.getItem("univo_member_session");
+    if (sessionStr) {
+      const sess = JSON.parse(sessionStr);
+      if (sess.id === memberId) {
+        localStorage.setItem("univo_member_session", JSON.stringify({ ...sess, ...data }));
+      }
     }
   } catch (e) {
     // Ignore

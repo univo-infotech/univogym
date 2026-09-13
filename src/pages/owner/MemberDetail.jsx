@@ -23,7 +23,7 @@ import {
   Sun
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { getMember } from "../../firebase/members";
+import { getMember, updateMember } from "../../firebase/members";
 import { getMemberPayments, addPayment } from "../../firebase/payments";
 import { generatePaymentReceipt } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
@@ -141,17 +141,46 @@ export default function MemberDetail() {
     );
   }
 
-  const handleRecordPay = (e) => {
+  const handleRecordPay = async (e) => {
     e.preventDefault();
     const newP = {
       ...payForm,
       id: "p_" + Date.now(),
+      memberId: targetMemberId,
       memberName: member.name || member.fullName,
       planName: member.planName || "Membership Plan",
+      status: "paid",
+      date: payForm.date || new Date().toISOString().split("T")[0]
     };
+
+    try {
+      await addPayment("univo_main", newP);
+      // Auto-extend expiry by 30 days & reactivate account
+      const expDate = new Date();
+      expDate.setMonth(expDate.getMonth() + 1);
+      const newExpiry = expDate.toISOString().split("T")[0];
+
+      await updateMember("univo_main", targetMemberId, {
+        status: "active",
+        active: true,
+        expiryDate: newExpiry,
+        dueAmount: 0
+      });
+
+      setMember((prev) => ({
+        ...prev,
+        status: "active",
+        active: true,
+        expiryDate: newExpiry,
+        dueAmount: 0
+      }));
+    } catch (err) {
+      console.warn("Save payment err:", err);
+    }
+
     setPayments([newP, ...payments]);
     setPayModalOpen(false);
-    toast.success("Payment recorded!");
+    toast.success("Payment recorded & membership reactivated!");
   };
 
   const initials = (member.name || member.fullName || "?")
@@ -259,6 +288,22 @@ export default function MemberDetail() {
               <p><span className="font-semibold text-slate-800">Joined Date: </span>{formatDate(member.createdAt)}</p>
               <p><span className="font-semibold text-slate-800">Plan Expiry: </span>{formatDate(member.expiryDate)}</p>
               {member.address && <p><span className="font-semibold text-slate-800">Address: </span>{member.address}</p>}
+              
+              {/* Member Portal Login Credentials */}
+              <div className="p-3 bg-emerald-50/80 rounded-2xl border border-emerald-200 mt-2 space-y-1">
+                <span className="font-bold text-xs text-emerald-950 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Member App Credentials:
+                </span>
+                <p className="text-[11px] text-slate-700">
+                  <span className="font-semibold text-slate-900">User / Phone: </span>
+                  <span className="font-mono font-bold text-emerald-800">{member.loginEmail || member.phone || "—"}</span>
+                </p>
+                <p className="text-[11px] text-slate-700">
+                  <span className="font-semibold text-slate-900">Password: </span>
+                  <span className="font-mono font-bold text-teal-700">{member.loginPassword || member.password || "Member@123"}</span>
+                </p>
+              </div>
+
               {member.healthNotes && (
                 <p className="p-2 bg-amber-50 rounded-xl text-amber-900 border border-amber-200 mt-2">
                   <span className="font-bold">Medical / Health Notes: </span>{member.healthNotes}

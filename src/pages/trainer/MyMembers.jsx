@@ -20,6 +20,7 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 import { getTrainerMembers, getTrainer, getTrainers } from "../../firebase/trainers";
 import AthleteHealthDietModal from "../../components/trainer/AthleteHealthDietModal";
+import DirectChatModal from "../../components/shared/DirectChatModal";
 
 export default function MyMembers() {
   const { gymId, profileId, user } = useAuth();
@@ -28,6 +29,7 @@ export default function MyMembers() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedAthlete, setSelectedAthlete] = useState(null);
+  const [chatAthlete, setChatAthlete] = useState(null);
   const [trainerInfo, setTrainerInfo] = useState(user || null);
 
   useEffect(() => {
@@ -333,6 +335,16 @@ export default function MyMembers() {
 
                   <button
                     type="button"
+                    onClick={() => setChatAthlete(m)}
+                    className="px-3 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition flex items-center gap-1.5 font-bold text-xs"
+                    title="Live 1-on-1 Chat with Athlete"
+                  >
+                    <MessageCircle className="w-4 h-4 text-emerald-600" />
+                    <span>Chat</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => {
                       const num = (m.phone || "").replace(/\D/g, "");
                       window.open(
@@ -342,10 +354,10 @@ export default function MyMembers() {
                         "_blank"
                       );
                     }}
-                    className="p-2.5 rounded-xl bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-700 transition"
+                    className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
                     title="Message Athlete on WhatsApp"
                   >
-                    <MessageCircle className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-bold">WA</span>
                   </button>
                 </div>
               </div>
@@ -362,6 +374,28 @@ export default function MyMembers() {
           member={selectedAthlete}
           gymId={gymId || "univo_main"}
           onMemberUpdated={handleMemberUpdated}
+        />
+      )}
+
+      {/* DIRECT LIVE 1-ON-1 CHAT WITH ATHLETE */}
+      {chatAthlete && (
+        <DirectChatModal
+          isOpen={!!chatAthlete}
+          onClose={() => setChatAthlete(null)}
+          gymId={gymId || "univo_main"}
+          currentUser={{
+            id: trainerInfo?.id || profileId || "i5sXkR1c7jIkPb89US2x",
+            name: trainerInfo?.name || "Coach Boggey man",
+            role: "trainer",
+            photoUrl: trainerInfo?.photoUrl || trainerInfo?.photo
+          }}
+          targetUser={{
+            id: chatAthlete.id,
+            name: chatAthlete.name || "Athlete",
+            role: "member",
+            photoUrl: chatAthlete.photoUrl || chatAthlete.photo
+          }}
+          ptPlanName={chatAthlete.ptPlanName || chatAthlete.planName}
         />
       )}
     </div>

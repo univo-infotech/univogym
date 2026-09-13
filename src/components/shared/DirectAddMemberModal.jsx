@@ -169,6 +169,9 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     ptDuration: "",
     preferredSlot: activeSlots[0] ? `${activeSlots[0].label} (${activeSlots[0].time})` : "Morning (6:00 AM - 9:00 AM)",
     healthNotes: "",
+    // Member Portal Login Credentials
+    loginEmail: "",
+    loginPassword: "",
     // Personal Training & Assessment metrics
     weight: "",
     heightFeet: "5",
@@ -357,6 +360,10 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       trainerName: formData.trainerName,
       trainerId: selectedTrainerObj?.id || "",
       hasPersonalCoach: isPersonalTrainer,
+      // Portal Access Credentials
+      loginEmail: formData.loginEmail.trim() || formData.email.trim() || formData.phone.trim(),
+      password: formData.loginPassword.trim() || "Member@123",
+      loginPassword: formData.loginPassword.trim() || "Member@123",
       // Physical Assessment Metrics
       weight: formData.weight ? String(formData.weight) : "",
       height: formData.heightFeet ? `${formData.heightFeet} ft ${formData.heightInches || 0} in` : "",
@@ -401,6 +408,8 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       phone: "",
       altPhone: "",
       email: "",
+      loginEmail: "",
+      loginPassword: "",
       gender: "Male",
       dob: "",
       address: "",
@@ -562,6 +571,47 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                     />
+                  </div>
+                </div>
+
+                {/* Member Portal Login Credentials Card */}
+                <div className="p-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200/80 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-emerald-600" /> Member App / Portal Login Credentials
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-md">
+                      Athlete Portal Access
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Member can log in using their Phone/Email & Password to interact with their Personal Trainer, view diet & workout plans. (Login will be active while membership/PT is valid).
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-700 uppercase">
+                        Login ID / User (Defaults to Phone)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.loginEmail}
+                        onChange={(e) => setFormData({ ...formData, loginEmail: e.target.value })}
+                        className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:border-emerald-500 outline-none"
+                        placeholder={formData.phone || "e.g. 9876543210"}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-700 uppercase">
+                        Login Password
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.loginPassword}
+                        onChange={(e) => setFormData({ ...formData, loginPassword: e.target.value })}
+                        className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:border-emerald-500 outline-none font-mono font-bold text-emerald-800"
+                        placeholder="e.g. Member@123"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

@@ -17,6 +17,7 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 import { getTrainer, getTrainers } from "../../firebase/trainers";
 import { getMember, getMembers, updateMember } from "../../firebase/members";
+import DirectChatModal from "../../components/shared/DirectChatModal";
 import toast from "react-hot-toast";
 
 export default function MyTrainer() {
@@ -28,6 +29,7 @@ export default function MyTrainer() {
   const [trainer, setTrainer] = useState(null);
   const [memberNote, setMemberNote] = useState("");
   const [sendingNote, setSendingNote] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -189,20 +191,29 @@ export default function MyTrainer() {
             </div>
           </div>
 
-          {/* WhatsApp Direct Chat */}
-          <button
-            onClick={() => {
-              const num = coachPhone.replace(/\D/g, "");
-              const athleteName = memberData?.name || "Athlete";
-              const text = encodeURIComponent(
-                `Hello Coach ${coachName}! I am ${athleteName}, your PT athlete at Univo Gym. I have a question regarding my training.`
-              );
-              window.open(`https://wa.me/${num}?text=${text}`, "_blank");
-            }}
-            className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-md shadow-emerald-500/20 transition flex items-center justify-center gap-2 shrink-0 active:scale-95"
-          >
-            <MessageCircle className="w-4 h-4" /> Message Coach on WhatsApp
-          </button>
+          {/* Communication Buttons */}
+          <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+            <button
+              onClick={() => setIsChatOpen(true)}
+              className="w-full sm:w-auto px-5 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-md shadow-emerald-500/20 transition flex items-center justify-center gap-2 shrink-0 active:scale-95"
+            >
+              <MessageCircle className="w-4 h-4" /> Live Chat with Coach
+            </button>
+
+            <button
+              onClick={() => {
+                const num = coachPhone.replace(/\D/g, "");
+                const athleteName = memberData?.name || "Athlete";
+                const text = encodeURIComponent(
+                  `Hello Coach ${coachName}! I am ${athleteName}, your PT athlete at Univo Gym. I have a question regarding my training.`
+                );
+                window.open(`https://wa.me/${num}?text=${text}`, "_blank");
+              }}
+              className="w-full sm:w-auto px-4 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition flex items-center justify-center gap-2 shrink-0 active:scale-95 border border-slate-200"
+            >
+              <Phone className="w-3.5 h-3.5 text-slate-500" /> WhatsApp
+            </button>
+          </div>
         </div>
 
         {/* Coach Bio */}
@@ -326,6 +337,25 @@ export default function MyTrainer() {
           </div>
         )}
       </div>
+
+      {/* Real-time 1-on-1 Chat with Coach */}
+      <DirectChatModal
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        gymId={GID}
+        currentUser={{
+          id: memberData?.id || profileId || "member",
+          name: memberData?.name || "Athlete",
+          role: "member"
+        }}
+        targetUser={{
+          id: trainer?.id || "trainer",
+          name: coachName,
+          role: "trainer",
+          photoUrl: coachPhoto
+        }}
+        ptPlanName={memberData?.ptPlanName || "Personal Training"}
+      />
     </div>
   );
 }
