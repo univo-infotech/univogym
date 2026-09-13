@@ -18,7 +18,9 @@ import {
   CreditCard,
   Building,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  Dumbbell,
+  Wallet
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -40,6 +42,7 @@ import { getAllPayments } from "../../firebase/payments";
 import { getExpenses } from "../../firebase/expenses";
 import { getSupplementSales } from "../../firebase/stock";
 import { getMembers } from "../../firebase/members";
+import { getTrainers } from "../../firebase/trainers";
 import { generateFinancialStatementPDF } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
@@ -87,6 +90,7 @@ export default function Reports() {
   const [expenses, setExpenses] = useState([]);
   const [supplementSales, setSupplementSales] = useState([]);
   const [members, setMembers] = useState([]);
+  const [trainers, setTrainers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Fallback Dummy Data if database is fresh
@@ -120,22 +124,25 @@ export default function Reports() {
     async function loadReportsData() {
       setLoading(true);
       try {
-        const [pSnap, eSnap, sSnap, mSnap] = await Promise.all([
+        const [pSnap, eSnap, sSnap, mSnap, tSnap] = await Promise.all([
           getAllPayments(gymId),
           getExpenses(gymId),
           getSupplementSales(gymId),
-          getMembers(gymId)
+          getMembers(gymId),
+          getTrainers(gymId)
         ]);
 
         setPayments(pSnap || []);
         setExpenses(eSnap || []);
         setSupplementSales(sSnap || []);
         setMembers(mSnap || []);
+        setTrainers(tSnap || []);
       } catch (err) {
         console.warn("Reports data load error:", err);
         setPayments([]);
         setExpenses([]);
         setSupplementSales([]);
+        setTrainers([]);
       } finally {
         setLoading(false);
       }
@@ -145,30 +152,91 @@ export default function Reports() {
 
   // Combine Membership Payments + Supplement Store Sales into unified revenue items
   const unifiedRevenueItems = useMemo(() => {
-    const feeItems = payments.map((p) => ({
-      id: p.id || `p_${Math.random()}`,
-      date: normalizeDate(p.date || p.createdAt),
-      memberName: p.memberName || "Member",
-      planName: p.planName || "Membership Fee",
-      category: "Membership Fee",
-      amount: Number(p.paidAmount || p.amount || 0),
-      paymentMode: p.paymentMode || "Cash",
-      type: "membership"
-    }));
+    const feeItems = payments.map((p) => {
+      const paid = Number(p.paidAmount || p.amount || 0);
 
-    const supItems = supplementSales.map((s) => ({
-      id: s.id || `s_${Math.random()}`,
-      date: normalizeDate(s.timestamp || s.date),
-      memberName: s.memberName || "Walk-in Member",
-      planName: s.productName || "Supplement Sale",
-      category: "Supplement Store",
-      amount: Number(s.totalAmount || (s.quantitySold * s.unitPrice) || 0),
-      paymentMode: s.paymentMode || "Cash",
-      type: "supplement"
-    }));
+      // Link payment with member record for PT commission details
+      const member = members.find(
+        (m) =>
+          (p.memberId && (m.id === p.memberId || m.memberId === p.memberId)) ||
+          (p.memberName && m.name && m.name.toLowerCase().trim() === p.memberName.toLowerCase().trim())
+      );
+
+      const ptPlanPrice = Number(p.ptPlanPrice || member?.ptPlanPrice || 0);
+      const planPrice = Number(p.planPrice || member?.planPrice || (ptPlanPrice > 0 ? Math.max(0, paid - ptPlanPrice) : paid));
+
+      const ptCommissionType = p.ptCommissionType || member?.ptCommissionType || "percentage";
+      const ptCommissionValue = Number(p.ptCommissionValue || member?.ptCommissionValue || 20);
+
+      // Owner cut vs Trainer payout
+      let ptOwnerCommission = 0;
+      let ptTrainerPayout = 0;
+
+      if (ptPlanPrice > 0) {
+        if (p.ptOwnerCommission !== undefined || member?.ptOwnerCommission !== undefined) {
+          ptOwnerCommission = Number(p.ptOwnerCommission ?? member?.ptOwnerCommission ?? 0);
+          ptTrainerPayout = Number(p.ptTrainerPayout ?? member?.ptTrainerPayout ?? (ptPlanPrice - ptOwnerCommission));
+        } else {
+          if (ptCommissionType === "fixed") {
+            ptOwnerCommission = ptCommissionValue;
+            ptTrainerPayout = Math.max(0, ptPlanPrice - ptCommissionValue);
+          } else {
+            ptOwnerCommission = Math.round(ptPlanPrice * (ptCommissionValue / 100));
+            ptTrainerPayout = Math.max(0, ptPlanPrice - ptOwnerCommission);
+          }
+        }
+      }
+
+      const trainerName = p.personalTrainer || member?.personalTrainer || "";
+      const trainerId = p.trainerId || member?.trainerId || "";
+
+      // Net owner share: Base gym membership fee + Gym's PT cut
+      // Trainer payout liability: Money belonging to personal trainer
+      const netOwnerShare = ptPlanPrice > 0 ? (planPrice + ptOwnerCommission) : paid;
+      const trainerLiability = ptPlanPrice > 0 ? ptTrainerPayout : 0;
+
+      return {
+        id: p.id || `p_${Math.random()}`,
+        date: normalizeDate(p.date || p.createdAt),
+        memberName: p.memberName || member?.name || "Member",
+        planName: p.planName || "Membership Fee",
+        category: "Membership Fee",
+        amount: paid, // Gross Collection
+        netOwnerShare, // Net Gym Retention (e.g. ₹3,400)
+        trainerLiability, // Coach Payout Liability (e.g. ₹3,600)
+        baseFee: planPrice, // Base Gym Fee (e.g. ₹2,500)
+        ptFee: ptPlanPrice, // PT Fee (e.g. ₹4,500)
+        ptOwnerCommission, // Gym Cut (e.g. ₹900)
+        ptCommissionValue,
+        trainerName,
+        trainerId,
+        paymentMode: p.paymentMode || "Cash",
+        type: "membership"
+      };
+    });
+
+    const supItems = supplementSales.map((s) => {
+      const supAmount = Number(s.totalAmount || (s.quantitySold * s.unitPrice) || 0);
+      return {
+        id: s.id || `s_${Math.random()}`,
+        date: normalizeDate(s.timestamp || s.date),
+        memberName: s.memberName || "Walk-in Member",
+        planName: s.productName || "Supplement Sale",
+        category: "Supplement Store",
+        amount: supAmount,
+        netOwnerShare: supAmount,
+        trainerLiability: 0,
+        baseFee: supAmount,
+        ptFee: 0,
+        ptOwnerCommission: 0,
+        trainerName: "",
+        paymentMode: s.paymentMode || "Cash",
+        type: "supplement"
+      };
+    });
 
     return [...feeItems, ...supItems].sort((a, b) => (b.date > a.date ? 1 : -1));
-  }, [payments, supplementSales]);
+  }, [payments, supplementSales, members]);
 
   // Standardized Expense Items
   const standardizedExpenseItems = useMemo(() => {
@@ -231,11 +299,45 @@ export default function Reports() {
       }
     }
 
-    const totalRev = rev.reduce((acc, curr) => acc + curr.amount, 0);
+    // Gross Inflow vs Trainer Liability vs Gym Net Revenue
+    const grossTotalRevenue = rev.reduce((acc, curr) => acc + curr.amount, 0);
+    const trainerLiabilities = rev.reduce((acc, curr) => acc + (curr.trainerLiability || 0), 0);
+    const gymNetRevenue = rev.reduce((acc, curr) => acc + (curr.netOwnerShare ?? curr.amount), 0);
+
     const totalExp = exp.reduce((acc, curr) => acc + curr.amount, 0);
-    const netProf = totalRev - totalExp;
+    const netProf = gymNetRevenue - totalExp; // Owner true profit
+
     const supRev = rev.filter((r) => r.type === "supplement").reduce((acc, curr) => acc + curr.amount, 0);
-    const memRev = totalRev - supRev;
+    const memRev = grossTotalRevenue - supRev;
+
+    // Group trainer liabilities by coach
+    const trainerLiabilitiesMap = {};
+    rev.forEach((r) => {
+      if (r.trainerLiability > 0 && r.trainerName) {
+        const tName = r.trainerName;
+        if (!trainerLiabilitiesMap[tName]) {
+          trainerLiabilitiesMap[tName] = {
+            trainerName: tName,
+            trainerId: r.trainerId,
+            totalPtCollected: 0,
+            ownerCommission: 0,
+            trainerPayoutDue: 0,
+            clients: []
+          };
+        }
+        trainerLiabilitiesMap[tName].totalPtCollected += r.ptFee;
+        trainerLiabilitiesMap[tName].ownerCommission += r.ptOwnerCommission;
+        trainerLiabilitiesMap[tName].trainerPayoutDue += r.trainerLiability;
+        trainerLiabilitiesMap[tName].clients.push({
+          memberName: r.memberName,
+          totalPaid: r.amount,
+          ptFee: r.ptFee,
+          ownerCommission: r.ptOwnerCommission,
+          trainerPayout: r.trainerLiability,
+          date: r.date
+        });
+      }
+    });
 
     // Payment Mode Breakdown
     const modeBreakdown = {
@@ -254,11 +356,15 @@ export default function Reports() {
     return {
       revenueItems: rev,
       expenseItems: exp,
-      totalRevenue: totalRev,
+      grossTotalRevenue,
+      trainerLiabilities,
+      gymNetRevenue,
+      totalRevenue: grossTotalRevenue, // backwards compatible
       totalExpenses: totalExp,
       netProfit: netProf,
       supplementRevenue: supRev,
       membershipRevenue: memRev,
+      trainerLiabilitiesMap,
       modeBreakdown,
       expCategoryMap,
       periodLabel
@@ -271,7 +377,10 @@ export default function Reports() {
       generateFinancialStatementPDF({
         periodType: reportMode,
         periodLabel: filteredData.periodLabel,
-        totalRevenue: filteredData.totalRevenue,
+        grossRevenue: filteredData.grossTotalRevenue,
+        trainerPayoutLiability: filteredData.trainerLiabilities,
+        gymNetRevenue: filteredData.gymNetRevenue,
+        totalRevenue: filteredData.grossTotalRevenue,
         totalExpenses: filteredData.totalExpenses,
         netProfit: filteredData.netProfit,
         revenueItems: filteredData.revenueItems,
@@ -294,12 +403,14 @@ export default function Reports() {
     // Last 6 months or all months in filtered range
     unifiedRevenueItems.forEach((r) => {
       const mKey = r.date.slice(0, 7);
-      if (!monthsMap[mKey]) monthsMap[mKey] = { month: mKey, revenue: 0, expenses: 0 };
-      monthsMap[mKey].revenue += r.amount;
+      if (!monthsMap[mKey]) monthsMap[mKey] = { month: mKey, grossRevenue: 0, netRevenue: 0, trainerPayout: 0, expenses: 0 };
+      monthsMap[mKey].grossRevenue += r.amount;
+      monthsMap[mKey].netRevenue += (r.netOwnerShare ?? r.amount);
+      monthsMap[mKey].trainerPayout += (r.trainerLiability || 0);
     });
     standardizedExpenseItems.forEach((e) => {
       const mKey = e.date.slice(0, 7);
-      if (!monthsMap[mKey]) monthsMap[mKey] = { month: mKey, revenue: 0, expenses: 0 };
+      if (!monthsMap[mKey]) monthsMap[mKey] = { month: mKey, grossRevenue: 0, netRevenue: 0, trainerPayout: 0, expenses: 0 };
       monthsMap[mKey].expenses += e.amount;
     });
 
@@ -311,9 +422,11 @@ export default function Reports() {
         const monthLabel = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString("en-IN", { month: "short" });
         return {
           month: monthLabel,
-          revenue: item.revenue,
+          grossRevenue: item.grossRevenue,
+          revenue: item.netRevenue, // Net Gym Revenue
+          trainerPayout: item.trainerPayout,
           expenses: item.expenses,
-          profit: item.revenue - item.expenses
+          profit: item.netRevenue - item.expenses
         };
       });
   }, [unifiedRevenueItems, standardizedExpenseItems]);
@@ -471,12 +584,12 @@ export default function Reports() {
 
       {/* Top Financial KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Gross Revenue */}
+        {/* 1. Gross Collections */}
         <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500">Gross Total Revenue</p>
+            <p className="text-xs font-semibold text-slate-500">Gross Total Inflow</p>
             <h3 className="text-2xl font-black text-slate-900 mt-1">
-              Rs. {filteredData.totalRevenue.toLocaleString("en-IN")}
+              Rs. {filteredData.grossTotalRevenue.toLocaleString("en-IN")}
             </h3>
             <p className="text-[11px] text-emerald-600 font-bold mt-1">
               Fees: Rs. {filteredData.membershipRevenue.toLocaleString("en-IN")} • Store: Rs. {filteredData.supplementRevenue.toLocaleString("en-IN")}
@@ -487,23 +600,49 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* Expenses */}
-        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
+        {/* 2. Trainer PT Payout Liability */}
+        <div className="p-5 rounded-3xl bg-white border border-amber-200/80 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500">Operational Expenses</p>
-            <h3 className="text-2xl font-black text-rose-600 mt-1">
-              Rs. {filteredData.totalExpenses.toLocaleString("en-IN")}
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs font-semibold text-slate-500">Trainer PT Payouts</p>
+              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                Coach Share
+              </span>
+            </div>
+            <h3 className="text-2xl font-black text-amber-600 mt-1">
+              Rs. {filteredData.trainerLiabilities.toLocaleString("en-IN")}
             </h3>
             <p className="text-[11px] text-slate-500 mt-1">
-              {filteredData.expenseItems.length} Recorded Overheads & Bills
+              {Object.keys(filteredData.trainerLiabilitiesMap || {}).length} Personal Trainer(s) Share
             </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
-            <ArrowDownRight className="w-6 h-6" />
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <Dumbbell className="w-6 h-6" />
           </div>
         </div>
 
-        {/* Net Profit */}
+        {/* 3. Gym Owner Net Revenue */}
+        <div className="p-5 rounded-3xl bg-white border border-teal-200/80 shadow-sm flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs font-semibold text-slate-500">Gym Owner Revenue</p>
+              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-teal-100 text-teal-800">
+                Net Retained
+              </span>
+            </div>
+            <h3 className="text-2xl font-black text-teal-700 mt-1">
+              Rs. {filteredData.gymNetRevenue.toLocaleString("en-IN")}
+            </h3>
+            <p className="text-[11px] text-teal-600 font-bold mt-1">
+              Base Fees + 20% PT Commission Cut
+            </p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
+            <TrendingUp className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* 4. Net Operating Profit */}
         <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500">Net Operating Profit</p>
@@ -511,45 +650,108 @@ export default function Reports() {
               Rs. {filteredData.netProfit.toLocaleString("en-IN")}
             </h3>
             <p className="text-[11px] font-bold mt-1 text-slate-500">
-              {filteredData.netProfit >= 0 ? "✅ Surplus Profit" : "⚠️ Operating Deficit"}
+              {filteredData.netProfit >= 0 ? "✅ Net Owner Take-Home" : "⚠️ Operating Deficit"}
             </p>
           </div>
-          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${filteredData.netProfit >= 0 ? "bg-teal-50 text-teal-600" : "bg-rose-50 text-rose-600"}`}>
-            <TrendingUp className="w-6 h-6" />
-          </div>
-        </div>
-
-        {/* Mode Collection */}
-        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold text-slate-500">Collection Breakdown</p>
-            <h3 className="text-lg font-black text-slate-900 mt-1">
-              Cash: Rs. {filteredData.modeBreakdown.cash.toLocaleString("en-IN")}
-            </h3>
-            <p className="text-[11px] text-blue-600 font-bold mt-0.5">
-              Online/UPI: Rs. {filteredData.modeBreakdown.online.toLocaleString("en-IN")}
-            </p>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <CreditCard className="w-6 h-6" />
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${filteredData.netProfit >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}>
+            <Sparkles className="w-6 h-6" />
           </div>
         </div>
       </div>
+
+      {/* Dedicated Trainer Commission & Payout Liabilities Breakdown Card */}
+      {filteredData.trainerLiabilities > 0 && (
+        <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-50/70 via-orange-50/40 to-white border border-amber-200 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-sm">
+                  <Dumbbell className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-black text-slate-900">
+                  Personal Trainer (PT) Commissions & Coach Payouts Due
+                </h3>
+              </div>
+              <p className="text-xs text-slate-600 mt-1">
+                Gym collected total PT packages on coaches' behalf. Here is the exact deal cut & payout owed:
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-amber-100 text-amber-900 border border-amber-300">
+                Total Coach Liabilities: Rs. {filteredData.trainerLiabilities.toLocaleString("en-IN")}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            {Object.values(filteredData.trainerLiabilitiesMap).map((t, idx) => (
+              <div key={idx} className="p-4 rounded-2xl bg-white border border-amber-200/90 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-sm">
+                      {t.trainerName.charAt(0)}
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">{t.trainerName}</h4>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        {t.clients.length} Active PT Member(s)
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                    Owed To Coach
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 text-center border border-slate-100">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">PT Inflow</span>
+                    <p className="text-xs font-black text-slate-800">Rs. {t.totalPtCollected.toLocaleString("en-IN")}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-teal-600 uppercase">Gym Cut</span>
+                    <p className="text-xs font-black text-teal-700">+Rs. {t.ownerCommission.toLocaleString("en-IN")}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-amber-700 uppercase">Coach Payout</span>
+                    <p className="text-xs font-black text-amber-600">Rs. {t.trainerPayoutDue.toLocaleString("en-IN")}</p>
+                  </div>
+                </div>
+
+                {/* Clients sub-list */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-100 text-xs">
+                  {t.clients.map((c, cIdx) => (
+                    <div key={cIdx} className="flex items-center justify-between text-[11px] text-slate-600">
+                      <span className="font-semibold text-slate-800">👤 {c.memberName}</span>
+                      <span>
+                        PT Fee: Rs. {c.ptFee} • Gym Cut: <b className="text-teal-700">Rs. {c.ownerCommission}</b> • Coach: <b className="text-amber-600">Rs. {c.trainerPayout}</b>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Graphical Section: Revenue vs Expenses Bar Chart */}
       <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-emerald-600" /> Revenue vs Expenses Historical Trend
+              <TrendingUp className="w-4 h-4 text-emerald-600" /> Revenue & Expense Distribution Trend
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Comparison of gross collections versus operational gym overheads
+              Breakdown of gym net revenue retained, trainer payouts owed, and operational expenses
             </p>
           </div>
           <div className="flex items-center gap-3 text-xs font-bold mt-2 sm:mt-0">
-            <span className="flex items-center gap-1.5 text-emerald-700">
-              <span className="w-3 h-3 rounded bg-emerald-500" /> Gross Revenue
+            <span className="flex items-center gap-1.5 text-teal-700">
+              <span className="w-3 h-3 rounded bg-teal-600" /> Gym Net Revenue
+            </span>
+            <span className="flex items-center gap-1.5 text-amber-600">
+              <span className="w-3 h-3 rounded bg-amber-500" /> Coach Payouts
             </span>
             <span className="flex items-center gap-1.5 text-rose-600">
               <span className="w-3 h-3 rounded bg-rose-500" /> Expenses
@@ -567,7 +769,8 @@ export default function Reports() {
                 contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
                 formatter={(val) => [`Rs. ${val.toLocaleString("en-IN")}`]}
               />
-              <Bar dataKey="revenue" fill="#10b981" radius={[6, 6, 0, 0]} name="Gross Revenue" />
+              <Bar dataKey="revenue" fill="#0d9488" radius={[6, 6, 0, 0]} name="Gym Net Revenue" />
+              <Bar dataKey="trainerPayout" fill="#f59e0b" radius={[6, 6, 0, 0]} name="Coach Payouts" />
               <Bar dataKey="expenses" fill="#f43f5e" radius={[6, 6, 0, 0]} name="Expenses" />
             </BarChart>
           </ResponsiveContainer>
@@ -583,11 +786,11 @@ export default function Reports() {
               <Receipt className="w-5 h-5 text-emerald-600" /> Revenue Ledger Entries ({filteredData.revenueItems.length})
             </h3>
             <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-              +Rs. {filteredData.totalRevenue.toLocaleString("en-IN")}
+              +Rs. {filteredData.grossTotalRevenue.toLocaleString("en-IN")} Inflow
             </span>
           </div>
 
-          <div className="max-h-96 overflow-y-auto space-y-2 pr-1">
+          <div className="max-h-96 overflow-y-auto space-y-2.5 pr-1">
             {filteredData.revenueItems.length === 0 ? (
               <div className="p-8 text-center text-slate-400">
                 <Receipt className="w-8 h-8 mx-auto stroke-1 mb-2 text-slate-300" />
@@ -595,26 +798,51 @@ export default function Reports() {
               </div>
             ) : (
               filteredData.revenueItems.map((item) => (
-                <div key={item.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between hover:bg-white transition shadow-xs">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-xs font-bold text-slate-900">{item.memberName}</h4>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                        item.type === "supplement" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"
-                      }`}>
-                        {item.type === "supplement" ? "Supplement" : "Membership"}
-                      </span>
+                <div key={item.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 hover:bg-white transition shadow-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-bold text-slate-900">{item.memberName}</h4>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                          item.type === "supplement" ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"
+                        }`}>
+                          {item.type === "supplement" ? "Supplement" : "Membership"}
+                        </span>
+                        {item.ptFee > 0 && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-purple-100 text-purple-800">
+                            +PT Package
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {item.planName} • <span className="uppercase text-slate-600 font-semibold">{item.paymentMode}</span>
+                      </p>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      {item.planName} • <span className="uppercase text-slate-600 font-semibold">{item.paymentMode}</span>
-                    </p>
+                    <div className="text-right">
+                      <span className="text-xs font-black text-slate-900">
+                        Rs. {item.amount.toLocaleString("en-IN")}
+                      </span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{item.date}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs font-black text-slate-900">
-                      Rs. {item.amount.toLocaleString("en-IN")}
-                    </span>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{item.date}</p>
-                  </div>
+
+                  {/* If PT was attached, show clear deal breakdown */}
+                  {item.ptFee > 0 && (
+                    <div className="p-2.5 rounded-xl bg-slate-100/90 border border-slate-200/70 text-[11px] flex flex-wrap items-center justify-between gap-2 text-slate-600">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>Gym Plan: <b>Rs. {item.baseFee.toLocaleString("en-IN")}</b></span>
+                        <span>•</span>
+                        <span>PT Cut (20%): <b className="text-teal-700">+Rs. {item.ptOwnerCommission.toLocaleString("en-IN")}</b></span>
+                        <span>•</span>
+                        <span>Coach {item.trainerName}: <b className="text-amber-600">Rs. {item.trainerLiability.toLocaleString("en-IN")}</b></span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 text-[10px]">
+                          Gym Net Kept: Rs. {item.netOwnerShare.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             )}

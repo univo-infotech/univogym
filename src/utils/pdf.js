@@ -190,6 +190,9 @@ export function generateFinancialStatementPDF({
   periodType = "daily", // "daily", "monthly", "custom"
   periodLabel = "",     // e.g. "12 Sep 2026", "September 2026", "01/01/2026 to 12/09/2026"
   totalRevenue = 0,
+  grossRevenue = 0,
+  trainerPayoutLiability = 0,
+  gymNetRevenue = 0,
   totalExpenses = 0,
   netProfit = 0,
   revenueItems = [],
@@ -200,6 +203,9 @@ export function generateFinancialStatementPDF({
 }, customSettings = null) {
   const settings = customSettings || getGymSettings();
   const doc = new jsPDF();
+
+  const finalGross = grossRevenue || totalRevenue || 0;
+  const finalNetRev = gymNetRevenue || (finalGross - trainerPayoutLiability);
 
   // 1. Header Branding Top Banner
   doc.setFillColor(15, 23, 42); // slate-900
@@ -259,27 +265,39 @@ export function generateFinancialStatementPDF({
   doc.text(`Audited By: ${settings.ownerSignatureName || "Authorized Administrator"}`, 110, 60.5);
 
   // 4. Financial KPI Summary Cards
-  // Total Revenue Box
+  // Total Revenue / Gross Collections Box
   doc.setFillColor(240, 253, 244); // emerald-50
   doc.setDrawColor(187, 247, 208);
   doc.roundedRect(14, 69, 58, 24, 2, 2, "FD");
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(22, 101, 52);
-  doc.text("TOTAL GROSS REVENUE", 18, 76);
+  doc.text(trainerPayoutLiability > 0 ? "GROSS COLLECTIONS" : "TOTAL GROSS REVENUE", 18, 76);
   doc.setFontSize(13);
-  doc.text(`Rs. ${Number(totalRevenue).toLocaleString("en-IN")}`, 18, 86);
+  doc.text(`Rs. ${Number(finalGross).toLocaleString("en-IN")}`, 18, 86);
 
-  // Total Expenses Box
-  doc.setFillColor(255, 241, 242); // rose-50
-  doc.setDrawColor(254, 205, 211);
-  doc.roundedRect(76, 69, 58, 24, 2, 2, "FD");
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(159, 18, 57);
-  doc.text("TOTAL EXPENSES / OVERHEAD", 80, 76);
-  doc.setFontSize(13);
-  doc.text(`Rs. ${Number(totalExpenses).toLocaleString("en-IN")}`, 80, 86);
+  // Second Box: Coach Liability OR Total Expenses
+  if (trainerPayoutLiability > 0) {
+    doc.setFillColor(255, 251, 235); // amber-50
+    doc.setDrawColor(253, 230, 138);
+    doc.roundedRect(76, 69, 58, 24, 2, 2, "FD");
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(180, 83, 9);
+    doc.text("COACH PAYOUT LIABILITY", 80, 76);
+    doc.setFontSize(13);
+    doc.text(`Rs. ${Number(trainerPayoutLiability).toLocaleString("en-IN")}`, 80, 86);
+  } else {
+    doc.setFillColor(255, 241, 242); // rose-50
+    doc.setDrawColor(254, 205, 211);
+    doc.roundedRect(76, 69, 58, 24, 2, 2, "FD");
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(159, 18, 57);
+    doc.text("TOTAL EXPENSES / OVERHEAD", 80, 76);
+    doc.setFontSize(13);
+    doc.text(`Rs. ${Number(totalExpenses).toLocaleString("en-IN")}`, 80, 86);
+  }
 
   // Net Profit Box
   const isProfitable = netProfit >= 0;
@@ -306,12 +324,14 @@ export function generateFinancialStatementPDF({
   doc.setDrawColor(226, 232, 240);
   doc.setFillColor(255, 255, 255);
   doc.roundedRect(14, 97, 182, 11, 1, 1, "FD");
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(51, 65, 85);
-  doc.text(`Memberships & Fees: Rs. ${(totalRevenue - supplementRevenue).toLocaleString("en-IN")}`, 18, 104);
-  doc.text(`Supplement Store Sales: Rs. ${supplementRevenue.toLocaleString("en-IN")}`, 85, 104);
-  doc.text(`New Enrollments: ${newEnrollmentsCount} Members`, 150, 104);
+  if (trainerPayoutLiability > 0) {
+    doc.text(`Gym Net Retained: Rs. ${finalNetRev.toLocaleString("en-IN")}  |  Coach Payouts: Rs. ${trainerPayoutLiability.toLocaleString("en-IN")}  |  Expenses: Rs. ${Number(totalExpenses).toLocaleString("en-IN")}`, 18, 104);
+  } else {
+    doc.text(`Memberships & Fees: Rs. ${(finalGross - supplementRevenue).toLocaleString("en-IN")}  |  Store Sales: Rs. ${supplementRevenue.toLocaleString("en-IN")}  |  Active: ${activeMembersCount}`, 18, 104);
+  }
 
   // 6. Section 1: Revenue Transactions Table
   let currentY = 117;
