@@ -33,7 +33,9 @@ import {
   Eye,
   Maximize2,
   CheckCircle2,
-  IndianRupee
+  IndianRupee,
+  AlertTriangle,
+  AlertCircle
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { addMember } from "../../firebase/members";
@@ -73,7 +75,7 @@ const FITNESS_GOALS = [
   "Rehabilitation & Posture Correction"
 ];
 
-export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans = null, trainers = null }) {
+export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans = null, trainers = null, existingMembers = [] }) {
   const { gymId } = useAuth();
   const GID = gymId || "univo_main";
   const fileInputRef = useRef(null);
@@ -201,6 +203,29 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
   const basePlanPrice = Number(currentBasePlan?.price || 0);
   const ptAddonPrice = Number(formData.ptPlanPrice || 0);
   const totalPayableFee = basePlanPrice + ptAddonPrice;
+
+  // Compute live trainer slot booking counts & member names from existingMembers
+  const trainerSlotOccupancy = useMemo(() => {
+    if (!selectedTrainerObj || !isPersonalTrainer) return {};
+    const tName = selectedTrainerObj.name || selectedTrainerObj.fullName;
+    const tId = selectedTrainerObj.id;
+
+    // Filter active members assigned to this trainer
+    const assigned = (existingMembers || []).filter((m) => {
+      const match = m.trainerId === tId || m.trainerName === tName;
+      return match && m.status !== "left" && m.active !== false;
+    });
+
+    // Group members by slot/timing
+    const map = {};
+    assigned.forEach((m) => {
+      const rawSlot = (m.ptSlot || m.slot || m.workoutSlot || m.preferredTime || "").trim();
+      if (!rawSlot) return;
+      if (!map[rawSlot]) map[rawSlot] = [];
+      map[rawSlot].push(m.name || m.fullName || "Member");
+    });
+    return map;
+  }, [selectedTrainerObj, isPersonalTrainer, existingMembers]);
 
   // Dynamic BMI Calculation from Weight in kg and Height in ft & in
   const bmiInfo = useMemo(() => {
@@ -554,37 +579,106 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
               </span>
             </div>
 
-            {/* Preferred Workout Time Slot (At the start of Step 2) */}
+            {/* Preferred Workout Time Slot with LIVE Trainer Availability & Occupancy */}
             <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2">
-              <label className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
-                <Clock className="w-4 h-4 text-amber-500" />
-                Preferred Workout Time Slot *
-              </label>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                  <Clock className="w-4 h-4 text-amber-500" />
+                  Preferred Workout Time Slot *
+                </label>
+                {isPersonalTrainer && (
+                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg flex items-center gap-1 self-start sm:self-auto">
+                    <Sparkles className="w-3 h-3 text-indigo-600" />
+                    Live Trainer Slot Schedule: {selectedTrainerObj.name}
+                  </span>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {activeSlots.map((s) => {
                   const fullText = `${s.label} (${s.time})`;
                   const isSelected = formData.preferredSlot === fullText;
                   const Icon = s.icon || Sun;
+
+                  // Find how many athletes are booked with THIS trainer in this slot
+                  const bookedAthletes = isPersonalTrainer
+                    ? (trainerSlotOccupancy[fullText] || trainerSlotOccupancy[s.label] || trainerSlotOccupancy[s.time] || [])
+                    : [];
+                  const bookedCount = bookedAthletes.length;
+
                   return (
                     <button
                       key={s.id}
                       type="button"
                       onClick={() => setFormData({ ...formData, preferredSlot: fullText })}
-                      className={`p-2.5 rounded-xl text-left border transition ${
+                      className={`p-2.5 rounded-xl text-left border transition relative flex flex-col justify-between ${
                         isSelected
                           ? "bg-amber-50 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-400"
                           : "bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100"
                       }`}
                     >
-                      <div className="flex items-center gap-1.5 font-bold text-xs">
-                        <Icon className="w-3.5 h-3.5 text-amber-500" />
-                        {s.label}
+                      <div>
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 font-bold text-xs">
+                            <Icon className="w-3.5 h-3.5 text-amber-500" />
+                            {s.label}
+                          </div>
+                          {/* Live Occupancy Badge when a Personal Trainer is selected */}
+                          {isPersonalTrainer && (
+                            <span
+                              className={`text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wide shrink-0 ${
+                                bookedCount === 0
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                  : bookedCount === 1
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                  : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
+                              }`}
+                            >
+                              {bookedCount === 0 ? "🟢 Free" : bookedCount === 1 ? "🟡 1 Booked" : `🔴 ${bookedCount} Busy`}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{s.time}</p>
                       </div>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{s.time}</p>
+
+                      {/* Show active member names booked in this slot */}
+                      {isPersonalTrainer && bookedCount > 0 && (
+                        <div className="mt-1.5 pt-1 border-t border-slate-200/60 text-[9.5px] text-slate-600 truncate">
+                          🏋️ {bookedAthletes.join(", ")}
+                        </div>
+                      )}
                     </button>
                   );
                 })}
               </div>
+
+              {/* Overbooking Alert Warning */}
+              {(() => {
+                if (!isPersonalTrainer) return null;
+                const curBooked = trainerSlotOccupancy[formData.preferredSlot] || [];
+                if (curBooked.length >= 2) {
+                  return (
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-900 animate-in fade-in duration-200">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="text-[11px] leading-tight">
+                        <strong className="font-extrabold text-rose-800">Trainer Slot Overbooked! </strong>
+                        Coach <strong>{selectedTrainerObj.name}</strong> ke paas is slot (<strong>{formData.preferredSlot}</strong>) mein pehle se <strong>{curBooked.length} athletes</strong> training le rahe hain ({curBooked.join(", ")}). Trainer ek waqt mein zyada members par dhyan nahi de payega. Agar sambhav ho toh doosra free slot chunein.
+                      </div>
+                    </div>
+                  );
+                }
+                if (curBooked.length === 1) {
+                  return (
+                    <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-900 text-[11px]">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>
+                        Coach <strong>{selectedTrainerObj.name}</strong> is already coaching <strong>{curBooked[0]}</strong> at this slot.
+                      </span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             {/* Selectors Row: Plan, Date, Coach */}

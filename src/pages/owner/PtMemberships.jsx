@@ -27,7 +27,8 @@ import {
   UserCheck,
   ShieldCheck,
   Flame,
-  Phone
+  Phone,
+  AlertTriangle
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
@@ -35,6 +36,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { getMembers, updateMember } from "../../firebase/members";
 import { getTrainers, updateTrainer } from "../../firebase/trainers";
 import { addPayment } from "../../firebase/payments";
+import { getGymSettings } from "../../utils/settings";
 import toast from "react-hot-toast";
 
 export default function PtMemberships() {
@@ -872,8 +874,53 @@ function AssignPtModal({ isOpen, onClose, members = [], trainers = [], gymId, on
   const [validityDays, setValidityDays] = useState(30);
   const [saving, setSaving] = useState(false);
 
+  // Settings & Slots
+  const gymSettings = useMemo(() => getGymSettings(), []);
+  const activeSlots = useMemo(() => {
+    const configured = gymSettings?.workoutSlots;
+    if (Array.isArray(configured) && configured.length > 0) {
+      return configured.map((s) => ({
+        id: s.id || s.label,
+        label: s.label,
+        time: s.time
+      }));
+    }
+    return [
+      { id: "morning", label: "Morning", time: "6:00 AM - 9:00 AM" },
+      { id: "afternoon", label: "Afternoon", time: "12:00 PM - 3:00 PM" },
+      { id: "evening", label: "Evening", time: "4:00 PM - 7:00 PM" },
+      { id: "night", label: "Night", time: "7:00 PM - 10:00 PM" }
+    ];
+  }, [gymSettings]);
+
+  const [selectedSlot, setSelectedSlot] = useState(
+    activeSlots[0] ? `${activeSlots[0].label} (${activeSlots[0].time})` : "Morning (6:00 AM - 9:00 AM)"
+  );
+
   // Current chosen trainer
   const currentTrainer = trainers.find((t) => t.id === selectedTrainerId) || trainers[0];
+
+  // Calculate live occupancy for the selected trainer
+  const trainerSlotOccupancy = useMemo(() => {
+    if (!currentTrainer) return {};
+    const tName = currentTrainer.name || currentTrainer.fullName;
+    const tId = currentTrainer.id;
+
+    const assigned = (members || []).filter((m) => {
+      const match = m.trainerId === tId || m.trainerName === tName;
+      return match && m.status !== "left" && m.active !== false;
+    });
+
+    const map = {};
+    assigned.forEach((m) => {
+      const rawSlot = (m.ptSlot || m.slot || m.workoutSlot || m.preferredTime || "").trim();
+      if (!rawSlot) return;
+      if (!map[rawSlot]) map[rawSlot] = [];
+      map[rawSlot].push(m.name || m.fullName || "Member");
+    });
+    return map;
+  }, [currentTrainer, members]);
+
   const trainerPlans = currentTrainer?.ptPlans || [
     { id: 1, name: "1 Month 1-on-1 PT", duration: "1 Month (24 Sessions)", price: 4500 },
     { id: 2, name: "3 Months Transformation PT", duration: "3 Months (72 Sessions)", price: 11000 }
@@ -921,6 +968,10 @@ function AssignPtModal({ isOpen, onClose, members = [], trainers = [], gymId, on
         ptDuration: currentPkg?.duration || `${validityDays} Days`,
         ptStartDate: new Date().toISOString(),
         ptExpiryDate: exp.toISOString(),
+        ptSlot: selectedSlot,
+        preferredTime: selectedSlot,
+        slot: selectedSlot,
+        workoutSlot: selectedSlot,
         ptCommissionType: commType,
         ptCommissionValue: commVal,
         ptOwnerCommission: ownerCut,
@@ -941,7 +992,7 @@ function AssignPtModal({ isOpen, onClose, members = [], trainers = [], gymId, on
         planName: `PT: ${currentPkg?.name || "Personal Training"} (${currentTrainer.name})`,
         status: "paid",
         date: new Date().toISOString(),
-        notes: `PT enrollment with coach ${currentTrainer.name}. Gym cut: ₹${ownerCut}, Coach cut: ₹${trainerCut}`
+        notes: `PT enrollment with coach ${currentTrainer.name}. Slot: ${selectedSlot}. Gym cut: ₹${ownerCut}, Coach cut: ₹${trainerCut}`
       });
 
       toast.success(`PT Assigned! Gym Share: ₹${ownerCut.toLocaleString("en-IN")}, Trainer Share: ₹${trainerCut.toLocaleString("en-IN")}`);
@@ -1003,6 +1054,79 @@ function AssignPtModal({ isOpen, onClose, members = [], trainers = [], gymId, on
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Workout Time Slot with Live Coach Schedule & Availability */}
+        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-amber-500" /> Training Slot / Timing *
+            </label>
+            <span className="text-[10px] font-bold text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-lg">
+              Live Coach Schedule: {currentTrainer?.name}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {activeSlots.map((s) => {
+              const fullText = `${s.label} (${s.time})`;
+              const isSelected = selectedSlot === fullText;
+              const bookedAthletes = trainerSlotOccupancy[fullText] || trainerSlotOccupancy[s.label] || trainerSlotOccupancy[s.time] || [];
+              const bookedCount = bookedAthletes.length;
+
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSelectedSlot(fullText)}
+                  className={`p-2 rounded-xl text-left border transition flex flex-col justify-between ${
+                    isSelected
+                      ? "bg-purple-100 border-purple-600 ring-2 ring-purple-400/20"
+                      : "bg-white border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-slate-900 text-xs">{s.label}</span>
+                      <span
+                        className={`text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wide shrink-0 ${
+                          bookedCount === 0
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                            : bookedCount === 1
+                            ? "bg-amber-100 text-amber-900 border border-amber-300"
+                            : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
+                        }`}
+                      >
+                        {bookedCount === 0 ? "🟢 Free" : bookedCount === 1 ? "🟡 1 Booked" : `🔴 ${bookedCount} Busy`}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{s.time}</p>
+                  </div>
+                  {bookedCount > 0 && (
+                    <div className="mt-1 pt-1 border-t border-slate-100 text-[9px] text-slate-600 truncate">
+                      🏋️ {bookedAthletes.join(", ")}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Overbooking Alert Warning */}
+          {(() => {
+            const curBooked = trainerSlotOccupancy[selectedSlot] || [];
+            if (curBooked.length >= 2) {
+              return (
+                <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-1.5 text-rose-900">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="text-[10.5px]">
+                    <strong>Slot Full Warning: </strong> Coach {currentTrainer?.name} already has {curBooked.length} athletes booked at this time ({curBooked.join(", ")}).
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
 
         {/* Trainer's PT Packages Cards */}

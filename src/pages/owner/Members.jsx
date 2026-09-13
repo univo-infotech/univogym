@@ -1176,7 +1176,7 @@ const EDIT_GOAL_TIMELINES = [
 /**
  * Modal to Edit ALL Member Information (Matches DirectAddMemberModal)
  */
-function EditMemberModal({ member, onClose, onSave, trainers = [], plans = [] }) {
+function EditMemberModal({ member, onClose, onSave, trainers = [], plans = [], existingMembers = [] }) {
   const [activeTab, setActiveTab] = useState('personal'); // 'personal' | 'membership' | 'assessment'
 
   // --- Tab 1: Personal & Photo ---
@@ -1296,6 +1296,29 @@ function EditMemberModal({ member, onClose, onSave, trainers = [], plans = [] })
   }, [allTrainers, trainerName]);
 
   const isPersonalTrainer = selectedTrainerObj && (selectedTrainerObj.name || selectedTrainerObj.fullName) !== 'General Floor Trainer (Included)';
+
+  // Compute live trainer slot booking counts & member names from existingMembers
+  const trainerSlotOccupancy = useMemo(() => {
+    if (!selectedTrainerObj || !isPersonalTrainer) return {};
+    const tName = selectedTrainerObj.name || selectedTrainerObj.fullName;
+    const tId = selectedTrainerObj.id;
+
+    // Filter active members assigned to this trainer (excluding this current member being edited)
+    const assigned = (existingMembers || []).filter((m) => {
+      if (m.id === member.id) return false;
+      const match = m.trainerId === tId || m.trainerName === tName;
+      return match && m.status !== 'left' && m.active !== false;
+    });
+
+    const map = {};
+    assigned.forEach((m) => {
+      const rawSlot = (m.ptSlot || m.slot || m.workoutSlot || m.preferredTime || '').trim();
+      if (!rawSlot) return;
+      if (!map[rawSlot]) map[rawSlot] = [];
+      map[rawSlot].push(m.name || m.fullName || 'Member');
+    });
+    return map;
+  }, [selectedTrainerObj, isPersonalTrainer, existingMembers, member.id]);
 
   const [ptPlanId, setPtPlanId] = useState(member.ptPlanId || '');
   const [ptPlanName, setPtPlanName] = useState(member.ptPlanName || '');
@@ -1628,29 +1651,87 @@ function EditMemberModal({ member, onClose, onSave, trainers = [], plans = [] })
           {/* TAB 2: MEMBERSHIP, SCHEDULE & TRAINER */}
           {activeTab === 'membership' && (
             <div className="space-y-4">
-              {/* Workout Slot Selection */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Preferred Workout Slot</label>
+              {/* Workout Slot Selection with Live Trainer Availability */}
+              <div className="bg-white p-3 rounded-2xl border border-slate-200 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-500" />
+                    Preferred Workout Slot
+                  </label>
+                  {isPersonalTrainer && (
+                    <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg">
+                      Coach Schedule: {selectedTrainerObj.name}
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {activeSlots.map((s) => {
-                    const isSelected = slot === (s.time ? `${s.label} (${s.time})` : s.label);
+                    const fullText = s.time ? `${s.label} (${s.time})` : s.label;
+                    const isSelected = slot === fullText || slot === s.label;
+
+                    const bookedAthletes = isPersonalTrainer
+                      ? (trainerSlotOccupancy[fullText] || trainerSlotOccupancy[s.label] || trainerSlotOccupancy[s.time] || [])
+                      : [];
+                    const bookedCount = bookedAthletes.length;
+
                     return (
                       <button
                         key={s.id}
                         type="button"
-                        onClick={() => setSlot(s.time ? `${s.label} (${s.time})` : s.label)}
-                        className={`p-2.5 rounded-xl border text-left transition text-xs font-semibold ${
+                        onClick={() => setSlot(fullText)}
+                        className={`p-2.5 rounded-xl border text-left transition text-xs font-semibold flex flex-col justify-between ${
                           isSelected
                             ? 'bg-amber-50 border-amber-500 text-amber-900 ring-2 ring-amber-400/20'
                             : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                         }`}
                       >
-                        <p className="font-bold">{s.label}</p>
-                        {s.time && <p className="text-[10px] text-slate-500 mt-0.5">{s.time}</p>}
+                        <div>
+                          <div className="flex items-center justify-between gap-1">
+                            <p className="font-bold">{s.label}</p>
+                            {isPersonalTrainer && (
+                              <span
+                                className={`text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wide shrink-0 ${
+                                  bookedCount === 0
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : bookedCount === 1
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    : 'bg-rose-100 text-rose-900 border border-rose-300 animate-pulse'
+                                }`}
+                              >
+                                {bookedCount === 0 ? '🟢 Free' : bookedCount === 1 ? '🟡 1 Booked' : `🔴 ${bookedCount} Busy`}
+                              </span>
+                            )}
+                          </div>
+                          {s.time && <p className="text-[10px] text-slate-500 mt-0.5">{s.time}</p>}
+                        </div>
+
+                        {isPersonalTrainer && bookedCount > 0 && (
+                          <div className="mt-1.5 pt-1 border-t border-slate-100 text-[9.5px] text-slate-600 truncate">
+                            🏋️ {bookedAthletes.join(', ')}
+                          </div>
+                        )}
                       </button>
                     );
                   })}
                 </div>
+
+                {/* Overbooking Alert Warning in EditMemberModal */}
+                {(() => {
+                  if (!isPersonalTrainer) return null;
+                  const curBooked = trainerSlotOccupancy[slot] || [];
+                  if (curBooked.length >= 2) {
+                    return (
+                      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-900 animate-in fade-in duration-200">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        <div className="text-[11px] leading-tight">
+                          <strong className="font-extrabold text-rose-800">Trainer Slot Overbooked! </strong>
+                          Coach <strong>{selectedTrainerObj.name}</strong> ke paas is slot (<strong>{slot}</strong>) mein pehle se <strong>{curBooked.length} athletes</strong> booked hain ({curBooked.join(', ')}).
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
 
               {/* Membership Plan Selection */}
@@ -3125,6 +3206,7 @@ export default function Members() {
           member={editMember}
           trainers={trainers}
           plans={plans}
+          existingMembers={members}
           onClose={() => setEditMember(null)}
           onSave={handleEditSuccess}
         />
@@ -3163,6 +3245,7 @@ export default function Members() {
         onSuccess={(newMem) => setMembers([newMem, ...members])}
         plans={plans}
         trainers={trainers}
+        existingMembers={members}
       />
     </div>
   );
