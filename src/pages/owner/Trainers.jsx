@@ -4,7 +4,6 @@ import {
   MessageCircle,
   MoreVertical,
   Link2,
-  KeyRound,
   CheckCircle2,
   UserPlus,
   Image as ImageIcon,
@@ -37,7 +36,6 @@ import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
 import { getTrainers, addTrainer, updateTrainer, deleteTrainer } from "../../firebase/trainers";
-import { createStaffUser } from "../../firebase/auth";
 import { useAuth } from "../../contexts/AuthContext";
 import toast from "react-hot-toast";
 
@@ -50,9 +48,6 @@ export default function Trainers() {
   const [viewTrainerModal, setViewTrainerModal] = useState(null);
 
   const [loading, setLoading] = useState(false);
-  const [generateLoginModalOpen, setGenerateLoginModalOpen] = useState(false);
-  const [selectedTrainer, setSelectedTrainer] = useState(null);
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
 
   // Modal Tabs: "manual" | "link"
   const [activeTab, setActiveTab] = useState("manual");
@@ -63,7 +58,6 @@ export default function Trainers() {
     specialization: "Weight Training & Hypertrophy",
     phone: "",
     email: "",
-    password: "",
     experience: "5 Years",
     bio: "",
     certifications: "",
@@ -526,8 +520,8 @@ export default function Trainers() {
 
   const handleManualAdd = async (e) => {
     e.preventDefault();
-    if (!form.email || !form.password) {
-      toast.error("Email and Password are required to create a trainer account.");
+    if (!form.name || !form.phone) {
+      toast.error("Trainer name and phone number are required.");
       return;
     }
 
@@ -537,7 +531,7 @@ export default function Trainers() {
         name: form.name,
         specialization: form.specialization,
         phone: form.phone,
-        email: form.email,
+        email: form.email || "",
         experience: form.experience,
         bio: form.bio,
         certifications: form.certifications,
@@ -550,22 +544,11 @@ export default function Trainers() {
           .map((p) => ({ ...p, price: Number(p.price) })),
         transformations: form.transformations.filter(t => t.beforeImg || t.afterImg || t.description),
         membersCount: 0,
-        hasLogin: true,
       };
       const trainerId = await addTrainer(gymId || "univo_main", newT);
 
-      // Create Auth User without logging out owner
-      await createStaffUser(
-        form.email,
-        form.password,
-        "trainer",
-        gymId || "univo_main",
-        form.name,
-        trainerId
-      );
-
       setTrainers([{ ...newT, id: trainerId }, ...trainers]);
-      toast.success("Trainer created with PT membership packages & login account!");
+      toast.success("Trainer created successfully with PT membership packages!");
       setModalOpen(false);
 
       // Reset form
@@ -574,60 +557,40 @@ export default function Trainers() {
         specialization: "Weight Training & Hypertrophy",
         phone: "",
         email: "",
-        password: "",
         experience: "5 Years",
         bio: "",
         certifications: "",
         photoUrl: "",
         certUrl: "",
+        commissionType: "percentage",
+        commissionValue: 30,
         ptPlans: [
-          { id: 1, name: "1 Month 1-on-1 PT", duration: "1 Month (24 Sessions)", price: 4500, description: "Personalized workout routine, daily form check & diet guidance" },
-          { id: 2, name: "3 Months Transformation PT", duration: "3 Months (72 Sessions)", price: 11000, description: "Dedicated 1-on-1 coaching, supplement strategy & weekly body fat audit" }
+          {
+            id: 1,
+            name: "1 Month 1-on-1 PT",
+            durationType: "months",
+            durationValue: 1,
+            sessionsCount: 24,
+            duration: "1 Month (24 Sessions)",
+            price: 4500,
+            description: "Personalized workout routine, daily form check & diet guidance"
+          },
+          {
+            id: 2,
+            name: "3 Months Transformation PT",
+            durationType: "months",
+            durationValue: 3,
+            sessionsCount: 72,
+            duration: "3 Months (72 Sessions)",
+            price: 11000,
+            description: "Dedicated 1-on-1 coaching, supplement strategy & weekly body fat audit"
+          }
         ],
         transformations: [{ id: 1, beforeImg: "", afterImg: "", description: "" }],
       });
     } catch (err) {
       console.error(err);
       toast.error(err.message || "Failed to create trainer");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGenerateLoginSubmit = async (e) => {
-    e.preventDefault();
-    if (!loginForm.email || !loginForm.password) {
-      toast.error("Email and Password are required");
-      return;
-    }
-    setLoading(true);
-    try {
-      await createStaffUser(
-        loginForm.email,
-        loginForm.password,
-        "trainer",
-        gymId || "univo_main",
-        selectedTrainer.name,
-        selectedTrainer.id
-      );
-      await updateTrainer(gymId || "univo_main", selectedTrainer.id, {
-        hasLogin: true,
-        email: loginForm.email,
-      });
-
-      setTrainers(
-        trainers.map((t) =>
-          t.id === selectedTrainer.id
-            ? { ...t, hasLogin: true, email: loginForm.email }
-            : t
-        )
-      );
-      toast.success("Trainer login created successfully!");
-      setGenerateLoginModalOpen(false);
-      setLoginForm({ email: "", password: "" });
-    } catch (err) {
-      console.error(err);
-      toast.error(err.message || "Failed to create login");
     } finally {
       setLoading(false);
     }
@@ -824,33 +787,20 @@ export default function Trainers() {
                 </button>
               </div>
 
-              {t.hasLogin === false ? (
-                <button
-                  onClick={() => {
-                    setSelectedTrainer(t);
-                    setLoginForm({ email: t.email || "", password: "" });
-                    setGenerateLoginModalOpen(true);
-                  }}
-                  className="w-full py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs font-bold flex items-center justify-center gap-1.5 transition"
-                >
-                  <KeyRound className="w-4 h-4 text-amber-600" /> Create ID & Password
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    const num = (t.phone || "").replace(/\D/g, "");
-                    window.open(
-                      `https://wa.me/${num}?text=Hi%20${encodeURIComponent(
-                        t.name || "Coach"
-                      )},%20Checking%20in%20from%20the%20gym!`,
-                      "_blank"
-                    );
-                  }}
-                  className="w-full py-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold flex items-center justify-center gap-1.5 transition"
-                >
-                  <MessageCircle className="w-4 h-4 text-emerald-600" /> Message on WhatsApp
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  const num = (t.phone || "").replace(/\D/g, "");
+                  window.open(
+                    `https://wa.me/${num}?text=Hi%20${encodeURIComponent(
+                      t.name || "Coach"
+                    )},%20Checking%20in%20from%20the%20gym!`,
+                    "_blank"
+                  );
+                }}
+                className="w-full py-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+              >
+                <MessageCircle className="w-4 h-4 text-emerald-600" /> Message on WhatsApp
+              </button>
             </div>
           </div>
         ))}
@@ -899,48 +849,6 @@ export default function Trainers() {
               />
             </div>
 
-            <div className="flex items-start gap-4 p-3 bg-blue-50/80 border border-blue-100 rounded-2xl">
-              <KeyRound className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-bold text-blue-900">Create Login Credentials</p>
-                <p className="text-[11px] text-blue-700 mt-0.5">
-                  The trainer will use these to log into their dedicated app dashboard to manage
-                  their PT clients.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-                  Login Email *
-                </label>
-                <input
-                  required
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
-                  placeholder="trainer@gym.com"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-                  Login Password *
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
-                  placeholder="Strong password"
-                />
-              </div>
-            </div>
-
-            <hr className="border-slate-100" />
-
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
                 Trainer Full Name *
@@ -958,7 +866,7 @@ export default function Trainers() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-                  Phone *
+                  Phone Number *
                 </label>
                 <input
                   required
@@ -971,6 +879,21 @@ export default function Trainers() {
               </div>
               <div>
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                  Email Address (Optional)
+                </label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
+                  placeholder="trainer@gym.com"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
                   Experience
                 </label>
                 <input
@@ -981,19 +904,18 @@ export default function Trainers() {
                   placeholder="e.g. 5 Years"
                 />
               </div>
-            </div>
-
-            <div>
-              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-                Specialization
-              </label>
-              <input
-                type="text"
-                value={form.specialization}
-                onChange={(e) => setForm({ ...form, specialization: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
-                placeholder="e.g. Weight Training & Hypertrophy"
-              />
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                  Specialization
+                </label>
+                <input
+                  type="text"
+                  value={form.specialization}
+                  onChange={(e) => setForm({ ...form, specialization: e.target.value })}
+                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
+                  placeholder="e.g. Weight Training & Hypertrophy"
+                />
+              </div>
             </div>
 
             <div>
@@ -1557,64 +1479,6 @@ export default function Trainers() {
             </div>
           </div>
         )}
-      </Modal>
-
-      {/* Generate Login for Link-Registered Trainer Modal */}
-      <Modal
-        isOpen={generateLoginModalOpen}
-        onClose={() => setGenerateLoginModalOpen(false)}
-        title="Generate Login Access"
-        maxWidth="max-w-lg"
-      >
-        <form onSubmit={handleGenerateLoginSubmit} className="space-y-4">
-          <div className="flex items-start gap-4 p-3 bg-blue-50 border border-blue-100 rounded-2xl">
-            <KeyRound className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-bold text-blue-900">
-                Create Login for {selectedTrainer?.name}
-              </p>
-              <p className="text-[11px] text-blue-700 mt-0.5">
-                They registered via link. Now set up their system ID and password so they can log
-                into the Trainer Dashboard.
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-              Login Email *
-            </label>
-            <input
-              required
-              type="email"
-              value={loginForm.email}
-              onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
-              placeholder="trainer@gym.com"
-            />
-          </div>
-          <div>
-            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-              Login Password *
-            </label>
-            <input
-              required
-              type="text"
-              value={loginForm.password}
-              onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
-              placeholder="Strong password"
-            />
-          </div>
-
-          <button
-            disabled={loading}
-            type="submit"
-            className="w-full py-3.5 mt-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:shadow-lg disabled:opacity-50"
-          >
-            {loading ? "Creating..." : "Create & Send Credentials"}
-          </button>
-        </form>
       </Modal>
 
       {/* View Full Trainer Profile Modal */}

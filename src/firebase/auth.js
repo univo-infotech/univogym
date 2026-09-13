@@ -1,13 +1,9 @@
 import { 
   signInWithEmailAndPassword, 
-  signOut, 
-  createUserWithEmailAndPassword, 
-  updateProfile,
-  getAuth as getSecondaryAuth
+  signOut 
 } from "firebase/auth";
-import { initializeApp, deleteApp } from "firebase/app";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import app, { auth, db } from "./config";
+import { auth, db } from "./config";
 
 export async function loginUser(email, password) {
   const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -33,16 +29,10 @@ export async function getUserRole(uid) {
 
 export async function createStaffUser(email, password, role, gymId, name = "", profileId = "", permissions = []) {
   try {
-    const secondaryApp = initializeApp(app.options, "SecondaryApp_" + Date.now());
-    const secondaryAuth = getSecondaryAuth(secondaryApp);
+    // Only owner exists in Firebase Auth. Staff/trainers are stored in Firestore.
+    const staffDocId = `staff_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     
-    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-    if (name) {
-      await updateProfile(cred.user, { displayName: name });
-    }
-    
-    // Assign role in main db
-    await setDoc(doc(db, "users", cred.user.uid), {
+    await setDoc(doc(db, "users", staffDocId), {
       email,
       role,
       gymId,
@@ -52,12 +42,9 @@ export async function createStaffUser(email, password, role, gymId, name = "", p
       createdAt: new Date().toISOString()
     });
     
-    await secondaryAuth.signOut();
-    await deleteApp(secondaryApp);
-    
-    return cred.user;
+    return { uid: staffDocId, email, name };
   } catch (error) {
-    console.error("Error creating staff/trainer user:", error);
+    console.error("Error creating staff record:", error);
     throw error;
   }
 }

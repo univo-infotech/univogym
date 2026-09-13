@@ -57,7 +57,6 @@ import {
   getDownloadURL,
 } from 'firebase/storage';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getGymSettings } from '../../utils/settings';
 
 const STEPS = [
@@ -615,19 +614,6 @@ export default function MemberSelfRegister() {
         await markTokenUsed(gymId || 'univo_main', token);
       } catch (e) {
         console.warn('Token status update');
-      }
-
-      // 3. Optional Auth account creation (does not block registration)
-      if (personalData.email) {
-        try {
-          const auth = getAuth();
-          const tempPassword = `Univo@${Math.random().toString(36).slice(2, 8)}123`;
-          const cred = await createUserWithEmailAndPassword(auth, personalData.email, tempPassword);
-          memberPayload.uid = cred.user.uid;
-          memberPayload.tempPassword = tempPassword;
-        } catch (authErr) {
-          console.warn('Auth user registration note (member profile already saved):', authErr.message);
-        }
       }
 
       setSuccess(true);
