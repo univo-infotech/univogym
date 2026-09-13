@@ -28,7 +28,16 @@ import {
   Calendar,
   CreditCard,
   UserX,
-  User
+  User,
+  Receipt,
+  Smartphone,
+  Banknote,
+  Building2,
+  Split,
+  ShieldCheck,
+  Tag,
+  HelpCircle,
+  ArrowRight
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
@@ -694,164 +703,194 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
     <Modal
       isOpen={true}
       onClose={onClose}
-      title={hasExistingDue ? `Collect Remaining Due — ${member.name || member.fullName}` : "Collect Fee & Renew Membership"}
-      maxWidth="max-w-xl"
+      title={hasExistingDue ? `Collect Remaining Due — ${member.name || member.fullName}` : "Collect Fee & Membership Billing"}
+      maxWidth="max-w-2xl"
     >
       <div className="space-y-4 text-slate-800 text-xs">
         {/* Due Balance Alert Banner if Member has pending dues */}
         {hasExistingDue && (
-          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-300 text-amber-900 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-base">⚠️</span>
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-300 flex items-center justify-between shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                ⚠️
+              </div>
               <div>
-                <p className="font-bold text-xs">Pending Remaining Due (पिछली बाकी फीस)</p>
-                <p className="text-[11px] text-amber-800">
-                  Total Remaining Balance to pay: <b>₹{existingDueAmount}</b> for current plan ({member.planName || "Active Plan"}).
+                <p className="font-bold text-xs text-amber-950">Pending Balance Due (पिछली बाकी फीस)</p>
+                <p className="text-[11px] text-amber-800 font-medium">
+                  Outstanding balance of <b className="text-amber-950 font-extrabold">₹{existingDueAmount}</b> for current plan ({member.planName || "Active Plan"}).
                 </p>
               </div>
             </div>
             <div className="text-right">
-              <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-extrabold text-xs shadow-xs">
+              <span className="px-3 py-1.5 rounded-xl bg-amber-600 text-white font-black text-xs shadow-xs tracking-wide">
                 Due: ₹{existingDueAmount}
               </span>
             </div>
           </div>
         )}
 
-        {/* Member Card Header */}
-        <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white font-extrabold flex items-center justify-center text-base shadow-sm">
-              {(member.name || member.fullName || "M")[0]?.toUpperCase()}
+        {/* Member Card Header with Univo Gym Brand Gradient Banner */}
+        <div className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 text-white shadow-md">
+          {/* Subtle Decorative glow background */}
+          <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-emerald-400 text-white font-extrabold flex items-center justify-center text-lg shadow-md border border-white/20">
+                {(member.name || member.fullName || "M")[0]?.toUpperCase()}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-extrabold text-white tracking-tight">
+                    {member.name || member.fullName}
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+                    Active Member
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-300 text-[11px] mt-1">
+                  <span className="flex items-center gap-1 text-slate-300">
+                    <Smartphone className="w-3 h-3 text-indigo-400" />
+                    {member.phone || "No phone"}
+                  </span>
+                  <span className="text-slate-500">•</span>
+                  <span className="flex items-center gap-1 text-slate-300">
+                    <Clock className="w-3 h-3 text-emerald-400" />
+                    {member.slot || member.workoutSlot || "General Shift"}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">
-                {member.name || member.fullName}
-              </h3>
-              <p className="text-slate-500 text-[11px] mt-0.5">
-                📱 {member.phone || "No phone"} • 🏋️ {member.slot || member.workoutSlot || "General Shift"}
+
+            <div className="text-right bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 shrink-0">
+              <p className="text-[9px] text-indigo-200 font-bold uppercase tracking-wider">
+                CURRENT EXPIRY
+              </p>
+              <p className="text-xs font-black text-emerald-300 mt-0.5">
+                {formatDate(member.expiryDate)}
               </p>
             </div>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-              CURRENT EXPIRY
-            </p>
-            <p className="text-xs font-bold text-indigo-700 mt-0.5">
-              {formatDate(member.expiryDate)}
-            </p>
           </div>
         </div>
 
         {/* Select Membership Plan and Discount */}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${hasExistingDue ? 'opacity-60 pointer-events-none' : ''}`}>
-          <div>
-            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3.5 ${hasExistingDue ? 'opacity-60 pointer-events-none' : ''}`}>
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+              <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
               SELECT MEMBERSHIP PLAN (प्लान चुनें) *
             </label>
-            <select
-              value={selectedPlanId}
-              onChange={(e) => setSelectedPlanId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
-            >
-              {PLANS_CATALOG.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={selectedPlanId}
+                onChange={(e) => setSelectedPlanId(e.target.value)}
+                className="w-full appearance-none bg-slate-50 hover:bg-white border border-slate-300 hover:border-indigo-400 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition shadow-2xs"
+              >
+                {PLANS_CATALOG.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
           </div>
 
-          <div>
-            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1 flex items-center gap-1">
-              <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
-              DISCOUNT (छूट ₹)
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5 text-emerald-600" />
+              SPECIAL DISCOUNT (छूट ₹)
             </label>
-            <input
-              type="number"
-              placeholder="e.g. 100"
-              value={discountAmount || ""}
-              onChange={(e) => setDiscountAmount(Number(e.target.value) || 0)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
-            />
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">₹</span>
+              <input
+                type="number"
+                placeholder="e.g. 100"
+                value={discountAmount || ""}
+                onChange={(e) => setDiscountAmount(Number(e.target.value) || 0)}
+                className="w-full bg-slate-50 hover:bg-white border border-slate-300 hover:border-emerald-400 rounded-xl pl-8 pr-3 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 transition shadow-2xs"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Membership Bill Validity Period Box (Screenshot Match) */}
-        <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-emerald-900 text-xs flex items-center gap-1.5">
+        {/* Membership Bill Validity Period Box (Enhanced) */}
+        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50/70 to-teal-50/40 border border-emerald-200 space-y-2.5 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-extrabold text-emerald-950 text-xs flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-emerald-600" />
-              Membership Bill Validity Period ({currentPlan.durationMonths} Month):
+              Membership Validity Period ({currentPlan.durationMonths} Month duration):
             </span>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-200/70 text-emerald-900 font-extrabold text-[11px]">
-              {toIndianDate(validityStart)} से {validityEnd}
+            <span className="px-3 py-1 rounded-full bg-emerald-600 text-white font-black text-[11px] shadow-xs tracking-wide">
+              {toIndianDate(validityStart)} → {validityEnd}
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] font-bold text-emerald-950 uppercase block mb-1">
-                Validity Start Date (शुरू दिनांक - Joining Date) *
+              <label className="text-[10px] font-extrabold text-emerald-950 uppercase tracking-wider block mb-1">
+                Validity Start Date (शुरू दिनांक) *
               </label>
               <input
                 type="date"
                 value={validityStart}
                 onChange={(e) => setValidityStart(e.target.value)}
-                className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none"
+                className="w-full bg-white border border-emerald-300 hover:border-emerald-500 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-bold text-emerald-950 uppercase block mb-1">
-                Validity End / Due Date (समाप्ति / अगली फीस दिनांक) *
+              <label className="text-[10px] font-extrabold text-emerald-950 uppercase tracking-wider block mb-1">
+                Validity End / Due Date (समाप्ति / अगली फीस) *
               </label>
               <input
                 type="text"
                 value={validityEnd}
                 onChange={(e) => setValidityEnd(e.target.value)}
                 placeholder="DD/MM/YYYY"
-                className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-semibold focus:outline-none"
+                className="w-full bg-white border border-emerald-300 hover:border-emerald-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition shadow-2xs"
               />
             </div>
           </div>
         </div>
 
-        {/* Fee Summary Row */}
-        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
-          <div>
-            <span className="text-slate-600 font-medium">
+        {/* Fee Summary Banner */}
+        <div className="p-3 px-4 rounded-xl bg-slate-900 text-white flex items-center justify-between text-xs shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-slate-300 font-semibold">
               {currentPlan.name} ({currentPlan.durationMonths} Month)
             </span>
             {discountAmount > 0 && (
-              <span className="text-emerald-600 font-bold ml-2">
-                (Discount: -₹{discountAmount})
+              <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+                Discount -₹{discountAmount}
               </span>
             )}
           </div>
-          <div className="text-right">
-            <span className="font-extrabold text-indigo-700 text-base">
-              TOTAL PLAN FEE: ₹{calculatedTotal}
+          <div>
+            <span className="text-[11px] text-slate-400 uppercase font-bold mr-2">TOTAL PLAN FEE:</span>
+            <span className="font-black text-emerald-400 text-base tracking-tight">
+              ₹{calculatedTotal}
             </span>
           </div>
         </div>
 
         {/* Payment Type Selection (Full vs Partial) */}
-        <div>
-          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1.5">
+        <div className="space-y-2">
+          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block">
             PAYMENT TYPE (भुगतान प्रकार)
           </label>
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setPaymentType("full")}
-              className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition ${
+              className={`py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition ${
                 paymentType === "full"
-                  ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                  ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
                   : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
               }`}
             >
-              ● Full Payment (पूरा ₹{calculatedTotal})
+              <CheckCircle className={`w-4 h-4 ${paymentType === "full" ? "text-white" : "text-slate-400"}`} />
+              Full Payment (पूरा ₹{calculatedTotal})
             </button>
 
             <button
@@ -860,49 +899,52 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
                 setPaymentType("partial");
                 setPayingNow(Math.floor(calculatedTotal / 2));
               }}
-              className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition ${
+              className={`py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition ${
                 paymentType === "partial"
-                  ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                  ? "bg-amber-600 text-white border-amber-600 shadow-sm"
                   : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
               }`}
             >
-              ● Partial / Installment (किस्त)
+              <Split className={`w-4 h-4 ${paymentType === "partial" ? "text-white" : "text-slate-400"}`} />
+              Partial / Installment (किस्त)
             </button>
           </div>
 
-          {/* If Partial is selected, show Amount Paying Now input matching user's Screenshot 3 */}
+          {/* If Partial is selected, show Amount Paying Now input */}
           {paymentType === "partial" && (
-            <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5">
-              <label className="text-[11px] font-bold text-amber-950 uppercase block">
+            <div className="p-3 bg-amber-500/10 border border-amber-300 rounded-xl space-y-1.5 animate-in fade-in duration-150">
+              <label className="text-[11px] font-black text-amber-950 uppercase block">
                 Amount Paying Now (आज कितना जमा कर रहे हैं) *
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-amber-700">₹</span>
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-amber-700">₹</span>
                 <input
                   type="number"
                   value={payingNow}
                   onChange={(e) => setPayingNow(Number(e.target.value) || 0)}
                   max={calculatedTotal}
-                  className="w-full bg-white border border-amber-400 rounded-xl pl-8 pr-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:border-amber-600"
+                  className="w-full bg-white border-2 border-amber-400 focus:border-amber-600 rounded-xl pl-8 pr-3 py-2 text-sm font-black text-slate-900 focus:outline-none transition shadow-2xs"
                 />
               </div>
             </div>
           )}
 
           {/* Stat Cards: Total, Paying Now, Remaining Due */}
-          <div className="grid grid-cols-3 gap-2 mt-2.5">
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
-              <p className="text-[10px] text-slate-500 font-bold uppercase">TOTAL PLAN FEE</p>
+          <div className="grid grid-cols-3 gap-2.5 pt-1">
+            <div className="p-2.5 rounded-xl bg-slate-100/80 border border-slate-200 text-center">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">TOTAL PLAN FEE</p>
               <p className="text-sm font-black text-slate-900 mt-0.5">₹{calculatedTotal}</p>
             </div>
 
             <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-              <p className="text-[10px] text-emerald-800 font-bold uppercase">PAYING NOW</p>
+              <p className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider">PAYING NOW</p>
               <p className="text-sm font-black text-emerald-700 mt-0.5">₹{payingNow}</p>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
-              <p className="text-[10px] text-slate-500 font-bold uppercase">REMAINING DUE (बाकी)</p>
+            <div className={`p-2.5 rounded-xl border text-center transition ${remainingDue > 0 ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200"}`}>
+              <p className={`text-[10px] font-bold uppercase tracking-wider ${remainingDue > 0 ? "text-rose-700" : "text-slate-500"}`}>
+                REMAINING DUE (बाकी)
+              </p>
               <p className={`text-sm font-black mt-0.5 ${remainingDue > 0 ? "text-rose-600" : "text-slate-700"}`}>
                 ₹{remainingDue}
               </p>
@@ -911,53 +953,58 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
         </div>
 
         {/* Payment Mode (Cash, UPI / QR, Bank, Split) */}
-        <div>
-          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1.5">
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block">
             PAYMENT MODE (भुगतान माध्यम) *
           </label>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
-              { key: "cash", label: "💵 Cash" },
-              { key: "online", label: "📱 UPI / QR" },
-              { key: "bank", label: "🏦 Bank" },
-              { key: "split", label: "⚡ Split (Cash + UPI)" },
-            ].map((m) => (
-              <button
-                type="button"
-                key={m.key}
-                onClick={() => setPaymentMode(m.key)}
-                className={`py-2 px-1.5 rounded-xl text-xs font-bold border transition text-center ${
-                  paymentMode === m.key
-                    ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
+              { key: "cash", label: "Cash", icon: Banknote, color: "hover:border-emerald-400" },
+              { key: "online", label: "UPI / QR", icon: Smartphone, color: "hover:border-indigo-400" },
+              { key: "bank", label: "Bank Transfer", icon: Building2, color: "hover:border-blue-400" },
+              { key: "split", label: "Split (Cash+UPI)", icon: Split, color: "hover:border-amber-400" },
+            ].map((m) => {
+              const IconComp = m.icon;
+              const isSelected = paymentMode === m.key;
+              return (
+                <button
+                  type="button"
+                  key={m.key}
+                  onClick={() => setPaymentMode(m.key)}
+                  className={`py-2.5 px-2 rounded-xl text-xs font-bold border flex flex-col items-center justify-center gap-1.5 transition ${
+                    isSelected
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                      : `bg-white border-slate-200 text-slate-700 hover:bg-slate-50 ${m.color}`
+                  }`}
+                >
+                  <IconComp className={`w-4 h-4 ${isSelected ? "text-white" : "text-slate-600"}`} />
+                  <span>{m.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Split Amount Inputs if Split is chosen */}
           {paymentMode === "split" && (
-            <div className="p-3 mt-2 bg-amber-50 border border-amber-200 rounded-xl grid grid-cols-2 gap-3 text-xs">
+            <div className="p-3.5 bg-amber-500/10 border border-amber-300 rounded-xl grid grid-cols-2 gap-3 text-xs animate-in fade-in duration-150">
               <div>
-                <label className="font-bold text-amber-900 block mb-0.5">Cash Amount (₹)</label>
+                <label className="font-bold text-amber-950 block mb-1">💵 Cash Amount (₹)</label>
                 <input
                   type="number"
-                  placeholder="e.g. 300"
+                  placeholder="e.g. 1000"
                   value={cashAmount}
                   onChange={(e) => setCashAmount(e.target.value)}
-                  className="w-full bg-white border border-amber-300 rounded-lg p-1.5"
+                  className="w-full bg-white border border-amber-400 rounded-xl px-3 py-2 font-bold text-slate-900 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="font-bold text-amber-900 block mb-0.5">UPI Amount (₹)</label>
+                <label className="font-bold text-amber-950 block mb-1">📱 UPI Amount (₹)</label>
                 <input
                   type="number"
-                  placeholder="e.g. 299"
+                  placeholder="e.g. 1799"
                   value={onlineAmount}
                   onChange={(e) => setOnlineAmount(e.target.value)}
-                  className="w-full bg-white border border-amber-300 rounded-lg p-1.5"
+                  className="w-full bg-white border border-amber-400 rounded-xl px-3 py-2 font-bold text-slate-900 focus:outline-none"
                 />
               </div>
             </div>
@@ -965,21 +1012,21 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
         </div>
 
         {/* Payment Remarks / Transaction ID */}
-        <div>
-          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1">
+        <div className="space-y-1">
+          <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block">
             PAYMENT REMARKS / TRANSACTION ID (OPTIONAL)
           </label>
           <input
             type="text"
-            placeholder="e.g. GPay Ref #123456 / ₹200 cash advance"
+            placeholder="e.g. GPay UPI Ref #481928 / ₹500 cash advance received"
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
+            className="w-full bg-slate-50 hover:bg-white border border-slate-300 hover:border-indigo-400 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-600 transition shadow-2xs"
           />
         </div>
 
-        {/* Modal Actions matching user screenshot */}
-        <div className="pt-2 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100">
+        {/* Modal Actions matching user design */}
+        <div className="pt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100">
           <button
             type="button"
             onClick={onClose}
@@ -992,8 +1039,9 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
             type="button"
             disabled={loading}
             onClick={() => handleCollect(false)}
-            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition shadow-sm disabled:opacity-50"
+            className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm disabled:opacity-50"
           >
+            <Receipt className="w-3.5 h-3.5 text-emerald-400" />
             {loading ? "Processing..." : `Collect ₹${payingNow} Only`}
           </button>
 
@@ -1001,9 +1049,9 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
             type="button"
             disabled={loading}
             onClick={() => handleCollect(true)}
-            className="px-4 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm disabled:opacity-50"
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs flex items-center gap-2 transition shadow-md shadow-emerald-600/20 disabled:opacity-50"
           >
-            <Share2 className="w-3.5 h-3.5" />
+            <Share2 className="w-4 h-4 text-white" />
             {loading ? "Processing..." : `Collect ₹${payingNow} & WhatsApp Bill`}
           </button>
         </div>
