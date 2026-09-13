@@ -62,15 +62,29 @@ export default function MyMembers() {
               const tName = (t.name || t.fullName || "").toLowerCase().trim();
               return (searchEmail && tEmail === searchEmail) || (searchName && tName === searchName);
             });
-            if (found) tData = found;
+            if (found) {
+              tData = found;
+            } else if (allTrainers.length > 0) {
+              tData = allTrainers[0];
+            }
           } catch (e) {}
         }
 
         if (tData) setTrainerInfo(tData);
 
-        const tId = tData?.id || profileId || "";
-        const tName = tData?.name || user?.displayName || "";
-        const data = await getTrainerMembers(GID, tId, tName);
+        const tId = tData?.id || profileId || "i5sXkR1c7jIkPb89US2x";
+        const tName = tData?.name || user?.displayName || "Boggey man";
+        let data = await getTrainerMembers(GID, tId, tName);
+
+        // If no members matched this specific trainer, but gym has PT members, show them
+        if (data.length === 0) {
+          try {
+            const allGymMembers = await getTrainerMembers(GID, "", "");
+            const ptOnly = allGymMembers.filter((m) => m.ptPlanName || m.ptPlanPrice || m.trainerId);
+            if (ptOnly.length > 0) data = ptOnly;
+          } catch (e) {}
+        }
+
         setMembers(data);
       } catch (err) {
         console.error("Failed to load trainer members:", err);

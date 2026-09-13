@@ -51,8 +51,7 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
   const trainerLinks = [
     { to: "/trainer/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/trainer/members", label: "My Members", icon: Users },
-    { to: "/trainer/plans", label: "Workout Plans", icon: ClipboardList },
-    { to: "/trainer/before-after", label: "Before & After", icon: Camera },
+    { to: "/trainer/profile", label: "My Profile", icon: User },
     { to: "/trainer/attendance", label: "Attendance", icon: CheckSquare },
   ];
 

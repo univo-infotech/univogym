@@ -1,10 +1,9 @@
-﻿import React from "react";
+import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Layout from "../components/layout/Layout";
 import TrainerDashboard from "../pages/trainer/Dashboard";
 import MyMembers from "../pages/trainer/MyMembers";
-import WorkoutPlans from "../pages/trainer/WorkoutPlans";
-import BeforeAfter from "../pages/trainer/BeforeAfter";
+import TrainerProfile from "../pages/trainer/Profile";
 import TrainerAttendance from "../pages/trainer/Attendance";
 
 export default function TrainerRoutes() {
@@ -14,8 +13,7 @@ export default function TrainerRoutes() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<TrainerDashboard />} />
         <Route path="members" element={<MyMembers />} />
-        <Route path="plans" element={<WorkoutPlans />} />
-        <Route path="before-after" element={<BeforeAfter />} />
+        <Route path="profile" element={<TrainerProfile />} />
         <Route path="attendance" element={<TrainerAttendance />} />
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>

@@ -14,75 +14,196 @@ import {
 import { db } from "./config";
 
 export async function getTrainers(gymId) {
-  const q = query(
-    collection(db, "gyms", gymId, "trainers"),
-    orderBy("createdAt", "desc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const list = [];
+  const seenIds = new Set();
+
+  // 1. Top-level trainers collection
+  try {
+    const snap1 = await getDocs(collection(db, "trainers"));
+    snap1.docs.forEach((d) => {
+      seenIds.add(d.id);
+      list.push({ id: d.id, ...d.data() });
+    });
+  } catch (e) {
+    console.warn("Top-level trainers fetch error:", e);
+  }
+
+  // 2. Gym sub-collection gyms/{gymId}/trainers
+  try {
+    const snap2 = await getDocs(collection(db, "gyms", gymId || "univo_main", "trainers"));
+    snap2.docs.forEach((d) => {
+      if (!seenIds.has(d.id)) {
+        seenIds.add(d.id);
+        list.push({ id: d.id, ...d.data() });
+      } else {
+        const idx = list.findIndex((x) => x.id === d.id);
+        if (idx >= 0) list[idx] = { ...list[idx], ...d.data() };
+      }
+    });
+  } catch (e2) {
+    console.warn("Sub-collection trainers fetch error:", e2);
+  }
+
+  return list;
 }
 
 export async function getTrainer(gymId, trainerId) {
-  const ref = doc(db, "gyms", gymId, "trainers", trainerId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() };
+  if (!trainerId) return null;
+  // 1. Check top-level
+  try {
+    const snap1 = await getDoc(doc(db, "trainers", trainerId));
+    if (snap1.exists()) return { id: snap1.id, ...snap1.data() };
+  } catch (e) {}
+
+  // 2. Check sub-collection
+  try {
+    const snap2 = await getDoc(doc(db, "gyms", gymId || "univo_main", "trainers", trainerId));
+    if (snap2.exists()) return { id: snap2.id, ...snap2.data() };
+  } catch (e2) {}
+
+  return null;
 }
 
 export async function addTrainer(gymId, data) {
-  const ref = collection(db, "gyms", gymId, "trainers");
-  const docRef = await addDoc(ref, {
+  const GID = gymId || "univo_main";
+  const payload = {
     ...data,
     memberCount: 0,
-    rating: 0,
+    rating: 5,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
-  return docRef.id;
+  };
+
+  // Add to top-level trainers
+  let docId = "";
+  try {
+    const ref1 = collection(db, "trainers");
+    const res1 = await addDoc(ref1, payload);
+    docId = res1.id;
+  } catch (e) {}
+
+  // Also sync to sub-collection
+  try {
+    if (docId) {
+      await updateDoc(doc(db, "gyms", GID, "trainers", docId), payload).catch(() => {});
+    } else {
+      const ref2 = collection(db, "gyms", GID, "trainers");
+      const res2 = await addDoc(ref2, payload);
+      docId = res2.id;
+    }
+  } catch (e2) {}
+
+  return docId;
 }
 
 export async function updateTrainer(gymId, trainerId, data) {
-  const ref = doc(db, "gyms", gymId, "trainers", trainerId);
-  await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
+  const GID = gymId || "univo_main";
+  const payload = { ...data, updatedAt: serverTimestamp() };
+
+  // Update top-level trainers
+  try {
+    await updateDoc(doc(db, "trainers", trainerId), payload);
+  } catch (e) {
+    try {
+      const { setDoc } = await import("firebase/firestore");
+      await setDoc(doc(db, "trainers", trainerId), payload, { merge: true });
+    } catch (e2) {}
+  }
+
+  // Update sub-collection
+  try {
+    await updateDoc(doc(db, "gyms", GID, "trainers", trainerId), payload);
+  } catch (e3) {
+    try {
+      const { setDoc } = await import("firebase/firestore");
+      await setDoc(doc(db, "gyms", GID, "trainers", trainerId), payload, { merge: true });
+    } catch (e4) {}
+  }
 }
 
 export async function deleteTrainer(gymId, trainerId) {
-  const ref = doc(db, "gyms", gymId, "trainers", trainerId);
-  await deleteDoc(ref);
+  const GID = gymId || "univo_main";
+  try {
+    await deleteDoc(doc(db, "trainers", trainerId));
+  } catch (e) {}
+  try {
+    await deleteDoc(doc(db, "gyms", GID, "trainers", trainerId));
+  } catch (e2) {}
 }
 
 export async function getTrainerMembers(gymId, trainerId, trainerName = "") {
   try {
     let allMembers = [];
+    const seenIds = new Set();
+
+    // 1. Fetch from top-level members
     try {
       const snap1 = await getDocs(collection(db, "members"));
-      allMembers = snap1.docs.map((d) => ({ ...d.data(), id: d.id }));
-    } catch (e) {
-      // fallback
-    }
+      snap1.docs.forEach((d) => {
+        seenIds.add(d.id);
+        allMembers.push({ id: d.id, ...d.data() });
+      });
+    } catch (e) {}
 
-    if (allMembers.length === 0) {
-      try {
-        const colRef = collection(db, "gyms", gymId || "univo_main", "members");
-        const snap2 = await getDocs(colRef);
-        allMembers = snap2.docs.map((d) => ({ ...d.data(), id: d.id }));
-      } catch (e2) {
-        // fallback
-      }
-    }
+    // 2. Fetch from gyms/{gymId}/members
+    try {
+      const snap2 = await getDocs(collection(db, "gyms", gymId || "univo_main", "members"));
+      snap2.docs.forEach((d) => {
+        if (!seenIds.has(d.id)) {
+          seenIds.add(d.id);
+          allMembers.push({ id: d.id, ...d.data() });
+        } else {
+          const idx = allMembers.findIndex((x) => x.id === d.id);
+          if (idx >= 0) allMembers[idx] = { ...allMembers[idx], ...d.data() };
+        }
+      });
+    } catch (e2) {}
 
-    // Merge with local cache
+    // 3. Merge with local cache if any
     try {
       const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-      const ids = new Set(allMembers.map(m => m.id));
       for (const c of cached) {
-        if (!ids.has(c.id)) allMembers.push(c);
+        if (!seenIds.has(c.id)) {
+          seenIds.add(c.id);
+          allMembers.push(c);
+        }
       }
     } catch (cErr) {}
 
+    const targetTId = (trainerId || "").trim();
+    const targetName = (trainerName || "").trim().toLowerCase();
+
     return allMembers.filter((m) => {
-      if (trainerId && (m.trainerId === trainerId || m.coachId === trainerId)) return true;
-      if (trainerName && m.trainerName && (m.trainerName.toLowerCase() === trainerName.toLowerCase() || m.trainerName.toLowerCase().includes(trainerName.toLowerCase()))) return true;
+      const mTrainerId = (m.trainerId || m.coachId || "").trim();
+      const mTrainerName = (
+        m.personalTrainer ||
+        m.trainerName ||
+        m.trainer ||
+        m.assignedTrainer ||
+        ""
+      ).trim().toLowerCase();
+
+      // Check ID match
+      if (targetTId && mTrainerId && mTrainerId === targetTId) return true;
+
+      // Check Name match
+      if (targetName && mTrainerName) {
+        if (
+          mTrainerName === targetName ||
+          mTrainerName.includes(targetName) ||
+          targetName.includes(mTrainerName)
+        ) {
+          return true;
+        }
+      }
+
+      // If member has personal trainer assigned and targetName is present
+      if (m.ptPlanName || m.ptPlanPrice) {
+        if (targetName && mTrainerName && (mTrainerName.includes(targetName) || targetName.includes(mTrainerName))) {
+          return true;
+        }
+      }
+
       return false;
     });
   } catch (err) {

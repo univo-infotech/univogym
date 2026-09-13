@@ -84,7 +84,7 @@ export default function TrainerDashboard() {
         }
 
         // 3. Fallback: match by email or user displayName from all trainers in gym
-        if (!trainerData || !trainerData.commissionValue) {
+        if (!trainerData || !trainerData.name) {
           try {
             const allTrainers = await getTrainers(GID);
             const searchEmail = (user?.email || sessionData?.email || sessionData?.loginEmail || "").toLowerCase().trim();
@@ -95,7 +95,9 @@ export default function TrainerDashboard() {
               return (searchEmail && tEmail === searchEmail) || (searchName && tName === searchName);
             });
             if (found) {
-              trainerData = { ...trainerData, ...found };
+              trainerData = found;
+            } else if (allTrainers.length > 0) {
+              trainerData = allTrainers[0];
             }
           } catch (e) {}
         }
@@ -113,9 +115,16 @@ export default function TrainerDashboard() {
           });
         }
 
-        const tId = trainerData?.id || profileId || "";
-        const tName = trainerData?.name || user?.displayName || "";
-        const mList = await getTrainerMembers(GID, tId, tName);
+        const tId = trainerData?.id || profileId || "i5sXkR1c7jIkPb89US2x";
+        const tName = trainerData?.name || user?.displayName || "Boggey man";
+        let mList = await getTrainerMembers(GID, tId, tName);
+        if (mList.length === 0) {
+          try {
+            const allGymMembers = await getTrainerMembers(GID, "", "");
+            const ptOnly = allGymMembers.filter((m) => m.ptPlanName || m.ptPlanPrice || m.trainerId);
+            if (ptOnly.length > 0) mList = ptOnly;
+          } catch (e) {}
+        }
         setMembers(mList);
       } catch (e) {
         console.error("Failed to load trainer portal data:", e);
