@@ -575,6 +575,10 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
   const hasExistingDue = Number(member.dueAmount || 0) > 0 && !!member.lastPaymentDate;
   const existingDueAmount = Number(member.dueAmount || 0);
 
+  // Check if member is renewing an ending soon, expired, or overdue plan
+  const memberStatus = getMemberStatus(member);
+  const isRenewing = ['ending_soon', 'expired', 'overdue'].includes(memberStatus) || (member.lastPaymentDate && hasExistingDue === false);
+
   // Match initial plan from member or default to first
   const initialPlan = PLANS_CATALOG.find((p) =>
     (member.planName || "").toLowerCase().includes(p.name.toLowerCase())
@@ -582,9 +586,26 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
 
   const [selectedPlanId, setSelectedPlanId] = useState(initialPlan.id);
   const [discountAmount, setDiscountAmount] = useState(0);
-  const [validityStart, setValidityStart] = useState(new Date().toISOString().split("T")[0]);
+
+  // Smart validity start: if member's current plan is ending soon in the future, start the new plan from their current expiry date!
+  // If already expired or no expiry, start from today.
+  const getSmartValidityStart = () => {
+    if (member.expiryDate) {
+      const expDate = toDate(member.expiryDate);
+      const now = new Date();
+      if (expDate && expDate > now) {
+        // Future expiry (Ending Soon) -> Start next day after current expiry
+        const nextDay = new Date(expDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        return nextDay.toISOString().split("T")[0];
+      }
+    }
+    return new Date().toISOString().split("T")[0];
+  };
+
+  const [validityStart, setValidityStart] = useState(getSmartValidityStart());
   const [validityEnd, setValidityEnd] = useState("");
-  const [paymentType, setPaymentType] = useState(hasExistingDue ? "full" : "full"); // "full" or "partial"
+  const [paymentType, setPaymentType] = useState("full"); // "full" or "partial"
   const [payingNow, setPayingNow] = useState(hasExistingDue ? existingDueAmount : initialPlan.price);
   const [paymentMode, setPaymentMode] = useState("cash"); // "cash", "online", "bank", "split"
   const [cashAmount, setCashAmount] = useState("");
@@ -717,10 +738,40 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [] }) {
     <Modal
       isOpen={true}
       onClose={onClose}
-      title={hasExistingDue ? `Collect Remaining Due — ${member.name || member.fullName}` : "Collect Fee & Membership Billing"}
+      title={
+        hasExistingDue
+          ? `Collect Remaining Due — ${member.name || member.fullName}`
+          : isRenewing
+          ? `⚡ Renew Membership & Plan — ${member.name || member.fullName}`
+          : "Collect Fee & Membership Billing"
+      }
       maxWidth="max-w-2xl"
     >
       <div className="space-y-4 text-slate-800 text-xs">
+        {/* Renewal Banner if Member's plan is ending soon or expired */}
+        {isRenewing && !hasExistingDue && (
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent border border-emerald-300 flex items-center justify-between shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                ⚡
+              </div>
+              <div>
+                <p className="font-bold text-xs text-emerald-950">Membership Renewal (मेंबरशिप रिन्यू)</p>
+                <p className="text-[11px] text-emerald-800 font-medium">
+                  {memberStatus === 'ending_soon'
+                    ? `Current plan ending soon on ${formatDate(member.expiryDate)}. New plan validity will start immediately from ${formatDate(validityStart)}.`
+                    : `Plan has ended on ${formatDate(member.expiryDate)}. Renewing will reactivate member with a fresh validity cycle.`}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-extrabold text-xs shadow-xs tracking-wide">
+                Renew Cycle
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Due Balance Alert Banner if Member has pending dues */}
         {hasExistingDue && (
           <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-300 flex items-center justify-between shadow-xs">
@@ -2026,26 +2077,30 @@ export default function Members() {
                             <span>Extend</span>
                           </button>
 
-                          {/* 3. Collect / Due / Paid Dynamic Status Button */}
+                          {/* 3. Collect / Due / Renew / Paid Dynamic Status Button */}
                           {(() => {
                             const due = Number(m.dueAmount ?? (m.lastPaymentDate ? 0 : (m.planPrice || 0)));
                             const hasPaidAtLeastOnce = !!m.lastPaymentDate;
                             const isFullyPaid = hasPaidAtLeastOnce && due <= 0;
                             const isPartialDue = hasPaidAtLeastOnce && due > 0;
+                            const memberStat = getMemberStatus(m);
+                            const needsRenewal = ['ending_soon', 'expired', 'overdue'].includes(memberStat);
 
-                            if (isFullyPaid) {
+                            // Case 1: Needs Renewal (Ending Soon, Expired, or Overdue) -> Show "⚡ Renew"
+                            if (needsRenewal) {
                               return (
                                 <button
-                                  disabled
-                                  className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-300 cursor-default opacity-90'
-                                  title='Membership Fee Fully Paid'
+                                  onClick={() => setPlanMember(m)}
+                                  className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs transition shadow-sm animate-pulse'
+                                  title={`Membership ${memberStat === 'ending_soon' ? 'Ending Soon' : 'Expired/Overdue'} - Click to Renew Plan`}
                                 >
-                                  <CheckCircle className='w-3.5 h-3.5 text-emerald-600' />
-                                  <span>Paid</span>
+                                  <RotateCcw className='w-3.5 h-3.5 text-white' />
+                                  <span>Renew</span>
                                 </button>
                               );
                             }
 
+                            // Case 2: Has Partial Due balance
                             if (isPartialDue) {
                               return (
                                 <button
@@ -2059,7 +2114,21 @@ export default function Members() {
                               );
                             }
 
-                            // Unpaid or New Member
+                            // Case 3: Fully Paid active member
+                            if (isFullyPaid) {
+                              return (
+                                <button
+                                  disabled
+                                  className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-300 cursor-default opacity-90'
+                                  title='Membership Fee Fully Paid'
+                                >
+                                  <CheckCircle className='w-3.5 h-3.5 text-emerald-600' />
+                                  <span>Paid</span>
+                                </button>
+                              );
+                            }
+
+                            // Case 4: Unpaid or New Member
                             return (
                               <button
                                 onClick={() => setPlanMember(m)}
@@ -2162,25 +2231,29 @@ export default function Members() {
                     Extend
                   </button>
 
-                  {/* Dynamic Collect / Due / Paid Button */}
+                  {/* Dynamic Collect / Due / Renew / Paid Button */}
                   {(() => {
                     const due = Number(m.dueAmount ?? (m.lastPaymentDate ? 0 : (m.planPrice || 0)));
                     const hasPaidAtLeastOnce = !!m.lastPaymentDate;
                     const isFullyPaid = hasPaidAtLeastOnce && due <= 0;
                     const isPartialDue = hasPaidAtLeastOnce && due > 0;
+                    const memberStat = getMemberStatus(m);
+                    const needsRenewal = ['ending_soon', 'expired', 'overdue'].includes(memberStat);
 
-                    if (isFullyPaid) {
+                    // Case 1: Needs Renewal
+                    if (needsRenewal) {
                       return (
                         <button
-                          disabled
-                          className='px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 text-xs font-bold cursor-default opacity-90'
-                          title='Membership Fee Fully Paid'
+                          onClick={() => setPlanMember(m)}
+                          className='px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white border border-emerald-500 text-xs font-black hover:from-emerald-700 hover:to-teal-700 transition shadow-xs animate-pulse'
+                          title={`Membership ${memberStat === 'ending_soon' ? 'Ending Soon' : 'Expired/Overdue'} - Click to Renew`}
                         >
-                          ✓ Paid
+                          ⚡ Renew
                         </button>
                       );
                     }
 
+                    // Case 2: Partial Due
                     if (isPartialDue) {
                       return (
                         <button
@@ -2193,6 +2266,20 @@ export default function Members() {
                       );
                     }
 
+                    // Case 3: Fully Paid
+                    if (isFullyPaid) {
+                      return (
+                        <button
+                          disabled
+                          className='px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-300 text-xs font-bold cursor-default opacity-90'
+                          title='Membership Fee Fully Paid'
+                        >
+                          ✓ Paid
+                        </button>
+                      );
+                    }
+
+                    // Case 4: Unpaid
                     return (
                       <button
                         onClick={() => setPlanMember(m)}
