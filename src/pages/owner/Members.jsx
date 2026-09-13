@@ -147,12 +147,14 @@ const STATUS_CONFIG = {
   inactive: { label: 'Inactive', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
 };
 
-function StatusBadge({ status, dueAmount }) {
-  if (Number(dueAmount) > 0 && status !== 'left') {
+function StatusBadge({ status, dueAmount, member }) {
+  // Only show "Due" badge if member has actually made a partial payment during collection
+  const hasPartialDue = Number(member?.dueAmount ?? dueAmount) > 0 && !!member?.lastPaymentDate && status !== 'left';
+  if (hasPartialDue) {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300">
         <span className="w-2 h-2 rounded-full bg-amber-500" />
-        Due: ₹{dueAmount}
+        Due: ₹{member?.dueAmount ?? dueAmount}
       </span>
     );
   }
@@ -602,14 +604,14 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
     return DEFAULT_PLANS_CATALOG;
   }, [plans]);
 
-  // Check if member already has remaining dues (from initial registration or previous partial payment)
-  const hasExistingDue = Number(member.dueAmount || 0) > 0;
+  // Only true if member previously paid partially during collection
+  const hasPartialPaymentDue = Number(member.dueAmount || 0) > 0 && !!member.lastPaymentDate;
   const existingDueAmount = Number(member.dueAmount || 0);
   const ptAddonPrice = Number(member.ptPlanPrice || 0);
 
   // Check if member is renewing an ending soon, expired, or overdue plan
   const memberStatus = getMemberStatus(member);
-  const isRenewing = ['ending_soon', 'expired', 'overdue'].includes(memberStatus) || (member.lastPaymentDate && !hasExistingDue);
+  const isRenewing = ['ending_soon', 'expired', 'overdue'].includes(memberStatus) || (member.lastPaymentDate && !hasPartialPaymentDue);
 
   // Match initial plan from member or default to first
   const initialPlan = PLANS_CATALOG.find((p) =>
@@ -645,12 +647,12 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
   const [loading, setLoading] = useState(false);
 
   const currentPlan = PLANS_CATALOG.find((p) => p.id === selectedPlanId) || PLANS_CATALOG[0];
-  const targetPayableTotal = hasExistingDue
+  const targetPayableTotal = hasPartialPaymentDue
     ? existingDueAmount
     : Math.max(0, currentPlan.price + ptAddonPrice - Number(discountAmount || 0));
   const calculatedTotal = targetPayableTotal;
 
-  const [payingNow, setPayingNow] = useState(hasExistingDue ? existingDueAmount : (initialPlan.price + ptAddonPrice));
+  const [payingNow, setPayingNow] = useState(hasPartialPaymentDue ? existingDueAmount : (initialPlan.price + ptAddonPrice));
 
   // Auto calculate validity end date
   useEffect(() => {
@@ -690,7 +692,7 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
 
     // Target expiry ISO for member doc (keep existing expiry if collecting remaining balance)
     let newExpiryIso;
-    if (hasExistingDue && member.expiryDate) {
+    if (hasPartialPaymentDue && member.expiryDate) {
       newExpiryIso = member.expiryDate;
     } else if (validityEnd && validityEnd.includes("/")) {
       const [d, m, y] = validityEnd.split("/");
@@ -706,9 +708,11 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
       phone,
       slot: memberSlot,
       batch: member.batch || "Alpha Gym",
-      planName: hasExistingDue ? `${member.planName || currentPlan.name} (Due Balance Settlement)` : currentPlan.name,
+      planName: hasPartialPaymentDue 
+        ? `${member.planName || currentPlan.name}${member.ptPlanName ? ` + PT (${member.ptPlanName})` : ''} (Due Balance Settlement)` 
+        : `${currentPlan.name}${member.ptPlanName ? ` + PT (${member.ptPlanName})` : ''}`,
       validityStart: toIndianDate(validityStart),
-      validityEnd: hasExistingDue && member.expiryDate ? toIndianDate(member.expiryDate) : validityEnd,
+      validityEnd: hasPartialPaymentDue && member.expiryDate ? toIndianDate(member.expiryDate) : validityEnd,
       dueDate: validityEnd,
       planPrice: currentPlan.price,
       discount: Number(discountAmount || 0),
@@ -717,7 +721,7 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
       dueAmount: remainingDue,
       paymentMode,
       paymentType,
-      remarks: remarks || (paymentMode === "split" ? `Cash: ₹${cashAmount}, Online: ₹${onlineAmount}` : (hasExistingDue ? "Balance Due Payment" : "")),
+      remarks: remarks || (paymentMode === "split" ? `Cash: ₹${cashAmount}, Online: ₹${onlineAmount}` : (hasPartialPaymentDue ? "Balance Due Payment" : "")),
       date: toIndianDate(new Date()),
       status: remainingDue > 0 ? "partial" : "paid",
     };
@@ -725,7 +729,7 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
     try {
       // 1. Update Member in Firestore & UI
       const updatedFields = {
-        ...(hasExistingDue ? {} : { planName: currentPlan.name, planPrice: calculatedTotal }),
+        ...(hasPartialPaymentDue ? {} : { planName: currentPlan.name, planPrice: calculatedTotal }),
         expiryDate: newExpiryIso,
         status: "active",
         active: true,
@@ -774,17 +778,17 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
       isOpen={true}
       onClose={onClose}
       title={
-        hasExistingDue
+        hasPartialPaymentDue
           ? `Collect Remaining Due — ${member.name || member.fullName}`
           : isRenewing
           ? `⚡ Renew Membership & Plan — ${member.name || member.fullName}`
-          : "Collect Fee & Membership Billing"
+          : `Collect Admission & Plan Fee — ${member.name || member.fullName}`
       }
       maxWidth="max-w-2xl"
     >
       <div className="space-y-4 text-slate-800 text-xs">
         {/* Renewal Banner if Member's plan is ending soon or expired */}
-        {isRenewing && !hasExistingDue && (
+        {isRenewing && !hasPartialPaymentDue && (
           <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent border border-emerald-300 flex items-center justify-between shadow-xs">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shadow-xs">
@@ -807,8 +811,8 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
           </div>
         )}
 
-        {/* Due Balance Alert Banner if Member has pending dues */}
-        {hasExistingDue && (
+        {/* Due Balance Alert Banner if Member has pending dues from previous collection */}
+        {hasPartialPaymentDue && (
           <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-300 flex items-center justify-between shadow-xs">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
@@ -873,7 +877,7 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
         </div>
 
         {/* Select Membership Plan and Discount */}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3.5 ${hasExistingDue ? 'opacity-60 pointer-events-none' : ''}`}>
+        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3.5 ${hasPartialPaymentDue ? 'opacity-60 pointer-events-none' : ''}`}>
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
               <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
@@ -2616,7 +2620,7 @@ export default function Members() {
     const diff = expiry ? Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24)) : 0;
     const daysOverdue = Math.abs(diff);
 
-    if (Number(m.dueAmount || 0) > 0) {
+    if (Number(m.dueAmount || 0) > 0 && !!m.lastPaymentDate) {
       message = generatePartialDueReminderMessage(
         m.name || m.fullName,
         m.dueAmount,
@@ -2643,9 +2647,9 @@ export default function Members() {
     toast.success(`WhatsApp reminder opened for ${m.name || m.fullName}`);
   };
 
-  // Status counts
+  // Status counts - "Partial Due" is ONLY for members who paid partially during fee collection
   const isPaid = (m) => Number(m.dueAmount || 0) <= 0 && !!m.lastPaymentDate;
-  const isPartial = (m) => Number(m.dueAmount || 0) > 0;
+  const isPartial = (m) => Number(m.dueAmount || 0) > 0 && !!m.lastPaymentDate;
   const paidCount = members.filter((m) => isPaid(m) && m.status !== 'left').length;
   const partialCount = members.filter((m) => isPartial(m) && m.status !== 'left').length;
   const activeCount = members.filter((m) => getMemberStatus(m) === 'active').length;
@@ -2920,7 +2924,7 @@ export default function Members() {
 
                       {/* Column 4: Current Status Pill */}
                       <td className='px-5 py-3.5'>
-                        <StatusBadge status={status} dueAmount={m.dueAmount} />
+                        <StatusBadge status={status} dueAmount={m.dueAmount} member={m} />
                       </td>
 
                       {/* Column 5: Action Pill Buttons: View, Extend, Plan, Edit, Left, Delete */}
@@ -3071,7 +3075,7 @@ export default function Members() {
                 <div>
                   <div className='flex items-center justify-between'>
                     <Avatar member={m} size='md' />
-                    <StatusBadge status={status} dueAmount={m.dueAmount} />
+                    <StatusBadge status={status} dueAmount={m.dueAmount} member={m} />
                   </div>
                   <div className='mt-3'>
                     <h4 className='font-bold text-slate-900 text-sm leading-tight'>{m.name || m.fullName}</h4>
