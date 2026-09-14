@@ -232,17 +232,28 @@ export async function generateInviteToken(gymId, opts = {}) {
   // 10 minutes TTL (600,000 ms)
   const expiresAt = Timestamp.fromMillis(Date.now() + 10 * 60 * 1000);
   
+  const tokenDocData = {
+    gymId: effectiveGymId,
+    memberName: options.memberName || "",
+    phone: options.phone || "",
+    planId: options.planId || "",
+    planName: options.planName || "",
+    isPT: Boolean(options.isPT),
+    trainerId: options.trainerId || "",
+    trainerName: options.trainerName || "",
+    loginEmail: options.loginEmail || options.phone || "",
+    loginPassword: options.loginPassword || (options.isPT ? "Member@123" : ""),
+    ptPlanName: options.ptPlanName || "",
+    ptPlanPrice: options.ptPlanPrice || 0,
+    used: false,
+  };
+
   let token = "";
   try {
     const ref = await addDoc(collection(db, "inviteTokens"), {
-      gymId: effectiveGymId,
-      memberName: options.memberName || "",
-      phone: options.phone || "",
-      planId: options.planId || "",
-      planName: options.planName || "",
+      ...tokenDocData,
       createdAt: serverTimestamp(),
       expiresAt,
-      used: false,
     });
     token = ref.id;
   } catch (err) {
@@ -254,13 +265,9 @@ export async function generateInviteToken(gymId, opts = {}) {
   try {
     const localTokens = JSON.parse(localStorage.getItem("univo_invite_tokens") || "{}");
     localTokens[token] = {
-      gymId: effectiveGymId,
-      memberName: options.memberName || "",
-      phone: options.phone || "",
-      planId: options.planId || "",
-      planName: options.planName || "",
+      ...tokenDocData,
+      createdAt: new Date().toISOString(),
       expiresAt: Date.now() + 10 * 60 * 1000,
-      used: false,
     };
     localStorage.setItem("univo_invite_tokens", JSON.stringify(localTokens));
   } catch (e) {

@@ -253,6 +253,10 @@ export default function MemberSelfRegister() {
   const [plansLoading, setPlansLoading] = useState(false);
   const [fullPhotoModal, setFullPhotoModal] = useState(null);
 
+  // PT Login Credentials
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('Member@123');
+
   // Dynamic fee calculation (Base Plan + Trainer PT Add-on)
   const basePlanPrice = Number(selectedPlan?.price || 0);
   const ptAddonPrice = Number(selectedPtPlan?.price || 0);
@@ -364,6 +368,14 @@ export default function MemberSelfRegister() {
       setVal2('fullName', tokenData.memberName);
       setTypedName(tokenData.memberName);
     }
+    if (tokenData?.loginEmail) {
+      setLoginEmail(tokenData.loginEmail);
+    } else if (tokenData?.phone) {
+      setLoginEmail(tokenData.phone);
+    }
+    if (tokenData?.loginPassword) {
+      setLoginPassword(tokenData.loginPassword);
+    }
   }, [tokenData, setVal2]);
 
   useEffect(() => {
@@ -385,6 +397,19 @@ export default function MemberSelfRegister() {
           else setSelectedPlan(finalPlans[1] || finalPlans[0]);
         } else if (!selectedPlan && finalPlans.length > 0) {
           setSelectedPlan(finalPlans[1] || finalPlans[0]);
+        }
+
+        if (tokenData?.isPT && tokenData?.trainerId) {
+          const matchedTrainer = finalTrainers.find((t) => t.id === tokenData.trainerId);
+          if (matchedTrainer) {
+            setSelectedTrainer(matchedTrainer);
+            if (matchedTrainer.ptPlans && matchedTrainer.ptPlans.length > 0) {
+              const matchedPtPlan = tokenData.ptPlanName
+                ? matchedTrainer.ptPlans.find((p) => p.name === tokenData.ptPlanName) || matchedTrainer.ptPlans[0]
+                : matchedTrainer.ptPlans[0];
+              setSelectedPtPlan(matchedPtPlan);
+            }
+          }
         }
       } catch (err) {
         setPlans(DEFAULT_PLANS);
@@ -543,6 +568,10 @@ export default function MemberSelfRegister() {
         trainerId: selectedTrainer?.id || null,
         trainerName: selectedTrainer?.name || 'Unassigned (General Floor)',
         hasPersonalCoach: Boolean(selectedTrainer),
+        isPTMember: Boolean(selectedTrainer),
+        loginEmail: selectedTrainer ? (loginEmail || tokenData?.loginEmail || personalData.phone || tokenData?.phone || '').trim() : '',
+        loginPassword: selectedTrainer ? (loginPassword || tokenData?.loginPassword || 'Member@123').trim() : '',
+        password: selectedTrainer ? (loginPassword || tokenData?.loginPassword || 'Member@123').trim() : '',
         weight: weight || '',
         height: heightFeet ? `${heightFeet} ft ${heightInches || 0} in` : '',
         heightFeet: heightFeet || '',
@@ -704,6 +733,32 @@ export default function MemberSelfRegister() {
               </div>
             ))}
           </Card>
+
+          {selectedTrainer && (
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-900 to-slate-900 text-white border border-emerald-500/30 text-left space-y-2.5 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                  🔑 Your PT App Login Credentials
+                </span>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/40">
+                  Coach: {selectedTrainer.name}
+                </span>
+              </div>
+              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Login ID / Phone:</span>
+                  <span className="font-mono font-bold text-white">{loginEmail || tokenData?.phone || personalData.phone}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Password:</span>
+                  <span className="font-mono font-bold text-emerald-300">{loginPassword}</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-300">
+                You can directly sign into the Athlete Portal with these credentials to view workout plans and chat with your trainer.
+              </p>
+            </div>
+          )}
 
           <button
             onClick={() => navigate('/login')}
@@ -1471,6 +1526,51 @@ export default function MemberSelfRegister() {
                         onChange={(e) => setHealthNotes(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400 rounded-xl px-3.5 py-2 text-xs outline-none transition focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 resize-none"
                       />
+                    </div>
+
+                    {/* PT Athlete App & Portal Login Credentials */}
+                    <div className="pt-3 border-t border-emerald-200/70">
+                      <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100/50 border border-emerald-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
+                            🔑
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-emerald-950">PT Athlete App & Portal Login Credentials</h4>
+                            <p className="text-[10px] text-emerald-700 font-medium">Use these credentials to log in, interact with {selectedTrainer.name}, and view workout & diet routines.</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              Login ID / Mobile Number <span className="text-rose-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={loginEmail || tokenData?.phone || personalData.phone || ''}
+                              onChange={(e) => setLoginEmail(e.target.value)}
+                              placeholder="e.g. 9876543210 or email"
+                              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                            />
+                            <p className="text-[9px] text-slate-500 mt-0.5">Your mobile or ID to log into the Member Portal</p>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              Set Password <span className="text-rose-500">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={loginPassword}
+                              onChange={(e) => setLoginPassword(e.target.value)}
+                              placeholder="e.g. Member@123"
+                              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono"
+                            />
+                            <p className="text-[9px] text-slate-500 mt-0.5">Remember this password for member login</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
