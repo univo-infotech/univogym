@@ -16,7 +16,8 @@ import {
   Bell,
   Check,
   QrCode,
-  Copy
+  Copy,
+  Sparkles
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
