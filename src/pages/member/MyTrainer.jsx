@@ -15,7 +15,11 @@ import {
   Briefcase,
   Video,
   FileText,
-  X
+  X,
+  Flame,
+  Target,
+  Droplets,
+  Zap
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getTrainer, getTrainers } from "../../firebase/trainers";
@@ -41,21 +45,31 @@ export default function MyTrainer() {
       try {
         let m = null;
 
-        // 1. Check profileId
-        if (profileId) {
+        // 1. Check profileId or user.uid
+        const targetId = profileId || user?.uid;
+        if (targetId) {
           try {
-            m = await getMember(GID, profileId);
+            m = await getMember(GID, targetId);
           } catch (e) {}
         }
 
         // 2. Check saved session
-        if (!m) {
-          const savedSession = localStorage.getItem("univo_member_session");
-          if (savedSession) {
-            try {
-              m = JSON.parse(savedSession);
-            } catch (e) {}
-          }
+        const savedSession = localStorage.getItem("univo_member_session");
+        let savedObj = null;
+        if (savedSession) {
+          try {
+            savedObj = JSON.parse(savedSession);
+          } catch (e) {}
+        }
+
+        if (!m && savedObj?.id) {
+          try {
+            m = await getMember(GID, savedObj.id);
+          } catch (e) {}
+        }
+
+        if (!m && savedObj) {
+          m = savedObj;
         }
 
         // 3. Fallback: get first member in gym
@@ -64,7 +78,13 @@ export default function MyTrainer() {
           if (membersList.length > 0) m = membersList[0];
         }
 
-        setMemberData(m);
+        if (m) {
+          setMemberData(m);
+          try {
+            const currentSess = savedObj || {};
+            localStorage.setItem("univo_member_session", JSON.stringify({ ...currentSess, ...m }));
+          } catch (e) {}
+        }
 
         // Fetch Trainer
         const tId = m?.trainerId || m?.coachId || "";
@@ -276,38 +296,108 @@ export default function MyTrainer() {
       </div>
 
       {/* Section 2: Assigned Meal / Diet Plan */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
-          <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            <Apple className="w-4 h-4" />
+      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-5">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <Apple className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Customized Nutrition & Diet Plan</h3>
+              <p className="text-xs text-slate-500">
+                Prepared by Coach {coachName} • {memberData?.dietPlan?.presetName || "Personalized Transformation Diet"}
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">Customized Nutrition & Diet Plan</h3>
-            <p className="text-[11px] text-slate-500">Prepared by Coach {coachName} for your fitness target</p>
-          </div>
+          {memberData?.dietPlan && (
+            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Active Plan
+            </span>
+          )}
         </div>
 
         {memberData?.dietPlan ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-            {Object.entries(memberData.dietPlan).map(([mealKey, mealText], idx) => {
-              if (!mealText) return null;
-              const titles = {
-                breakfast: "Breakfast (8:00 AM)",
-                lunch: "Lunch (1:30 PM)",
-                preWorkout: "Pre-Workout Boost (5:00 PM)",
-                dinner: "Post-Workout / Dinner (8:30 PM)",
-                supplements: "Recommended Supplements",
-                generalNotes: "Hydration & Sleep Guidelines"
-              };
-              return (
-                <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1">
-                  <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
-                    {titles[mealKey] || mealKey}
-                  </span>
-                  <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">{mealText}</p>
-                </div>
-              );
-            })}
+          <div className="space-y-5">
+            {/* Daily Macro Targets Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <div className="p-3 rounded-2xl bg-orange-50 border border-orange-200/80 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-orange-700 flex items-center justify-center gap-1">
+                  <Flame className="w-3.5 h-3.5" /> Calories
+                </span>
+                <p className="text-lg font-black text-orange-900 mt-0.5">
+                  {memberData.dietPlan.calories || "--"} <span className="text-[11px] font-normal">kcal</span>
+                </p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200/80 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 flex items-center justify-center gap-1">
+                  <Target className="w-3.5 h-3.5" /> Protein
+                </span>
+                <p className="text-lg font-black text-blue-900 mt-0.5">
+                  {memberData.dietPlan.protein || "--"} <span className="text-[11px] font-normal">g</span>
+                </p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200/80 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 flex items-center justify-center gap-1">
+                  <Zap className="w-3.5 h-3.5" /> Carbs
+                </span>
+                <p className="text-lg font-black text-amber-900 mt-0.5">
+                  {memberData.dietPlan.carbs || "--"} <span className="text-[11px] font-normal">g</span>
+                </p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-purple-50 border border-purple-200/80 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 flex items-center justify-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5" /> Fats
+                </span>
+                <p className="text-lg font-black text-purple-900 mt-0.5">
+                  {memberData.dietPlan.fats || "--"} <span className="text-[11px] font-normal">g</span>
+                </p>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-cyan-50 border border-cyan-200/80 text-center col-span-2 sm:col-span-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-700 flex items-center justify-center gap-1">
+                  <Droplets className="w-3.5 h-3.5" /> Hydration
+                </span>
+                <p className="text-lg font-black text-cyan-900 mt-0.5">
+                  {memberData.dietPlan.water || "3.5"} <span className="text-[11px] font-normal">L/day</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Structured 7 Daily Meals */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {[
+                { label: "🍳 Breakfast (8:00 AM)", val: memberData.dietPlan.breakfast },
+                { label: "🍎 Mid-Morning Snack (11:00 AM)", val: memberData.dietPlan.midMorning },
+                { label: "🥗 Lunch (1:30 PM)", val: memberData.dietPlan.lunch },
+                { label: "⚡ Pre-Workout Boost (4:30 PM)", val: memberData.dietPlan.preWorkout },
+                { label: "💪 Post-Workout Recovery", val: memberData.dietPlan.postWorkout },
+                { label: "🍛 Dinner (8:30 PM)", val: memberData.dietPlan.dinner },
+                { label: "🥛 Bedtime Snack (10:30 PM)", val: memberData.dietPlan.bedtime },
+              ].map(
+                (meal, i) =>
+                  meal.val && (
+                    <div key={i} className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200/90 space-y-1">
+                      <span className="text-xs font-bold text-emerald-800 tracking-wide block">
+                        {meal.label}
+                      </span>
+                      <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line font-medium">
+                        {meal.val}
+                      </p>
+                    </div>
+                  )
+              )}
+            </div>
+
+            {/* Special Instructions / Notes */}
+            {memberData.dietPlan.instructions && (
+              <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-950 leading-relaxed space-y-1">
+                <span className="font-extrabold text-emerald-900 block">Coach's Nutrition Guidelines:</span>
+                <p className="whitespace-pre-line">{memberData.dietPlan.instructions}</p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-2">
@@ -316,6 +406,82 @@ export default function MyTrainer() {
             </p>
             <p className="text-[11px] text-slate-400">
               Message your coach on WhatsApp to request your personalized calorie and macro breakdown.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Section 2.5: Weekly Workout Routine & Day-wise Split */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-5">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <Dumbbell className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Weekly Workout Routine & Training Split</h3>
+              <p className="text-xs text-slate-500">
+                {memberData?.workoutRoutine?.splitName || "Day-by-Day Training Schedule"}
+              </p>
+            </div>
+          </div>
+          {memberData?.workoutRoutine && (
+            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+              Assigned Routine
+            </span>
+          )}
+        </div>
+
+        {memberData?.workoutRoutine ? (
+          <div className="space-y-4">
+            {/* Split Banner */}
+            {memberData.workoutRoutine.splitName && (
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-50 via-slate-50 to-white border border-indigo-200 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700 block">
+                    Routine Split Target
+                  </span>
+                  <h4 className="text-sm font-black text-slate-900">
+                    {memberData.workoutRoutine.splitName}
+                  </h4>
+                </div>
+                <span className="text-xs font-bold text-indigo-600 flex items-center gap-1 bg-white px-3 py-1 rounded-xl shadow-xs border border-indigo-100">
+                  <Calendar className="w-3.5 h-3.5" /> 7 Days Schedule
+                </span>
+              </div>
+            )}
+
+            {/* 7-Day Day-wise Cards (Monday to Sunday) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {[
+                { day: "Monday", val: memberData.workoutRoutine.monday, color: "bg-blue-600", lightBg: "bg-blue-50/50 border-blue-200" },
+                { day: "Tuesday", val: memberData.workoutRoutine.tuesday, color: "bg-emerald-600", lightBg: "bg-emerald-50/50 border-emerald-200" },
+                { day: "Wednesday", val: memberData.workoutRoutine.wednesday, color: "bg-purple-600", lightBg: "bg-purple-50/50 border-purple-200" },
+                { day: "Thursday", val: memberData.workoutRoutine.thursday, color: "bg-amber-600", lightBg: "bg-amber-50/50 border-amber-200" },
+                { day: "Friday", val: memberData.workoutRoutine.friday, color: "bg-rose-600", lightBg: "bg-rose-50/50 border-rose-200" },
+                { day: "Saturday", val: memberData.workoutRoutine.saturday, color: "bg-teal-600", lightBg: "bg-teal-50/50 border-teal-200" },
+                { day: "Sunday", val: memberData.workoutRoutine.sunday, color: "bg-slate-700", lightBg: "bg-slate-100 border-slate-300" },
+              ].map((item, i) => (
+                <div key={i} className={`p-4 rounded-2xl border ${item.lightBg} space-y-1.5`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[11px] font-black text-white px-2.5 py-0.5 rounded-lg ${item.color} tracking-wider uppercase`}>
+                      {item.day}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-line font-medium pt-1">
+                    {item.val || "Active Rest / Mobility & Recovery"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-2">
+            <p className="text-xs font-semibold text-slate-600">
+              No workout split assigned yet by Coach {coachName}.
+            </p>
+            <p className="text-[11px] text-slate-400">
+              Your coach will update your day-wise training routine shortly.
             </p>
           </div>
         )}
