@@ -21,6 +21,7 @@ import {
   Droplets,
   Zap
 } from "lucide-react";
+import { useAuth } from "../../contexts/AuthContext";
 import { getTrainer, getTrainers } from "../../firebase/trainers";
 import { getMember, getMembers, updateMember } from "../../firebase/members";
 import { getChatRoomId, subscribeRoomMeta } from "../../firebase/chat";
