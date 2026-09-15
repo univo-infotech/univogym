@@ -39,18 +39,20 @@ import { openWhatsApp, generateMemberInviteMessage, generateRenewalReminderMessa
 import { getGymSettings } from "../../utils/settings";
 import DirectAddMemberModal from "../../components/shared/DirectAddMemberModal";
 import { useAuth } from "../../contexts/AuthContext";
+import { getSessionCachedData } from "../../utils/dataCache";
 
 export default function Dashboard() {
   const { gymId: currentGymId } = useAuth();
   const gymId = currentGymId || "univo_main";
 
-  const [members, setMembers] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [stockItems, setStockItems] = useState([]);
-  const [supplementSales, setSupplementSales] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [visits, setVisits] = useState([]);
-  const [plans, setPlans] = useState([]);
+  // Pre-seed state from session cache for instant 0ms initial render
+  const [members, setMembers] = useState(() => getSessionCachedData(`members_${gymId}`) || []);
+  const [payments, setPayments] = useState(() => getSessionCachedData(`payments_${gymId}`) || []);
+  const [stockItems, setStockItems] = useState(() => getSessionCachedData(`stock_${gymId}`) || []);
+  const [supplementSales, setSupplementSales] = useState(() => getSessionCachedData(`supplements_sales_${gymId}`) || []);
+  const [expenses, setExpenses] = useState(() => getSessionCachedData(`expenses_${gymId}`) || []);
+  const [visits, setVisits] = useState(() => getSessionCachedData(`visits_${gymId}`) || []);
+  const [plans, setPlans] = useState(() => getSessionCachedData(`plans_${gymId}`) || []);
   const [settings, setSettings] = useState(getGymSettings());
 
   // Modals

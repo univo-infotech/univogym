@@ -1,5 +1,6 @@
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "./config";
+import { getCachedData, setCachedData } from "../utils/dataCache";
 
 // --- SUPPLEMENTS & MERCHANDISE (STORE) ---
 export async function getSupplements(gymId) {
@@ -47,10 +48,27 @@ export async function sellSupplement(gymId, supplementId, saleData) {
   return { success: true, newStock };
 }
 
-export async function getSupplementSales(gymId) {
-  const colRef = collection(db, `gyms/${gymId}/supplement_sales`);
-  const snap = await getDocs(colRef);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+export async function getSupplementSales(gymId, forceRefresh = false) {
+  const targetGymId = gymId || "univo_main";
+  const cacheKey = `supplements_sales_${targetGymId}`;
+
+  if (!forceRefresh) {
+    const cached = getCachedData(cacheKey);
+    if (cached && cached.isFresh) {
+      return cached.data;
+    }
+  }
+
+  try {
+    const colRef = collection(db, `gyms/${targetGymId}/supplement_sales`);
+    const snap = await getDocs(colRef);
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    setCachedData(cacheKey, list);
+    return list;
+  } catch (e) {
+    console.warn("getSupplementSales error:", e);
+    return [];
+  }
 }
 
 
@@ -126,10 +144,27 @@ export async function deleteStockItem(gymId, itemId) {
   return await deleteDoc(docRef);
 }
 
-export async function getStock(gymId) {
-  const colRef = collection(db, `gyms/${gymId}/stock`);
-  const snap = await getDocs(colRef);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+export async function getStock(gymId, forceRefresh = false) {
+  const targetGymId = gymId || "univo_main";
+  const cacheKey = `stock_${targetGymId}`;
+
+  if (!forceRefresh) {
+    const cached = getCachedData(cacheKey);
+    if (cached && cached.isFresh) {
+      return cached.data;
+    }
+  }
+
+  try {
+    const colRef = collection(db, `gyms/${targetGymId}/stock`);
+    const snap = await getDocs(colRef);
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    setCachedData(cacheKey, list);
+    return list;
+  } catch (e) {
+    console.warn("getStock error:", e);
+    return [];
+  }
 }
 
 export async function logServiceDone(gymId, itemId) {

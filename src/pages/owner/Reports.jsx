@@ -43,6 +43,7 @@ import { getExpenses } from "../../firebase/expenses";
 import { getSupplementSales } from "../../firebase/stock";
 import { getMembers } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
+import { getSessionCachedData } from "../../utils/dataCache";
 import { generateFinancialStatementPDF } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
@@ -85,13 +86,13 @@ export default function Reports() {
     endDate: todayIso
   });
 
-  // Raw Data from Collections
-  const [payments, setPayments] = useState([]);
-  const [expenses, setExpenses] = useState([]);
-  const [supplementSales, setSupplementSales] = useState([]);
-  const [members, setMembers] = useState([]);
-  const [trainers, setTrainers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Raw Data from Collections (instant pre-seed from cache)
+  const [payments, setPayments] = useState(() => getSessionCachedData(`payments_${gymId}`) || []);
+  const [expenses, setExpenses] = useState(() => getSessionCachedData(`expenses_${gymId}`) || []);
+  const [supplementSales, setSupplementSales] = useState(() => getSessionCachedData(`supplements_sales_${gymId}`) || []);
+  const [members, setMembers] = useState(() => getSessionCachedData(`members_${gymId}`) || []);
+  const [trainers, setTrainers] = useState(() => getSessionCachedData(`trainers_${gymId}`) || []);
+  const [loading, setLoading] = useState(() => !getSessionCachedData(`payments_${gymId}`));
 
   // Fallback Dummy Data if database is fresh
   const fallbackPayments = [

@@ -10,14 +10,32 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "./config";
+import { getCachedData, setCachedData, invalidateCache } from "../utils/dataCache";
 
-export async function getPlans(gymId) {
-  const q = query(
-    collection(db, "gyms", gymId, "plans"),
-    orderBy("createdAt", "desc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+export async function getPlans(gymId, forceRefresh = false) {
+  const targetGymId = gymId || "univo_main";
+  const cacheKey = `plans_${targetGymId}`;
+
+  if (!forceRefresh) {
+    const cached = getCachedData(cacheKey);
+    if (cached && cached.isFresh) {
+      return cached.data;
+    }
+  }
+
+  try {
+    const q = query(
+      collection(db, "gyms", targetGymId, "plans"),
+      orderBy("createdAt", "desc")
+    );
+    const snap = await getDocs(q);
+    const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    setCachedData(cacheKey, list);
+    return list;
+  } catch (err) {
+    console.warn("getPlans error:", err);
+    return [];
+  }
 }
 
 export async function addPlan(gymId, data) {

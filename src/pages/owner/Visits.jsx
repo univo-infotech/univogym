@@ -40,6 +40,7 @@ import { addMember, generateInviteToken } from "../../firebase/members";
 import { addPayment } from "../../firebase/payments";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
+import { getSessionCachedData } from "../../utils/dataCache";
 
 // Initial Mock Enquiries if database is pristine
 const DEFAULT_VISITS = [
@@ -126,10 +127,10 @@ export default function Visits() {
   const gymId = currentGymId || "univo_main";
   const settings = getGymSettings();
 
-  const [visits, setVisits] = useState([]);
-  const [plans, setPlans] = useState([]);
-  const [trainers, setTrainers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [visits, setVisits] = useState(() => getSessionCachedData(`visits_${gymId}`) || []);
+  const [plans, setPlans] = useState(() => getSessionCachedData(`plans_${gymId}`) || []);
+  const [trainers, setTrainers] = useState(() => getSessionCachedData(`trainers_${gymId}`) || []);
+  const [loading, setLoading] = useState(() => !getSessionCachedData(`visits_${gymId}`));
 
   // Filters
   const [search, setSearch] = useState("");

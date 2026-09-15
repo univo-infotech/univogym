@@ -1,5 +1,6 @@
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, where, writeBatch } from "firebase/firestore";
 import { db } from "./config";
+import { getCachedData, setCachedData } from "../utils/dataCache";
 
 export async function addExpense(gymId, expenseData) {
   const colRef = collection(db, `gyms/${gymId}/expenses`);
@@ -24,8 +25,17 @@ export async function deleteExpense(gymId, expenseId) {
  * If an active recurring expense exists and hasn't been generated for a month,
  * this function detects and creates those entries automatically.
  */
-export async function getExpenses(gymId) {
+export async function getExpenses(gymId, forceRefresh = false) {
   const targetGymId = gymId || "univo_main";
+  const cacheKey = `expenses_${targetGymId}`;
+
+  if (!forceRefresh) {
+    const cached = getCachedData(cacheKey);
+    if (cached && cached.isFresh) {
+      return cached.data;
+    }
+  }
+
   const colRef = collection(db, `gyms/${targetGymId}/expenses`);
   const q = query(colRef, orderBy("date", "desc"));
   const snap = await getDocs(q);
@@ -105,6 +115,7 @@ export async function getExpenses(gymId) {
     console.warn("Auto-recurring expense evaluation skipped:", err);
   }
 
+  setCachedData(cacheKey, expensesList);
   return expensesList;
 }
 

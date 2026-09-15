@@ -10,6 +10,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "./config";
+import { getCachedData, setCachedData, invalidateCache } from "../utils/dataCache";
 
 /**
  * Helper to get local payments cache
@@ -119,7 +120,17 @@ export async function addPayment(gymIdOrPayment, maybePayment) {
   }
 }
 
-export async function getAllPayments(gymId) {
+export async function getAllPayments(gymId, forceRefresh = false) {
+  const targetGymId = gymId || "univo_main";
+  const cacheKey = `payments_${targetGymId}`;
+
+  if (!forceRefresh) {
+    const cached = getCachedData(cacheKey);
+    if (cached && cached.isFresh) {
+      return cached.data;
+    }
+  }
+
   const localList = getLocalPayments();
   try {
     const q = query(
@@ -131,7 +142,9 @@ export async function getAllPayments(gymId) {
 
     const serverIds = new Set(serverList.map((p) => p.id));
     const merged = [...serverList, ...localList.filter((p) => !serverIds.has(p.id))];
-    return merged.length > 0 ? merged : localList;
+    const finalResult = merged.length > 0 ? merged : localList;
+    setCachedData(cacheKey, finalResult);
+    return finalResult;
   } catch (err) {
     console.error("getAllPayments error:", err);
     return localList;

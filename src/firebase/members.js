@@ -13,15 +13,27 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./config";
+import { getCachedData, setCachedData, invalidateCache } from "../utils/dataCache";
 
 /**
  * Fetch all members for a given gym.
  * Queries members resiliently without requiring composite indexes and merges with local recent cache.
+ * Uses smart caching so subsequent visits or page switches load in 0ms.
  * @param {string} gymId
+ * @param {boolean} forceRefresh
  * @returns {Promise<Array>}
  */
-export async function getMembers(gymId) {
+export async function getMembers(gymId, forceRefresh = false) {
   const targetGymId = gymId || "univo_main";
+  const cacheKey = `members_${targetGymId}`;
+
+  if (!forceRefresh) {
+    const cached = getCachedData(cacheKey);
+    if (cached && cached.isFresh) {
+      return cached.data;
+    }
+  }
+
   let membersList = [];
   try {
     // Resilient query: fetch by gymId without composite orderBy, sort in memory
@@ -68,6 +80,7 @@ export async function getMembers(gymId) {
     return timeB - timeA;
   });
 
+  setCachedData(cacheKey, membersList);
   return membersList;
 }
 

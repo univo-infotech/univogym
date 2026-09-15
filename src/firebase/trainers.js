@@ -12,8 +12,19 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "./config";
+import { getCachedData, setCachedData, invalidateCache } from "../utils/dataCache";
 
-export async function getTrainers(gymId) {
+export async function getTrainers(gymId, forceRefresh = false) {
+  const targetGymId = gymId || "univo_main";
+  const cacheKey = `trainers_${targetGymId}`;
+
+  if (!forceRefresh) {
+    const cached = getCachedData(cacheKey);
+    if (cached && cached.isFresh) {
+      return cached.data;
+    }
+  }
+
   const list = [];
   const seenIds = new Set();
 
@@ -30,7 +41,7 @@ export async function getTrainers(gymId) {
 
   // 2. Gym sub-collection gyms/{gymId}/trainers
   try {
-    const snap2 = await getDocs(collection(db, "gyms", gymId || "univo_main", "trainers"));
+    const snap2 = await getDocs(collection(db, "gyms", targetGymId, "trainers"));
     snap2.docs.forEach((d) => {
       if (!seenIds.has(d.id)) {
         seenIds.add(d.id);
@@ -44,6 +55,7 @@ export async function getTrainers(gymId) {
     console.warn("Sub-collection trainers fetch error:", e2);
   }
 
+  setCachedData(cacheKey, list);
   return list;
 }
 

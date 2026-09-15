@@ -72,6 +72,7 @@ import {
 import Modal from '../../components/ui/Modal';
 import DirectAddMemberModal from '../../components/shared/DirectAddMemberModal';
 import PhotoCaptureInput from '../../components/shared/PhotoCaptureInput';
+import { getSessionCachedData } from '../../utils/dataCache';
 
 function toDate(val) {
   if (!val) return null;
@@ -2625,14 +2626,16 @@ function DeleteConfirmModal({ member, onClose, onConfirm }) {
 }
 
 export default function Members() {
-  const { gymId } = useAuth();
+  const { gymId: currentGymId } = useAuth();
+  const gymId = currentGymId || "univo_main";
   const navigate = useNavigate();
   const settings = getGymSettings();
 
-  const [members, setMembers] = useState([]);
-  const [trainers, setTrainers] = useState([]);
-  const [plans, setPlans] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Instant seed from memory/session cache
+  const [members, setMembers] = useState(() => getSessionCachedData(`members_${gymId}`) || []);
+  const [trainers, setTrainers] = useState(() => getSessionCachedData(`trainers_${gymId}`) || []);
+  const [plans, setPlans] = useState(() => getSessionCachedData(`plans_${gymId}`) || []);
+  const [loading, setLoading] = useState(() => !getSessionCachedData(`members_${gymId}`));
   const [view, setView] = useState('table');
   const [search, setSearch] = useState('');
   const [filterTab, setFilterTab] = useState('active');
