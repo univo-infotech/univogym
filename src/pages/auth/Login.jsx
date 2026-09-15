@@ -38,8 +38,8 @@ export default function Login() {
   const { setRole, setProfileId, setUser } = useAuth();
 
   const [selectedRole, setSelectedRole] = useState('owner'); // 'owner' | 'trainer' | 'member'
-  const [email,        setEmail]        = useState('univo@gmail.com');
-  const [password,     setPassword]     = useState('Univo@123');
+  const [email,        setEmail]        = useState('');
+  const [password,     setPassword]     = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState('');
@@ -47,16 +47,8 @@ export default function Login() {
   const handleRoleChange = (role) => {
     setSelectedRole(role);
     setError('');
-    if (role === 'owner') {
-      setEmail('univo@gmail.com');
-      setPassword('Univo@123');
-    } else if (role === 'trainer') {
-      setEmail('Coach@gmail.com');
-      setPassword('Coach@123');
-    } else {
-      setEmail('9630237549');
-      setPassword('Member@123');
-    }
+    setEmail('');
+    setPassword('');
   };
 
   const handleSubmit = async (e) => {
@@ -99,16 +91,17 @@ export default function Login() {
         const matchedTrainer = trainersList.find((t) => {
           const tEmail = (t.email || t.loginEmail || '').trim().toLowerCase();
           const tPhone = (t.phone || '').trim().replace(/\D/g, '');
-          const tPass = t.password || t.loginPassword || 'Coach@123';
+          const tPass = t.password || t.loginPassword;
 
           const isIdMatch =
-            (tEmail && (tEmail === cleanEmail || cleanEmail.includes('coach'))) ||
-            (inputPhone && tPhone && tPhone.endsWith(inputPhone.slice(-10)));
-          const isPassMatch = tPass === password || password === 'Coach@123';
+            (tEmail && tEmail === cleanEmail) ||
+            (inputPhone.length >= 10 && tPhone && tPhone.endsWith(inputPhone.slice(-10)));
+          const isPassMatch = tPass ? tPass === password : password === 'Coach@123';
           return isIdMatch && isPassMatch;
         });
 
         if (matchedTrainer) {
+          localStorage.removeItem('univo_member_session');
           localStorage.setItem('univo_trainer_session', JSON.stringify(matchedTrainer));
           if (setRole) setRole('trainer');
           if (setProfileId) setProfileId(matchedTrainer.id);
@@ -117,14 +110,9 @@ export default function Login() {
           return;
         }
 
-        // Fallback: If role is trainer and we have trainers in gym
-        if (selectedRole === 'trainer' && trainersList.length > 0 && (password === 'Coach@123' || password.length >= 4)) {
-          const primaryTrainer = trainersList[0];
-          localStorage.setItem('univo_trainer_session', JSON.stringify(primaryTrainer));
-          if (setRole) setRole('trainer');
-          if (setProfileId) setProfileId(primaryTrainer.id);
-          if (setUser) setUser({ uid: primaryTrainer.id, displayName: primaryTrainer.name, ...primaryTrainer });
-          navigate('/trainer/dashboard', { replace: true });
+        if (selectedRole === 'trainer') {
+          setError('Invalid trainer credentials. Kripya sahi email/phone aur password dalein.');
+          setLoading(false);
           return;
         }
       } catch (trainerErr) {
@@ -140,13 +128,12 @@ export default function Login() {
         const matchedMember = membersList.find((m) => {
           const mEmail = (m.loginEmail || m.email || '').trim().toLowerCase();
           const mPhone = (m.phone || '').trim().replace(/\D/g, '');
-          const mPass = m.loginPassword || m.password || '';
+          const mPass = m.loginPassword || m.password;
 
           const isIdMatch =
             (mEmail && mEmail === cleanEmail) ||
-            (inputPhone && mPhone && mPhone.endsWith(inputPhone.slice(-10))) ||
-            (cleanEmail === 'member@univogym.com');
-          const isPassMatch = mPass ? (mPass === password || password === 'Member@123') : (password === 'Member@123');
+            (inputPhone.length >= 10 && mPhone && mPhone.endsWith(inputPhone.slice(-10)));
+          const isPassMatch = mPass ? mPass === password : password === 'Member@123';
           return isIdMatch && isPassMatch;
         });
 
@@ -186,6 +173,7 @@ export default function Login() {
             return;
           }
 
+          localStorage.removeItem('univo_trainer_session');
           localStorage.setItem('univo_member_session', JSON.stringify(matchedMember));
           if (setRole) setRole('member');
           if (setProfileId) setProfileId(matchedMember.id);
@@ -194,55 +182,13 @@ export default function Login() {
           return;
         }
 
-        // If selectedRole is member and gym has PT members
-        if (selectedRole === 'member' && membersList.length > 0 && (password === 'Member@123' || password.length >= 4)) {
-          const ptMembers = membersList.filter(
-            (m) => m.isPTMember || m.hasPersonalCoach || m.ptPlanName || m.loginPassword
-          );
-          const primaryMember = ptMembers.length > 0 ? ptMembers[0] : null;
-
-          if (!primaryMember) {
-            setError(
-              "⚠️ Koi active PT member nahi mila. Member login id/password sirf un members ke liye banta hai jo Personal Training (PT) lete hain."
-            );
-            setLoading(false);
-            return;
-          }
-
-          // Check Expiry for PT member
-          const expTime = primaryMember.expiryDate ? new Date(primaryMember.expiryDate).getTime() : 0;
-          if (primaryMember.status === 'left' || (expTime > 0 && expTime < Date.now())) {
-            setError(
-              `⚠️ PT Session Expired: Gym PT session expired ho chuka hai. Renew karne ke baad login wahi se reactivate ho jayega.`
-            );
-            setLoading(false);
-            return;
-          }
-
-          localStorage.setItem('univo_member_session', JSON.stringify(primaryMember));
-          if (setRole) setRole('member');
-          if (setProfileId) setProfileId(primaryMember.id);
-          if (setUser) setUser({ uid: primaryMember.id, displayName: primaryMember.name, ...primaryMember });
-          navigate('/member/dashboard', { replace: true });
+        if (selectedRole === 'member') {
+          setError('Invalid member credentials. Sahi Phone/Email aur password dalein.');
+          setLoading(false);
           return;
         }
       } catch (memberErr) {
         console.warn('Member login note:', memberErr.message);
-      }
-
-      // 4. General Role fallbacks
-      if (cleanEmail.includes('trainer') || selectedRole === 'trainer') {
-        const demoTrainer = { id: 'i5sXkR1c7jIkPb89US2x', name: 'Boggey man', email: cleanEmail };
-        localStorage.setItem('univo_trainer_session', JSON.stringify(demoTrainer));
-        if (setRole) setRole('trainer');
-        if (setProfileId) setProfileId(demoTrainer.id);
-        navigate('/trainer/dashboard', { replace: true });
-        return;
-      }
-      if (cleanEmail.includes('member') || selectedRole === 'member') {
-        if (setRole) setRole('member');
-        navigate('/member/dashboard', { replace: true });
-        return;
       }
 
       setError('Invalid email or password. Please check your credentials and try again.');
@@ -363,13 +309,14 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                {selectedRole === 'owner' ? 'Owner Email ID' : selectedRole === 'trainer' ? 'Trainer Email ID' : 'Member Email ID'}
+                {selectedRole === 'owner' ? 'Owner Email ID' : selectedRole === 'trainer' ? 'Trainer Email or Mobile No.' : 'Member Mobile No. or Email'}
               </label>
               <input
-                type="email"
+                type="text"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                placeholder={selectedRole === 'owner' ? 'e.g. univo@gmail.com' : selectedRole === 'trainer' ? 'e.g. coach@gmail.com or 9876543210' : 'e.g. 9630237549'}
                 className="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-xl px-4 py-2.5 text-sm focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
               />
             </div>

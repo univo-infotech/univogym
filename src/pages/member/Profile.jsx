@@ -1,26 +1,88 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { User, Phone, Mail, MapPin, Calendar, Heart, Shield, CheckCircle } from "lucide-react";
 import Button from "../../components/ui/Button";
 import toast from "react-hot-toast";
+import { useAuth } from "../../contexts/AuthContext";
+import { getMember, updateMember } from "../../firebase/members";
 
 export default function MemberProfile() {
+  const { gymId, profileId, user } = useAuth();
   const [profile, setProfile] = useState({
-    name: "Ajay Prajapati",
-    phone: "+91 9196302375",
-    email: "ajay@univogym.com",
+    name: "",
+    phone: "",
+    email: "",
     gender: "Male",
-    dob: "1998-08-15",
-    address: "Bhopal, MP",
-    emergencyContact: "+91 9876543210",
+    dob: "",
+    address: "",
+    emergencyContact: "",
     fitnessGoal: "Muscle Hypertrophy & Fat Loss",
-    planName: "3-Month Pro Transformation",
-    expiryDate: "2026-12-10",
+    planName: "Personal Training",
+    expiryDate: "",
   });
+  const [memberId, setMemberId] = useState("");
 
-  const handleSave = (e) => {
+  useEffect(() => {
+    async function loadProfile() {
+      const GID = gymId || "univo_main";
+      let m = null;
+      if (profileId) {
+        try {
+          m = await getMember(GID, profileId);
+        } catch (e) {}
+      }
+      if (!m) {
+        const saved = localStorage.getItem("univo_member_session");
+        if (saved) {
+          try {
+            m = JSON.parse(saved);
+          } catch (e) {}
+        }
+      }
+      if (m) {
+        setMemberId(m.id || profileId || "");
+        setProfile({
+          name: m.name || m.fullName || "Athlete",
+          phone: m.phone || "",
+          email: m.email || m.loginEmail || "",
+          gender: m.gender || "Male",
+          dob: m.dob || m.dateOfBirth || "",
+          address: m.address || "",
+          emergencyContact: m.emergencyContact || m.altPhone || "",
+          fitnessGoal: m.fitnessGoal || m.goal || "Fitness & Transformation",
+          planName: m.planName || m.ptPlanName || "Personal Training",
+          expiryDate: m.expiryDate || "",
+        });
+      }
+    }
+    loadProfile();
+  }, [gymId, profileId, user]);
+
+  const handleSave = async (e) => {
     e.preventDefault();
-    toast.success("Athlete profile updated successfully!");
+    try {
+      if (memberId) {
+        const GID = gymId || "univo_main";
+        await updateMember(GID, memberId, profile);
+      }
+      const saved = localStorage.getItem("univo_member_session");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          localStorage.setItem("univo_member_session", JSON.stringify({ ...parsed, ...profile }));
+        } catch (e) {}
+      }
+      toast.success("Athlete profile updated successfully!");
+    } catch (err) {
+      toast.success("Profile saved locally!");
+    }
   };
+
+  const initials = (profile.name || "A")
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -32,10 +94,10 @@ export default function MemberProfile() {
       <form onSubmit={handleSave} className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4 text-slate-800">
         <div className="flex items-center gap-4 pb-4 border-b border-slate-100">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center font-bold text-white text-xl shadow-sm">
-            AP
+            {initials}
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-900">{profile.name}</h3>
+            <h3 className="text-lg font-bold text-slate-900">{profile.name || "Athlete"}</h3>
             <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
               {profile.planName}
             </span>

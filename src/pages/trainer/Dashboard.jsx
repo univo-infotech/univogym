@@ -96,8 +96,6 @@ export default function TrainerDashboard() {
             });
             if (found) {
               trainerData = found;
-            } else if (allTrainers.length > 0) {
-              trainerData = allTrainers[0];
             }
           } catch (e) {}
         }
@@ -115,15 +113,11 @@ export default function TrainerDashboard() {
           });
         }
 
-        const tId = trainerData?.id || profileId || "i5sXkR1c7jIkPb89US2x";
-        const tName = trainerData?.name || user?.displayName || "Boggey man";
-        let mList = await getTrainerMembers(GID, tId, tName);
-        if (mList.length === 0) {
-          try {
-            const allGymMembers = await getTrainerMembers(GID, "", "");
-            const ptOnly = allGymMembers.filter((m) => m.ptPlanName || m.ptPlanPrice || m.trainerId);
-            if (ptOnly.length > 0) mList = ptOnly;
-          } catch (e) {}
+        const tId = trainerData?.id || profileId || "";
+        const tName = trainerData?.name || user?.displayName || "";
+        let mList = [];
+        if (tId || tName) {
+          mList = await getTrainerMembers(GID, tId, tName);
         }
         setMembers(mList);
       } catch (e) {

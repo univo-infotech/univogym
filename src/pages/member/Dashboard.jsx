@@ -29,10 +29,6 @@ export default function MemberDashboard() {
             } catch (e) {}
           }
         }
-        if (!m) {
-          const list = await getMembers(GID);
-          if (list.length > 0) m = list[0];
-        }
         setMember(m);
       } catch (err) {
         console.warn("Member load error:", err);
@@ -44,9 +40,9 @@ export default function MemberDashboard() {
   }, [gymId, profileId, user]);
 
   const athleteName = member?.name || member?.fullName || "Athlete";
-  const planName = member?.planName || "1-Month Basic Membership";
+  const planName = member?.planName || member?.ptPlanName || "Personal Training Plan";
   const ptPlanName = member?.ptPlanName || (member?.personalTrainer ? "1-on-1 Personal Training" : null);
-  const coachName = member?.personalTrainer || member?.trainerName || "Coach Boggey man";
+  const coachName = member?.personalTrainer || member?.trainerName || member?.trainer || "Assigned Coach";
 
   return (
     <div className="space-y-6 pb-12">
