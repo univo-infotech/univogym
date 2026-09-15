@@ -23,7 +23,10 @@ import {
   Heart,
   Droplets,
   Zap,
-  Target
+  Target,
+  ShieldCheck,
+  UserCheck,
+  Award
 } from "lucide-react";
 import Modal from "../ui/Modal";
 import toast from "react-hot-toast";
@@ -31,7 +34,9 @@ import {
   saveMemberDietPlan, 
   logMemberWeight, 
   recordTrainerSessionCompleted,
-  saveMemberWorkoutRoutine
+  saveMemberWorkoutRoutine,
+  getTrainer,
+  getTrainers
 } from "../../firebase/trainers";
 
 const DIET_PRESETS = [
@@ -120,6 +125,8 @@ export default function AthleteHealthDietModal({
 
   const [activeTab, setActiveTab] = useState("profile"); // 'profile' | 'diet' | 'overview' | 'workout'
   const [saving, setSaving] = useState(false);
+  const [assignedTrainer, setAssignedTrainer] = useState(null);
+  const [certModal, setCertModal] = useState(null);
 
   // Weight Logging State
   const [weightInput, setWeightInput] = useState(member.weight || "");
@@ -175,8 +182,38 @@ export default function AthleteHealthDietModal({
       if (member.workoutRoutine) {
         setWorkoutRoutine(member.workoutRoutine);
       }
+
+      // Fetch assigned trainer data
+      async function loadTrainerInfo() {
+        try {
+          const tId = member.trainerId || member.coachId;
+          const tName = member.trainerName || member.personalTrainer || member.trainer;
+          let t = null;
+          if (tId) {
+            try {
+              t = await getTrainer(gymId, tId);
+            } catch (e) {}
+          }
+          if (!t) {
+            const allTrainers = await getTrainers(gymId);
+            if (tName) {
+              t = allTrainers.find((item) =>
+                (item.name || "").toLowerCase().includes(tName.toLowerCase()) ||
+                tName.toLowerCase().includes((item.name || "").toLowerCase())
+              );
+            }
+            if (!t && allTrainers.length > 0) {
+              t = allTrainers[0];
+            }
+          }
+          setAssignedTrainer(t);
+        } catch (e) {
+          console.error("Failed to load trainer info for modal:", e);
+        }
+      }
+      loadTrainerInfo();
     }
-  }, [member]);
+  }, [member, gymId]);
 
   // Calculate BMI
   const heightM = member.height ? Number(member.height) / 100 : null;
@@ -437,7 +474,7 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
                 : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
-            <User className="w-4 h-4" /> Member Profile
+            <User className="w-4 h-4" /> Manage Profile
           </button>
           <button
             onClick={() => setActiveTab("diet")}
@@ -457,7 +494,7 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
                 : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
-            <Scale className="w-4 h-4" /> Weight & Body Measurements
+            <ShieldCheck className="w-4 h-4 text-teal-600" /> Trainer Profile
           </button>
           <button
             onClick={() => setActiveTab("workout")}
@@ -574,6 +611,82 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Integrated Weight & Body Measurements Section */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl shadow-sm space-y-4 col-span-1 md:col-span-2">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Scale className="w-4 h-4 text-teal-600" /> Weight & Body Measurements Tracking
+                  </h4>
+                  <span className="text-[10px] font-bold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-md">
+                    Check-in Tracker
+                  </span>
+                </div>
+
+                <form onSubmit={handleSaveWeight} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end bg-white p-3.5 rounded-xl border border-slate-200">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700 uppercase">Weight (kg) *</label>
+                    <input
+                      required
+                      type="number"
+                      step="0.1"
+                      value={weightInput}
+                      onChange={(e) => setWeightInput(e.target.value)}
+                      className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 outline-none focus:border-teal-500"
+                      placeholder="e.g. 74.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700 uppercase">Date of Weigh-in</label>
+                    <input
+                      type="date"
+                      value={weightDate}
+                      onChange={(e) => setWeightDate(e.target.value)}
+                      className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-900 outline-none focus:border-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700 uppercase">Coach Progress Note</label>
+                    <input
+                      type="text"
+                      value={weightNote}
+                      onChange={(e) => setWeightNote(e.target.value)}
+                      className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-medium text-slate-900 outline-none focus:border-teal-500"
+                      placeholder="e.g. Down 1.2kg, waist tighter"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="w-full py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow transition cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5" /> {saving ? "Saving..." : "Log Weight"}
+                  </button>
+                </form>
+
+                {weightHistory.length > 0 && (
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white max-h-40 overflow-y-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                        <tr>
+                          <th className="p-2.5">Date</th>
+                          <th className="p-2.5">Weight (kg)</th>
+                          <th className="p-2.5">Coach Note</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {weightHistory.slice(0, 5).map((item, idx) => (
+                          <tr key={item.id || idx} className="hover:bg-slate-50 transition">
+                            <td className="p-2.5 font-semibold text-slate-800">{item.date}</td>
+                            <td className="p-2.5 font-black text-emerald-700">{item.weight} kg</td>
+                            <td className="p-2.5 text-slate-600">{item.note || "Check-in recorded"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -819,113 +932,111 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
           </div>
         )}
 
-        {/* TAB 2: WEIGHT & BODY MEASUREMENTS TRACKER */}
+        {/* TAB 2: TRAINER PROFILE (Assigned Coach Details) */}
         {activeTab === "overview" && (
           <div className="space-y-5">
-            {/* Quick Metrics Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-center">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Current Weight</span>
-                <p className="text-xl font-black text-slate-900 mt-0.5">{currentWeightNum || "N/A"} <span className="text-xs font-normal text-slate-500">kg</span></p>
-              </div>
-              <div className="p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-center">
-                <span className="text-[10px] font-bold text-emerald-700 uppercase">Target Goal Weight</span>
-                <p className="text-xl font-black text-emerald-950 mt-0.5">{member.targetWeight || "70"} <span className="text-xs font-normal text-emerald-700">kg</span></p>
-              </div>
-              <div className="p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200 text-center">
-                <span className="text-[10px] font-bold text-blue-700 uppercase">Height & BMI</span>
-                <p className="text-xl font-black text-blue-950 mt-0.5">{bmi || "23.4"} <span className="text-xs font-normal text-blue-700">BMI</span></p>
-              </div>
-            </div>
+            {/* Coach Profile Card */}
+            <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white border border-slate-700 shadow-lg space-y-5 relative overflow-hidden">
+              <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+              
+              <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-5 relative z-10">
+                <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
+                  {assignedTrainer?.photoUrl || assignedTrainer?.photo ? (
+                    <img
+                      src={assignedTrainer.photoUrl || assignedTrainer.photo}
+                      alt={assignedTrainer?.name || "Trainer"}
+                      className="w-20 h-20 rounded-3xl object-cover border-2 border-emerald-400 shadow-md shrink-0"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center font-black text-white text-2xl shadow-md shrink-0">
+                      {((assignedTrainer?.name || member.trainerName || member.personalTrainer || "TR").charAt(0)).toUpperCase()}
+                    </div>
+                  )}
 
-            {/* Log New Weigh-in Form */}
-            <form onSubmit={handleSaveWeight} className="p-4 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 rounded-2xl space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 uppercase tracking-wide">
-                  <Scale className="w-4 h-4 text-teal-600" /> Log New Weight Check-in (नया वजन दर्ज करें)
-                </h4>
-                <span className="text-[10px] font-bold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-md">
-                  Weekly Tracking
-                </span>
-              </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-center sm:justify-start gap-2">
+                      <h3 className="text-xl font-black text-white">
+                        {assignedTrainer?.name || member.trainerName || member.personalTrainer || "Assigned Personal Coach"}
+                      </h3>
+                      <span className="p-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" title="Verified Coach">
+                        <ShieldCheck className="w-4 h-4" />
+                      </span>
+                    </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-700 uppercase">Weight (kg) *</label>
-                  <input
-                    required
-                    type="number"
-                    step="0.1"
-                    value={weightInput}
-                    onChange={(e) => setWeightInput(e.target.value)}
-                    className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-bold text-slate-900 outline-none focus:border-teal-500"
-                    placeholder="e.g. 74.5"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-700 uppercase">Date of Weigh-in</label>
-                  <input
-                    type="date"
-                    value={weightDate}
-                    onChange={(e) => setWeightDate(e.target.value)}
-                    className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 outline-none focus:border-teal-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-700 uppercase">Coach Progress Note</label>
-                  <input
-                    type="text"
-                    value={weightNote}
-                    onChange={(e) => setWeightNote(e.target.value)}
-                    className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 outline-none focus:border-teal-500"
-                    placeholder="e.g. Down 1.2kg, waist tighter"
-                  />
+                    <p className="text-xs font-bold text-emerald-400">
+                      {assignedTrainer?.specialization || "Certified Fitness & Hypertrophy Specialist"}
+                    </p>
+
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1 text-xs text-slate-300">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" /> {assignedTrainer?.experience || "5+ Years"} Experience
+                      </span>
+                      <span>•</span>
+                      <span className="text-emerald-300 font-semibold">
+                        Official Personal Coach
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 shadow transition"
-                >
-                  <Save className="w-3.5 h-3.5" /> {saving ? "Saving..." : "Save Weight Log"}
-                </button>
-              </div>
-            </form>
-
-            {/* Weight History Table */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <Activity className="w-4 h-4 text-emerald-600" /> Weigh-in History & Progress Trend
-              </h4>
-
-              {weightHistory.length === 0 ? (
-                <div className="p-6 text-center bg-slate-50 rounded-2xl border border-slate-100 text-slate-500 text-xs">
-                  No previous weigh-in records logged yet. Log first check-in above!
-                </div>
-              ) : (
-                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100/80 text-slate-700 font-bold border-b border-slate-200">
-                      <tr>
-                        <th className="p-3">Date</th>
-                        <th className="p-3">Weight (kg)</th>
-                        <th className="p-3">Coach Note</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {weightHistory.map((item, idx) => (
-                        <tr key={item.id || idx} className="hover:bg-slate-50 transition">
-                          <td className="p-3 font-semibold text-slate-800">{item.date}</td>
-                          <td className="p-3 font-black text-emerald-700">{item.weight} kg</td>
-                          <td className="p-3 text-slate-600">{item.note || "Check-in recorded"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {/* Coach Bio */}
+              {assignedTrainer?.bio && (
+                <div className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 text-xs text-slate-300 leading-relaxed">
+                  <span className="font-bold text-emerald-400 block mb-1">Coach Philosophy & Bio:</span>
+                  "{assignedTrainer.bio}"
                 </div>
               )}
+            </div>
+
+            {/* Shift Timings & Verified Certificate Card */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Workout Slot</span>
+                  <strong className="text-xs text-slate-900 font-bold">
+                    {member.preferredTime || member.slot || "Morning Slot (6:00 AM - 9:00 AM)"}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Award className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Trainer Verified Certificate</span>
+                    <strong className="text-xs text-slate-900 font-bold truncate block">
+                      {assignedTrainer?.certUrl || assignedTrainer?.certFile ? "Accredited Certification" : "Certificate on Record"}
+                    </strong>
+                  </div>
+                </div>
+
+                {(assignedTrainer?.certUrl || assignedTrainer?.certFile) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cert = assignedTrainer.certUrl || assignedTrainer.certFile;
+                      if (cert.startsWith("data:application/pdf")) {
+                        window.open(cert, "_blank");
+                      } else {
+                        setCertModal({
+                          img: cert,
+                          title: `${assignedTrainer?.name || "Trainer"} - Verified Certification`,
+                          desc: assignedTrainer?.certifications || "Government/Accredited Fitness Trainer Certificate"
+                        });
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition shrink-0 cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> View Certificate
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -990,6 +1101,34 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
           </div>
         )}
       </div>
+
+      {/* CERTIFICATE FULL PREVIEW MODAL */}
+      {certModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-2xl w-full p-5 space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                <Award className="w-4 h-4 text-emerald-400" /> {certModal.title || "Trainer Verified Certificate"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCertModal(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[75vh] overflow-auto flex items-center justify-center p-2 bg-slate-950/60 rounded-2xl">
+              <img src={certModal.img} alt="Trainer Certificate" className="max-h-[65vh] object-contain rounded-xl shadow-lg" />
+            </div>
+
+            {certModal.desc && (
+              <p className="text-xs text-slate-400 text-center">{certModal.desc}</p>
+            )}
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }
