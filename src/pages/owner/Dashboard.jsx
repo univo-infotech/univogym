@@ -31,7 +31,8 @@ import toast from "react-hot-toast";
 import { getMembers, generateInviteToken } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
 import { getAllPayments } from "../../firebase/payments";
-import { getStock } from "../../firebase/stock";
+import { getStock, getSupplementSales } from "../../firebase/stock";
+import { getExpenses } from "../../firebase/expenses";
 import { getVisits } from "../../firebase/visits";
 import { getPlans } from "../../firebase/plans";
 import { openWhatsApp, generateMemberInviteMessage, generateRenewalReminderMessage } from "../../utils/whatsapp";
@@ -46,6 +47,8 @@ export default function Dashboard() {
   const [members, setMembers] = useState([]);
   const [payments, setPayments] = useState([]);
   const [stockItems, setStockItems] = useState([]);
+  const [supplementSales, setSupplementSales] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [visits, setVisits] = useState([]);
   const [plans, setPlans] = useState([]);
   const [settings, setSettings] = useState(getGymSettings());
@@ -70,13 +73,15 @@ export default function Dashboard() {
     setSettings(getGymSettings());
     async function loadData() {
       try {
-        const [m, p, s, v, pl, tr] = await Promise.all([
+        const [m, p, s, v, pl, tr, sups, exps] = await Promise.all([
           getMembers(gymId),
           getAllPayments(gymId),
           getStock(gymId),
           getVisits(gymId),
           getPlans(gymId),
-          getTrainers(gymId)
+          getTrainers(gymId),
+          getSupplementSales(gymId),
+          getExpenses(gymId)
         ]);
 
         if (pl && pl.length > 0) {
@@ -89,6 +94,8 @@ export default function Dashboard() {
         setStockItems(s || []);
         setVisits(v || []);
         setTrainersList(tr || []);
+        setSupplementSales(sups || []);
+        setExpenses(exps || []);
         if (tr && tr.length > 0) setSelectedTrainerId(tr[0].id);
       } catch (err) {
         console.error("Dashboard load data error:", err);
@@ -107,8 +114,105 @@ export default function Dashboard() {
     return isNaN(exp.getTime()) ? true : exp >= new Date();
   }).length;
 
-  const totalRevenue = payments.reduce((acc, curr) => acc + (Number(curr.paidAmount) || Number(curr.amount) || 0), 0);
-  
+  // Unified Fee Payments with Net Owner Share calculation
+  const paymentRevenueItems = useMemo(() => {
+    return payments.map((p) => {
+      const paid = Number(p.paidAmount || p.amount || 0);
+      const member = members.find(
+        (m) =>
+          (p.memberId && (m.id === p.memberId || m.memberId === p.memberId)) ||
+          (p.memberName && m.name && m.name.toLowerCase().trim() === p.memberName.toLowerCase().trim())
+      );
+
+      const ptPlanPrice = Number(p.ptPlanPrice || member?.ptPlanPrice || 0);
+      const planPrice = Number(p.planPrice || member?.planPrice || (ptPlanPrice > 0 ? Math.max(0, paid - ptPlanPrice) : paid));
+
+      let ptOwnerCommission = 0;
+      let ptTrainerPayout = 0;
+      if (ptPlanPrice > 0) {
+        if (p.ptOwnerCommission !== undefined || member?.ptOwnerCommission !== undefined) {
+          ptOwnerCommission = Number(p.ptOwnerCommission ?? member?.ptOwnerCommission ?? 0);
+          ptTrainerPayout = Number(p.ptTrainerPayout ?? member?.ptTrainerPayout ?? (ptPlanPrice - ptOwnerCommission));
+        } else {
+          const ptCommType = p.ptCommissionType || member?.ptCommissionType || "percentage";
+          const ptCommVal = Number(p.ptCommissionValue || member?.ptCommissionValue || 20);
+          if (ptCommType === "fixed") {
+            ptOwnerCommission = ptCommVal;
+            ptTrainerPayout = Math.max(0, ptPlanPrice - ptCommVal);
+          } else {
+            ptOwnerCommission = Math.round(ptPlanPrice * (ptCommVal / 100));
+            ptTrainerPayout = Math.max(0, ptPlanPrice - ptOwnerCommission);
+          }
+        }
+      }
+
+      const netOwnerShare = ptPlanPrice > 0 ? (planPrice + ptOwnerCommission) : paid;
+      const trainerLiability = ptPlanPrice > 0 ? ptTrainerPayout : 0;
+      const trainerName = p.personalTrainer || member?.personalTrainer || "";
+      const trainerId = p.trainerId || member?.trainerId || "";
+
+      return {
+        id: p.id,
+        date: p.date || p.createdAt || "",
+        grossAmount: paid,
+        netOwnerShare, // Net revenue kept by Gym Owner
+        trainerLiability, // Coach commission
+        trainerName,
+        trainerId,
+        type: "membership"
+      };
+    });
+  }, [payments, members]);
+
+  // Unified Supplement Store Sales with Net Owner Share calculation
+  const supplementRevenueItems = useMemo(() => {
+    return supplementSales.map((s) => {
+      const grossAmount = Number(s.totalAmount || (s.quantitySold * s.unitPrice) || 0);
+      const commission = Number(s.commissionAmount || 0);
+      const netOwnerShare = Number(
+        s.gymNetRevenue !== undefined ? s.gymNetRevenue : Math.max(0, grossAmount - commission)
+      );
+      const trainerName = s.referredByTrainerName || s.trainerName || "";
+      const trainerId = s.referredByTrainerId || s.trainerId || "";
+
+      return {
+        id: s.id,
+        date: s.timestamp || s.date || "",
+        grossAmount,
+        netOwnerShare, // Net revenue kept by Gym Owner (commission deducted)
+        trainerLiability: commission,
+        trainerName,
+        trainerId,
+        type: "supplement"
+      };
+    });
+  }, [supplementSales]);
+
+  // Combined Revenue Ledger Items
+  const allRevenueItems = useMemo(() => {
+    return [...paymentRevenueItems, ...supplementRevenueItems];
+  }, [paymentRevenueItems, supplementRevenueItems]);
+
+  // Financial Totals: Gross vs Trainer Liability vs Net Revenue vs Net Profit
+  const totalGrossRevenue = useMemo(() => {
+    return allRevenueItems.reduce((acc, curr) => acc + curr.grossAmount, 0);
+  }, [allRevenueItems]);
+
+  const totalTrainerLiability = useMemo(() => {
+    return allRevenueItems.reduce((acc, curr) => acc + curr.trainerLiability, 0);
+  }, [allRevenueItems]);
+
+  const totalNetRevenue = useMemo(() => {
+    return allRevenueItems.reduce((acc, curr) => acc + curr.netOwnerShare, 0);
+  }, [allRevenueItems]);
+
+  const totalExpensesAmount = useMemo(() => {
+    return expenses.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  }, [expenses]);
+
+  // Sab kuch hatne ke baad jo net profit aayega (True Gym Owner Net Profit)
+  const netOperatingProfit = totalNetRevenue - totalExpensesAmount;
+
   // Real expiring members calculation (within next 7 days or status === 'expiring')
   const expiringMembers = members.filter((m) => {
     if (m.status === "left" || m.status === "inactive") return false;
@@ -149,7 +253,7 @@ export default function Dashboard() {
     ].filter(item => item.value > 0);
   }, [payments]);
 
-  // Compute dynamic daily revenue for last 7 days from actual payments
+  // Compute dynamic daily NET revenue for last 7 days from actual payments & store sales (Commissions Deducted)
   const revenueData = useMemo(() => {
     const daysArr = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const result = [];
@@ -164,21 +268,20 @@ export default function Dashboard() {
       const monthNum = String(d.getMonth() + 1).padStart(2, "0");
       const indianDateStr = `${dayNum}/${monthNum}/${d.getFullYear()}`;
 
-      // Sum payments matching this day
-      let daySum = 0;
-      payments.forEach((p) => {
-        const pDate = p.date || p.createdAt || "";
-        const amount = Number(p.paidAmount || p.amount || 0);
+      // Sum Net Owner revenue matching this day (after trainer commission deduction)
+      let dayNetSum = 0;
+      allRevenueItems.forEach((item) => {
+        const pDate = String(item.date || "");
         if (pDate.includes(dateStr) || pDate.includes(indianDateStr)) {
-          daySum += amount;
+          dayNetSum += Number(item.netOwnerShare || 0);
         }
       });
 
-      result.push({ day: dayName, revenue: daySum });
+      result.push({ day: dayName, revenue: dayNetSum });
     }
 
     return result;
-  }, [payments]);
+  }, [allRevenueItems]);
 
   const handleGenerateLink = async () => {
     if (!invitePhone.trim()) {
@@ -256,10 +359,10 @@ export default function Dashboard() {
           color="green"
         />
         <StatCard
-          title="Total Monthly Revenue"
-          value={`₹${totalRevenue.toLocaleString()}`}
-          change="+18.4% vs last month"
-          icon={<DollarSign className="w-5 h-5" />}
+          title="Gym Net Revenue"
+          value={`₹${totalNetRevenue.toLocaleString("en-IN")}`}
+          change={`Gross ₹${totalGrossRevenue.toLocaleString("en-IN")} • Trainer -₹${totalTrainerLiability.toLocaleString("en-IN")}`}
+          icon={<DollarSign className="w-5 h-5 text-teal-600" />}
           color="teal"
         />
         <div 
@@ -283,6 +386,63 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Financial P&L Strip: Sab kuch hatne ke baad Net Profit */}
+      <div className="p-4 rounded-3xl bg-gradient-to-r from-teal-950 via-slate-900 to-emerald-950 text-white shadow-sm border border-teal-900/50">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10 text-xs">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            <span className="font-extrabold tracking-wide uppercase text-[11px] text-emerald-300">
+              Live Financial P&L Summary (कमीशन व खर्चे हटने के बाद वास्तविक लाभ)
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-300">
+            Real-time calculations across Membership Fees, Supplements & Trainer Commissions
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-3 text-center">
+          <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10">
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Gross Inflow</span>
+            <span className="text-base sm:text-lg font-black text-white mt-0.5 block">
+              ₹{totalGrossRevenue.toLocaleString("en-IN")}
+            </span>
+            <span className="text-[10px] text-slate-400">Total collected</span>
+          </div>
+
+          <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+            <span className="text-[10px] uppercase font-bold text-amber-400 block">Trainer Commissions</span>
+            <span className="text-base sm:text-lg font-black text-amber-300 mt-0.5 block">
+              -₹{totalTrainerLiability.toLocaleString("en-IN")}
+            </span>
+            <span className="text-[10px] text-amber-200/70">PT & Store cut</span>
+          </div>
+
+          <div className="p-2.5 rounded-2xl bg-teal-500/10 border border-teal-500/20">
+            <span className="text-[10px] uppercase font-bold text-teal-300 block">Gym Net Revenue</span>
+            <span className="text-base sm:text-lg font-black text-teal-200 mt-0.5 block">
+              ₹{totalNetRevenue.toLocaleString("en-IN")}
+            </span>
+            <span className="text-[10px] text-teal-300/70">Retained revenue</span>
+          </div>
+
+          <div className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+            <span className="text-[10px] uppercase font-bold text-rose-300 block">Overhead Expenses</span>
+            <span className="text-base sm:text-lg font-black text-rose-300 mt-0.5 block">
+              -₹{totalExpensesAmount.toLocaleString("en-IN")}
+            </span>
+            <span className="text-[10px] text-rose-200/70">Bills, rent & repairs</span>
+          </div>
+
+          <div className="p-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 col-span-2 sm:col-span-1">
+            <span className="text-[10px] uppercase font-bold text-emerald-300 block">Net Operating Profit</span>
+            <span className="text-base sm:text-lg font-black text-emerald-300 mt-0.5 block">
+              ₹{netOperatingProfit.toLocaleString("en-IN")}
+            </span>
+            <span className="text-[10px] text-emerald-200 font-semibold">Owner Take-Home</span>
+          </div>
+        </div>
+      </div>
+
       {/* Graphical Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Weekly Revenue Graph */}
@@ -292,7 +452,7 @@ export default function Dashboard() {
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-emerald-600" /> Revenue Growth Trend
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">Weekly collection breakdown across all plans</p>
+              <p className="text-xs text-slate-500 mt-0.5">Weekly net revenue breakdown retained by gym</p>
             </div>
           </div>
           <div className="h-64">
@@ -300,8 +460,8 @@ export default function Dashboard() {
               <AreaChart data={revenueData}>
                 <defs>
                   <linearGradient id="revGradLight" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.25}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#0d9488" stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor="#0d9488" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -309,9 +469,9 @@ export default function Dashboard() {
                 <YAxis stroke="#94a3b8" fontSize={12} />
                 <Tooltip 
                   contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
-                  formatter={(val) => [`₹${val.toLocaleString()}`, "Collection"]}
+                  formatter={(val) => [`₹${Number(val).toLocaleString("en-IN")}`, "Gym Net Revenue"]}
                 />
-                <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#revGradLight)" />
+                <Area type="monotone" dataKey="revenue" stroke="#0d9488" strokeWidth={3} fillOpacity={1} fill="url(#revGradLight)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

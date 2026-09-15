@@ -217,6 +217,13 @@ export default function Reports() {
 
     const supItems = supplementSales.map((s) => {
       const supAmount = Number(s.totalAmount || (s.quantitySold * s.unitPrice) || 0);
+      const commission = Number(s.commissionAmount || 0);
+      const netOwner = Number(
+        s.gymNetRevenue !== undefined ? s.gymNetRevenue : Math.max(0, supAmount - commission)
+      );
+      const trainerName = s.referredByTrainerName || s.trainerName || "";
+      const trainerId = s.referredByTrainerId || s.trainerId || "";
+
       return {
         id: s.id || `s_${Math.random()}`,
         date: normalizeDate(s.timestamp || s.date),
@@ -224,12 +231,15 @@ export default function Reports() {
         planName: s.productName || "Supplement Sale",
         category: "Supplement Store",
         amount: supAmount,
-        netOwnerShare: supAmount,
-        trainerLiability: 0,
-        baseFee: supAmount,
+        netOwnerShare: netOwner, // Net Gym Revenue (Commission hatne ke baad)
+        trainerLiability: commission, // Coach referral cut
+        baseFee: netOwner,
         ptFee: 0,
         ptOwnerCommission: 0,
-        trainerName: "",
+        trainerName,
+        trainerId,
+        commissionType: s.commissionType || "none",
+        commissionValue: s.commissionValue || 0,
         paymentMode: s.paymentMode || "Cash",
         type: "supplement"
       };
@@ -310,23 +320,32 @@ export default function Reports() {
     const supRev = rev.filter((r) => r.type === "supplement").reduce((acc, curr) => acc + curr.amount, 0);
     const memRev = grossTotalRevenue - supRev;
 
-    // Group trainer liabilities by coach
+    // Group trainer liabilities by coach (PT Fees + Supplement Commissions)
     const trainerLiabilitiesMap = {};
     rev.forEach((r) => {
-      if (r.trainerLiability > 0 && r.trainerName) {
-        const tName = r.trainerName;
+      if (r.trainerLiability > 0 && (r.trainerName || r.trainerId)) {
+        const tName = r.trainerName || "Trainer";
         if (!trainerLiabilitiesMap[tName]) {
           trainerLiabilitiesMap[tName] = {
             trainerName: tName,
-            trainerId: r.trainerId,
+            trainerId: r.trainerId || "",
             totalPtCollected: 0,
             ownerCommission: 0,
+            totalSupReferred: 0,
+            supCommission: 0,
             trainerPayoutDue: 0,
             clients: []
           };
         }
-        trainerLiabilitiesMap[tName].totalPtCollected += r.ptFee;
-        trainerLiabilitiesMap[tName].ownerCommission += r.ptOwnerCommission;
+        if (r.type === "supplement") {
+          trainerLiabilitiesMap[tName].totalSupReferred =
+            (trainerLiabilitiesMap[tName].totalSupReferred || 0) + r.amount;
+          trainerLiabilitiesMap[tName].supCommission =
+            (trainerLiabilitiesMap[tName].supCommission || 0) + r.trainerLiability;
+        } else {
+          trainerLiabilitiesMap[tName].totalPtCollected += r.ptFee;
+          trainerLiabilitiesMap[tName].ownerCommission += r.ptOwnerCommission;
+        }
         trainerLiabilitiesMap[tName].trainerPayoutDue += r.trainerLiability;
         trainerLiabilitiesMap[tName].clients.push({
           memberName: r.memberName,
@@ -334,7 +353,10 @@ export default function Reports() {
           ptFee: r.ptFee,
           ownerCommission: r.ptOwnerCommission,
           trainerPayout: r.trainerLiability,
-          date: r.date
+          date: r.date,
+          itemType: r.type,
+          planName: r.planName,
+          trainerId: r.trainerId || ""
         });
       }
     });
@@ -694,7 +716,8 @@ export default function Reports() {
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">{t.trainerName}</h4>
                       <p className="text-[11px] text-slate-500 font-medium">
-                        {t.clients.length} Active PT Member(s)
+                        {t.trainerId && <span className="mr-1 text-slate-400 font-mono text-[10px]">ID: {t.trainerId.slice(0, 8)} •</span>}
+                        {t.clients.length} Total Client / Referral(s)
                       </p>
                     </div>
                   </div>
@@ -705,12 +728,12 @@ export default function Reports() {
 
                 <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 text-center border border-slate-100">
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">PT Inflow</span>
-                    <p className="text-xs font-black text-slate-800">Rs. {t.totalPtCollected.toLocaleString("en-IN")}</p>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Gross Volume</span>
+                    <p className="text-xs font-black text-slate-800">Rs. {(t.totalPtCollected + (t.totalSupReferred || 0)).toLocaleString("en-IN")}</p>
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-teal-600 uppercase">Gym Cut</span>
-                    <p className="text-xs font-black text-teal-700">+Rs. {t.ownerCommission.toLocaleString("en-IN")}</p>
+                    <span className="text-[10px] font-bold text-teal-600 uppercase">Gym Retained</span>
+                    <p className="text-xs font-black text-teal-700">+Rs. {(t.ownerCommission + Math.max(0, (t.totalSupReferred || 0) - (t.supCommission || 0))).toLocaleString("en-IN")}</p>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-amber-700 uppercase">Coach Payout</span>
@@ -718,13 +741,16 @@ export default function Reports() {
                   </div>
                 </div>
 
-                {/* Clients sub-list */}
+                {/* Clients / Referrals sub-list */}
                 <div className="space-y-1.5 pt-1 border-t border-slate-100 text-xs">
                   {t.clients.map((c, cIdx) => (
                     <div key={cIdx} className="flex items-center justify-between text-[11px] text-slate-600">
-                      <span className="font-semibold text-slate-800">👤 {c.memberName}</span>
-                      <span>
-                        PT Fee: Rs. {c.ptFee} • Gym Cut: <b className="text-teal-700">Rs. {c.ownerCommission}</b> • Coach: <b className="text-amber-600">Rs. {c.trainerPayout}</b>
+                      <span className="font-semibold text-slate-800 truncate max-w-[50%]">
+                        {c.itemType === "supplement" ? "🛍️" : "👤"} {c.memberName}
+                        <span className="text-[10px] text-slate-400 font-normal ml-1">({c.planName})</span>
+                      </span>
+                      <span className="shrink-0">
+                        Total: Rs. {Number(c.totalPaid || 0).toLocaleString("en-IN")} • Cut: <b className="text-amber-600">Rs. {Number(c.trainerPayout || 0).toLocaleString("en-IN")}</b>
                       </span>
                     </div>
                   ))}
@@ -832,9 +858,25 @@ export default function Reports() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span>Gym Plan: <b>Rs. {item.baseFee.toLocaleString("en-IN")}</b></span>
                         <span>•</span>
-                        <span>PT Cut (20%): <b className="text-teal-700">+Rs. {item.ptOwnerCommission.toLocaleString("en-IN")}</b></span>
+                        <span>PT Cut: <b className="text-teal-700">+Rs. {item.ptOwnerCommission.toLocaleString("en-IN")}</b></span>
                         <span>•</span>
-                        <span>Coach {item.trainerName}: <b className="text-amber-600">Rs. {item.trainerLiability.toLocaleString("en-IN")}</b></span>
+                        <span>Coach {item.trainerName}: <b className="text-amber-600">-Rs. {item.trainerLiability.toLocaleString("en-IN")}</b></span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 text-[10px]">
+                          Gym Net Kept: Rs. {item.netOwnerShare.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* If Supplement was referred by Trainer, show commission breakdown and Gym Net */}
+                  {item.type === "supplement" && item.trainerLiability > 0 && (
+                    <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/70 text-[11px] flex flex-wrap items-center justify-between gap-2 text-slate-700">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>Sale: <b>Rs. {item.amount.toLocaleString("en-IN")}</b></span>
+                        <span>•</span>
+                        <span>Coach {item.trainerName}{item.trainerId ? ` (ID: ${item.trainerId.slice(0, 6)}...)` : ""}: <b className="text-amber-700">-Rs. {item.trainerLiability.toLocaleString("en-IN")}</b></span>
                       </div>
                       <div className="text-right">
                         <span className="font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 text-[10px]">
