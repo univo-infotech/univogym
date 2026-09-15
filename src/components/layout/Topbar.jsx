@@ -11,8 +11,10 @@ import {
   X,
   IndianRupee,
   Calendar,
-  Sparkles
+  Sparkles,
+  LogOut
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { getMembers, updateMember } from "../../firebase/members";
 import { useAuth } from "../../contexts/AuthContext";
@@ -52,12 +54,20 @@ function formatDate(val) {
 }
 
 export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
-  const { gymId } = useAuth();
+  const { gymId, role, user, logoutUser } = useAuth();
+  const navigate = useNavigate();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("all"); // 'all', 'partial', 'ending_soon', 'expired', 'overdue'
   const dropdownRef = useRef(null);
+
+  const handleLogout = async () => {
+    localStorage.removeItem("univo_trainer_session");
+    localStorage.removeItem("univo_member_session");
+    if (logoutUser) await logoutUser();
+    navigate("/login", { replace: true });
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -325,15 +335,30 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
           )}
         </div>
 
-        {/* User Info */}
+        {/* User Info & Quick Responsive Logout */}
         <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
-            U
+            {(user?.displayName || role || "U").charAt(0).toUpperCase()}
           </div>
           <div className="hidden md:block">
-            <p className="text-xs font-bold text-slate-800 leading-tight">Gym Admin</p>
-            <p className="text-[10px] text-emerald-600 font-semibold">UNIVO GYM</p>
+            <p className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[110px]">
+              {user?.displayName || (role === "trainer" ? "Trainer" : role === "member" ? "Member" : "Gym Admin")}
+            </p>
+            <p className="text-[10px] text-emerald-600 font-semibold uppercase">
+              {role || "UNIVO"}
+            </p>
           </div>
+
+          {/* Direct Logout Button */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="p-2 rounded-xl text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 transition flex items-center gap-1 text-xs font-bold shadow-xs active:scale-95 ml-1"
+            title="Log Out of your account"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
         </div>
       </div>
     </header>
