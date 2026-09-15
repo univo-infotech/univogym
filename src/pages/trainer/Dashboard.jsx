@@ -28,6 +28,7 @@ import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
 import { useAuth } from "../../contexts/AuthContext";
 import { getTrainerMembers, getTrainer, getTrainers, updateTrainer } from "../../firebase/trainers";
 import { getSupplementSales } from "../../firebase/stock";
+import { getChatRoomId, subscribeRoomMeta } from "../../firebase/chat";
 import AthleteHealthDietModal from "../../components/trainer/AthleteHealthDietModal";
 import DirectChatModal from "../../components/shared/DirectChatModal";
 import toast from "react-hot-toast";
@@ -37,6 +38,7 @@ export default function TrainerDashboard() {
   const [members, setMembers] = useState([]);
   const [trainerProfile, setTrainerProfile] = useState(null);
   const [referredSales, setReferredSales] = useState([]);
+  const [unreadChats, setUnreadChats] = useState({}); // { [memberId]: boolean }
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -152,6 +154,33 @@ export default function TrainerDashboard() {
     }
     loadData();
   }, [gymId, profileId, user]);
+
+  // Subscribe to real-time unread messages for all assigned athletes
+  useEffect(() => {
+    if (!members.length) return;
+    const tId = trainerProfile?.id || profileId || "";
+    const GID = gymId || "univo_main";
+    const unsubs = [];
+
+    members.forEach((m) => {
+      const rId = getChatRoomId(tId, m.id);
+      try {
+        const unsub = subscribeRoomMeta(GID, rId, (meta) => {
+          if (meta) {
+            setUnreadChats((prev) => ({
+              ...prev,
+              [m.id]: !!meta.unread_trainer
+            }));
+          }
+        });
+        if (typeof unsub === "function") unsubs.push(unsub);
+      } catch (e) {}
+    });
+
+    return () => {
+      unsubs.forEach((u) => u && u());
+    };
+  }, [members, trainerProfile?.id, profileId, gymId]);
 
   // Supplement referral commission calculations
   const supplementCommissionSummary = useMemo(() => {
@@ -586,11 +615,19 @@ export default function TrainerDashboard() {
                     <button
                       type="button"
                       onClick={() => setActiveChatAthlete(m)}
-                      className="px-3 py-2 rounded-xl bg-teal-50 text-teal-700 hover:bg-teal-100 transition flex items-center gap-1.5 text-xs font-bold"
+                      className={`relative px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 text-xs font-extrabold ${
+                        unreadChats[m.id]
+                          ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/30 animate-pulse"
+                          : "bg-teal-50 text-teal-700 hover:bg-teal-100"
+                      }`}
                       title="Direct Chat, Voice & Video Call"
                     >
+                      {unreadChats[m.id] && (
+                        <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white shadow-md border-2 border-white">
+                          NEW
+                        </span>
+                      )}
                       <MessageCircle className="w-4 h-4" />
-                      <Video className="w-3.5 h-3.5" />
                       <span>In-App Chat</span>
                     </button>
                   </div>

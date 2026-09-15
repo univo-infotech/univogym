@@ -24,6 +24,7 @@ import {
   getChatRoomId,
   sendChatMessage,
   subscribeChatMessages,
+  markRoomMessagesSeen,
   startCallSession,
   subscribeCallSession,
   updateCallSession,
@@ -74,14 +75,21 @@ export default function DirectChatModal({
     currentUser?.role === "member" ? currentUser?.id : targetUser?.id
   );
 
-  // Subscribe to text messages
+  // Subscribe to text messages and mark as seen
   useEffect(() => {
     if (!isOpen || !roomId) return;
+
+    // Mark messages as seen immediately by this viewer
+    const myRole = currentUser?.role || "member";
+    markRoomMessagesSeen(gymId, roomId, myRole);
+
     const unsub = subscribeChatMessages(gymId, roomId, (msgs) => {
       setMessages(msgs);
+      // If new messages arrive while chat is open, mark seen
+      markRoomMessagesSeen(gymId, roomId, myRole);
     });
     return () => unsub();
-  }, [isOpen, roomId, gymId]);
+  }, [isOpen, roomId, gymId, currentUser?.role]);
 
   // Create Peer Connection with media handlers
   const createPeerConnection = (type) => {
@@ -399,36 +407,29 @@ export default function DirectChatModal({
   const isTrainer = currentUser?.role === "trainer";
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={() => {
-        if (callState !== "idle") handleCleanupCall();
-        onClose();
-      }}
-      title=""
-      size="lg"
-    >
-      <div className="-m-6 flex flex-col h-[640px] max-h-[90vh] bg-slate-950 text-slate-100 rounded-3xl overflow-hidden border border-slate-800 relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-xl h-[92vh] max-h-[700px] flex flex-col bg-slate-950 text-slate-100 rounded-3xl overflow-hidden border border-slate-800/90 shadow-2xl shadow-black/80">
         {/* Chat Header */}
-        <div className="p-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
+        <div className="px-5 py-3.5 bg-slate-900/95 border-b border-slate-800/80 flex items-center justify-between shrink-0 backdrop-blur-sm">
           <div className="flex items-center gap-3">
-            <div className="relative w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center font-bold text-white shadow-md overflow-hidden">
+            <div className="relative w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center font-black text-white shadow-lg overflow-hidden shrink-0 border border-emerald-400/30">
               {targetUser?.photoUrl ? (
                 <img src={targetUser.photoUrl} alt="" className="w-full h-full object-cover" />
               ) : (
                 (targetUser?.name || "U").charAt(0).toUpperCase()
               )}
+              <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-slate-900 rounded-full" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-sm text-white">
+                <span className="font-black text-sm sm:text-base text-white tracking-tight">
                   {targetUser?.name || (isTrainer ? "Athlete" : "Coach")}
                 </span>
                 <span className="p-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
                   <ShieldCheck className="w-3.5 h-3.5" />
                 </span>
               </div>
-              <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
+              <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 {targetUser?.role === "trainer" ? "Personal Trainer (Direct)" : (ptPlanName || "PT Athlete")}
               </span>
@@ -440,7 +441,7 @@ export default function DirectChatModal({
             <button
               onClick={() => handleStartCall("audio")}
               title="Voice Call"
-              className="p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white transition flex items-center gap-1 text-xs font-bold"
+              className="p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white transition flex items-center justify-center shadow-xs"
             >
               <Phone className="w-4 h-4" />
             </button>
@@ -448,7 +449,7 @@ export default function DirectChatModal({
             <button
               onClick={() => handleStartCall("video")}
               title="Video Call"
-              className="p-2.5 rounded-xl bg-teal-500/10 hover:bg-teal-500 text-teal-400 hover:text-white transition flex items-center gap-1 text-xs font-bold"
+              className="p-2.5 rounded-xl bg-teal-500/10 hover:bg-teal-500 text-teal-400 hover:text-white transition flex items-center justify-center shadow-xs"
             >
               <Video className="w-4 h-4" />
             </button>
@@ -458,9 +459,9 @@ export default function DirectChatModal({
                 if (callState !== "idle") handleCleanupCall();
                 onClose();
               }}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition ml-1"
+              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition ml-1"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -490,63 +491,33 @@ export default function DirectChatModal({
               </p>
             </div>
 
-            {/* Video / Avatar Container (Both Local & Remote Streams) */}
-            <div className="w-full max-w-sm flex-1 my-4 flex items-center justify-center relative">
-              {/* Invisible autoPlay audio element for remote voice transmission */}
-              <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
-
+            {/* Video Streams Container */}
+            <div className="relative w-full flex-1 max-h-[360px] my-4 rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 flex items-center justify-center">
               {callType === "video" ? (
-                <div className="w-full h-72 bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 relative flex items-center justify-center shadow-inner">
-                  {/* REMOTE PARTNER VIDEO (FULL SCREEN) */}
+                <>
                   <video
                     ref={remoteVideoRef}
                     autoPlay
                     playsInline
                     className="w-full h-full object-cover"
                   />
-
-                  {/* Fallback if remote stream has not arrived yet */}
-                  {callState !== "connected" && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-900/80 z-10">
-                      <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-xl animate-pulse">
-                        {(targetUser?.name || "U").charAt(0).toUpperCase()}
-                      </div>
-                      <span className="text-xs text-slate-300 font-bold">
-                        {callState === "calling" ? "Connecting to partner..." : "Ringing..."}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* LOCAL USER PIP VIDEO (SMALL OVERLAY BOTTOM-RIGHT) */}
-                  <div className="absolute bottom-3 right-3 w-24 h-32 bg-slate-950 rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-2xl z-20">
+                  <div className="absolute top-3 right-3 w-28 h-36 rounded-2xl overflow-hidden bg-slate-800 border-2 border-emerald-500 shadow-xl z-10">
                     <video
                       ref={localVideoRef}
                       autoPlay
                       playsInline
                       muted
-                      className={`w-full h-full object-cover ${isVideoOff ? "hidden" : "block"}`}
+                      className="w-full h-full object-cover"
                     />
-                    {isVideoOff && (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-400">
-                        <VideoOff className="w-4 h-4 text-slate-500" />
-                        <span className="text-[9px] font-bold mt-1">Off</span>
-                      </div>
-                    )}
-                    <span className="absolute bottom-1 left-1.5 text-[8.5px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded-md">
-                      You
-                    </span>
                   </div>
-
-                  <div className="absolute top-3 left-3 bg-slate-950/70 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] font-bold text-white">
-                    {targetUser?.name || (isTrainer ? "Athlete" : "Coach")}
-                  </div>
-                </div>
+                </>
               ) : (
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-28 h-28 rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-4xl font-black text-white shadow-2xl animate-pulse">
-                    {(targetUser?.name || "U").charAt(0).toUpperCase()}
+                <div className="flex flex-col items-center justify-center space-y-4">
+                  <div className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-3xl font-black text-white shadow-2xl animate-pulse">
+                    {targetUser?.name ? targetUser.name.charAt(0).toUpperCase() : "U"}
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-slate-300 font-semibold">
+                  <audio ref={remoteAudioRef} autoPlay />
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
                     <Volume2 className="w-4 h-4 text-emerald-400 animate-pulse" />
                     {callState === "connected" ? "HD Voice Transmitting (Both Speaking)" : "Connecting Voice..."}
                   </div>
@@ -613,25 +584,28 @@ export default function DirectChatModal({
         )}
 
         {/* Quick Suggestion Chips */}
-        <div className="px-4 py-2 bg-slate-900/60 border-b border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar">
-          <span className="text-[10px] uppercase font-bold text-slate-500 shrink-0">Quick Guide:</span>
+        <div className="px-4 py-2 bg-slate-900/80 border-b border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+          <span className="text-[10px] uppercase font-bold text-slate-400 shrink-0">Quick Alert:</span>
           {isTrainer ? (
             <>
               <button
+                type="button"
                 onClick={() => sendQuickNote("🥗 Diet Update: Please check your meal routine for today. Drink at least 3.5L water!")}
-                className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-emerald-500/20 hover:text-emerald-300 text-slate-300 text-[11px] font-medium shrink-0 border border-slate-700/60 transition"
+                className="px-3 py-1 rounded-full bg-slate-800/80 hover:bg-emerald-500/20 hover:text-emerald-300 text-slate-300 text-[11px] font-medium shrink-0 border border-slate-700/60 transition"
               >
                 🥗 Diet Reminder
               </button>
               <button
+                type="button"
                 onClick={() => sendQuickNote("💪 Workout Schedule: Today we will focus on Hypertrophy & Core. Warm up 10 mins!")}
-                className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-teal-500/20 hover:text-teal-300 text-slate-300 text-[11px] font-medium shrink-0 border border-slate-700/60 transition"
+                className="px-3 py-1 rounded-full bg-slate-800/80 hover:bg-teal-500/20 hover:text-teal-300 text-slate-300 text-[11px] font-medium shrink-0 border border-slate-700/60 transition"
               >
                 💪 Workout Alert
               </button>
               <button
+                type="button"
                 onClick={() => sendQuickNote("⚡ Form & Rest: How is your muscle soreness? Take adequate protein and 8 hrs sleep.")}
-                className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-purple-500/20 hover:text-purple-300 text-slate-300 text-[11px] font-medium shrink-0 border border-slate-700/60 transition"
+                className="px-3 py-1 rounded-full bg-slate-800/80 hover:bg-purple-500/20 hover:text-purple-300 text-slate-300 text-[11px] font-medium shrink-0 border border-slate-700/60 transition"
               >
                 ⚡ Check Recovery
               </button>
@@ -639,20 +613,23 @@ export default function DirectChatModal({
           ) : (
             <>
               <button
+                type="button"
                 onClick={() => sendQuickNote("Coach, today's workout completed! Feeling great 💪")}
-                className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-emerald-500/20 hover:text-emerald-300 text-slate-300 text-[11px] font-medium shrink-0 border border-slate-700/60 transition"
+                className="px-3 py-1 rounded-full bg-slate-800/80 hover:bg-emerald-500/20 hover:text-emerald-300 text-slate-300 text-[11px] font-medium shrink-0 border border-slate-700/60 transition"
               >
                 ✅ Workout Done
               </button>
               <button
+                type="button"
                 onClick={() => sendQuickNote("Coach, feeling a bit sore in muscles today. Should I take rest or light cardio?")}
-                className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-amber-500/20 hover:text-amber-300 text-slate-300 text-[11px] font-medium shrink-0 border border-slate-700/60 transition"
+                className="px-3 py-1 rounded-full bg-slate-800/80 hover:bg-amber-500/20 hover:text-amber-300 text-slate-300 text-[11px] font-medium shrink-0 border border-slate-700/60 transition"
               >
                 ⚠️ Muscle Soreness
               </button>
               <button
+                type="button"
                 onClick={() => sendQuickNote("Coach, please update my diet meal plan for next week.")}
-                className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-blue-500/20 hover:text-blue-300 text-slate-300 text-[11px] font-medium shrink-0 border border-slate-700/60 transition"
+                className="px-3 py-1 rounded-full bg-slate-800/80 hover:bg-blue-500/20 hover:text-blue-300 text-slate-300 text-[11px] font-medium shrink-0 border border-slate-700/60 transition"
               >
                 🥗 Need Diet Advice
               </button>
@@ -661,13 +638,13 @@ export default function DirectChatModal({
         </div>
 
         {/* Message Thread */}
-        <div className="flex-1 p-4 overflow-y-auto space-y-3">
+        <div className="flex-1 p-4 overflow-y-auto space-y-3 chat-scrollbar bg-slate-950/60">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-500">
-              <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-emerald-400 mb-3">
-                <MessageCircle className="w-6 h-6" />
+              <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-emerald-400 mb-3 shadow-inner">
+                <MessageCircle className="w-7 h-7" />
               </div>
-              <p className="text-sm font-bold text-slate-300">Live 1-on-1 Chat, Voice & Video Started</p>
+              <p className="text-sm font-bold text-slate-200">Live 1-on-1 Chat, Voice & Video</p>
               <p className="text-xs text-slate-500 max-w-xs mt-1">
                 Direct interaction between trainer and athlete. Chat, call anytime or launch instant video calls for live form guidance.
               </p>
@@ -679,8 +656,8 @@ export default function DirectChatModal({
 
               if (isCallNotice) {
                 return (
-                  <div key={m.id} className="flex justify-center my-1">
-                    <span className="text-[11px] font-semibold bg-slate-900 border border-slate-800 text-slate-400 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
+                  <div key={m.id} className="flex justify-center my-2">
+                    <span className="text-[11px] font-medium bg-slate-900/90 border border-slate-800 text-slate-400 px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
                       {m.text}
                     </span>
                   </div>
@@ -701,10 +678,10 @@ export default function DirectChatModal({
                     </span>
                   </div>
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-medium leading-relaxed break-words shadow-sm ${
+                    className={`max-w-[82%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-medium leading-relaxed break-words shadow-sm ${
                       isMe
-                        ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-br-none"
-                        : "bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none"
+                        ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-br-xs shadow-emerald-500/10"
+                        : "bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-xs shadow-black/40"
                     }`}
                   >
                     {m.text}
@@ -717,7 +694,7 @@ export default function DirectChatModal({
         </div>
 
         {/* Message Input Box */}
-        <form onSubmit={handleSend} className="p-3 bg-slate-900 border-t border-slate-800 flex items-center gap-2">
+        <form onSubmit={handleSend} className="p-3.5 bg-slate-900/95 border-t border-slate-800/80 flex items-center gap-2.5 shrink-0">
           <input
             type="text"
             value={inputText}
@@ -728,12 +705,12 @@ export default function DirectChatModal({
           <button
             type="submit"
             disabled={sending || !inputText.trim()}
-            className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white flex items-center justify-center shrink-0 disabled:opacity-40 transition shadow-lg shadow-emerald-500/20"
+            className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white flex items-center justify-center shrink-0 disabled:opacity-40 transition shadow-lg shadow-emerald-500/20 active:scale-95"
           >
             <Send className="w-4 h-4" />
           </button>
         </form>
       </div>
-    </Modal>
+    </div>
   );
 }

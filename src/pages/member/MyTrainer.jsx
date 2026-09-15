@@ -21,9 +21,9 @@ import {
   Droplets,
   Zap
 } from "lucide-react";
-import { useAuth } from "../../contexts/AuthContext";
 import { getTrainer, getTrainers } from "../../firebase/trainers";
 import { getMember, getMembers, updateMember } from "../../firebase/members";
+import { getChatRoomId, subscribeRoomMeta } from "../../firebase/chat";
 import DirectChatModal from "../../components/shared/DirectChatModal";
 import toast from "react-hot-toast";
 
@@ -38,6 +38,7 @@ export default function MyTrainer() {
   const [sendingNote, setSendingNote] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [certModal, setCertModal] = useState(null);
+  const [hasUnreadChat, setHasUnreadChat] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -119,6 +120,25 @@ export default function MyTrainer() {
     }
     loadData();
   }, [gymId, profileId, user]);
+
+  // Real-time unread chat listener for member
+  useEffect(() => {
+    const tId = trainer?.id;
+    const mId = memberData?.id || profileId || user?.uid;
+    if (!tId || !mId) return;
+
+    const rId = getChatRoomId(tId, mId);
+    try {
+      const unsub = subscribeRoomMeta(GID, rId, (meta) => {
+        if (meta) {
+          setHasUnreadChat(!!meta.unread_member);
+        }
+      });
+      return () => {
+        if (typeof unsub === "function") unsub();
+      };
+    } catch (e) {}
+  }, [GID, trainer?.id, memberData?.id, profileId, user?.uid]);
 
   const handleSendNote = async (e) => {
     e.preventDefault();
@@ -218,8 +238,17 @@ export default function MyTrainer() {
           <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
             <button
               onClick={() => setIsChatOpen(true)}
-              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-md shadow-emerald-500/20 transition flex items-center justify-center gap-2 shrink-0 active:scale-95"
+              className={`relative w-full sm:w-auto px-6 py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2 shrink-0 active:scale-95 ${
+                hasUnreadChat
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-emerald-500/40 ring-2 ring-emerald-400 ring-offset-2 animate-pulse"
+                  : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-500/20"
+              }`}
             >
+              {hasUnreadChat && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 px-1.5 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white shadow-md border-2 border-white">
+                  NEW
+                </span>
+              )}
               <MessageCircle className="w-4 h-4" />
               <Video className="w-4 h-4" />
               In-App Chat & Video Call

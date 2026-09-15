@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getTrainerMembers, getTrainer, getTrainers } from "../../firebase/trainers";
+import { getChatRoomId, subscribeRoomMeta } from "../../firebase/chat";
 import AthleteHealthDietModal from "../../components/trainer/AthleteHealthDietModal";
 import DirectChatModal from "../../components/shared/DirectChatModal";
 
@@ -31,6 +32,7 @@ export default function MyMembers() {
   const [selectedAthlete, setSelectedAthlete] = useState(null);
   const [chatAthlete, setChatAthlete] = useState(null);
   const [trainerInfo, setTrainerInfo] = useState(user || null);
+  const [unreadChats, setUnreadChats] = useState({}); // { [memberId]: boolean }
 
   useEffect(() => {
     async function loadData() {
@@ -96,6 +98,33 @@ export default function MyMembers() {
     }
     loadData();
   }, [gymId, profileId, user]);
+
+  // Real-time unread messages listener for assigned members
+  useEffect(() => {
+    if (!members.length) return;
+    const tId = trainerInfo?.id || profileId || "i5sXkR1c7jIkPb89US2x";
+    const GID = gymId || "univo_main";
+    const unsubs = [];
+
+    members.forEach((m) => {
+      const rId = getChatRoomId(tId, m.id);
+      try {
+        const unsub = subscribeRoomMeta(GID, rId, (meta) => {
+          if (meta) {
+            setUnreadChats((prev) => ({
+              ...prev,
+              [m.id]: !!meta.unread_trainer
+            }));
+          }
+        });
+        if (typeof unsub === "function") unsubs.push(unsub);
+      } catch (e) {}
+    });
+
+    return () => {
+      unsubs.forEach((u) => u && u());
+    };
+  }, [members, trainerInfo?.id, profileId, gymId]);
 
   const filteredMembers = useMemo(() => {
     return members.filter((m) => {
@@ -336,10 +365,19 @@ export default function MyMembers() {
                   <button
                     type="button"
                     onClick={() => setChatAthlete(m)}
-                    className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition flex items-center gap-1.5 font-bold text-xs"
+                    className={`relative px-4 py-2.5 rounded-xl border transition flex items-center gap-1.5 font-extrabold text-xs ${
+                      unreadChats[m.id]
+                        ? "bg-emerald-500 text-white border-emerald-600 shadow-md shadow-emerald-500/30 animate-pulse"
+                        : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+                    }`}
                     title="In-App 1-on-1 Chat with Athlete"
                   >
-                    <MessageCircle className="w-4 h-4 text-emerald-600" />
+                    {unreadChats[m.id] && (
+                      <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white shadow-md border-2 border-white">
+                        NEW
+                      </span>
+                    )}
+                    <MessageCircle className={`w-4 h-4 ${unreadChats[m.id] ? "text-white" : "text-emerald-600"}`} />
                     <span>In-App Chat</span>
                   </button>
                 </div>

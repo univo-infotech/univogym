@@ -17,7 +17,9 @@ export function getChatRoomId(trainerId, memberId) {
 export async function sendChatMessage(gymId, { roomId, senderId, senderName, senderRole, text, type = 'text', mediaUrl = '' }) {
   const GID = gymId || 'univo_main';
   const chatRef = collection(db, 'gyms', GID, 'chatRooms', roomId, 'messages');
-  return await addDoc(chatRef, {
+  const nowIso = new Date().toISOString();
+
+  const docPromise = addDoc(chatRef, {
     roomId,
     senderId,
     senderName,
@@ -25,9 +27,28 @@ export async function sendChatMessage(gymId, { roomId, senderId, senderName, sen
     text: text.trim(),
     type,
     mediaUrl,
+    seen: false,
     timestamp: serverTimestamp(),
-    createdAt: new Date().toISOString()
+    createdAt: nowIso
   });
+
+  // Also update room meta for fast unread & list tracking
+  try {
+    const { doc, setDoc } = await import('firebase/firestore');
+    const roomDocRef = doc(db, 'gyms', GID, 'chatRooms', roomId);
+    setDoc(roomDocRef, {
+      roomId,
+      lastMessageText: text.trim(),
+      lastMessageSenderId: senderId,
+      lastMessageSenderRole: senderRole,
+      lastMessageCreatedAt: nowIso,
+      updatedAt: serverTimestamp(),
+      // track unread for the opposite side
+      [`unread_${senderRole === 'trainer' ? 'member' : 'trainer'}`]: true
+    }, { merge: true }).catch(() => {});
+  } catch (e) {}
+
+  return await docPromise;
 }
 
 export function subscribeChatMessages(gymId, roomId, callback) {
@@ -44,6 +65,39 @@ export function subscribeChatMessages(gymId, roomId, callback) {
   }, (err) => {
     console.warn('Chat listener error:', err);
     callback([]);
+  });
+}
+
+// Mark messages as seen when chat modal is opened by user
+export async function markRoomMessagesSeen(gymId, roomId, readerRole) {
+  const GID = gymId || 'univo_main';
+  try {
+    const { doc, setDoc } = await import('firebase/firestore');
+    const roomDocRef = doc(db, 'gyms', GID, 'chatRooms', roomId);
+    await setDoc(roomDocRef, {
+      [`unread_${readerRole}`]: false,
+      [`lastSeen_${readerRole}`]: new Date().toISOString()
+    }, { merge: true });
+  } catch (e) {
+    console.warn('Error marking messages as seen:', e);
+  }
+}
+
+// Real-time listener for unread status of a specific room
+export function subscribeRoomMeta(gymId, roomId, callback) {
+  const GID = gymId || 'univo_main';
+  import('firebase/firestore').then(({ doc, onSnapshot: onDocSnapshot }) => {
+    const roomDocRef = doc(db, 'gyms', GID, 'chatRooms', roomId);
+    return onDocSnapshot(roomDocRef, (snap) => {
+      if (snap.exists()) {
+        callback({ id: snap.id, ...snap.data() });
+      } else {
+        callback(null);
+      }
+    }, (err) => {
+      console.warn('Room meta error:', err);
+      callback(null);
+    });
   });
 }
 
