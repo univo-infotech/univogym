@@ -161,12 +161,16 @@ export default function Visits() {
   const timerRef = useRef(null);
 
   // Form State for Add / Edit Walk-in Lead
+  const defaultSlot = (settings?.workoutSlots && settings.workoutSlots.length > 0)
+    ? `${settings.workoutSlots[0].label} (${settings.workoutSlots[0].time})`
+    : "Morning (6:00 AM - 9:00 AM)";
+
   const [form, setForm] = useState({
     enquiryType: "demo", // "demo" | "visit"
     name: "",
     phone: "",
     gender: "Male",
-    preferredShiftSlot: "Evening Peak (5:00 PM - 9:00 PM)",
+    preferredShiftSlot: defaultSlot,
     interestedIn: "Weight Loss & Transformation",
     source: "Walk-in (Reception)",
     visitDate: new Date().toISOString().split("T")[0],
@@ -221,7 +225,7 @@ export default function Visits() {
       name: "",
       phone: "",
       gender: "Male",
-      preferredShiftSlot: "Evening Peak (5:00 PM - 9:00 PM)",
+      preferredShiftSlot: defaultSlot,
       interestedIn: "Weight Loss & Muscle Transformation",
       source: "Walk-in (Reception)",
       visitDate: today,
@@ -246,7 +250,7 @@ export default function Visits() {
       name: visit.name || "",
       phone: visit.phone || "",
       gender: visit.gender || "Male",
-      preferredShiftSlot: visit.preferredShiftSlot || "Evening Peak (5:00 PM - 9:00 PM)",
+      preferredShiftSlot: visit.preferredShiftSlot || defaultSlot,
       interestedIn: visit.interestedIn || "Weight Loss & Transformation",
       source: visit.source || "Walk-in (Reception)",
       visitDate: visit.visitDate || new Date().toISOString().split("T")[0],
@@ -837,12 +841,20 @@ export default function Visits() {
               onChange={(e) => setForm({ ...form, preferredShiftSlot: e.target.value })}
               className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-semibold"
             >
-              <option value="Early Morning (6:00 AM - 9:00 AM)">🌅 Early Morning (सुबह) (6:00 AM - 9:00 AM)</option>
-              <option value="Mid-Morning (9:00 AM - 12:00 PM)">☀️ Mid-Morning (9:00 AM - 12:00 PM)</option>
-              <option value="Afternoon Lean (12:00 PM - 4:00 PM)">☕ Afternoon (दोपहर) (12:00 PM - 4:00 PM)</option>
-              <option value="Evening Peak (5:00 PM - 9:00 PM)">🌆 Evening Peak (शाम) (5:00 PM - 9:00 PM)</option>
-              <option value="Night Owls (9:00 PM - 11:00 PM)">🌙 Night Shift (रात) (9:00 PM - 11:00 PM)</option>
-              <option value="Full Day Access (6:00 AM - 11:00 PM)">⚡ Full Day Open (पूरा दिन) (6:00 AM - 11:00 PM)</option>
+              {settings?.workoutSlots && settings.workoutSlots.length > 0 ? (
+                settings.workoutSlots.map((slot) => (
+                  <option key={slot.id} value={`${slot.label} (${slot.time})`}>
+                    {slot.label} ({slot.time})
+                  </option>
+                ))
+              ) : (
+                <>
+                  <option value="Morning (6:00 AM - 9:00 AM)">Morning (6:00 AM - 9:00 AM)</option>
+                  <option value="Afternoon (12:00 PM - 3:00 PM)">Afternoon (12:00 PM - 3:00 PM)</option>
+                  <option value="Evening (4:00 PM - 7:00 PM)">Evening (4:00 PM - 7:00 PM)</option>
+                  <option value="Night (7:00 PM - 10:00 PM)">Night (7:00 PM - 10:00 PM)</option>
+                </>
+              )}
             </select>
           </div>
 
@@ -911,35 +923,6 @@ export default function Visits() {
                     type="date"
                     value={form.demoEndDate}
                     onChange={(e) => setForm({ ...form, demoEndDate: e.target.value })}
-                    className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Assigned Fitness Coach & Demo Time */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600">Assigned Gym Coach / Trainer</label>
-                  <select
-                    value={form.assignedTrainer}
-                    onChange={(e) => setForm({ ...form, assignedTrainer: e.target.value })}
-                    className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
-                  >
-                    <option>Unassigned (General Floor Demo)</option>
-                    {trainers.map((t) => (
-                      <option key={t.id} value={t.name || t.fullName}>
-                        {t.name || t.fullName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-600">Preferred Demo Workout Time</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 07:00 PM"
-                    value={form.demoTime}
-                    onChange={(e) => setForm({ ...form, demoTime: e.target.value })}
                     className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
                   />
                 </div>
@@ -1085,10 +1068,20 @@ export default function Visits() {
                   onChange={(e) => setConvertForm({ ...convertForm, slot: e.target.value })}
                   className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
                 >
-                  <option>🌅 Morning (6:00 AM - 9:00 AM)</option>
-                  <option>☀️ Afternoon (12:00 PM - 3:00 PM)</option>
-                  <option>🌇 Evening (4:00 PM - 7:00 PM)</option>
-                  <option>🌙 Night (7:00 PM - 10:00 PM)</option>
+                  {settings?.workoutSlots && settings.workoutSlots.length > 0 ? (
+                    settings.workoutSlots.map((slot) => (
+                      <option key={slot.id} value={`${slot.label} (${slot.time})`}>
+                        {slot.label} ({slot.time})
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Morning (6:00 AM - 9:00 AM)">Morning (6:00 AM - 9:00 AM)</option>
+                      <option value="Afternoon (12:00 PM - 3:00 PM)">Afternoon (12:00 PM - 3:00 PM)</option>
+                      <option value="Evening (4:00 PM - 7:00 PM)">Evening (4:00 PM - 7:00 PM)</option>
+                      <option value="Night (7:00 PM - 10:00 PM)">Night (7:00 PM - 10:00 PM)</option>
+                    </>
+                  )}
                 </select>
               </div>
             </div>
