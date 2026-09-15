@@ -7,6 +7,7 @@ import MyPlan from "../pages/member/MyPlan";
 import MyTrainer from "../pages/member/MyTrainer";
 import MemberPayments from "../pages/member/Payments";
 import MemberStore from "../pages/member/Store";
+import TrainerComplain from "../pages/member/TrainerComplain";
 
 export default function MemberRoutes() {
   return (
@@ -18,6 +19,7 @@ export default function MemberRoutes() {
         <Route path="plan" element={<MyPlan />} />
         <Route path="store" element={<MemberStore />} />
         <Route path="trainer" element={<MyTrainer />} />
+        <Route path="complain" element={<TrainerComplain />} />
         <Route path="payments" element={<MemberPayments />} />
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>

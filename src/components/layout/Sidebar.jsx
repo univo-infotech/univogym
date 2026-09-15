@@ -43,7 +43,7 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
     { id: "expenses", to: "/owner/expenses", label: "Expenses & Utility", icon: DollarSign },
     { id: "reports", to: "/owner/reports", label: "Reports (Daily/Monthly)", icon: BarChart2 },
     { id: "visits", to: "/owner/visits", label: "Visit & Demo", icon: CalendarCheck },
-    { id: "offers", to: "/owner/offers", label: "Offer & Broadcast", icon: Tag },
+    { id: "complaints", to: "/owner/complaints", label: "Complaints", icon: ShieldAlert },
     { id: "settings", to: "/owner/settings", label: "Settings", icon: Settings },
     { id: "roles", to: "/owner/roles", label: "Roles & Permissions", icon: ShieldCheck },
   ];
@@ -61,6 +61,7 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
     { to: "/member/plan", label: "My Plan", icon: CreditCard },
     { to: "/member/store", label: "Gym Store & Nutrition", icon: ShoppingBag },
     { to: "/member/trainer", label: "My Trainer", icon: Dumbbell },
+    { to: "/member/complain", label: "Trainer Complain", icon: ShieldAlert },
     { to: "/member/payments", label: "My Payments", icon: DollarSign },
   ];
 
