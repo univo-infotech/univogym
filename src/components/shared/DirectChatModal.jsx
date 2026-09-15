@@ -27,9 +27,20 @@ import {
   startCallSession,
   subscribeCallSession,
   updateCallSession,
-  endCallSession
+  endCallSession,
+  sendCallSignal,
+  addIceCandidate,
+  subscribeIceCandidates
 } from "../../firebase/chat";
 import toast from "react-hot-toast";
+
+const RTC_CONFIG = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" }
+  ]
+};
 
 export default function DirectChatModal({
   isOpen,
@@ -53,7 +64,9 @@ export default function DirectChatModal({
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
   const localStreamRef = useRef(null);
+  const peerConnectionRef = useRef(null);
   const timerRef = useRef(null);
 
   const roomId = getChatRoomId(
@@ -70,10 +83,50 @@ export default function DirectChatModal({
     return () => unsub();
   }, [isOpen, roomId, gymId]);
 
+  // Create Peer Connection with media handlers
+  const createPeerConnection = (type) => {
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+    }
+
+    const pc = new RTCPeerConnection(RTC_CONFIG);
+    peerConnectionRef.current = pc;
+
+    // Send local tracks
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        pc.addTrack(track, localStreamRef.current);
+      });
+    }
+
+    // Receive remote tracks (Audio & Video)
+    pc.ontrack = (event) => {
+      const remoteStream = event.streams[0] || new MediaStream([event.track]);
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStream;
+      }
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = remoteStream;
+      }
+    };
+
+    // Send ICE candidates to Firestore
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        const isCaller = currentUser?.role === "trainer";
+        const candidateTarget = isCaller ? "callerCandidates" : "calleeCandidates";
+        addIceCandidate(gymId, roomId, candidateTarget, event.candidate);
+      }
+    };
+
+    return pc;
+  };
+
   // Subscribe to call signaling session
   useEffect(() => {
     if (!isOpen || !roomId) return;
-    const unsubCall = subscribeCallSession(gymId, roomId, (session) => {
+
+    const unsubCall = subscribeCallSession(gymId, roomId, async (session) => {
       if (!session) {
         if (callState !== "idle") {
           handleCleanupCall();
@@ -81,14 +134,27 @@ export default function DirectChatModal({
         return;
       }
 
-      // If incoming call from the other user
-      if (session.callerId !== currentUser?.id && session.status === "ringing") {
+      // 1. Incoming call for receiver
+      if (session.callerId !== currentUser?.id && session.status === "ringing" && callState === "idle") {
         setCallType(session.type || "video");
         setCallState("incoming");
-      } else if (session.status === "accepted" && callState === "calling") {
-        setCallState("connected");
-        startCallTimer();
-      } else if (session.status === "ended" || session.status === "rejected") {
+      }
+
+      // 2. Caller receives Answer from receiver
+      if (session.callerId === currentUser?.id && session.status === "accepted" && session.answer && peerConnectionRef.current) {
+        if (!peerConnectionRef.current.currentRemoteDescription) {
+          try {
+            await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(session.answer));
+            setCallState("connected");
+            startCallTimer();
+          } catch (e) {
+            console.warn("setRemoteDescription answer error:", e);
+          }
+        }
+      }
+
+      // 3. Call Ended or Rejected
+      if (session.status === "ended" || session.status === "rejected") {
         handleCleanupCall();
       }
     });
@@ -97,6 +163,28 @@ export default function DirectChatModal({
       if (typeof unsubCall === "function") unsubCall();
     };
   }, [isOpen, roomId, gymId, currentUser?.id, callState]);
+
+  // Subscribe to ICE candidates
+  useEffect(() => {
+    if (!isOpen || !roomId || callState === "idle") return;
+
+    const isCaller = currentUser?.role === "trainer";
+    const remoteTarget = isCaller ? "calleeCandidates" : "callerCandidates";
+
+    const unsubCand = subscribeIceCandidates(gymId, roomId, remoteTarget, async (cand) => {
+      if (peerConnectionRef.current && cand) {
+        try {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(cand));
+        } catch (e) {
+          console.warn("addIceCandidate error:", e);
+        }
+      }
+    });
+
+    return () => {
+      if (typeof unsubCand === "function") unsubCand();
+    };
+  }, [isOpen, roomId, gymId, callState, currentUser?.role]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -121,7 +209,7 @@ export default function DirectChatModal({
   const initLocalMedia = async (withVideo) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         video: withVideo ? { width: { ideal: 640 }, height: { ideal: 480 } } : false
       });
       localStreamRef.current = stream;
@@ -133,10 +221,16 @@ export default function DirectChatModal({
       console.warn("Media device access error:", err);
       toast.error(
         withVideo
-          ? "Camera / Mic permission denied or device not found."
+          ? "Camera / Mic access error. Microphone only enabled."
           : "Microphone permission denied."
       );
-      return null;
+      try {
+        const audioOnlyStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        localStreamRef.current = audioOnlyStream;
+        return audioOnlyStream;
+      } catch (e2) {
+        return null;
+      }
     }
   };
 
@@ -145,7 +239,12 @@ export default function DirectChatModal({
     setCallType(type);
     setCallState("calling");
 
-    await initLocalMedia(type === "video");
+    const stream = await initLocalMedia(type === "video");
+    const pc = createPeerConnection(type);
+
+    // Create and send SDP Offer
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
 
     await startCallSession(gymId, roomId, {
       callerId: currentUser?.id,
@@ -153,10 +252,10 @@ export default function DirectChatModal({
       callerRole: currentUser?.role || "trainer",
       receiverId: targetUser?.id,
       receiverName: targetUser?.name || "User",
-      type
+      type,
+      offer: { type: offer.type, sdp: offer.sdp }
     });
 
-    // Send call notice in chat
     await sendChatMessage(gymId, {
       roomId,
       senderId: currentUser?.id,
@@ -170,9 +269,31 @@ export default function DirectChatModal({
   // Accept incoming call
   const handleAcceptCall = async () => {
     setCallState("connected");
-    await initLocalMedia(callType === "video");
-    await updateCallSession(gymId, roomId, { status: "accepted" });
-    startCallTimer();
+    const stream = await initLocalMedia(callType === "video");
+    const pc = createPeerConnection(callType);
+
+    // Fetch call session with caller's offer
+    try {
+      const { doc, getDoc } = await import("firebase/firestore");
+      const { db } = await import("../../firebase/firebase");
+      const callDocRef = doc(db, "gyms", gymId || "univo_main", "chatRooms", roomId, "callSession", "active");
+      const snap = await getDoc(callDocRef);
+
+      if (snap.exists() && snap.data().offer) {
+        await pc.setRemoteDescription(new RTCSessionDescription(snap.data().offer));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        await sendCallSignal(gymId, roomId, {
+          status: "accepted",
+          answer: { type: answer.type, sdp: answer.sdp }
+        });
+        startCallTimer();
+      }
+    } catch (err) {
+      console.error("Accept call WebRTC error:", err);
+      toast.error("Failed to establish direct connection.");
+    }
   };
 
   // Reject incoming call
@@ -196,10 +317,16 @@ export default function DirectChatModal({
   };
 
   const handleCleanupCall = () => {
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
     }
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     clearInterval(timerRef.current);
     setCallDuration(0);
     setCallState("idle");
@@ -363,25 +490,55 @@ export default function DirectChatModal({
               </p>
             </div>
 
-            {/* Video / Avatar Container */}
+            {/* Video / Avatar Container (Both Local & Remote Streams) */}
             <div className="w-full max-w-sm flex-1 my-4 flex items-center justify-center relative">
+              {/* Invisible autoPlay audio element for remote voice transmission */}
+              <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+
               {callType === "video" ? (
-                <div className="w-full h-64 bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 relative flex items-center justify-center">
+                <div className="w-full h-72 bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 relative flex items-center justify-center shadow-inner">
+                  {/* REMOTE PARTNER VIDEO (FULL SCREEN) */}
                   <video
-                    ref={localVideoRef}
+                    ref={remoteVideoRef}
                     autoPlay
                     playsInline
-                    muted
-                    className={`w-full h-full object-cover ${isVideoOff ? "hidden" : "block"}`}
+                    className="w-full h-full object-cover"
                   />
-                  {isVideoOff && (
-                    <div className="flex flex-col items-center gap-2 text-slate-400">
-                      <VideoOff className="w-8 h-8 text-slate-500" />
-                      <span className="text-xs font-bold">Camera is Off</span>
+
+                  {/* Fallback if remote stream has not arrived yet */}
+                  {callState !== "connected" && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-900/80 z-10">
+                      <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-xl animate-pulse">
+                        {(targetUser?.name || "U").charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-xs text-slate-300 font-bold">
+                        {callState === "calling" ? "Connecting to partner..." : "Ringing..."}
+                      </span>
                     </div>
                   )}
+
+                  {/* LOCAL USER PIP VIDEO (SMALL OVERLAY BOTTOM-RIGHT) */}
+                  <div className="absolute bottom-3 right-3 w-24 h-32 bg-slate-950 rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-2xl z-20">
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className={`w-full h-full object-cover ${isVideoOff ? "hidden" : "block"}`}
+                    />
+                    {isVideoOff && (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-400">
+                        <VideoOff className="w-4 h-4 text-slate-500" />
+                        <span className="text-[9px] font-bold mt-1">Off</span>
+                      </div>
+                    )}
+                    <span className="absolute bottom-1 left-1.5 text-[8.5px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded-md">
+                      You
+                    </span>
+                  </div>
+
                   <div className="absolute top-3 left-3 bg-slate-950/70 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] font-bold text-white">
-                    You ({isTrainer ? "Coach" : "Athlete"})
+                    {targetUser?.name || (isTrainer ? "Athlete" : "Coach")}
                   </div>
                 </div>
               ) : (
@@ -389,8 +546,9 @@ export default function DirectChatModal({
                   <div className="w-28 h-28 rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-4xl font-black text-white shadow-2xl animate-pulse">
                     {(targetUser?.name || "U").charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                    <Volume2 className="w-4 h-4 text-emerald-400" /> HD Audio Active
+                  <div className="flex items-center gap-1.5 text-xs text-slate-300 font-semibold">
+                    <Volume2 className="w-4 h-4 text-emerald-400 animate-pulse" />
+                    {callState === "connected" ? "HD Voice Transmitting (Both Speaking)" : "Connecting Voice..."}
                   </div>
                 </div>
               )}

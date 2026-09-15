@@ -89,6 +89,34 @@ export async function updateCallSession(gymId, roomId, updates) {
   });
 }
 
+export async function sendCallSignal(gymId, roomId, data) {
+  const GID = gymId || 'univo_main';
+  const { doc, setDoc } = await import('firebase/firestore');
+  const callDocRef = doc(db, 'gyms', GID, 'chatRooms', roomId, 'callSession', 'active');
+  await setDoc(callDocRef, data, { merge: true });
+}
+
+export async function addIceCandidate(gymId, roomId, target, candidate) {
+  const GID = gymId || 'univo_main';
+  const { collection, addDoc } = await import('firebase/firestore');
+  const candRef = collection(db, 'gyms', GID, 'chatRooms', roomId, 'callSession', 'active', target);
+  await addDoc(candRef, candidate.toJSON ? candidate.toJSON() : candidate);
+}
+
+export function subscribeIceCandidates(gymId, roomId, target, callback) {
+  const GID = gymId || 'univo_main';
+  import('firebase/firestore').then(({ collection, onSnapshot: onCollSnapshot }) => {
+    const candRef = collection(db, 'gyms', GID, 'chatRooms', roomId, 'callSession', 'active', target);
+    return onCollSnapshot(candRef, (snap) => {
+      snap.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          callback(change.doc.data());
+        }
+      });
+    });
+  });
+}
+
 export async function endCallSession(gymId, roomId) {
   const GID = gymId || 'univo_main';
   const { doc, deleteDoc } = await import('firebase/firestore');
@@ -99,4 +127,3 @@ export async function endCallSession(gymId, roomId) {
     console.warn('Delete call session err:', e);
   }
 }
-
