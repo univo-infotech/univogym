@@ -22,6 +22,7 @@ import {
   X,
   Menu,
   ShieldCheck,
+  ShieldAlert,
   ShoppingBag
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
