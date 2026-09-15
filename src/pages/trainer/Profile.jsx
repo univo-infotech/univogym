@@ -16,7 +16,9 @@ import {
   ImageIcon,
   Plus,
   X,
-  Save
+  Save,
+  Lock,
+  ShieldCheck
 } from "lucide-react";
 import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
 import { useAuth } from "../../contexts/AuthContext";
@@ -554,92 +556,48 @@ export default function TrainerProfile() {
             </label>
           </div>
 
-          {/* Gym Owner & Trainer PT Commission Deal */}
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/50 border-2 border-indigo-200/90 shadow-2xs space-y-3">
+          {/* Gym Owner & Trainer PT Commission Deal (READ-ONLY FOR TRAINER) */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50/80 via-white to-purple-50/60 border-2 border-indigo-200/90 shadow-2xs space-y-3 relative overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
               <div>
-                <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
-                  <HandCoins className="w-4 h-4 text-indigo-600" /> Gym Owner & Trainer PT Commission Deal (कमीशन समझौता)
-                </h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <HandCoins className="w-4 h-4 text-indigo-600" /> Gym Owner & Trainer PT Commission Deal
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-[10px] flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-amber-700" /> Owner Managed (View Only)
+                  </span>
+                </div>
                 <p className="text-[11px] text-slate-600 mt-0.5">
-                  PT membership sale hone par Trainer dwara Gym Owner ko diya jane wala share:
+                  Yeh commission deal Gym Owner dwara set ki gayi hai. Trainer sirf dekh sakta hai, edit/change nahi kar sakta.
                 </p>
               </div>
-              <div className="flex rounded-xl overflow-hidden border border-indigo-200 text-[11px] font-bold self-start sm:self-auto bg-white">
-                <button
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, commissionType: "percentage" }))}
-                  className={`px-3 py-1.5 transition flex items-center gap-1 ${
-                    form.commissionType === "percentage"
-                      ? "bg-indigo-600 text-white"
-                      : "text-slate-600 hover:bg-indigo-50"
-                  }`}
-                >
-                  <Percent className="w-3.5 h-3.5" /> Percentage (%)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, commissionType: "fixed" }))}
-                  className={`px-3 py-1.5 transition flex items-center gap-1 ${
-                    form.commissionType === "fixed"
-                      ? "bg-indigo-600 text-white"
-                      : "text-slate-600 hover:bg-indigo-50"
-                  }`}
-                >
-                  <IndianRupee className="w-3.5 h-3.5" /> Fixed Amount (₹)
-                </button>
+
+              <div className="px-3 py-1 rounded-xl bg-indigo-100/70 border border-indigo-200 text-xs font-black text-indigo-950">
+                {form.commissionType === "percentage"
+                  ? `${form.commissionValue || 30}% Owner / ${100 - (form.commissionValue || 30)}% Trainer`
+                  : `Flat ₹${Number(form.commissionValue || 0).toLocaleString("en-IN")} Owner Cut`}
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-              {form.commissionType === "percentage" ? (
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                    Gym Owner Share (%):
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={form.commissionValue}
-                      onChange={(e) => setForm((prev) => ({ ...prev, commissionValue: Math.min(100, Math.max(0, Number(e.target.value))) }))}
-                      className="w-full bg-white border border-indigo-200 rounded-xl px-3 py-2 text-xs font-black text-indigo-950 focus:outline-none focus:border-indigo-500 pr-8"
-                      placeholder="30"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
-                  </div>
-                  <span className="text-[10px] text-slate-500 mt-1 block">
-                    Gym ko <strong>{form.commissionValue || 0}%</strong> milega, Trainer ka <strong>{Math.max(0, 100 - (form.commissionValue || 0))}%</strong> bachega.
-                  </span>
-                </div>
-              ) : (
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                    Gym Owner Fixed Cut per PT Sale (₹):
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.commissionValue}
-                      onChange={(e) => setForm((prev) => ({ ...prev, commissionValue: Math.max(0, Number(e.target.value)) }))}
-                      className="w-full bg-white border border-indigo-200 rounded-xl pl-7 pr-3 py-2 text-xs font-black text-indigo-950 focus:outline-none focus:border-indigo-500"
-                      placeholder="1500"
-                    />
-                  </div>
-                  <span className="text-[10px] text-slate-500 mt-1 block">
-                    Har PT admission par flat <strong>₹{Number(form.commissionValue || 0).toLocaleString("en-IN")}</strong> Gym ka share hoga.
-                  </span>
-                </div>
-              )}
+              <div className="p-3 bg-white rounded-xl border border-indigo-100">
+                <span className="text-[10px] font-bold text-slate-500 uppercase block">Active Commission Structure</span>
+                <p className="text-sm font-black text-indigo-950 mt-1">
+                  {form.commissionType === "percentage"
+                    ? `Gym Owner: ${form.commissionValue || 30}%  |  Trainer Share: ${100 - (form.commissionValue || 30)}%`
+                    : `Flat ₹${Number(form.commissionValue || 0).toLocaleString("en-IN")} per PT Sale`}
+                </p>
+                <p className="text-[10.5px] text-slate-500 mt-1">
+                  Commission modify karwane ke liye Gym Owner se sampark karein.
+                </p>
+              </div>
 
               {/* Live Split Example Simulation */}
               <div className="p-3 bg-white rounded-xl border border-indigo-100 shadow-2xs space-y-1.5 text-xs">
                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 border-b border-slate-100 pb-1">
                   <span>Example on ₹5,000 PT Sale:</span>
-                  <span className="text-indigo-600 font-extrabold">Auto Split</span>
+                  <span className="text-indigo-600 font-extrabold">Auto Calculated</span>
                 </div>
                 {(() => {
                   const samplePrice = 5000;
@@ -665,204 +623,66 @@ export default function TrainerProfile() {
             </div>
           </div>
 
-          {/* Trainer PT Membership Packages */}
+          {/* Trainer PT Membership Packages (LOCKED & READ-ONLY FOR TRAINER) */}
           <div className="pt-3 border-t border-slate-100">
             <div className="flex items-center justify-between mb-2.5">
               <div>
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-emerald-600" /> Trainer PT Packages (व्यक्तिगत प्रशिक्षण पैकेज)
-                </h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600" /> Trainer PT Packages (व्यक्तिगत प्रशिक्षण पैकेज)
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-300 font-extrabold text-[10px] flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-slate-500" /> Fixed by Owner
+                  </span>
+                </div>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Define custom membership & PT pricing packages specific to this trainer.
+                  Yeh packages aur pricing Gym Owner dwara approve aur set ki gayi hain (View Only).
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={addPtPlan}
-                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add PT Package
-              </button>
             </div>
 
             <div className="space-y-3">
               {form.ptPlans.map((plan, idx) => (
                 <div
                   key={plan.id || idx}
-                  className="p-3.5 bg-slate-50/90 border border-slate-200/90 rounded-2xl relative space-y-2.5"
+                  className="p-4 bg-slate-50/90 border border-slate-200/90 rounded-2xl relative space-y-2.5"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-extrabold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <span className="text-[11px] font-extrabold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-md flex items-center gap-1">
                       <Dumbbell className="w-3 h-3 text-emerald-600" /> Package #{idx + 1}
                     </span>
-                    {form.ptPlans.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removePtPlan(idx)}
-                        className="text-slate-400 hover:text-rose-600 p-1 transition"
-                        title="Remove package"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    <span className="text-xs font-extrabold text-emerald-700 bg-white border border-emerald-200 px-3 py-1 rounded-xl shadow-xs">
+                      ₹{Number(plan.price || 0).toLocaleString("en-IN")}
+                    </span>
                   </div>
 
-                  {/* Quick Duration Presets */}
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1 mb-1.5">
-                      <Clock className="w-3 h-3 text-emerald-600" /> Quick Duration Presets (तुरंत पैकेज चुनें):
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                      {[
-                        { label: "1 Month", type: "months", val: 1, sess: 24 },
-                        { label: "3 Months", type: "months", val: 3, sess: 72 },
-                        { label: "6 Months", type: "months", val: 6, sess: 144 },
-                        { label: "1 Year", type: "years", val: 1, sess: 288 }
-                      ].map((preset) => {
-                        const isMatch = (plan.durationType || "months") === preset.type && Number(plan.durationValue || 1) === preset.val;
-                        return (
-                          <button
-                            key={preset.label}
-                            type="button"
-                            onClick={() => applyPtPreset(idx, preset.type, preset.val, preset.sess)}
-                            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition text-center ${
-                              isMatch
-                                ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
-                            }`}
-                          >
-                            {preset.label}
-                            <span className={`block text-[9px] font-normal ${isMatch ? "text-emerald-100" : "text-slate-400"}`}>
-                              ({preset.sess} sessions)
-                            </span>
-                          </button>
-                        );
-                      })}
+                  <div className="bg-white p-3 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Package Name</span>
+                      <p className="text-xs font-bold text-slate-900 mt-0.5">{plan.name}</p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Duration & Validity</span>
+                      <p className="text-xs font-bold text-emerald-800 mt-0.5">
+                        {plan.duration || `${plan.durationValue || 1} ${plan.durationType || "months"}`}
+                        {plan.sessionsCount ? ` (${plan.sessionsCount} sessions)` : ""}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Fees</span>
+                      <p className="text-xs font-black text-slate-900 mt-0.5">
+                        ₹{Number(plan.price || 0).toLocaleString("en-IN")}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Detailed Inputs */}
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                    {/* Package Name */}
-                    <div className="sm:col-span-4">
-                      <label className="text-[10px] font-bold text-slate-600 uppercase">
-                        Package Name *
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        value={plan.name}
-                        onChange={(e) => handlePtPlanChange(idx, "name", e.target.value)}
-                        placeholder="e.g. 1 Month 1-on-1 PT"
-                        className="w-full mt-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
-                      />
+                  {plan.description && (
+                    <div className="text-[11px] text-slate-600 bg-white/70 px-3 py-1.5 rounded-lg border border-slate-100">
+                      <strong className="text-slate-800">What's Included:</strong> {plan.description}
                     </div>
-
-                    {/* Month / Year / Days Value & Unit */}
-                    <div className="sm:col-span-4">
-                      <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-slate-400" /> Month / Year Duration *
-                      </label>
-                      <div className="flex gap-1.5 mt-1">
-                        <input
-                          required
-                          type="number"
-                          min="1"
-                          value={plan.durationValue || 1}
-                          onChange={(e) => handlePtPlanChange(idx, "durationValue", Math.max(1, Number(e.target.value)))}
-                          className="w-20 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-emerald-500 outline-none text-center"
-                        />
-                        <select
-                          value={plan.durationType || "months"}
-                          onChange={(e) => handlePtPlanChange(idx, "durationType", e.target.value)}
-                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:border-emerald-500 outline-none"
-                        >
-                          <option value="months">Month(s)</option>
-                          <option value="years">Year(s)</option>
-                          <option value="days">Day(s)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Planned Sessions */}
-                    <div className="sm:col-span-2">
-                      <label className="text-[10px] font-bold text-slate-600 uppercase">
-                        Sessions
-                      </label>
-                      <input
-                        type="number"
-                        value={plan.sessionsCount || 24}
-                        onChange={(e) => handlePtPlanChange(idx, "sessionsCount", Number(e.target.value))}
-                        placeholder="24"
-                        className="w-full mt-1 px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:border-emerald-500 outline-none text-center font-bold"
-                      />
-                    </div>
-
-                    {/* Package Total Fees */}
-                    <div className="sm:col-span-2">
-                      <label className="text-[10px] font-bold text-slate-600 uppercase">
-                        Fees (₹) *
-                      </label>
-                      <div className="relative mt-1">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">
-                          ₹
-                        </span>
-                        <input
-                          required
-                          type="number"
-                          value={plan.price}
-                          onChange={(e) => handlePtPlanChange(idx, "price", e.target.value)}
-                          placeholder="4500"
-                          className="w-full pl-5 pr-2 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-emerald-700 focus:border-emerald-500 outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Automatic Calculation Banner */}
-                  <div className="p-2.5 bg-emerald-50/80 rounded-xl border border-emerald-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                        <Calculator className="w-3.5 h-3.5" />
-                      </div>
-                      <div>
-                        <span className="font-extrabold text-emerald-950">
-                          {plan.duration || formatPtDuration(plan.durationType || "months", plan.durationValue || 1, plan.sessionsCount)}
-                        </span>
-                        <span className="text-[10px] text-emerald-700 font-medium ml-1.5">
-                          (Total: ~{getPtTotalDays(plan.durationType || "months", plan.durationValue || 1)} Days valid)
-                        </span>
-                      </div>
-                    </div>
-
-                    {plan.price && Number(plan.price) > 0 && (
-                      <div className="flex items-center gap-3 font-semibold text-[11px] text-emerald-900 bg-white/80 px-2.5 py-1 rounded-lg border border-emerald-100">
-                        {(plan.durationType === "years" || (plan.durationType === "months" && Number(plan.durationValue) > 1)) && (
-                          <span>
-                            Monthly Rate: <strong className="text-emerald-700 font-extrabold">₹{Math.round(Number(plan.price) / ((plan.durationType === "years" ? Number(plan.durationValue || 1) * 12 : Number(plan.durationValue || 1)))).toLocaleString("en-IN")}/mo</strong>
-                          </span>
-                        )}
-                        {plan.sessionsCount && Number(plan.sessionsCount) > 0 && (
-                          <span>
-                            Per Session: <strong className="text-emerald-700 font-extrabold">₹{Math.round(Number(plan.price) / Number(plan.sessionsCount)).toLocaleString("en-IN")}</strong>
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-600 uppercase">
-                      What's Included / Description
-                    </label>
-                    <input
-                      type="text"
-                      value={plan.description}
-                      onChange={(e) => handlePtPlanChange(idx, "description", e.target.value)}
-                      placeholder="e.g. Customized workout split, daily form check & personalized diet plan"
-                      className="w-full mt-1 px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:border-emerald-500 outline-none"
-                    />
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
