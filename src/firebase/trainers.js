@@ -220,6 +220,14 @@ export async function saveMemberDietPlan(gymId, memberId, dietPlan) {
   });
 }
 
+export async function saveMemberWorkoutRoutine(gymId, memberId, workoutRoutine) {
+  const ref = doc(db, "gyms", gymId || "univo_main", "members", memberId);
+  await updateDoc(ref, {
+    workoutRoutine,
+    workoutRoutineUpdatedAt: serverTimestamp(),
+  });
+}
+
 export async function logMemberWeight(gymId, memberId, weightEntry) {
   const ref = doc(db, "gyms", gymId || "univo_main", "members", memberId);
   const snap = await getDoc(ref);

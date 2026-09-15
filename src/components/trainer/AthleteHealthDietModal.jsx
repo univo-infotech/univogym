@@ -27,7 +27,12 @@ import {
 } from "lucide-react";
 import Modal from "../ui/Modal";
 import toast from "react-hot-toast";
-import { saveMemberDietPlan, logMemberWeight, recordTrainerSessionCompleted } from "../../firebase/trainers";
+import { 
+  saveMemberDietPlan, 
+  logMemberWeight, 
+  recordTrainerSessionCompleted,
+  saveMemberWorkoutRoutine
+} from "../../firebase/trainers";
 
 const DIET_PRESETS = [
   {
@@ -113,7 +118,7 @@ export default function AthleteHealthDietModal({
 }) {
   if (!member) return null;
 
-  const [activeTab, setActiveTab] = useState("diet"); // 'overview' | 'diet' | 'workout'
+  const [activeTab, setActiveTab] = useState("profile"); // 'profile' | 'diet' | 'overview' | 'workout'
   const [saving, setSaving] = useState(false);
 
   // Weight Logging State
@@ -262,6 +267,21 @@ export default function AthleteHealthDietModal({
     }
   };
 
+  // Save Workout Routine to Firestore
+  const handleSaveWorkout = async () => {
+    setSaving(true);
+    try {
+      await saveMemberWorkoutRoutine(gymId, member.id, workoutRoutine);
+      toast.success("Workout Routine saved for " + (member.name || "Athlete") + "! 🏋️");
+      if (onMemberUpdated) onMemberUpdated({ ...member, workoutRoutine });
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save workout routine");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Send Diet Plan to Member via WhatsApp
   const handleSendDietOnWhatsApp = () => {
     const num = (member.phone || "").replace(/\D/g, "");
@@ -374,8 +394,8 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
                     {member.status || "Active Athlete"}
                   </span>
                 </div>
-                <p className="text-xs text-slate-300 mt-0.5">
-                  Phone: <strong className="text-white">{member.phone || "N/A"}</strong> • PT Plan: <span className="text-emerald-400 font-bold">{member.ptPlanName || member.planName || "1-on-1 PT Coaching"}</span>
+                <p className="text-xs text-slate-300 mt-0.5 flex items-center gap-2">
+                  Privacy: <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-600 text-[10px]">PT Athlete</span> • PT Plan: <span className="text-emerald-400 font-bold">{member.ptPlanName || member.planName || "1-on-1 PT Coaching"}</span>
                 </p>
                 <p className="text-[11px] text-slate-400 mt-0.5">
                   Workout Time Slot: <strong className="text-teal-300">{member.preferredTime || member.slot || "Morning Slot (6-9 AM)"}</strong>
@@ -408,38 +428,156 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
         </div>
 
         {/* TABS NAVIGATION */}
-        <div className="flex border-b border-slate-200">
+        <div className="flex border-b border-slate-200 overflow-x-auto hide-scrollbar">
+          <button
+            onClick={() => setActiveTab("profile")}
+            className={`flex items-center gap-2 py-3 px-5 text-xs font-bold border-b-2 transition whitespace-nowrap ${
+              activeTab === "profile"
+                ? "border-emerald-600 text-emerald-700 bg-emerald-50/50"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <User className="w-4 h-4" /> Member Profile
+          </button>
           <button
             onClick={() => setActiveTab("diet")}
-            className={`flex items-center gap-2 py-3 px-5 text-xs font-bold border-b-2 transition ${
+            className={`flex items-center gap-2 py-3 px-5 text-xs font-bold border-b-2 transition whitespace-nowrap ${
               activeTab === "diet"
                 ? "border-emerald-600 text-emerald-700 bg-emerald-50/50"
                 : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
-            <Apple className="w-4 h-4 text-emerald-600" /> Custom Diet Plan Builder
+            <Apple className="w-4 h-4" /> Custom Diet Plan Builder
           </button>
           <button
             onClick={() => setActiveTab("overview")}
-            className={`flex items-center gap-2 py-3 px-5 text-xs font-bold border-b-2 transition ${
+            className={`flex items-center gap-2 py-3 px-5 text-xs font-bold border-b-2 transition whitespace-nowrap ${
               activeTab === "overview"
                 ? "border-emerald-600 text-emerald-700 bg-emerald-50/50"
                 : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
-            <Scale className="w-4 h-4 text-teal-600" /> Weight & Body Measurements
+            <Scale className="w-4 h-4" /> Weight & Body Measurements
           </button>
           <button
             onClick={() => setActiveTab("workout")}
-            className={`flex items-center gap-2 py-3 px-5 text-xs font-bold border-b-2 transition ${
+            className={`flex items-center gap-2 py-3 px-5 text-xs font-bold border-b-2 transition whitespace-nowrap ${
               activeTab === "workout"
                 ? "border-emerald-600 text-emerald-700 bg-emerald-50/50"
                 : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
-            <Dumbbell className="w-4 h-4 text-indigo-600" /> Workout Routine & Split
+            <Dumbbell className="w-4 h-4" /> Workout Routine & Split
           </button>
         </div>
+
+        {/* TAB 0: MEMBER PROFILE (NEW) */}
+        {activeTab === "profile" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Personal Info Card */}
+              <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3">
+                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2">
+                  <User className="w-4 h-4 text-emerald-600" /> Personal Information
+                </h4>
+                <div className="grid grid-cols-2 gap-y-3 text-xs">
+                  <div>
+                    <span className="text-slate-500 font-medium block">Full Name</span>
+                    <strong className="text-slate-900">{member.name || 'N/A'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-medium block">Status</span>
+                    <strong className="text-slate-900">{member.status || 'Active'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-medium block">Email</span>
+                    <strong className="text-slate-900">{member.email || 'N/A'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-medium block">Join Date</span>
+                    <strong className="text-slate-900">{member.joinDate || 'N/A'}</strong>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-slate-500 font-medium block">Preferred Time/Slot</span>
+                    <strong className="text-slate-900">{member.preferredTime || member.slot || 'N/A'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fitness Info Card */}
+              <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3">
+                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2">
+                  <Activity className="w-4 h-4 text-emerald-600" /> Fitness Information
+                </h4>
+                <div className="grid grid-cols-2 gap-y-3 text-xs">
+                  <div className="col-span-2">
+                    <span className="text-slate-500 font-medium block">Fitness Goal</span>
+                    <strong className="text-emerald-700">{member.fitnessGoal || member.goal || 'General Fitness'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-medium block">Height</span>
+                    <strong className="text-slate-900">{member.height ? `${member.height} cm` : 'N/A'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-medium block">Weight</span>
+                    <strong className="text-slate-900">{currentWeightNum > 0 ? `${currentWeightNum} kg` : 'N/A'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-medium block">BMI</span>
+                    <strong className="text-slate-900">{bmi || 'N/A'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-medium block">Target Weight</span>
+                    <strong className="text-slate-900">{member.targetWeight ? `${member.targetWeight} kg` : 'N/A'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Plan Info Card */}
+              <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl shadow-sm space-y-3 col-span-1 md:col-span-2">
+                <h4 className="text-sm font-bold text-emerald-900 flex items-center gap-2 border-b border-emerald-200/60 pb-2">
+                  <Calendar className="w-4 h-4 text-emerald-600" /> Plan & Training Details
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-3 text-xs">
+                  <div>
+                    <span className="text-emerald-700/80 font-medium block">PT Plan Name</span>
+                    <strong className="text-emerald-950">{member.ptPlanName || member.planName || 'N/A'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-emerald-700/80 font-medium block">Plan Price</span>
+                    <strong className="text-emerald-950">{member.ptPlanPrice || member.planAmount ? `₹${member.ptPlanPrice || member.planAmount}` : 'N/A'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-emerald-700/80 font-medium block">Training Timeline</span>
+                    <strong className="text-emerald-950">{startDate} - {endDate}</strong>
+                  </div>
+                  <div>
+                    <span className="text-emerald-700/80 font-medium block">Days Left</span>
+                    <strong className={daysLeft !== null && daysLeft <= 5 ? "text-rose-600" : "text-emerald-950"}>
+                      {daysLeft !== null ? (daysLeft > 0 ? `${daysLeft} Days` : "Expired") : "N/A"}
+                    </strong>
+                  </div>
+                  <div className="col-span-2 md:col-span-4 mt-2">
+                    <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-emerald-100 shadow-sm">
+                      <div>
+                        <span className="text-emerald-700/80 font-medium block text-[10px] uppercase tracking-wider">Sessions Completed</span>
+                        <strong className="text-xl font-black text-emerald-950">{sessionsCount}</strong>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddSession}
+                        className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition flex items-center gap-2 shadow-sm"
+                        title="Mark +1 PT Session Done"
+                      >
+                        <Plus className="w-4 h-4" /> Mark 1 Session Done
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* TAB 1: CUSTOM DIET PLAN BUILDER */}
         {activeTab === "diet" && (
@@ -685,7 +823,7 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
         {activeTab === "overview" && (
           <div className="space-y-5">
             {/* Quick Metrics Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-center">
                 <span className="text-[10px] font-bold text-slate-500 uppercase">Current Weight</span>
                 <p className="text-xl font-black text-slate-900 mt-0.5">{currentWeightNum || "N/A"} <span className="text-xs font-normal text-slate-500">kg</span></p>
@@ -697,20 +835,6 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
               <div className="p-3.5 rounded-2xl bg-blue-50/80 border border-blue-200 text-center">
                 <span className="text-[10px] font-bold text-blue-700 uppercase">Height & BMI</span>
                 <p className="text-xl font-black text-blue-950 mt-0.5">{bmi || "23.4"} <span className="text-xs font-normal text-blue-700">BMI</span></p>
-              </div>
-              <div className="p-3.5 rounded-2xl bg-purple-50/80 border border-purple-200 text-center">
-                <span className="text-[10px] font-bold text-purple-700 uppercase">Completed Sessions</span>
-                <div className="flex items-center justify-center gap-2 mt-0.5">
-                  <p className="text-xl font-black text-purple-950">{sessionsCount}</p>
-                  <button
-                    type="button"
-                    onClick={handleAddSession}
-                    className="px-2 py-0.5 rounded-md bg-purple-600 text-white text-[10px] font-bold hover:bg-purple-700 transition"
-                    title="Mark +1 PT Session Done"
-                  >
-                    +1 Done
-                  </button>
-                </div>
               </div>
             </div>
 
@@ -845,13 +969,22 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
               ))}
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-slate-200 mt-2 pt-4">
               <button
                 type="button"
                 onClick={handleSendWorkoutOnWhatsApp}
-                className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-md transition"
+                className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-indigo-50 text-indigo-800 border border-indigo-300 font-bold text-xs flex items-center justify-center gap-2 hover:bg-indigo-100 transition shadow-xs"
               >
-                <Send className="w-4 h-4" /> Send Workout Routine on WhatsApp
+                <MessageCircle className="w-4 h-4 text-indigo-600" /> Send Workout Routine on WhatsApp
+              </button>
+
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleSaveWorkout}
+                className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" /> {saving ? "Saving Workout..." : "Save Workout Routine"}
               </button>
             </div>
           </div>
