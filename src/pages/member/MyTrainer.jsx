@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   Sparkles,
   ShieldCheck,
-  Briefcase
+  Briefcase,
+  Video
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getTrainer, getTrainers } from "../../firebase/trainers";
@@ -197,7 +198,9 @@ export default function MyTrainer() {
               onClick={() => setIsChatOpen(true)}
               className="w-full sm:w-auto px-5 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-md shadow-emerald-500/20 transition flex items-center justify-center gap-2 shrink-0 active:scale-95"
             >
-              <MessageCircle className="w-4 h-4" /> Live Chat with Coach
+              <MessageCircle className="w-4 h-4" />
+              <Video className="w-4 h-4" />
+              Live Chat & Video Call
             </button>
 
             <button

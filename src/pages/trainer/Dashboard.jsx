@@ -17,7 +17,9 @@ import {
   Save,
   ShieldCheck,
   Award,
-  Sparkles
+  Sparkles,
+  Phone,
+  Video
 } from "lucide-react";
 import StatCard from "../../components/ui/StatCard";
 import Modal from "../../components/ui/Modal";
@@ -25,6 +27,7 @@ import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
 import { useAuth } from "../../contexts/AuthContext";
 import { getTrainerMembers, getTrainer, getTrainers, updateTrainer } from "../../firebase/trainers";
 import AthleteHealthDietModal from "../../components/trainer/AthleteHealthDietModal";
+import DirectChatModal from "../../components/shared/DirectChatModal";
 import toast from "react-hot-toast";
 
 export default function TrainerDashboard() {
@@ -36,6 +39,7 @@ export default function TrainerDashboard() {
   // Modals
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [selectedAthleteForDiet, setSelectedAthleteForDiet] = useState(null);
+  const [activeChatAthlete, setActiveChatAthlete] = useState(null);
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Edit Profile Form
@@ -447,7 +451,17 @@ export default function TrainerDashboard() {
                       onClick={() => setSelectedAthleteForDiet(m)}
                       className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-xs hover:shadow transition"
                     >
-                      <Apple className="w-3.5 h-3.5" /> Manage Diet & Weight
+                      <Apple className="w-3.5 h-3.5" /> Manage Diet
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveChatAthlete(m)}
+                      className="p-2 rounded-xl bg-teal-50 text-teal-700 hover:bg-teal-100 transition flex items-center gap-1 text-xs font-bold"
+                      title="Direct Chat, Voice & Video Call"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <Video className="w-3.5 h-3.5" />
                     </button>
 
                     <button
@@ -464,7 +478,7 @@ export default function TrainerDashboard() {
                       className="p-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition"
                       title="WhatsApp Athlete"
                     >
-                      <MessageCircle className="w-4 h-4" />
+                      <Phone className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -575,6 +589,27 @@ export default function TrainerDashboard() {
               prev.map((item) => (item.id === updatedM.id ? { ...item, ...updatedM } : item))
             );
           }}
+        />
+      )}
+
+      {/* DIRECT 1-ON-1 CHAT, VOICE & VIDEO CALL MODAL */}
+      {activeChatAthlete && (
+        <DirectChatModal
+          isOpen={!!activeChatAthlete}
+          onClose={() => setActiveChatAthlete(null)}
+          gymId={gymId || "univo_main"}
+          currentUser={{
+            id: trainerProfile?.id || profileId || "trainer",
+            name: trainerProfile?.name || "Coach",
+            role: "trainer"
+          }}
+          targetUser={{
+            id: activeChatAthlete.id,
+            name: activeChatAthlete.name || activeChatAthlete.fullName || "Athlete",
+            role: "member",
+            photoUrl: activeChatAthlete.photoUrl || activeChatAthlete.photo || ""
+          }}
+          ptPlanName={activeChatAthlete.ptPlanName || activeChatAthlete.planName}
         />
       )}
     </div>

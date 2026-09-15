@@ -10,10 +10,25 @@ import {
   CheckCircle2,
   Sparkles,
   RefreshCw,
-  X
+  X,
+  Phone,
+  Video,
+  Mic,
+  MicOff,
+  VideoOff,
+  PhoneOff,
+  Volume2
 } from "lucide-react";
 import Modal from "../ui/Modal";
-import { getChatRoomId, sendChatMessage, subscribeChatMessages } from "../../firebase/chat";
+import {
+  getChatRoomId,
+  sendChatMessage,
+  subscribeChatMessages,
+  startCallSession,
+  subscribeCallSession,
+  updateCallSession,
+  endCallSession
+} from "../../firebase/chat";
 import toast from "react-hot-toast";
 
 export default function DirectChatModal({
@@ -29,11 +44,24 @@ export default function DirectChatModal({
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
 
+  // Call States: idle | calling | incoming | connected
+  const [callState, setCallState] = useState("idle");
+  const [callType, setCallType] = useState("video"); // 'audio' | 'video'
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
+
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  const localStreamRef = useRef(null);
+  const timerRef = useRef(null);
+
   const roomId = getChatRoomId(
     currentUser?.role === "trainer" ? currentUser?.id : targetUser?.id,
     currentUser?.role === "member" ? currentUser?.id : targetUser?.id
   );
 
+  // Subscribe to text messages
   useEffect(() => {
     if (!isOpen || !roomId) return;
     const unsub = subscribeChatMessages(gymId, roomId, (msgs) => {
@@ -42,9 +70,164 @@ export default function DirectChatModal({
     return () => unsub();
   }, [isOpen, roomId, gymId]);
 
+  // Subscribe to call signaling session
+  useEffect(() => {
+    if (!isOpen || !roomId) return;
+    const unsubCall = subscribeCallSession(gymId, roomId, (session) => {
+      if (!session) {
+        if (callState !== "idle") {
+          handleCleanupCall();
+        }
+        return;
+      }
+
+      // If incoming call from the other user
+      if (session.callerId !== currentUser?.id && session.status === "ringing") {
+        setCallType(session.type || "video");
+        setCallState("incoming");
+      } else if (session.status === "accepted" && callState === "calling") {
+        setCallState("connected");
+        startCallTimer();
+      } else if (session.status === "ended" || session.status === "rejected") {
+        handleCleanupCall();
+      }
+    });
+
+    return () => {
+      if (typeof unsubCall === "function") unsubCall();
+    };
+  }, [isOpen, roomId, gymId, currentUser?.id, callState]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Timer logic for connected call
+  const startCallTimer = () => {
+    setCallDuration(0);
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setCallDuration((prev) => prev + 1);
+    }, 1000);
+  };
+
+  const formatDuration = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m < 10 ? "0" : ""}${m}:${s < 10 ? "0" : ""}${s}`;
+  };
+
+  // WebRTC Local Media Stream setup
+  const initLocalMedia = async (withVideo) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: withVideo ? { width: { ideal: 640 }, height: { ideal: 480 } } : false
+      });
+      localStreamRef.current = stream;
+      if (localVideoRef.current && withVideo) {
+        localVideoRef.current.srcObject = stream;
+      }
+      return stream;
+    } catch (err) {
+      console.warn("Media device access error:", err);
+      toast.error(
+        withVideo
+          ? "Camera / Mic permission denied or device not found."
+          : "Microphone permission denied."
+      );
+      return null;
+    }
+  };
+
+  // Initiate Call (Audio or Video)
+  const handleStartCall = async (type) => {
+    setCallType(type);
+    setCallState("calling");
+
+    await initLocalMedia(type === "video");
+
+    await startCallSession(gymId, roomId, {
+      callerId: currentUser?.id,
+      callerName: currentUser?.name || (currentUser?.role === "trainer" ? "Coach" : "Athlete"),
+      callerRole: currentUser?.role || "trainer",
+      receiverId: targetUser?.id,
+      receiverName: targetUser?.name || "User",
+      type
+    });
+
+    // Send call notice in chat
+    await sendChatMessage(gymId, {
+      roomId,
+      senderId: currentUser?.id,
+      senderName: currentUser?.name,
+      senderRole: currentUser?.role,
+      text: `📞 Started a 1-on-1 ${type === "video" ? "Video Call" : "Voice Call"}`,
+      type: "call_notice"
+    });
+  };
+
+  // Accept incoming call
+  const handleAcceptCall = async () => {
+    setCallState("connected");
+    await initLocalMedia(callType === "video");
+    await updateCallSession(gymId, roomId, { status: "accepted" });
+    startCallTimer();
+  };
+
+  // Reject incoming call
+  const handleRejectCall = async () => {
+    await updateCallSession(gymId, roomId, { status: "rejected" });
+    handleCleanupCall();
+  };
+
+  // End active call
+  const handleEndCall = async () => {
+    await endCallSession(gymId, roomId);
+    await sendChatMessage(gymId, {
+      roomId,
+      senderId: currentUser?.id,
+      senderName: currentUser?.name,
+      senderRole: currentUser?.role,
+      text: `⏹️ ${callType === "video" ? "Video Call" : "Voice Call"} ended (${formatDuration(callDuration)})`,
+      type: "call_notice"
+    });
+    handleCleanupCall();
+  };
+
+  const handleCleanupCall = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+    }
+    clearInterval(timerRef.current);
+    setCallDuration(0);
+    setCallState("idle");
+    setIsMuted(false);
+    setIsVideoOff(false);
+  };
+
+  // Toggle Mute Audio
+  const toggleMute = () => {
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsMuted(!audioTrack.enabled);
+      }
+    }
+  };
+
+  // Toggle Video Off
+  const toggleVideo = () => {
+    if (localStreamRef.current) {
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsVideoOff(!videoTrack.enabled);
+      }
+    }
+  };
 
   const handleSend = async (e) => {
     if (e) e.preventDefault();
@@ -91,11 +274,14 @@ export default function DirectChatModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={() => {
+        if (callState !== "idle") handleCleanupCall();
+        onClose();
+      }}
       title=""
       size="lg"
     >
-      <div className="-m-6 flex flex-col h-[600px] max-h-[85vh] bg-slate-950 text-slate-100 rounded-3xl overflow-hidden border border-slate-800">
+      <div className="-m-6 flex flex-col h-[640px] max-h-[90vh] bg-slate-950 text-slate-100 rounded-3xl overflow-hidden border border-slate-800 relative">
         {/* Chat Header */}
         <div className="p-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -123,14 +309,150 @@ export default function DirectChatModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* CALL BUTTONS */}
             <button
-              onClick={onClose}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+              onClick={() => handleStartCall("audio")}
+              title="Voice Call"
+              className="p-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white transition flex items-center gap-1 text-xs font-bold"
+            >
+              <Phone className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => handleStartCall("video")}
+              title="Video Call"
+              className="p-2.5 rounded-xl bg-teal-500/10 hover:bg-teal-500 text-teal-400 hover:text-white transition flex items-center gap-1 text-xs font-bold"
+            >
+              <Video className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => {
+                if (callState !== "idle") handleCleanupCall();
+                onClose();
+              }}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition ml-1"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* ACTIVE CALL OVERLAY (WHEN CALLING, INCOMING OR CONNECTED) */}
+        {/* ---------------------------------------------------------------- */}
+        {callState !== "idle" && (
+          <div className="absolute inset-0 z-30 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-between p-6">
+            {/* Call Header */}
+            <div className="text-center space-y-1">
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 uppercase tracking-widest">
+                {callType === "video" ? "1-on-1 HD Video Call" : "1-on-1 Voice Call"}
+              </span>
+              <h3 className="text-xl font-black text-white pt-2">
+                {targetUser?.name || "User"}
+              </h3>
+              <p className="text-xs text-slate-400 font-medium">
+                {callState === "calling" && "Calling... Waiting for answer"}
+                {callState === "incoming" && "Incoming call from..."}
+                {callState === "connected" && (
+                  <span className="text-emerald-400 font-mono font-bold flex items-center justify-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    Connected • {formatDuration(callDuration)}
+                  </span>
+                )}
+              </p>
+            </div>
+
+            {/* Video / Avatar Container */}
+            <div className="w-full max-w-sm flex-1 my-4 flex items-center justify-center relative">
+              {callType === "video" ? (
+                <div className="w-full h-64 bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 relative flex items-center justify-center">
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={`w-full h-full object-cover ${isVideoOff ? "hidden" : "block"}`}
+                  />
+                  {isVideoOff && (
+                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                      <VideoOff className="w-8 h-8 text-slate-500" />
+                      <span className="text-xs font-bold">Camera is Off</span>
+                    </div>
+                  )}
+                  <div className="absolute top-3 left-3 bg-slate-950/70 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] font-bold text-white">
+                    You ({isTrainer ? "Coach" : "Athlete"})
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-28 h-28 rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-4xl font-black text-white shadow-2xl animate-pulse">
+                    {(targetUser?.name || "U").charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <Volume2 className="w-4 h-4 text-emerald-400" /> HD Audio Active
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Call Control Action Buttons */}
+            <div className="flex items-center gap-4">
+              {callState === "incoming" ? (
+                <>
+                  <button
+                    onClick={handleAcceptCall}
+                    className="px-6 py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-sm flex items-center gap-2 shadow-lg shadow-emerald-500/30 transition active:scale-95"
+                  >
+                    <Phone className="w-4 h-4" /> Accept Call
+                  </button>
+                  <button
+                    onClick={handleRejectCall}
+                    className="px-6 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-sm flex items-center gap-2 shadow-lg shadow-red-600/30 transition active:scale-95"
+                  >
+                    <PhoneOff className="w-4 h-4" /> Decline
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={toggleMute}
+                    className={`p-4 rounded-2xl border transition ${
+                      isMuted
+                        ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                        : "bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
+                    }`}
+                    title={isMuted ? "Unmute Mic" : "Mute Mic"}
+                  >
+                    {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                  </button>
+
+                  {callType === "video" && (
+                    <button
+                      onClick={toggleVideo}
+                      className={`p-4 rounded-2xl border transition ${
+                        isVideoOff
+                          ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                          : "bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700"
+                      }`}
+                      title={isVideoOff ? "Turn On Camera" : "Turn Off Camera"}
+                    >
+                      {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleEndCall}
+                    className="px-6 py-4 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black text-xs flex items-center gap-2 shadow-xl shadow-red-600/40 transition active:scale-95"
+                    title="End Call"
+                  >
+                    <PhoneOff className="w-4 h-4" /> End Call
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Quick Suggestion Chips */}
         <div className="px-4 py-2 bg-slate-900/60 border-b border-slate-800/80 flex items-center gap-2 overflow-x-auto no-scrollbar">
@@ -187,14 +509,26 @@ export default function DirectChatModal({
               <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-emerald-400 mb-3">
                 <MessageCircle className="w-6 h-6" />
               </div>
-              <p className="text-sm font-bold text-slate-300">Live 1-on-1 Chat Started</p>
+              <p className="text-sm font-bold text-slate-300">Live 1-on-1 Chat, Voice & Video Started</p>
               <p className="text-xs text-slate-500 max-w-xs mt-1">
-                Direct communication between personal trainer and athlete. All messages, nutrition guidelines and instructions are securely stored.
+                Direct interaction between trainer and athlete. Chat, call anytime or launch instant video calls for live form guidance.
               </p>
             </div>
           ) : (
             messages.map((m) => {
               const isMe = m.senderRole === currentUser?.role || m.senderId === currentUser?.id;
+              const isCallNotice = m.type === "call_notice";
+
+              if (isCallNotice) {
+                return (
+                  <div key={m.id} className="flex justify-center my-1">
+                    <span className="text-[11px] font-semibold bg-slate-900 border border-slate-800 text-slate-400 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
+                      {m.text}
+                    </span>
+                  </div>
+                );
+              }
+
               return (
                 <div
                   key={m.id}
