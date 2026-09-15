@@ -238,9 +238,9 @@ export default function MyMembers() {
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      {m.photoUrl ? (
+                      {m.photoURL || m.photoUrl || m.photo ? (
                         <img
-                          src={m.photoUrl}
+                          src={m.photoURL || m.photoUrl || m.photo}
                           alt={m.name}
                           className="w-12 h-12 rounded-2xl object-cover border border-slate-200"
                         />

@@ -379,9 +379,9 @@ export default function TrainerDashboard() {
                   <div className="space-y-2.5">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        {m.photoUrl ? (
+                        {m.photoURL || m.photoUrl || m.photo ? (
                           <img
-                            src={m.photoUrl}
+                            src={m.photoURL || m.photoUrl || m.photo}
                             alt={m.name}
                             className="w-11 h-11 rounded-xl object-cover border border-slate-200"
                           />

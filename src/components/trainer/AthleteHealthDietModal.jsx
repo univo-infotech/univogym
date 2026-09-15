@@ -413,9 +413,9 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
         <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border border-slate-700 shadow-md">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
-              {member.photoUrl ? (
+              {member.photoURL || member.photoUrl || member.photo ? (
                 <img
-                  src={member.photoUrl}
+                  src={member.photoURL || member.photoUrl || member.photo}
                   alt={member.name}
                   className="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500 shadow"
                 />
@@ -487,16 +487,6 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
             <Apple className="w-4 h-4" /> Custom Diet Plan Builder
           </button>
           <button
-            onClick={() => setActiveTab("overview")}
-            className={`flex items-center gap-2 py-3 px-5 text-xs font-bold border-b-2 transition whitespace-nowrap ${
-              activeTab === "overview"
-                ? "border-emerald-600 text-emerald-700 bg-emerald-50/50"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4 text-teal-600" /> Trainer Profile
-          </button>
-          <button
             onClick={() => setActiveTab("workout")}
             className={`flex items-center gap-2 py-3 px-5 text-xs font-bold border-b-2 transition whitespace-nowrap ${
               activeTab === "workout"
@@ -517,7 +507,29 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
                 <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-2">
                   <User className="w-4 h-4 text-emerald-600" /> Personal Information
                 </h4>
-                <div className="grid grid-cols-2 gap-y-3 text-xs">
+                
+                {/* Member Profile Photo & Key Info */}
+                <div className="flex items-center gap-3.5 pb-2 border-b border-slate-100">
+                  {member.photoURL || member.photoUrl || member.photo ? (
+                    <img
+                      src={member.photoURL || member.photoUrl || member.photo}
+                      alt={member.name}
+                      className="w-16 h-16 rounded-2xl object-cover border-2 border-emerald-500 shadow-sm shrink-0"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center font-black text-white text-xl shadow-sm shrink-0">
+                      {(member.name || "A").slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div>
+                    <h5 className="text-base font-extrabold text-slate-900">{member.name || 'N/A'}</h5>
+                    <span className="inline-block mt-0.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                      {member.status || 'Active Member'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-y-3 text-xs pt-1">
                   <div>
                     <span className="text-slate-500 font-medium block">Full Name</span>
                     <strong className="text-slate-900">{member.name || 'N/A'}</strong>
@@ -528,7 +540,7 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
                   </div>
                   <div>
                     <span className="text-slate-500 font-medium block">Email</span>
-                    <strong className="text-slate-900">{member.email || 'N/A'}</strong>
+                    <strong className="text-slate-900 truncate block">{member.email || 'N/A'}</strong>
                   </div>
                   <div>
                     <span className="text-slate-500 font-medium block">Join Date</span>
@@ -932,114 +944,6 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
           </div>
         )}
 
-        {/* TAB 2: TRAINER PROFILE (Assigned Coach Details) */}
-        {activeTab === "overview" && (
-          <div className="space-y-5">
-            {/* Coach Profile Card */}
-            <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white border border-slate-700 shadow-lg space-y-5 relative overflow-hidden">
-              <div className="absolute top-0 right-0 -mt-10 -mr-10 w-48 h-48 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-              
-              <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-5 relative z-10">
-                <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
-                  {assignedTrainer?.photoUrl || assignedTrainer?.photo ? (
-                    <img
-                      src={assignedTrainer.photoUrl || assignedTrainer.photo}
-                      alt={assignedTrainer?.name || "Trainer"}
-                      className="w-20 h-20 rounded-3xl object-cover border-2 border-emerald-400 shadow-md shrink-0"
-                    />
-                  ) : (
-                    <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center font-black text-white text-2xl shadow-md shrink-0">
-                      {((assignedTrainer?.name || member.trainerName || member.personalTrainer || "TR").charAt(0)).toUpperCase()}
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-center sm:justify-start gap-2">
-                      <h3 className="text-xl font-black text-white">
-                        {assignedTrainer?.name || member.trainerName || member.personalTrainer || "Assigned Personal Coach"}
-                      </h3>
-                      <span className="p-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" title="Verified Coach">
-                        <ShieldCheck className="w-4 h-4" />
-                      </span>
-                    </div>
-
-                    <p className="text-xs font-bold text-emerald-400">
-                      {assignedTrainer?.specialization || "Certified Fitness & Hypertrophy Specialist"}
-                    </p>
-
-                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1 text-xs text-slate-300">
-                      <span className="flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400" /> {assignedTrainer?.experience || "5+ Years"} Experience
-                      </span>
-                      <span>•</span>
-                      <span className="text-emerald-300 font-semibold">
-                        Official Personal Coach
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Coach Bio */}
-              {assignedTrainer?.bio && (
-                <div className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 text-xs text-slate-300 leading-relaxed">
-                  <span className="font-bold text-emerald-400 block mb-1">Coach Philosophy & Bio:</span>
-                  "{assignedTrainer.bio}"
-                </div>
-              )}
-            </div>
-
-            {/* Shift Timings & Verified Certificate Card */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Assigned Workout Slot</span>
-                  <strong className="text-xs text-slate-900 font-bold">
-                    {member.preferredTime || member.slot || "Morning Slot (6:00 AM - 9:00 AM)"}
-                  </strong>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-                    <Award className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Trainer Verified Certificate</span>
-                    <strong className="text-xs text-slate-900 font-bold truncate block">
-                      {assignedTrainer?.certUrl || assignedTrainer?.certFile ? "Accredited Certification" : "Certificate on Record"}
-                    </strong>
-                  </div>
-                </div>
-
-                {(assignedTrainer?.certUrl || assignedTrainer?.certFile) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const cert = assignedTrainer.certUrl || assignedTrainer.certFile;
-                      if (cert.startsWith("data:application/pdf")) {
-                        window.open(cert, "_blank");
-                      } else {
-                        setCertModal({
-                          img: cert,
-                          title: `${assignedTrainer?.name || "Trainer"} - Verified Certification`,
-                          desc: assignedTrainer?.certifications || "Government/Accredited Fitness Trainer Certificate"
-                        });
-                      }
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition shrink-0 cursor-pointer"
-                  >
-                    <FileText className="w-3.5 h-3.5" /> View Certificate
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* TAB 3: WORKOUT SPLIT ROUTINE */}
         {activeTab === "workout" && (
