@@ -392,7 +392,7 @@ export default function TrainerDashboard() {
                         )}
                         <div>
                           <h4 className="text-sm font-extrabold text-slate-900">{m.name}</h4>
-                          <p className="text-[11px] text-slate-500">{m.phone || "No contact"}</p>
+                          <p className="text-[11px] text-emerald-700 font-bold">PT Athlete</p>
                         </div>
                       </div>
 
@@ -457,28 +457,12 @@ export default function TrainerDashboard() {
                     <button
                       type="button"
                       onClick={() => setActiveChatAthlete(m)}
-                      className="p-2 rounded-xl bg-teal-50 text-teal-700 hover:bg-teal-100 transition flex items-center gap-1 text-xs font-bold"
+                      className="px-3 py-2 rounded-xl bg-teal-50 text-teal-700 hover:bg-teal-100 transition flex items-center gap-1.5 text-xs font-bold"
                       title="Direct Chat, Voice & Video Call"
                     >
                       <MessageCircle className="w-4 h-4" />
                       <Video className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const num = (m.phone || "").replace(/\D/g, "");
-                        window.open(
-                          `https://wa.me/${num}?text=Hi%20${encodeURIComponent(
-                            m.name || "Athlete"
-                          )},%20Coach%20checking%20in%20on%20your%20progress!%20💪`,
-                          "_blank"
-                        );
-                      }}
-                      className="p-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition"
-                      title="WhatsApp Athlete"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
+                      <span>In-App Chat</span>
                     </button>
                   </div>
                 </div>

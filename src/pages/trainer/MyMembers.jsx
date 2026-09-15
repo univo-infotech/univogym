@@ -251,7 +251,7 @@ export default function MyMembers() {
                       )}
                       <div>
                         <h4 className="text-base font-extrabold text-slate-900">{m.name}</h4>
-                        <p className="text-xs text-slate-500 mt-0.5">{m.phone || "No phone"}</p>
+                        <p className="text-xs text-emerald-700 font-bold mt-0.5">PT Athlete</p>
                       </div>
                     </div>
 
@@ -336,28 +336,11 @@ export default function MyMembers() {
                   <button
                     type="button"
                     onClick={() => setChatAthlete(m)}
-                    className="px-3 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition flex items-center gap-1.5 font-bold text-xs"
-                    title="Live 1-on-1 Chat with Athlete"
+                    className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition flex items-center gap-1.5 font-bold text-xs"
+                    title="In-App 1-on-1 Chat with Athlete"
                   >
                     <MessageCircle className="w-4 h-4 text-emerald-600" />
-                    <span>Chat</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const num = (m.phone || "").replace(/\D/g, "");
-                      window.open(
-                        `https://wa.me/${num}?text=Hi%20${encodeURIComponent(
-                          m.name || "Athlete"
-                        )},%20Coach%20checking%20in%20for%20your%20training%20session!%20💪`,
-                        "_blank"
-                      );
-                    }}
-                    className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-                    title="Message Athlete on WhatsApp"
-                  >
-                    <span className="text-xs font-bold">WA</span>
+                    <span>In-App Chat</span>
                   </button>
                 </div>
               </div>

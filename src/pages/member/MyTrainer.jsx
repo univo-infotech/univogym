@@ -141,7 +141,6 @@ export default function MyTrainer() {
   }
 
   const coachName = trainer?.name || memberData?.personalTrainer || "Coach Boggey man";
-  const coachPhone = trainer?.phone || "9876543210";
   const coachSpecialization = trainer?.specialization || trainer?.specializations?.[0] || "Strength & Hypertrophy";
   const coachBio = trainer?.bio || "Certified Personal Trainer at Univo Gym. Specializing in weight training, bodybuilding, fat burn and tailored athletic performance.";
   const coachSchedule = trainer?.schedule || "Morning (6:00 AM - 11:00 AM) & Evening (5:00 PM - 9:30 PM)";
@@ -185,36 +184,22 @@ export default function MyTrainer() {
                 <span className="flex items-center gap-1">
                   <Briefcase className="w-3.5 h-3.5 text-slate-400" /> {trainer?.experience || "4 Years"} Experience
                 </span>
-                <span className="flex items-center gap-1">
-                  <Phone className="w-3.5 h-3.5 text-slate-400" /> {coachPhone}
+                <span className="flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full font-bold">
+                  <ShieldCheck className="w-3.5 h-3.5" /> Official Univo Trainer
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Communication Buttons */}
+          {/* Communication Buttons (In-App Chat & Video Only) */}
           <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
             <button
               onClick={() => setIsChatOpen(true)}
-              className="w-full sm:w-auto px-5 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-md shadow-emerald-500/20 transition flex items-center justify-center gap-2 shrink-0 active:scale-95"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-md shadow-emerald-500/20 transition flex items-center justify-center gap-2 shrink-0 active:scale-95"
             >
               <MessageCircle className="w-4 h-4" />
               <Video className="w-4 h-4" />
-              Live Chat & Video Call
-            </button>
-
-            <button
-              onClick={() => {
-                const num = coachPhone.replace(/\D/g, "");
-                const athleteName = memberData?.name || "Athlete";
-                const text = encodeURIComponent(
-                  `Hello Coach ${coachName}! I am ${athleteName}, your PT athlete at Univo Gym. I have a question regarding my training.`
-                );
-                window.open(`https://wa.me/${num}?text=${text}`, "_blank");
-              }}
-              className="w-full sm:w-auto px-4 py-3.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition flex items-center justify-center gap-2 shrink-0 active:scale-95 border border-slate-200"
-            >
-              <Phone className="w-3.5 h-3.5 text-slate-500" /> WhatsApp
+              In-App Chat & Video Call
             </button>
           </div>
         </div>
