@@ -162,20 +162,24 @@ export default function Visits() {
 
   // Form State for Add / Edit Walk-in Lead
   const [form, setForm] = useState({
-    enquiryType: "visit", // "visit" | "demo"
+    enquiryType: "demo", // "demo" | "visit"
     name: "",
     phone: "",
     gender: "Male",
+    preferredShiftSlot: "Evening Peak (5:00 PM - 9:00 PM)",
     interestedIn: "Weight Loss & Transformation",
     source: "Walk-in (Reception)",
     visitDate: new Date().toISOString().split("T")[0],
     demoDate: new Date().toISOString().split("T")[0],
+    demoDurationDays: 2, // 1, 2, 3, "custom"
+    demoStartDate: new Date().toISOString().split("T")[0],
+    demoEndDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
     demoTime: "07:00 PM",
     budget: "Rs. 1,000 - 3,000",
     assignedTrainer: "Unassigned",
     notes: "",
     followUpDate: "",
-    status: "new"
+    status: "scheduled"
   });
 
   // Load Firestore Data
@@ -208,17 +212,23 @@ export default function Visits() {
   }, []);
 
   // --- ACTIONS: ADD / EDIT VISIT ---
-  const handleOpenAddModal = (initialType = "visit") => {
+  const handleOpenAddModal = (initialType = "demo") => {
     setEditingVisit(null);
+    const today = new Date().toISOString().split("T")[0];
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
     setForm({
-      enquiryType: initialType, // "visit" | "demo"
+      enquiryType: initialType, // "demo" | "visit"
       name: "",
       phone: "",
       gender: "Male",
-      interestedIn: "Weight Loss & Transformation",
+      preferredShiftSlot: "Evening Peak (5:00 PM - 9:00 PM)",
+      interestedIn: "Weight Loss & Muscle Transformation",
       source: "Walk-in (Reception)",
-      visitDate: new Date().toISOString().split("T")[0],
-      demoDate: new Date().toISOString().split("T")[0],
+      visitDate: today,
+      demoDate: today,
+      demoDurationDays: 2,
+      demoStartDate: today,
+      demoEndDate: tomorrow,
       demoTime: "07:00 PM",
       budget: "Rs. 1,000 - 3,000",
       assignedTrainer: "Unassigned",
@@ -236,10 +246,14 @@ export default function Visits() {
       name: visit.name || "",
       phone: visit.phone || "",
       gender: visit.gender || "Male",
+      preferredShiftSlot: visit.preferredShiftSlot || "Evening Peak (5:00 PM - 9:00 PM)",
       interestedIn: visit.interestedIn || "Weight Loss & Transformation",
       source: visit.source || "Walk-in (Reception)",
       visitDate: visit.visitDate || new Date().toISOString().split("T")[0],
       demoDate: visit.demoDate || new Date().toISOString().split("T")[0],
+      demoDurationDays: visit.demoDurationDays || 2,
+      demoStartDate: visit.demoStartDate || visit.demoDate || new Date().toISOString().split("T")[0],
+      demoEndDate: visit.demoEndDate || new Date(Date.now() + 86400000).toISOString().split("T")[0],
       demoTime: visit.demoTime || "07:00 PM",
       budget: visit.budget || "",
       assignedTrainer: visit.assignedTrainer || "Unassigned",
@@ -743,15 +757,32 @@ export default function Visits() {
         onClose={() => setAddModalOpen(false)}
         title={
           editingVisit
-            ? `✏️ Edit ${form.enquiryType === "demo" ? "Trial Demo" : "Walk-in Visit"}`
-            : form.enquiryType === "demo"
-            ? "🏋️‍♂️ Book Trial / Demo Session"
-            : "🚶 Record Walk-in Enquiry"
+            ? `✏️ Edit ${form.enquiryType === "demo" ? "Free Demo Trial" : "Gym Visit / Inquiry"}`
+            : "New Visitor & Free Demo Entry"
         }
       >
         <form onSubmit={handleSaveVisit} className="space-y-4 text-slate-800">
-          {/* TAB SWITCHER: 1. VISIT ENQUIRY  vs  2. TRIAL DEMO */}
-          <div className="p-1.5 bg-slate-100 rounded-2xl flex items-center gap-1.5 border border-slate-200">
+          {/* TWO PRIMARY TABS (Matching User's Reference Flow & Gym Branding) */}
+          <div className="p-1.5 bg-slate-100/90 rounded-2xl flex items-center gap-1.5 border border-slate-200">
+            <button
+              type="button"
+              onClick={() =>
+                setForm((prev) => ({
+                  ...prev,
+                  enquiryType: "demo",
+                  status: prev.status === "new" ? "scheduled" : prev.status
+                }))
+              }
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 ${
+                form.enquiryType === "demo"
+                  ? "bg-white text-emerald-700 shadow-sm border border-emerald-100"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <span className="text-base">🎯</span>
+              <span>Free Workout Demo Trial</span>
+            </button>
+
             <button
               type="button"
               onClick={() =>
@@ -767,228 +798,216 @@ export default function Visits() {
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px] font-black">
-                1
-              </span>
-              <span>Walk-in Visit / Enquiry</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                setForm((prev) => ({
-                  ...prev,
-                  enquiryType: "demo",
-                  status: prev.status === "new" ? "scheduled" : prev.status
-                }))
-              }
-              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 ${
-                form.enquiryType === "demo"
-                  ? "bg-white text-teal-700 shadow-sm border border-teal-100"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-800 flex items-center justify-center text-[10px] font-black">
-                2
-              </span>
-              <span>Free Trial / Workout Demo</span>
+              <span className="text-base">📋</span>
+              <span>Gym Visit / Inquiry Only</span>
             </button>
           </div>
 
-          {/* Prompt banner explaining the selected mode */}
-          <div
-            className={`p-3 rounded-xl border text-xs flex items-center gap-2 font-medium ${
-              form.enquiryType === "demo"
-                ? "bg-teal-50 text-teal-900 border-teal-200"
-                : "bg-emerald-50 text-emerald-900 border-emerald-200"
-            }`}
-          >
-            {form.enquiryType === "demo" ? (
-              <>
-                <Dumbbell className="w-4 h-4 text-teal-600 shrink-0" />
-                <span>
-                  <strong>Trial Demo Mode:</strong> Schedule date, preferred time slot and assign a coach for trial workout.
-                </span>
-              </>
-            ) : (
-              <>
-                <UserPlus className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>
-                  <strong>Walk-in Visit Mode:</strong> General enquiry for gym fees, membership plans, and facilities tour.
-                </span>
-              </>
-            )}
-          </div>
-
+          {/* Core Candidate / Visitor Details */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700">Visitor Full Name *</label>
+              <label className="text-xs font-bold text-slate-700">Candidate / Visitor Name *</label>
               <input
                 required
                 type="text"
-                placeholder="e.g. Sunil Kapoor"
+                placeholder="e.g. Rahul Sharma"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-700">WhatsApp Phone Number *</label>
+              <label className="text-xs font-bold text-slate-700">WhatsApp / Mobile Number *</label>
               <input
                 required
                 type="tel"
-                placeholder="e.g. 9876543210"
+                placeholder="10 digit mobile number"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Preferred Gym Workout Shift Slot */}
+          <div>
+            <label className="text-xs font-bold text-slate-700">Preferred Shift / Workout Slot</label>
+            <select
+              value={form.preferredShiftSlot}
+              onChange={(e) => setForm({ ...form, preferredShiftSlot: e.target.value })}
+              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-semibold"
+            >
+              <option value="Early Morning (6:00 AM - 9:00 AM)">🌅 Early Morning (सुबह) (6:00 AM - 9:00 AM)</option>
+              <option value="Mid-Morning (9:00 AM - 12:00 PM)">☀️ Mid-Morning (9:00 AM - 12:00 PM)</option>
+              <option value="Afternoon Lean (12:00 PM - 4:00 PM)">☕ Afternoon (दोपहर) (12:00 PM - 4:00 PM)</option>
+              <option value="Evening Peak (5:00 PM - 9:00 PM)">🌆 Evening Peak (शाम) (5:00 PM - 9:00 PM)</option>
+              <option value="Night Owls (9:00 PM - 11:00 PM)">🌙 Night Shift (रात) (9:00 PM - 11:00 PM)</option>
+              <option value="Full Day Access (6:00 AM - 11:00 PM)">⚡ Full Day Open (पूरा दिन) (6:00 AM - 11:00 PM)</option>
+            </select>
+          </div>
+
+          {/* CONDITIONAL SECTION: FREE DEMO TRIAL DETAILS (When Tab 1 is Active) */}
+          {form.enquiryType === "demo" && (
+            <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-emerald-900 flex items-center gap-1.5">
+                  <Dumbbell className="w-4 h-4 text-emerald-600" /> Free Demo Workout Details
+                </span>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                  Floor Trial
+                </span>
+              </div>
+
+              {/* Demo Trial Duration Selection Chips */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                  Demo Trial Duration
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { id: 1, label: "1 Day" },
+                    { id: 2, label: "2 Days" },
+                    { id: 3, label: "3 Days" },
+                    { id: "custom", label: "Custom" }
+                  ].map((dur) => (
+                    <button
+                      key={dur.id}
+                      type="button"
+                      onClick={() => {
+                        const days = dur.id === "custom" ? 7 : Number(dur.id);
+                        const endD = new Date(Date.now() + (days - 1) * 86400000).toISOString().split("T")[0];
+                        setForm((prev) => ({
+                          ...prev,
+                          demoDurationDays: dur.id,
+                          demoEndDate: endD
+                        }));
+                      }}
+                      className={`py-2 rounded-xl text-xs font-black border transition ${
+                        form.demoDurationDays === dur.id
+                          ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-600 shadow-sm"
+                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      {dur.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* From Date and To Date */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600">From Date</label>
+                  <input
+                    type="date"
+                    value={form.demoStartDate}
+                    onChange={(e) => setForm({ ...form, demoStartDate: e.target.value, demoDate: e.target.value })}
+                    className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600">To Date</label>
+                  <input
+                    type="date"
+                    value={form.demoEndDate}
+                    onChange={(e) => setForm({ ...form, demoEndDate: e.target.value })}
+                    className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Assigned Fitness Coach & Demo Time */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600">Assigned Gym Coach / Trainer</label>
+                  <select
+                    value={form.assignedTrainer}
+                    onChange={(e) => setForm({ ...form, assignedTrainer: e.target.value })}
+                    className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
+                  >
+                    <option>Unassigned (General Floor Demo)</option>
+                    {trainers.map((t) => (
+                      <option key={t.id} value={t.name || t.fullName}>
+                        {t.name || t.fullName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600">Preferred Demo Workout Time</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 07:00 PM"
+                    value={form.demoTime}
+                    onChange={(e) => setForm({ ...form, demoTime: e.target.value })}
+                    className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Goal & Source */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700">Gender</label>
-              <select
-                value={form.gender}
-                onChange={(e) => setForm({ ...form, gender: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
-              >
-                <option>Male</option>
-                <option>Female</option>
-                <option>Other</option>
-              </select>
+              <label className="text-xs font-bold text-slate-700">Fitness Goal / Program of Interest *</label>
+              <input
+                required
+                type="text"
+                placeholder="e.g. Weight Loss, Muscle Building, Cardio"
+                value={form.interestedIn}
+                onChange={(e) => setForm({ ...form, interestedIn: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none"
+              />
             </div>
             <div>
               <label className="text-xs font-bold text-slate-700">Lead Source</label>
               <select
                 value={form.source}
                 onChange={(e) => setForm({ ...form, source: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none"
               >
                 <option>Walk-in (Reception)</option>
-                <option>Instagram / Social Ad</option>
-                <option>Google Maps / Search</option>
-                <option>Member Referral</option>
-                <option>Flyer / Billboard</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-700">Current Status</label>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold"
-              >
-                <option value="new">New Inquiry</option>
-                <option value="scheduled">Demo Scheduled</option>
-                <option value="demo_done">Trial Completed</option>
-                <option value="converted">Converted</option>
-                <option value="lost">Not Interested</option>
+                <option>Instagram / Social Media</option>
+                <option>Google Maps / Nearby Search</option>
+                <option>Existing Member Referral</option>
+                <option>Flyer / Hoarding</option>
               </select>
             </div>
           </div>
 
+          {/* Receptionist Notes / Discussion Summary */}
           <div>
-            <label className="text-xs font-bold text-slate-700">Interested Fitness Goal / Program *</label>
-            <input
-              required
-              type="text"
-              placeholder="e.g. Weight Loss, Muscle Gain, Personal Training, CrossFit..."
-              value={form.interestedIn}
-              onChange={(e) => setForm({ ...form, interestedIn: e.target.value })}
-              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
-            />
-          </div>
-
-          {/* Conditional Demo / Trial Scheduling Section */}
-          <div
-            className={`p-3.5 rounded-2xl border space-y-3 transition ${
-              form.enquiryType === "demo"
-                ? "bg-teal-50/70 border-teal-200"
-                : "bg-slate-50 border-slate-200"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-teal-600" />
-                {form.enquiryType === "demo" ? "Trial Workout Session Details" : "Visit Date & Optional Demo"}
-              </span>
-              <span className="text-[10px] font-bold text-slate-400">
-                {form.enquiryType === "demo" ? "Active Demo Booking" : "Optional"}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-600">
-                  {form.enquiryType === "demo" ? "Trial / Demo Date *" : "Visit Date"}
-                </label>
-                <input
-                  type="date"
-                  value={form.enquiryType === "demo" ? form.demoDate : form.visitDate}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      demoDate: e.target.value,
-                      visitDate: e.target.value
-                    })
-                  }
-                  className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600">
-                  {form.enquiryType === "demo" ? "Preferred Demo Time *" : "Visit Time Slot"}
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 07:00 PM"
-                  value={form.demoTime}
-                  onChange={(e) => setForm({ ...form, demoTime: e.target.value })}
-                  className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600">Assigned Coach / Trainer</label>
-                <select
-                  value={form.assignedTrainer}
-                  onChange={(e) => setForm({ ...form, assignedTrainer: e.target.value })}
-                  className="w-full mt-1 bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-900"
-                >
-                  <option>Unassigned</option>
-                  {trainers.map((t) => (
-                    <option key={t.id} value={t.name || t.fullName}>
-                      {t.name || t.fullName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-bold text-slate-700">Discussion Notes & Requirements</label>
+            <label className="text-xs font-bold text-slate-700">Receptionist Notes / Discussion Summary</label>
             <textarea
               rows={2}
-              placeholder="e.g. Looking for evening batch, interested in nutrition plan, trial workout feedback..."
+              placeholder="e.g. Needs morning slot, interested in locker facility and diet consultation..."
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none"
             />
           </div>
 
-          <button
-            type="submit"
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-md shadow-emerald-500/20 transition active:scale-98"
-          >
-            {editingVisit
-              ? "Update Enquiry Details"
-              : form.enquiryType === "demo"
-              ? "Confirm & Schedule Trial Demo Session ✨"
-              : "Save Walk-in Lead 🚶"}
-          </button>
+          {/* Modal Action Buttons (Cancel + Save) */}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setAddModalOpen(false)}
+              className="px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-xs transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs shadow-md shadow-emerald-500/20 transition active:scale-95"
+            >
+              {editingVisit
+                ? "Update Entry"
+                : form.enquiryType === "demo"
+                ? "Save Demo Entry"
+                : "Save Visitor / Demo"}
+            </button>
+          </div>
         </form>
       </Modal>
 
