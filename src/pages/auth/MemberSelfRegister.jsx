@@ -50,6 +50,7 @@ import {
 import { addPayment } from '../../firebase/payments';
 import { getActivePlans } from '../../firebase/plans';
 import { getTrainers } from '../../firebase/trainers';
+import { getServices } from '../../firebase/services';
 import {
   getStorage,
   ref as storageRef,
@@ -245,9 +246,11 @@ export default function MemberSelfRegister() {
   const [gender, setGender] = useState('male');
   const [personalData, setPersonalData] = useState({});
 
-  // Step 3: Plan & Trainer
+  // Step 3: Plan, Trainer & Add-on Services
   const [plans, setPlans] = useState([]);
   const [trainers, setTrainers] = useState([]);
+  const [services, setServices] = useState([]);
+  const [selectedServices, setSelectedServices] = useState([]); // array of selected service objects
   const [existingMembers, setExistingMembers] = useState([]);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [selectedTrainer, setSelectedTrainer] = useState(null);
@@ -259,10 +262,22 @@ export default function MemberSelfRegister() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('Member@123');
 
-  // Dynamic fee calculation (Base Plan + Trainer PT Add-on)
+  // Dynamic fee calculation (Base Plan + Trainer PT Add-on + Services Add-on)
   const basePlanPrice = Number(selectedPlan?.price || 0);
   const ptAddonPrice = Number(selectedPtPlan?.price || 0);
-  const totalRegistrationFee = basePlanPrice + ptAddonPrice;
+  const servicesTotalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+  const totalRegistrationFee = basePlanPrice + ptAddonPrice + servicesTotalPrice;
+
+  const toggleServiceSelection = (srv) => {
+    setSelectedServices((prev) => {
+      const exists = prev.some((s) => s.id === srv.id);
+      if (exists) {
+        return prev.filter((s) => s.id !== srv.id);
+      } else {
+        return [...prev, srv];
+      }
+    });
+  };
 
   // Body Assessment (when dedicated coach selected)
   const [weight, setWeight] = useState('');
@@ -405,16 +420,21 @@ export default function MemberSelfRegister() {
     async function loadData() {
       setPlansLoading(true);
       try {
-        const [p, t, m] = await Promise.all([
+        const [p, t, m, s] = await Promise.all([
           getActivePlans(gymId || 'univo_main'),
           getTrainers(gymId || 'univo_main'),
-          getMembers(gymId || 'univo_main').catch(() => [])
+          getMembers(gymId || 'univo_main').catch(() => []),
+          getServices(gymId || 'univo_main').catch(() => [])
         ]);
         const finalPlans = p && p.length > 0 ? p : DEFAULT_PLANS;
         const finalTrainers = t && t.length > 0 ? t : DEFAULT_TRAINERS;
         setPlans(finalPlans);
         setTrainers(finalTrainers);
         if (Array.isArray(m)) setExistingMembers(m);
+        if (Array.isArray(s)) {
+          const activeS = s.filter(item => item.isActive !== false);
+          setServices(activeS.length > 0 ? activeS : s);
+        }
 
         if (tokenData?.planId) {
           const found = finalPlans.find((item) => item.id === tokenData.planId);
@@ -544,7 +564,8 @@ export default function MemberSelfRegister() {
 
       const baseFee = Number(selectedPlan?.price || 0);
       const ptFee = Number(selectedPtPlan?.price || 0);
-      const combinedTotalFee = baseFee + ptFee;
+      const srvFee = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+      const combinedTotalFee = baseFee + ptFee + srvFee;
 
       // Calculate Gym Owner Commission and Trainer Payout on PT Sale
       let ptOwnerCommission = 0;
@@ -586,6 +607,15 @@ export default function MemberSelfRegister() {
         ptCommissionValue: commissionValue,
         ptOwnerCommission,
         ptTrainerPayout,
+        // Add-on Services details
+        selectedServices: selectedServices.map(s => ({
+          id: s.id,
+          name: s.name,
+          price: Number(s.price || 0),
+          category: s.category || "General",
+          billingType: s.billingType || "Per Month"
+        })),
+        servicesTotalPrice: srvFee,
         totalAmount: combinedTotalFee,
         dueAmount: combinedTotalFee,
         joinDate: todayDate.toISOString().split('T')[0],
@@ -630,9 +660,11 @@ export default function MemberSelfRegister() {
           return `${day}/${month}/${year}`;
         };
 
-        const planDisplayName = selectedPtPlan?.name
-          ? `${selectedPlan?.name || 'Gym Plan'} + ${selectedPtPlan.name}`
-          : (selectedPlan?.name || 'Membership Plan');
+        const planDisplayName = [
+          selectedPlan?.name || 'Membership Plan',
+          selectedPtPlan?.name ? `PT (${selectedPtPlan.name})` : '',
+          selectedServices.length > 0 ? `${selectedServices.length} Services (${selectedServices.map(s => s.name).join(', ')})` : ''
+        ].filter(Boolean).join(' + ');
 
         await addPayment(gymId || 'univo_main', {
           id: 'bill_' + Date.now(),
@@ -646,6 +678,8 @@ export default function MemberSelfRegister() {
           basePlanPrice: baseFee,
           ptPlanName: selectedPtPlan?.name || '',
           ptPlanPrice: ptFee,
+          services: selectedServices.map(s => ({ name: s.name, price: Number(s.price || 0) })),
+          servicesPrice: srvFee,
           discount: 0,
           amount: combinedTotalFee,
           paidAmount: combinedTotalFee,
@@ -1697,6 +1731,81 @@ export default function MemberSelfRegister() {
               )}
             </div>
 
+            {/* ==========================================================
+                ADD-ON GYM SERVICES & FACILITIES (STEAM, LOCKER, DIET)
+            ========================================================== */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    Add-on Gym Facilities & Services (Optional)
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Select additional amenities you want to include in your gym registration.
+                  </p>
+                </div>
+                {selectedServices.length > 0 && (
+                  <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                    {selectedServices.length} Selected (+₹{servicesTotalPrice.toLocaleString("en-IN")})
+                  </span>
+                )}
+              </div>
+
+              {services.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No extra services currently available.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {services.map((srv) => {
+                    const isChecked = selectedServices.some((s) => s.id === srv.id);
+                    const srvPrice = Number(srv.price || 0);
+                    return (
+                      <div
+                        key={srv.id}
+                        onClick={() => toggleServiceSelection(srv)}
+                        className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-start justify-between gap-3 select-none ${
+                          isChecked
+                            ? "bg-emerald-50/70 border-emerald-500 shadow-xs"
+                            : "bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 pointer-events-none"
+                          />
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-slate-900 block truncate">
+                              {srv.name}
+                            </span>
+                            {srv.desc && (
+                              <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
+                                {srv.desc}
+                              </p>
+                            )}
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mt-1">
+                              {srv.category || "Service"} • {srv.billingType || "Per Month"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className={`text-xs font-black block ${isChecked ? "text-emerald-700" : "text-slate-900"}`}>
+                            +₹{srvPrice.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-semibold">
+                            Fee Add-on
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Live Fee Summary & Breakdown Banner */}
             <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md border border-slate-800">
               <div className="flex items-center gap-3 text-xs w-full sm:w-auto justify-between sm:justify-start">
@@ -1713,6 +1822,18 @@ export default function MemberSelfRegister() {
                         {selectedPtPlan?.name || 'Coach PT'}:
                       </span>
                       <span className="font-bold text-emerald-300">₹{ptAddonPrice.toLocaleString('en-IN')}</span>
+                    </div>
+                  </>
+                )}
+                {servicesTotalPrice > 0 && (
+                  <>
+                    <span className="text-emerald-400 font-extrabold">+</span>
+                    <div className="flex items-center gap-1.5 bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/40">
+                      <CheckCircle className="w-3 h-3 text-emerald-300" />
+                      <span className="text-emerald-200 font-medium">
+                        {selectedServices.length} Services:
+                      </span>
+                      <span className="font-bold text-emerald-300">₹{servicesTotalPrice.toLocaleString('en-IN')}</span>
                     </div>
                   </>
                 )}

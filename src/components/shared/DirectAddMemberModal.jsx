@@ -41,6 +41,7 @@ import toast from "react-hot-toast";
 import { addMember } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
 import { getPlans, getActivePlans } from "../../firebase/plans";
+import { getServices } from "../../firebase/services";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -82,15 +83,18 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
   const [dbTrainers, setDbTrainers] = useState([]);
   const [dbPlans, setDbPlans] = useState([]);
+  const [dbServices, setDbServices] = useState([]);
+  const [selectedServices, setSelectedServices] = useState([]); // array of selected service objects
   const [fullPhotoModal, setFullPhotoModal] = useState(null); // { img, title, desc }
 
-  // Fetch real trainers & membership plans created by owner from Firestore
+  // Fetch real trainers, plans & services created by owner from Firestore
   useEffect(() => {
     async function loadData() {
       try {
-        const [trainerList, planList] = await Promise.all([
+        const [trainerList, planList, serviceList] = await Promise.all([
           getTrainers(GID),
-          getPlans(GID)
+          getPlans(GID),
+          getServices(GID),
         ]);
         if (trainerList && trainerList.length > 0) {
           setDbTrainers(trainerList);
@@ -99,6 +103,10 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
           // Filter only active plans
           const activeOnly = planList.filter(p => p.isActive !== false);
           setDbPlans(activeOnly.length > 0 ? activeOnly : planList);
+        }
+        if (serviceList && serviceList.length > 0) {
+          const activeServices = serviceList.filter(s => s.isActive !== false);
+          setDbServices(activeServices.length > 0 ? activeServices : serviceList);
         }
       } catch (err) {
         console.warn("Could not load data in AddMemberModal:", err);
@@ -202,10 +210,22 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     return availablePlans.find((p) => p.id === formData.planId) || availablePlans[0];
   }, [availablePlans, formData.planId]);
 
-  // Combined Fee Calculation: Gym Membership Plan Fee + Personal Trainer PT Package Add-on Fee
+  // Combined Fee Calculation: Gym Membership Plan Fee + Personal Trainer PT Package Add-on Fee + Selected Services Fee
   const basePlanPrice = Number(currentBasePlan?.price || 0);
   const ptAddonPrice = Number(formData.ptPlanPrice || 0);
-  const totalPayableFee = basePlanPrice + ptAddonPrice;
+  const servicesTotalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+  const totalPayableFee = basePlanPrice + ptAddonPrice + servicesTotalPrice;
+
+  const toggleServiceSelection = (srv) => {
+    setSelectedServices((prev) => {
+      const exists = prev.some((s) => s.id === srv.id);
+      if (exists) {
+        return prev.filter((s) => s.id !== srv.id);
+      } else {
+        return [...prev, srv];
+      }
+    });
+  };
 
   // Compute live trainer slot booking counts & member names from existingMembers
   const trainerSlotOccupancy = useMemo(() => {
@@ -353,9 +373,16 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       ptCommissionType: commissionType,
       ptCommissionValue: commissionValue,
       ptOwnerCommission,
-      ptTrainerPayout,
-      totalAmount: combinedTotalFee,
-      dueAmount: combinedTotalFee,
+      selectedServices: selectedServices.map(s => ({
+        id: s.id,
+        name: s.name,
+        price: Number(s.price || 0),
+        category: s.category || "General",
+        billingType: s.billingType || "Per Month"
+      })),
+      servicesTotalPrice,
+      totalAmount: basePrice + ptPrice + servicesTotalPrice,
+      dueAmount: basePrice + ptPrice + servicesTotalPrice,
       paidAmount: 0,
       trainerName: formData.trainerName,
       trainerId: selectedTrainerObj?.id || "",
@@ -1298,7 +1325,82 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                   </div>
                 </div>
               )}
+
+            {/* ==========================================================
+                ADD-ON GYM SERVICES & AMENITIES CHECKLIST (STEAM, LOCKER, DIET)
+            ========================================================== */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div>
+                  <h5 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    Add-on Gym Services & Facilities (Optional)
+                  </h5>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Select extra services for this member. Selected service fees will be added directly to the registration bill.
+                  </p>
+                </div>
+                {selectedServices.length > 0 && (
+                  <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                    {selectedServices.length} Selected (+₹{servicesTotalPrice.toLocaleString("en-IN")})
+                  </span>
+                )}
+              </div>
+
+              {dbServices.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No gym services configured.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {dbServices.map((srv) => {
+                    const isChecked = selectedServices.some((s) => s.id === srv.id);
+                    const srvPrice = Number(srv.price || 0);
+                    return (
+                      <div
+                        key={srv.id}
+                        onClick={() => toggleServiceSelection(srv)}
+                        className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-start justify-between gap-3 select-none ${
+                          isChecked
+                            ? "bg-emerald-50/70 border-emerald-500 shadow-xs"
+                            : "bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}} // Controlled by card click
+                            className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 pointer-events-none"
+                          />
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-slate-900 block truncate">
+                              {srv.name}
+                            </span>
+                            {srv.desc && (
+                              <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
+                                {srv.desc}
+                              </p>
+                            )}
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mt-1">
+                              {srv.category || "Service"} • {srv.billingType || "Per Month"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className={`text-xs font-black block ${isChecked ? "text-emerald-700" : "text-slate-900"}`}>
+                            +₹{srvPrice.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-semibold">
+                            Fee Add-on
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
+          </div>
 
           {/* ============================================================
               SECTION 3: LIABILITY WAIVER & DIGITAL SIGNATURE
@@ -1411,6 +1513,18 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       {formData.ptPlanName || "PT Add-on"}:
                     </span>
                     <span className="font-bold text-indigo-300">₹{ptAddonPrice.toLocaleString("en-IN")}</span>
+                  </div>
+                </>
+              )}
+              {servicesTotalPrice > 0 && (
+                <>
+                  <span className="text-emerald-400 font-extrabold">+</span>
+                  <div className="flex items-center gap-1.5 bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/40">
+                    <CheckCircle className="w-3 h-3 text-emerald-400" />
+                    <span className="text-emerald-200 font-medium">
+                      {selectedServices.length} Services:
+                    </span>
+                    <span className="font-bold text-emerald-300">₹{servicesTotalPrice.toLocaleString("en-IN")}</span>
                   </div>
                 </>
               )}
