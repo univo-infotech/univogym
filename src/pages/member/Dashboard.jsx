@@ -16,20 +16,34 @@ export default function MemberDashboard() {
     async function loadMember() {
       try {
         let m = null;
-        if (profileId) {
+        const targetId = profileId || user?.uid;
+        if (targetId) {
           try {
-            m = await getMember(GID, profileId);
+            m = await getMember(GID, targetId);
           } catch (e) {}
         }
-        if (!m) {
-          const saved = localStorage.getItem("univo_member_session");
-          if (saved) {
-            try {
-              m = JSON.parse(saved);
-            } catch (e) {}
-          }
+        const saved = localStorage.getItem("univo_member_session");
+        let savedObj = null;
+        if (saved) {
+          try {
+            savedObj = JSON.parse(saved);
+          } catch (e) {}
         }
-        setMember(m);
+        if (!m && savedObj?.id) {
+          try {
+            m = await getMember(GID, savedObj.id);
+          } catch (e) {}
+        }
+        if (!m && savedObj) {
+          m = savedObj;
+        }
+        if (m) {
+          setMember(m);
+          try {
+            const currentSess = savedObj || {};
+            localStorage.setItem("univo_member_session", JSON.stringify({ ...currentSess, ...m }));
+          } catch (e) {}
+        }
       } catch (err) {
         console.warn("Member load error:", err);
       } finally {

@@ -213,40 +213,183 @@ export async function getTrainerMembers(gymId, trainerId, trainerName = "") {
 }
 
 export async function saveMemberDietPlan(gymId, memberId, dietPlan) {
-  const ref = doc(db, "gyms", gymId || "univo_main", "members", memberId);
-  await updateDoc(ref, {
+  const GID = gymId || "univo_main";
+  const updatePayload = {
     dietPlan,
     dietPlanUpdatedAt: serverTimestamp(),
-  });
+  };
+
+  // 1. Update top-level collection 'members'
+  try {
+    const ref1 = doc(db, "members", memberId);
+    await updateDoc(ref1, updatePayload);
+  } catch (e1) {
+    try {
+      const q = query(collection(db, "members"), where("id", "==", memberId));
+      const qSnap = await getDocs(q);
+      if (!qSnap.empty) {
+        await updateDoc(doc(db, "members", qSnap.docs[0].id), updatePayload);
+      }
+    } catch (e1b) {}
+  }
+
+  // 2. Update nested collection 'gyms/{gymId}/members'
+  try {
+    const ref2 = doc(db, "gyms", GID, "members", memberId);
+    await updateDoc(ref2, updatePayload);
+  } catch (e2) {}
+
+  // 3. Update in univo_recent_members local cache
+  try {
+    const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
+    const idx = cached.findIndex((m) => m.id === memberId);
+    if (idx !== -1) {
+      cached[idx] = { ...cached[idx], dietPlan, dietPlanUpdatedAt: new Date().toISOString() };
+      localStorage.setItem("univo_recent_members", JSON.stringify(cached));
+    }
+  } catch (e3) {}
+
+  // 4. Update in univo_member_session if active logged-in member matches
+  try {
+    const sessionStr = localStorage.getItem("univo_member_session");
+    if (sessionStr) {
+      const sess = JSON.parse(sessionStr);
+      if (sess.id === memberId) {
+        localStorage.setItem(
+          "univo_member_session",
+          JSON.stringify({ ...sess, dietPlan, dietPlanUpdatedAt: new Date().toISOString() })
+        );
+      }
+    }
+  } catch (e4) {}
 }
 
 export async function saveMemberWorkoutRoutine(gymId, memberId, workoutRoutine) {
-  const ref = doc(db, "gyms", gymId || "univo_main", "members", memberId);
-  await updateDoc(ref, {
+  const GID = gymId || "univo_main";
+  const updatePayload = {
     workoutRoutine,
     workoutRoutineUpdatedAt: serverTimestamp(),
-  });
+  };
+
+  // 1. Update top-level collection 'members'
+  try {
+    const ref1 = doc(db, "members", memberId);
+    await updateDoc(ref1, updatePayload);
+  } catch (e1) {
+    try {
+      const q = query(collection(db, "members"), where("id", "==", memberId));
+      const qSnap = await getDocs(q);
+      if (!qSnap.empty) {
+        await updateDoc(doc(db, "members", qSnap.docs[0].id), updatePayload);
+      }
+    } catch (e1b) {}
+  }
+
+  // 2. Update nested collection 'gyms/{gymId}/members'
+  try {
+    const ref2 = doc(db, "gyms", GID, "members", memberId);
+    await updateDoc(ref2, updatePayload);
+  } catch (e2) {}
+
+  // 3. Update in univo_recent_members local cache
+  try {
+    const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
+    const idx = cached.findIndex((m) => m.id === memberId);
+    if (idx !== -1) {
+      cached[idx] = { ...cached[idx], workoutRoutine, workoutRoutineUpdatedAt: new Date().toISOString() };
+      localStorage.setItem("univo_recent_members", JSON.stringify(cached));
+    }
+  } catch (e3) {}
+
+  // 4. Update in univo_member_session if active logged-in member matches
+  try {
+    const sessionStr = localStorage.getItem("univo_member_session");
+    if (sessionStr) {
+      const sess = JSON.parse(sessionStr);
+      if (sess.id === memberId) {
+        localStorage.setItem(
+          "univo_member_session",
+          JSON.stringify({ ...sess, workoutRoutine, workoutRoutineUpdatedAt: new Date().toISOString() })
+        );
+      }
+    }
+  } catch (e4) {}
 }
 
 export async function logMemberWeight(gymId, memberId, weightEntry) {
-  const ref = doc(db, "gyms", gymId || "univo_main", "members", memberId);
-  const snap = await getDoc(ref);
-  const existingHistory = snap.exists() && Array.isArray(snap.data().weightHistory) ? snap.data().weightHistory : [];
+  const GID = gymId || "univo_main";
+  let existingHistory = [];
   
-  await updateDoc(ref, {
+  try {
+    const snap1 = await getDoc(doc(db, "members", memberId));
+    if (snap1.exists() && Array.isArray(snap1.data().weightHistory)) {
+      existingHistory = snap1.data().weightHistory;
+    } else {
+      const snap2 = await getDoc(doc(db, "gyms", GID, "members", memberId));
+      if (snap2.exists() && Array.isArray(snap2.data().weightHistory)) {
+        existingHistory = snap2.data().weightHistory;
+      }
+    }
+  } catch (e) {}
+
+  const newHistory = [
+    {
+      id: Date.now().toString(),
+      weight: Number(weightEntry.weight),
+      date: weightEntry.date || new Date().toISOString().split("T")[0],
+      note: weightEntry.note || "",
+      recordedAt: new Date().toISOString(),
+    },
+    ...existingHistory,
+  ];
+
+  const updatePayload = {
     weight: Number(weightEntry.weight),
-    weightHistory: [
-      {
-        id: Date.now().toString(),
-        weight: Number(weightEntry.weight),
-        date: weightEntry.date || new Date().toISOString().split("T")[0],
-        note: weightEntry.note || "",
-        recordedAt: new Date().toISOString(),
-      },
-      ...existingHistory,
-    ],
+    weightHistory: newHistory,
     updatedAt: serverTimestamp(),
-  });
+  };
+
+  // 1. Update top-level collection 'members'
+  try {
+    await updateDoc(doc(db, "members", memberId), updatePayload);
+  } catch (e1) {
+    try {
+      const q = query(collection(db, "members"), where("id", "==", memberId));
+      const qSnap = await getDocs(q);
+      if (!qSnap.empty) {
+        await updateDoc(doc(db, "members", qSnap.docs[0].id), updatePayload);
+      }
+    } catch (e1b) {}
+  }
+
+  // 2. Update nested collection 'gyms/{gymId}/members'
+  try {
+    await updateDoc(doc(db, "gyms", GID, "members", memberId), updatePayload);
+  } catch (e2) {}
+
+  // 3. Update in univo_recent_members local cache
+  try {
+    const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
+    const idx = cached.findIndex((m) => m.id === memberId);
+    if (idx !== -1) {
+      cached[idx] = { ...cached[idx], weight: Number(weightEntry.weight), weightHistory: newHistory };
+      localStorage.setItem("univo_recent_members", JSON.stringify(cached));
+    }
+  } catch (e3) {}
+
+  // 4. Update in univo_member_session
+  try {
+    const sessionStr = localStorage.getItem("univo_member_session");
+    if (sessionStr) {
+      const sess = JSON.parse(sessionStr);
+      if (sess.id === memberId) {
+        localStorage.setItem(
+          "univo_member_session",
+          JSON.stringify({ ...sess, weight: Number(weightEntry.weight), weightHistory: newHistory })
+        );
+      }
+    }
+  } catch (e4) {}
 }
 
 export async function recordTrainerSessionCompleted(gymId, memberId) {

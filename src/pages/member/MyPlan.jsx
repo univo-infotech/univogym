@@ -16,20 +16,41 @@ export default function MyPlan() {
     async function loadPlan() {
       const GID = gymId || "univo_main";
       let m = null;
-      if (profileId) {
+      const targetId = profileId || user?.uid;
+
+      if (targetId) {
         try {
-          m = await getMember(GID, profileId);
+          m = await getMember(GID, targetId);
         } catch (e) {}
       }
-      if (!m) {
-        const saved = localStorage.getItem("univo_member_session");
-        if (saved) {
-          try {
-            m = JSON.parse(saved);
-          } catch (e) {}
-        }
+
+      // If not found yet, check saved session for id or phone to fetch fresh from Firestore
+      const saved = localStorage.getItem("univo_member_session");
+      let savedObj = null;
+      if (saved) {
+        try {
+          savedObj = JSON.parse(saved);
+        } catch (e) {}
       }
-      if (m) setMember(m);
+
+      if (!m && savedObj?.id) {
+        try {
+          m = await getMember(GID, savedObj.id);
+        } catch (e) {}
+      }
+
+      if (!m && savedObj) {
+        m = savedObj;
+      }
+
+      if (m) {
+        setMember(m);
+        // Sync back to session storage so subsequent views have latest diet & workout
+        try {
+          const currentSess = savedObj || {};
+          localStorage.setItem("univo_member_session", JSON.stringify({ ...currentSess, ...m }));
+        } catch (e) {}
+      }
     }
     loadPlan();
   }, [gymId, profileId, user]);
