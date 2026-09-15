@@ -19,13 +19,15 @@ import {
   Award,
   Sparkles,
   Phone,
-  Video
+  Video,
+  ShoppingBag
 } from "lucide-react";
 import StatCard from "../../components/ui/StatCard";
 import Modal from "../../components/ui/Modal";
 import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
 import { useAuth } from "../../contexts/AuthContext";
 import { getTrainerMembers, getTrainer, getTrainers, updateTrainer } from "../../firebase/trainers";
+import { getSupplementSales } from "../../firebase/stock";
 import AthleteHealthDietModal from "../../components/trainer/AthleteHealthDietModal";
 import DirectChatModal from "../../components/shared/DirectChatModal";
 import toast from "react-hot-toast";
@@ -34,6 +36,7 @@ export default function TrainerDashboard() {
   const { gymId, profileId, user } = useAuth();
   const [members, setMembers] = useState([]);
   const [trainerProfile, setTrainerProfile] = useState(null);
+  const [referredSales, setReferredSales] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -124,6 +127,23 @@ export default function TrainerDashboard() {
           mList = await getTrainerMembers(GID, tId, tName);
         }
         setMembers(mList);
+
+        // Fetch supplement referral sales
+        try {
+          const allSales = await getSupplementSales(GID);
+          const matched = (allSales || []).filter((s) => {
+            const matchId = tId && s.referredByTrainerId === tId;
+            const matchName =
+              tName &&
+              s.referredByTrainerName &&
+              s.referredByTrainerName.toLowerCase().trim() === tName.toLowerCase().trim();
+            return matchId || matchName;
+          });
+          matched.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+          setReferredSales(matched);
+        } catch (errSales) {
+          console.warn("Failed to fetch trainer supplement sales:", errSales);
+        }
       } catch (e) {
         console.error("Failed to load trainer portal data:", e);
       } finally {
@@ -132,6 +152,18 @@ export default function TrainerDashboard() {
     }
     loadData();
   }, [gymId, profileId, user]);
+
+  // Supplement referral commission calculations
+  const supplementCommissionSummary = useMemo(() => {
+    const totalCommission = referredSales.reduce((acc, s) => acc + Number(s.commissionAmount || 0), 0);
+    const totalSalesVolume = referredSales.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
+    const totalProductsCount = referredSales.reduce((acc, s) => acc + Number(s.quantitySold || 1), 0);
+    return {
+      totalCommission,
+      totalSalesVolume,
+      totalProductsCount
+    };
+  }, [referredSales]);
 
   // Financial calculations: PT Revenue, Gym Owner Cut, and Trainer Net Earning
   const financialSummary = useMemo(() => {
@@ -334,6 +366,103 @@ export default function TrainerDashboard() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* SUPPLEMENT SALES REFERRAL COMMISSION CARD */}
+      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+          <div>
+            <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5 text-amber-600" /> Supplement Referral Commission (सप्लीमेंट रेफरल कमाई)
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Aapke recommendation par gym store se khareede gaye supplements par gym owner dwara diya gaya commission.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black text-amber-950 bg-amber-50 border border-amber-200 px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-2xs">
+              <Award className="w-4 h-4 text-amber-600" /> {referredSales.length} Referred Sales
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80">
+            <span className="text-[10px] font-bold text-amber-800 uppercase">Total Supplement Commission</span>
+            <p className="text-2xl font-black text-amber-950 mt-1">
+              ₹{supplementCommissionSummary.totalCommission.toLocaleString("en-IN")}
+            </p>
+            <p className="text-[10px] text-amber-700 mt-0.5">Earned from store product sales</p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+            <span className="text-[10px] font-bold text-slate-500 uppercase">Total Sales Generated</span>
+            <p className="text-2xl font-black text-slate-900 mt-1">
+              ₹{supplementCommissionSummary.totalSalesVolume.toLocaleString("en-IN")}
+            </p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Gross retail product value</p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/70">
+            <span className="text-[10px] font-bold text-emerald-800 uppercase">Products Recommended</span>
+            <p className="text-2xl font-black text-emerald-950 mt-1">
+              {supplementCommissionSummary.totalProductsCount} Units
+            </p>
+            <p className="text-[10px] text-emerald-700 mt-0.5">Whey, Creatine, Vitamins, etc.</p>
+          </div>
+        </div>
+
+        {/* Recent referred sales items */}
+        {referredSales.length > 0 ? (
+          <div className="overflow-x-auto pt-1">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
+                <tr>
+                  <th className="py-2.5 px-3">Date</th>
+                  <th className="py-2.5 px-3">Product</th>
+                  <th className="py-2.5 px-3">Buyer</th>
+                  <th className="py-2.5 px-3 text-center">Qty</th>
+                  <th className="py-2.5 px-3">Total Sale</th>
+                  <th className="py-2.5 px-3 text-right">Your Commission</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {referredSales.slice(0, 5).map((sale, idx) => (
+                  <tr key={sale.id || idx} className="hover:bg-slate-50/60 transition">
+                    <td className="py-2.5 px-3 text-slate-500 text-[11px] whitespace-nowrap">
+                      {sale.timestamp ? new Date(sale.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Recent"}
+                    </td>
+                    <td className="py-2.5 px-3 font-bold text-slate-900">
+                      {sale.productName}
+                      {sale.productBrand && (
+                        <span className="block text-[10px] text-emerald-700 font-semibold">{sale.productBrand}</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span className="font-semibold text-slate-800">{sale.memberName || "Walk-in Buyer"}</span>
+                    </td>
+                    <td className="py-2.5 px-3 text-center font-bold text-slate-800">
+                      {sale.quantitySold || 1}
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-600 font-medium">
+                      ₹{Number(sale.totalAmount || 0).toLocaleString("en-IN")}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-black text-amber-700">
+                      +₹{Number(sale.commissionAmount || 0).toLocaleString("en-IN")}
+                      {sale.commissionType === "percentage" && (
+                        <span className="block text-[10px] text-amber-600 font-normal">({sale.commissionValue}%)</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl bg-slate-50 text-center text-xs text-slate-400">
+            Jab bhi gym members aapki recommendation par supplements khareedenge aur gym owner sale record karega, aapka commission yahan live dikhega!
+          </div>
+        )}
       </div>
 
       {/* ASSIGNED ATHLETES & SCHEDULE SECTION */}

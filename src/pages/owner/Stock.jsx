@@ -26,7 +26,10 @@ import {
   Upload,
   Clock,
   Zap,
-  Check
+  Check,
+  HandCoins,
+  BadgePercent,
+  UserCheck
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
@@ -46,6 +49,7 @@ import {
   logEquipmentRepair
 } from "../../firebase/stock";
 import { getMembers } from "../../firebase/members";
+import { getTrainers } from "../../firebase/trainers";
 import { addExpense } from "../../firebase/expenses";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -227,6 +231,11 @@ export default function Stock() {
   const [sellModalOpen, setSellModalOpen] = useState(false);
   const [selectedProductForSale, setSelectedProductForSale] = useState(null);
   const [membersList, setMembersList] = useState([]);
+  const [trainersList, setTrainersList] = useState([]);
+  const [supplementSalesList, setSupplementSalesList] = useState([]);
+  const [salesSearch, setSalesSearch] = useState("");
+  const [salesFilterTrainer, setSalesFilterTrainer] = useState("all");
+
   const [sellForm, setSellForm] = useState({
     memberId: "",
     memberName: "Walk-in Member",
@@ -234,7 +243,11 @@ export default function Stock() {
     quantity: 1,
     sellingPrice: 0,
     paymentMode: "Cash", // Cash, UPI, Card, Dues
-    notes: ""
+    notes: "",
+    referredByTrainerId: "",
+    referredByTrainerName: "",
+    commissionType: "percentage", // "percentage" or "fixed"
+    commissionValue: 10
   });
 
   // State: Equipment Fleet
@@ -300,20 +313,29 @@ export default function Stock() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [sups, eqs, mems] = await Promise.all([
+        const [sups, eqs, mems, trns, sales] = await Promise.all([
           getSupplements(gymId),
           getEquipment(gymId),
-          getMembers(gymId)
+          getMembers(gymId),
+          getTrainers(gymId),
+          getSupplementSales(gymId)
         ]);
 
         setSupplements(sups || []);
         setEquipmentList(eqs || []);
         setMembersList(mems || []);
+        setTrainersList(trns || []);
+        const sortedSales = (sales || []).sort(
+          (a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0)
+        );
+        setSupplementSalesList(sortedSales);
       } catch (err) {
         console.warn("Stock data fetch fallback:", err);
         setSupplements([]);
         setEquipmentList([]);
         setMembersList([]);
+        setTrainersList([]);
+        setSupplementSalesList([]);
       }
     }
     loadData();
@@ -396,7 +418,11 @@ export default function Stock() {
       quantity: 1,
       sellingPrice: product.sellingPrice,
       paymentMode: "Cash",
-      notes: ""
+      notes: "",
+      referredByTrainerId: "",
+      referredByTrainerName: "",
+      commissionType: "percentage",
+      commissionValue: 10
     });
     setSellModalOpen(true);
   };
@@ -410,6 +436,17 @@ export default function Stock() {
     }
 
     const totalAmount = Number(sellForm.sellingPrice) * Number(sellForm.quantity);
+    let trainerCommission = 0;
+    if (sellForm.referredByTrainerId) {
+      if (sellForm.commissionType === "percentage") {
+        trainerCommission = Math.round(totalAmount * (Number(sellForm.commissionValue || 0) / 100));
+      } else {
+        trainerCommission = Number(sellForm.commissionValue || 0);
+      }
+      trainerCommission = Math.min(totalAmount, Math.max(0, trainerCommission));
+    }
+    const gymNetRevenue = Math.max(0, totalAmount - trainerCommission);
+
     const saleData = {
       productName: selectedProductForSale.name,
       productBrand: selectedProductForSale.brand,
@@ -421,7 +458,13 @@ export default function Stock() {
       memberPhone: sellForm.memberPhone,
       paymentMode: sellForm.paymentMode,
       notes: sellForm.notes,
-      currentStock: selectedProductForSale.quantity
+      currentStock: selectedProductForSale.quantity,
+      referredByTrainerId: sellForm.referredByTrainerId || null,
+      referredByTrainerName: sellForm.referredByTrainerName || null,
+      commissionType: sellForm.referredByTrainerId ? sellForm.commissionType : "none",
+      commissionValue: sellForm.referredByTrainerId ? Number(sellForm.commissionValue || 0) : 0,
+      commissionAmount: trainerCommission,
+      gymNetRevenue
     };
 
     try {
@@ -432,8 +475,13 @@ export default function Stock() {
       setSupplements(
         supplements.map((s) => (s.id === selectedProductForSale.id ? { ...s, quantity: updatedQty } : s))
       );
+      setSupplementSalesList((prev) => [
+        { id: "sale_" + Date.now(), ...saleData, timestamp: new Date().toISOString() },
+        ...prev
+      ]);
 
-      toast.success(`Sale Recorded! Rs. ${totalAmount.toLocaleString("en-IN")} received via ${sellForm.paymentMode}`);
+      const commMsg = trainerCommission > 0 ? ` (₹${trainerCommission.toLocaleString("en-IN")} commission credited to ${sellForm.referredByTrainerName})` : "";
+      toast.success(`Sale Recorded! ₹${totalAmount.toLocaleString("en-IN")} received via ${sellForm.paymentMode}${commMsg}`);
       setSellModalOpen(false);
     } catch (err) {
       toast.error("Failed to record sale");
@@ -702,6 +750,23 @@ export default function Stock() {
             {overdueCount > 0 && (
               <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-black">
                 {overdueCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab("sales")}
+            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "sales"
+                ? "bg-white text-indigo-700 shadow-sm border border-indigo-100"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <History className="w-4 h-4" />
+            <span>Sales & Trainer Commission</span>
+            {supplementSalesList.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-black">
+                {supplementSalesList.length}
               </span>
             )}
           </button>
@@ -1194,6 +1259,343 @@ export default function Stock() {
       )}
 
       {/* ========================================================================= */}
+      {/* ----------------- TAB 3: SALES & TRAINER COMMISSION --------------------- */}
+      {/* ========================================================================= */}
+      {activeTab === "sales" && (
+        <div className="space-y-6">
+          {/* Top Analytics Cards */}
+          {(() => {
+            const totalRetailSales = supplementSalesList.reduce((acc, s) => acc + Number(s.totalAmount || 0), 0);
+            const totalCommissions = supplementSalesList.reduce((acc, s) => acc + Number(s.commissionAmount || 0), 0);
+            const netGymProfit = supplementSalesList.reduce((acc, s) => acc + Number(s.gymNetRevenue || s.totalAmount || 0), 0);
+            const totalItemsSold = supplementSalesList.reduce((acc, s) => acc + Number(s.quantitySold || 1), 0);
+
+            // Group commissions by trainer
+            const trainerStatsMap = {};
+            supplementSalesList.forEach((s) => {
+              if (s.referredByTrainerName || s.referredByTrainerId) {
+                const key = s.referredByTrainerName || "Unknown Trainer";
+                if (!trainerStatsMap[key]) {
+                  trainerStatsMap[key] = {
+                    name: key,
+                    id: s.referredByTrainerId,
+                    salesCount: 0,
+                    totalVolume: 0,
+                    totalCommission: 0
+                  };
+                }
+                trainerStatsMap[key].salesCount += Number(s.quantitySold || 1);
+                trainerStatsMap[key].totalVolume += Number(s.totalAmount || 0);
+                trainerStatsMap[key].totalCommission += Number(s.commissionAmount || 0);
+              }
+            });
+            const trainerStatsList = Object.values(trainerStatsMap).sort(
+              (a, b) => b.totalCommission - a.totalCommission
+            );
+
+            // Filter sales
+            const filteredSales = supplementSalesList.filter((s) => {
+              const q = salesSearch.toLowerCase();
+              const matchQuery =
+                !salesSearch ||
+                (s.productName || "").toLowerCase().includes(q) ||
+                (s.productBrand || "").toLowerCase().includes(q) ||
+                (s.memberName || "").toLowerCase().includes(q) ||
+                (s.referredByTrainerName || "").toLowerCase().includes(q) ||
+                (s.memberPhone || "").includes(q);
+
+              const matchTrainer =
+                salesFilterTrainer === "all"
+                  ? true
+                  : salesFilterTrainer === "direct"
+                  ? !s.referredByTrainerId && !s.referredByTrainerName
+                  : s.referredByTrainerId === salesFilterTrainer || s.referredByTrainerName === salesFilterTrainer;
+
+              return matchQuery && matchTrainer;
+            });
+
+            return (
+              <>
+                {/* 4 Stat Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">Gross Sales Revenue</p>
+                      <h3 className="text-2xl font-black text-slate-900 mt-1">
+                        Rs. {totalRetailSales.toLocaleString("en-IN")}
+                      </h3>
+                      <p className="text-[11px] text-emerald-600 font-bold mt-1">
+                        {totalItemsSold} Product Units Sold
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
+                      <TrendingUp className="w-6 h-6" />
+                    </div>
+                  </div>
+
+                  <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">Trainer Commissions</p>
+                      <h3 className="text-2xl font-black text-amber-600 mt-1">
+                        Rs. {totalCommissions.toLocaleString("en-IN")}
+                      </h3>
+                      <p className="text-[11px] text-amber-700 font-bold mt-1">
+                        {trainerStatsList.length} Trainers Benefited
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-xs">
+                      <HandCoins className="w-6 h-6" />
+                    </div>
+                  </div>
+
+                  <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">Net Gym Retail Revenue</p>
+                      <h3 className="text-2xl font-black text-teal-700 mt-1">
+                        Rs. {netGymProfit.toLocaleString("en-IN")}
+                      </h3>
+                      <p className="text-[11px] text-teal-600 font-bold mt-1">
+                        After Trainer Cut Deductions
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center shadow-xs">
+                      <DollarSign className="w-6 h-6" />
+                    </div>
+                  </div>
+
+                  <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">Total Transactions</p>
+                      <h3 className="text-2xl font-black text-indigo-900 mt-1">
+                        {supplementSalesList.length}
+                      </h3>
+                      <p className="text-[11px] text-indigo-600 font-bold mt-1">
+                        Orders Logged in Ledger
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-xs">
+                      <ShoppingBag className="w-6 h-6" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Trainer Commission Summary / Leaderboard Card */}
+                {trainerStatsList.length > 0 && (
+                  <div className="p-5 rounded-3xl bg-gradient-to-r from-amber-50/90 via-orange-50/50 to-amber-50/90 border border-amber-200/80 shadow-xs space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                          <HandCoins className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-amber-950">
+                            Trainer Referral Commission Payouts (रेफरल कमीशन सारांश)
+                          </h4>
+                          <p className="text-xs text-amber-800">
+                            Gym Owner dwara supplement reference ke adhar par trainers ko diya gaya commission
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-extrabold text-amber-900 bg-white/90 border border-amber-300 px-3 py-1 rounded-xl shadow-2xs">
+                        Total Payout: Rs. {totalCommissions.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
+                      {trainerStatsList.map((t, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => setSalesFilterTrainer(salesFilterTrainer === t.name ? "all" : t.name)}
+                          className={`p-3.5 rounded-2xl bg-white border cursor-pointer transition shadow-2xs hover:border-amber-400 ${
+                            salesFilterTrainer === t.name
+                              ? "border-amber-500 ring-2 ring-amber-400/50 bg-amber-50/40"
+                              : "border-amber-200/80"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black text-slate-900 truncate">
+                              🏋️ {t.name}
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                              {t.salesCount} sold
+                            </span>
+                          </div>
+                          <div className="mt-2 flex items-baseline justify-between">
+                            <span className="text-[11px] text-slate-500">Commission:</span>
+                            <span className="text-sm font-black text-amber-700">
+                              Rs. {t.totalCommission.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex items-baseline justify-between text-[10px] text-slate-400">
+                            <span>Referred Sales:</span>
+                            <span>Rs. {t.totalVolume.toLocaleString("en-IN")}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Filter and Search Bar */}
+                <div className="p-4 rounded-3xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+                  <div className="relative w-full md:w-80">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search by product, member or trainer..."
+                      value={salesSearch}
+                      onChange={(e) => setSalesSearch(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500 transition"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full md:w-auto">
+                    <span className="text-xs font-bold text-slate-500 shrink-0">Filter Trainer:</span>
+                    <select
+                      value={salesFilterTrainer}
+                      onChange={(e) => setSalesFilterTrainer(e.target.value)}
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="all">All Sales ({supplementSalesList.length})</option>
+                      <option value="direct">Direct Gym Retail (No Referral)</option>
+                      {trainersList.map((t) => (
+                        <option key={t.id} value={t.name || t.fullName}>
+                          Coach {t.name || t.fullName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Sales Ledger Table */}
+                <div className="rounded-3xl bg-white border border-slate-200 shadow-xs overflow-hidden">
+                  <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                        <History className="w-4 h-4 text-indigo-600" /> Supplement Sales & Commission Ledger
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Detailed log of all products sold with trainer referral cut & gym net earnings
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-slate-500">
+                      Showing {filteredSales.length} of {supplementSalesList.length} sales
+                    </span>
+                  </div>
+
+                  {filteredSales.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <div className="w-16 h-16 rounded-3xl bg-indigo-50 text-indigo-400 mx-auto flex items-center justify-center mb-3">
+                        <ShoppingBag className="w-8 h-8" />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-700">No Sales Records Found</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                        Use the "Sell Product (POS)" button in the Supplement Store tab to sell products and assign trainer commissions.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50/80 text-slate-600 font-bold border-b border-slate-200">
+                          <tr>
+                            <th className="py-3 px-4">Date & Time</th>
+                            <th className="py-3 px-4">Product Details</th>
+                            <th className="py-3 px-4">Customer / Buyer</th>
+                            <th className="py-3 px-4 text-center">Qty</th>
+                            <th className="py-3 px-4">Total Bill</th>
+                            <th className="py-3 px-4">Payment</th>
+                            <th className="py-3 px-4">Referring Trainer & Commission</th>
+                            <th className="py-3 px-4 text-right">Gym Net Revenue</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                          {filteredSales.map((sale, idx) => {
+                            const dateStr = sale.timestamp
+                              ? new Date(sale.timestamp).toLocaleDateString("en-IN", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit"
+                                })
+                              : "Just Now";
+
+                            const hasTrainer = Boolean(sale.referredByTrainerName || sale.referredByTrainerId);
+                            const commAmt = Number(sale.commissionAmount || 0);
+
+                            return (
+                              <tr key={sale.id || idx} className="hover:bg-slate-50/80 transition">
+                                <td className="py-3.5 px-4 font-medium text-slate-500 text-[11px] whitespace-nowrap">
+                                  {dateStr}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <div className="font-bold text-slate-900">{sale.productName}</div>
+                                  <span className="text-[10px] text-emerald-700 font-semibold uppercase">
+                                    {sale.productBrand || "Supplement"}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <div className="font-bold text-slate-800">
+                                    {sale.memberName || "Walk-in Buyer"}
+                                  </div>
+                                  {sale.memberPhone && (
+                                    <div className="text-[10px] text-slate-400">{sale.memberPhone}</div>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-4 text-center font-black text-slate-900">
+                                  {sale.quantitySold || 1}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="font-black text-slate-900">
+                                    Rs. {Number(sale.totalAmount || 0).toLocaleString("en-IN")}
+                                  </span>
+                                  <span className="block text-[10px] text-slate-400">
+                                    @ Rs. {Number(sale.unitPrice || 0).toLocaleString("en-IN")}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 font-bold text-[10px] border border-slate-200">
+                                    {sale.paymentMode || "Cash"}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  {hasTrainer ? (
+                                    <div className="p-1.5 rounded-xl bg-amber-50 border border-amber-200/80 inline-block">
+                                      <div className="flex items-center gap-1 text-[11px] font-bold text-amber-950">
+                                        <HandCoins className="w-3.5 h-3.5 text-amber-600" />
+                                        <span>{sale.referredByTrainerName}</span>
+                                      </div>
+                                      <div className="text-[10px] font-black text-amber-700 mt-0.5">
+                                        Rs. {commAmt.toLocaleString("en-IN")} Commission
+                                        {sale.commissionType === "percentage" && (
+                                          <span className="font-normal text-amber-600"> ({sale.commissionValue}%)</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[11px] text-slate-400 italic">
+                                      Direct Gym Sale (No Trainer)
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-4 text-right font-black text-emerald-700">
+                                  Rs. {Number(sale.gymNetRevenue !== undefined ? sale.gymNetRevenue : (sale.totalAmount - commAmt)).toLocaleString("en-IN")}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* -------------------- MODAL: ADD / EDIT SUPPLEMENT ---------------------- */}
       {/* ========================================================================= */}
       <Modal
@@ -1503,6 +1905,131 @@ export default function Stock() {
                   ))}
                 </div>
               </div>
+            </div>
+
+            {/* Trainer Referral & Commission (Owner Set) */}
+            <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/90 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                  <HandCoins className="w-4 h-4 text-amber-600" /> Trainer Referral & Commission (Optional)
+                </label>
+                {sellForm.referredByTrainerId && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                    Active Referral
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-amber-800">
+                Agar kisi trainer ne supplement recommend kiya hai, toh select karein. Commission owner decide karega.
+              </p>
+
+              <div>
+                <select
+                  value={sellForm.referredByTrainerId}
+                  onChange={(e) => {
+                    const tId = e.target.value;
+                    const foundT = trainersList.find((t) => t.id === tId);
+                    setSellForm({
+                      ...sellForm,
+                      referredByTrainerId: tId,
+                      referredByTrainerName: foundT ? (foundT.name || foundT.fullName) : ""
+                    });
+                  }}
+                  className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                >
+                  <option value="">No Trainer Referral (100% Gym Direct Sale)</option>
+                  {trainersList.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      🏋️ {t.name || t.fullName} {t.specialization ? `(${t.specialization})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {sellForm.referredByTrainerId && (
+                <div className="space-y-3 pt-2 border-t border-amber-200/70">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-amber-900">Commission Type</label>
+                      <div className="grid grid-cols-2 gap-1.5 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setSellForm({ ...sellForm, commissionType: "percentage" })}
+                          className={`py-1.5 px-2 rounded-lg text-xs font-bold transition ${
+                            sellForm.commissionType === "percentage"
+                              ? "bg-amber-600 text-white shadow-xs"
+                              : "bg-white text-slate-700 border border-amber-200 hover:bg-amber-100"
+                          }`}
+                        >
+                          % Percent
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSellForm({ ...sellForm, commissionType: "fixed" })}
+                          className={`py-1.5 px-2 rounded-lg text-xs font-bold transition ${
+                            sellForm.commissionType === "fixed"
+                              ? "bg-amber-600 text-white shadow-xs"
+                              : "bg-white text-slate-700 border border-amber-200 hover:bg-amber-100"
+                          }`}
+                        >
+                          Flat ₹
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-amber-900">
+                        {sellForm.commissionType === "percentage" ? "Commission % (Owner Decides)" : "Commission ₹ (Flat Amount)"}
+                      </label>
+                      <div className="relative mt-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max={sellForm.commissionType === "percentage" ? 100 : Number(sellForm.sellingPrice) * Number(sellForm.quantity)}
+                          value={sellForm.commissionValue}
+                          onChange={(e) => setSellForm({ ...sellForm, commissionValue: Number(e.target.value) })}
+                          className="w-full bg-white border border-amber-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          placeholder={sellForm.commissionType === "percentage" ? "e.g. 10" : "e.g. 200"}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-amber-700">
+                          {sellForm.commissionType === "percentage" ? "%" : "₹"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Calculated Commission Preview */}
+                  {(() => {
+                    const bill = Number(sellForm.sellingPrice) * Number(sellForm.quantity);
+                    let comm = 0;
+                    if (sellForm.commissionType === "percentage") {
+                      comm = Math.round(bill * (Number(sellForm.commissionValue || 0) / 100));
+                    } else {
+                      comm = Number(sellForm.commissionValue || 0);
+                    }
+                    comm = Math.min(bill, Math.max(0, comm));
+                    const netGym = Math.max(0, bill - comm);
+
+                    return (
+                      <div className="p-2.5 rounded-xl bg-white/90 border border-amber-200 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="text-slate-500 font-medium">Trainer Earning: </span>
+                          <span className="font-black text-amber-700">
+                            ₹{comm.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium"> ({sellForm.referredByTrainerName})</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 font-medium">Gym Net: </span>
+                          <span className="font-black text-emerald-700">
+                            ₹{netGym.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
 
             <button
