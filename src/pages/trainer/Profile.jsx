@@ -18,7 +18,14 @@ import {
   X,
   Save,
   Lock,
-  ShieldCheck
+  ShieldCheck,
+  User,
+  Phone,
+  Mail,
+  Flame,
+  BadgeCheck,
+  Eye,
+  Camera
 } from "lucide-react";
 import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
 import { useAuth } from "../../contexts/AuthContext";
@@ -32,6 +39,8 @@ export default function TrainerProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [trainerId, setTrainerId] = useState("");
+  const [activeTab, setActiveTab] = useState("general");
+  const [showCertPreview, setShowCertPreview] = useState(false);
 
   const [form, setForm] = useState({
     photoUrl: "",
@@ -378,24 +387,108 @@ export default function TrainerProfile() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto pb-16">
-      {/* Header card matching the design */}
-      <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden mb-6">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Personal Trainer Profile Setup</h2>
-            <p className="text-xs text-slate-500">Edit and update all details of your personal trainer profile</p>
+    <div className="max-w-5xl mx-auto pb-20 space-y-6">
+      {/* TOP HERO PROFILE BANNER */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 border border-slate-700/60 shadow-2xl p-6 sm:p-8">
+        <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 -mb-8 -ml-8 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
+            <div className="relative">
+              {form.photoUrl ? (
+                <img
+                  src={form.photoUrl}
+                  alt={form.name}
+                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl object-cover border-4 border-emerald-500/80 shadow-xl"
+                />
+              ) : (
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white text-3xl font-black shadow-xl border-4 border-emerald-500/50">
+                  {(form.name || "TR").slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className="absolute -bottom-2 -right-2 p-1.5 rounded-xl bg-emerald-500 text-slate-950 font-black shadow-lg">
+                <BadgeCheck className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                  {form.name || "Head Coach"}
+                </h1>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[11px] font-extrabold tracking-wide uppercase">
+                  Verified Trainer
+                </span>
+              </div>
+
+              <p className="text-xs sm:text-sm font-medium text-emerald-300 flex items-center justify-center sm:justify-start gap-1.5">
+                <Dumbbell className="w-4 h-4" /> {form.specialization || "Certified Fitness Specialist"}
+              </p>
+
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-slate-400 pt-1">
+                <span className="flex items-center gap-1">
+                  <Flame className="w-3.5 h-3.5 text-amber-400" /> {form.experience || "5 Years"} Exp.
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1 text-slate-300">
+                  <Phone className="w-3.5 h-3.5 text-emerald-400" /> {form.phone || "Not set"}
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1 text-slate-300">
+                  <Mail className="w-3.5 h-3.5 text-teal-400" /> {form.email || "coach@univogym.com"}
+                </span>
+              </div>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition disabled:opacity-50"
-          >
-            <Save className="w-3.5 h-3.5" />
-            {saving ? "Saving..." : "Save Profile"}
-          </button>
+
+          {/* Header Actions */}
+          <div className="flex sm:flex-col items-center gap-3 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full sm:w-auto px-7 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-extrabold text-xs sm:text-sm shadow-xl hover:shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              <Save className="w-4 h-4" />
+              {saving ? "Saving Updates..." : "Save Profile"}
+            </button>
+            <span className="text-[11px] text-slate-400 font-medium text-center">
+              Auto-syncs with Member Portal
+            </span>
+          </div>
         </div>
+
+        {/* TAB NAVIGATION PILLS */}
+        <div className="mt-8 pt-4 border-t border-slate-700/60 flex items-center gap-2 overflow-x-auto custom-scrollbar">
+          {[
+            { id: "general", label: "General Info", icon: User },
+            { id: "credentials", label: "App Login & Security", icon: KeyRound },
+            { id: "plans", label: "PT Plans & Commission", icon: HandCoins },
+            { id: "transformations", label: "Transformations & Certs", icon: Award },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  isActive
+                    ? "bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20 scale-105"
+                    : "bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200/90 rounded-3xl shadow-sm overflow-hidden">
 
         {/* Form Body - Exactly matching the image */}
         <form onSubmit={handleSave} className="p-6 space-y-5">
@@ -544,8 +637,22 @@ export default function TrainerProfile() {
                 </p>
                 <p className="text-[10px] text-slate-500">Supports PDF, JPG, PNG (Max 800KB)</p>
               </div>
-              <div className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-bold group-hover:bg-emerald-500 group-hover:text-white transition">
-                {form.certUrl ? "Change File" : "Browse"}
+              <div className="flex items-center gap-2">
+                {form.certUrl && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowCertPreview(true);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[11px] font-bold transition flex items-center gap-1"
+                  >
+                    <Eye className="w-3.5 h-3.5" /> Preview
+                  </button>
+                )}
+                <div className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-bold group-hover:bg-emerald-500 group-hover:text-white transition">
+                  {form.certUrl ? "Change File" : "Browse"}
+                </div>
               </div>
               <input
                 type="file"
@@ -776,6 +883,34 @@ export default function TrainerProfile() {
           </button>
         </form>
       </div>
+
+      {/* CERTIFICATE FULL MODAL PREVIEW */}
+      {showCertPreview && form.certUrl && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-2xl w-full p-5 space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                <Award className="w-4 h-4 text-emerald-400" /> Trainer Verified Certificate
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowCertPreview(false)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[75vh] overflow-auto flex items-center justify-center p-2 bg-slate-950/60 rounded-2xl">
+              {form.certUrl.startsWith("data:application/pdf") ? (
+                <iframe src={form.certUrl} className="w-full h-[60vh] rounded-xl border border-slate-800" title="Certificate PDF" />
+              ) : (
+                <img src={form.certUrl} alt="Trainer Certificate" className="max-h-[65vh] object-contain rounded-xl shadow-lg" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
