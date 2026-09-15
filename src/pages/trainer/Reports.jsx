@@ -467,21 +467,21 @@ export default function TrainerReports() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/60 p-6 rounded-3xl border border-slate-800 backdrop-blur-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
         <div>
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 rounded-2xl border border-emerald-500/30 text-emerald-400">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
               <BarChart2 className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-                My Earnings & Personal Reports
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                My Earnings & Personal Reports 📈
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-extrabold">
                   Personal P&L
                 </span>
               </h1>
-              <p className="text-sm text-slate-400">
-                Track your monthly salary, PT commissions, and supplement referral cuts in one place.
+              <p className="text-xs text-slate-500 mt-0.5">
+                Track your monthly salary, PT commissions, and supplement referral cuts in real-time.
               </p>
             </div>
           </div>
@@ -492,14 +492,14 @@ export default function TrainerReports() {
           <Button
             variant="outline"
             onClick={handleExportCSV}
-            className="flex items-center gap-2 text-xs border-slate-700 hover:border-slate-500 text-slate-300"
+            className="flex items-center gap-2 text-xs border-slate-200 hover:border-slate-400 text-slate-700 bg-white shadow-2xs font-bold"
           >
-            <Download className="w-4 h-4" /> Export CSV
+            <Download className="w-4 h-4 text-slate-500" /> Export CSV
           </Button>
           <Button
             variant="primary"
             onClick={handleExportPDF}
-            className="flex items-center gap-2 text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold"
+            className="flex items-center gap-2 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold shadow-sm shadow-emerald-500/20"
           >
             <FileText className="w-4 h-4" /> Official PDF Statement
           </Button>
@@ -507,34 +507,34 @@ export default function TrainerReports() {
       </div>
 
       {/* Mode Selectors (Daily, Monthly, Custom) */}
-      <div className="p-4 bg-slate-900/40 rounded-2xl border border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-slate-800">
+      <div className="p-3 bg-white rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-xl">
           <button
             onClick={() => setReportMode("daily")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-lg text-xs font-extrabold transition flex items-center gap-2 ${
               reportMode === "daily"
-                ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
-                : "text-slate-400 hover:text-white"
+                ? "bg-white text-emerald-700 shadow-xs border border-emerald-100"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <Clock className="w-3.5 h-3.5" /> Daily Report
           </button>
           <button
             onClick={() => setReportMode("monthly")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-lg text-xs font-extrabold transition flex items-center gap-2 ${
               reportMode === "monthly"
-                ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
-                : "text-slate-400 hover:text-white"
+                ? "bg-white text-emerald-700 shadow-xs border border-emerald-100"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <Calendar className="w-3.5 h-3.5" /> Monthly Report
           </button>
           <button
             onClick={() => setReportMode("custom")}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-lg text-xs font-extrabold transition flex items-center gap-2 ${
               reportMode === "custom"
-                ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
-                : "text-slate-400 hover:text-white"
+                ? "bg-white text-emerald-700 shadow-xs border border-emerald-100"
+                : "text-slate-600 hover:text-slate-900"
             }`}
           >
             <Filter className="w-3.5 h-3.5" /> Custom Range / Lifetime
@@ -544,25 +544,25 @@ export default function TrainerReports() {
         {/* Dynamic Controls based on selected mode */}
         <div className="flex items-center gap-3">
           {reportMode === "daily" && (
-            <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-              <span className="text-xs text-slate-400 font-medium">Select Date:</span>
+            <div className="flex items-center gap-2 bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs">
+              <span className="text-slate-500 font-bold">Select Date:</span>
               <input
                 type="date"
                 value={selectedDailyDate}
                 onChange={(e) => setSelectedDailyDate(e.target.value)}
-                className="bg-transparent text-xs font-bold text-white outline-none cursor-pointer"
+                className="bg-transparent text-xs font-extrabold text-slate-800 outline-none cursor-pointer"
               />
             </div>
           )}
 
           {reportMode === "monthly" && (
-            <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
-              <span className="text-xs text-slate-400 font-medium">Select Month:</span>
+            <div className="flex items-center gap-2 bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs">
+              <span className="text-slate-500 font-bold">Select Month:</span>
               <input
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-transparent text-xs font-bold text-white outline-none cursor-pointer"
+                className="bg-transparent text-xs font-extrabold text-slate-800 outline-none cursor-pointer"
               />
             </div>
           )}
@@ -572,7 +572,7 @@ export default function TrainerReports() {
               <select
                 value={customRange.preset}
                 onChange={(e) => setCustomRange((prev) => ({ ...prev, preset: e.target.value }))}
-                className="bg-slate-950 text-xs font-bold text-white px-3 py-2 rounded-xl border border-slate-800 outline-none"
+                className="bg-slate-50 text-xs font-extrabold text-slate-800 px-3 py-2 rounded-xl border border-slate-200 outline-none cursor-pointer"
               >
                 <option value="this_month">This Month</option>
                 <option value="last_3_months">Last 3 Months</option>
@@ -582,19 +582,19 @@ export default function TrainerReports() {
               </select>
 
               {customRange.preset === "custom_dates" && (
-                <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-800 text-xs">
+                <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs font-bold">
                   <input
                     type="date"
                     value={customRange.startDate}
                     onChange={(e) => setCustomRange((prev) => ({ ...prev, startDate: e.target.value }))}
-                    className="bg-transparent text-slate-200 outline-none"
+                    className="bg-transparent text-slate-800 outline-none"
                   />
-                  <span className="text-slate-500">to</span>
+                  <span className="text-slate-400 font-normal">to</span>
                   <input
                     type="date"
                     value={customRange.endDate}
                     onChange={(e) => setCustomRange((prev) => ({ ...prev, endDate: e.target.value }))}
-                    className="bg-transparent text-slate-200 outline-none"
+                    className="bg-transparent text-slate-800 outline-none"
                   />
                 </div>
               )}
@@ -604,32 +604,34 @@ export default function TrainerReports() {
       </div>
 
       {/* Trainer Profile Overview Card */}
-      <div className="p-5 bg-gradient-to-r from-slate-900 via-slate-900/90 to-indigo-950/40 rounded-3xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+      <div className="p-6 bg-gradient-to-r from-emerald-50 via-teal-50 to-white rounded-3xl border border-emerald-100 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center font-black text-white text-xl shadow-lg border border-emerald-300/30">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center font-black text-white text-xl shadow-md border-2 border-white">
             {trainerName.slice(0, 2).toUpperCase()}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-lg font-black text-white">{trainerName}</h2>
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+              <h2 className="text-lg font-black text-slate-900">{trainerName}</h2>
+              <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                 {trainerProfile?.specialization || "Certified Fitness Coach"}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1 flex items-center gap-3">
-              <span>Duration: <strong className="text-slate-200">{periodLabel}</strong></span>
+            <p className="text-xs text-slate-600 mt-1 flex items-center gap-3">
+              <span>Duration: <strong className="text-slate-900 font-bold">{periodLabel}</strong></span>
               <span>•</span>
-              <span>Active PT Clients: <strong className="text-slate-200">{members.length}</strong></span>
+              <span>Active PT Clients: <strong className="text-emerald-700 font-black">{members.length}</strong></span>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 self-start md:self-auto bg-slate-950/70 px-4 py-2.5 rounded-2xl border border-slate-800">
-          <Wallet className="w-5 h-5 text-indigo-400" />
+        <div className="flex items-center gap-3 self-start md:self-auto bg-white px-4 py-2.5 rounded-2xl border border-emerald-200/80 shadow-2xs">
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+            <Wallet className="w-5 h-5" />
+          </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase">Fixed Base Salary</p>
-            <p className="text-sm font-black text-white">
-              ₹{monthlySalary.toLocaleString("en-IN")}<span className="text-xs text-slate-400 font-normal">/month</span>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Fixed Base Salary</p>
+            <p className="text-sm font-black text-slate-900">
+              ₹{monthlySalary.toLocaleString("en-IN")}<span className="text-xs text-slate-500 font-normal">/month</span>
             </p>
           </div>
         </div>
@@ -638,66 +640,78 @@ export default function TrainerReports() {
       {/* 4 KPI Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Net Earnings */}
-        <div className="p-5 rounded-3xl bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/30 relative overflow-hidden group">
-          <div className="absolute right-3 -bottom-2 text-emerald-500/10 group-hover:text-emerald-500/20 transition">
+        <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-md shadow-emerald-500/20 relative overflow-hidden group">
+          <div className="absolute right-2 -bottom-2 text-white/10 group-hover:text-white/15 transition">
             <IndianRupee className="w-24 h-24" />
           </div>
-          <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5" /> Total Net Income
+          <p className="text-xs font-extrabold text-emerald-100 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-200" /> Total Net Income
           </p>
           <div className="text-3xl font-black text-white tracking-tight mt-1">
             ₹{totalNetEarnings.toLocaleString("en-IN")}
           </div>
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-emerald-100/90 mt-2 font-medium">
             Salary + PT Commission + Store Cut
           </p>
         </div>
 
         {/* Base Salary for Period */}
-        <div className="p-5 rounded-3xl bg-slate-900/60 border border-slate-800/80 group">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-xs font-bold text-blue-400 uppercase tracking-wider">
-              Base Fixed Salary
-            </p>
-            <Building className="w-4 h-4 text-blue-400" />
+        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-2xs group flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-extrabold text-blue-600 uppercase tracking-wider">
+                Base Fixed Salary
+              </p>
+              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <Building className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-black text-slate-900 tracking-tight mt-1">
+              ₹{baseSalaryForPeriod.toLocaleString("en-IN")}
+            </div>
           </div>
-          <div className="text-2xl font-black text-white tracking-tight mt-1">
-            ₹{baseSalaryForPeriod.toLocaleString("en-IN")}
-          </div>
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-slate-500 mt-2">
             {reportMode === "daily" ? "Prorated 1-Day Salary" : "Monthly Fixed Payroll"}
           </p>
         </div>
 
         {/* PT Commissions */}
-        <div className="p-5 rounded-3xl bg-slate-900/60 border border-slate-800/80 group">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-xs font-bold text-purple-400 uppercase tracking-wider">
-              PT Commissions
-            </p>
-            <Dumbbell className="w-4 h-4 text-purple-400" />
+        <div className="p-6 rounded-3xl bg-white border border-purple-100 shadow-2xs group flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-extrabold text-purple-700 uppercase tracking-wider">
+                PT Commissions
+              </p>
+              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                <Dumbbell className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-black text-purple-700 tracking-tight mt-1">
+              ₹{ptTotalCut.toLocaleString("en-IN")}
+            </div>
           </div>
-          <div className="text-2xl font-black text-purple-300 tracking-tight mt-1">
-            ₹{ptTotalCut.toLocaleString("en-IN")}
-          </div>
-          <p className="text-xs text-slate-400 mt-2">
-            From {filteredItems.filter((i) => i.type === "pt_commission").length} PT membership sales
+          <p className="text-xs text-slate-500 mt-2">
+            From <strong className="text-slate-800">{filteredItems.filter((i) => i.type === "pt_commission").length}</strong> PT membership sales
           </p>
         </div>
 
         {/* Supplement Referral Commission */}
-        <div className="p-5 rounded-3xl bg-slate-900/60 border border-slate-800/80 group">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-              Store Referral Cut
-            </p>
-            <ShoppingBag className="w-4 h-4 text-amber-400" />
+        <div className="p-6 rounded-3xl bg-white border border-amber-100 shadow-2xs group flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-extrabold text-amber-700 uppercase tracking-wider">
+                Store Referral Cut
+              </p>
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <ShoppingBag className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-black text-amber-600 tracking-tight mt-1">
+              ₹{supplementTotalCut.toLocaleString("en-IN")}
+            </div>
           </div>
-          <div className="text-2xl font-black text-amber-300 tracking-tight mt-1">
-            ₹{supplementTotalCut.toLocaleString("en-IN")}
-          </div>
-          <p className="text-xs text-slate-400 mt-2">
-            From {filteredItems.filter((i) => i.type === "supplement_referral").length} supplement sales
+          <p className="text-xs text-slate-500 mt-2">
+            From <strong className="text-slate-800">{filteredItems.filter((i) => i.type === "supplement_referral").length}</strong> supplement sales
           </p>
         </div>
       </div>
@@ -705,17 +719,17 @@ export default function TrainerReports() {
       {/* Graphical Insights (Area Trend & Pie Breakdown) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Trend Area Chart */}
-        <div className="lg:col-span-2 p-6 bg-slate-900/60 rounded-3xl border border-slate-800 flex flex-col justify-between">
+        <div className="lg:col-span-2 p-6 bg-white rounded-3xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-emerald-400" /> Variable Earnings Trend
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-600" /> Variable Earnings Trend
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500 mt-0.5">
                 PT commission and store referral bonuses over time
               </p>
             </div>
-            <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+            <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
               Live Flow
             </span>
           </div>
@@ -726,28 +740,28 @@ export default function TrainerReports() {
                 <AreaChart data={trendChartData}>
                   <defs>
                     <linearGradient id="ptGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.0} />
                     </linearGradient>
                     <linearGradient id="storeGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={11} />
-                  <YAxis stroke="#64748b" fontSize={11} tickFormatter={(v) => `₹${v}`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                  <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} tickFormatter={(v) => `₹${v}`} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "1rem" }}
-                    itemStyle={{ color: "#fff", fontSize: "12px" }}
+                    contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "1rem", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}
+                    itemStyle={{ color: "#0f172a", fontSize: "12px", fontWeight: "bold" }}
                     formatter={(value) => [`₹${Number(value).toLocaleString("en-IN")}`, "Cut"]}
                   />
-                  <Area type="monotone" dataKey="pt" stroke="#8b5cf6" fillOpacity={1} fill="url(#ptGrad)" name="PT Commission" />
-                  <Area type="monotone" dataKey="store" stroke="#10b981" fillOpacity={1} fill="url(#storeGrad)" name="Store Cut" />
+                  <Area type="monotone" dataKey="pt" stroke="#8b5cf6" strokeWidth={2.5} fillOpacity={1} fill="url(#ptGrad)" name="PT Commission" />
+                  <Area type="monotone" dataKey="store" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#storeGrad)" name="Store Cut" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-slate-500 text-xs">
+              <div className="h-full flex items-center justify-center text-slate-400 text-xs">
                 No variable commissions recorded for this selected time window.
               </div>
             )}
@@ -755,15 +769,15 @@ export default function TrainerReports() {
         </div>
 
         {/* Earnings Composition Pie */}
-        <div className="p-6 bg-slate-900/60 rounded-3xl border border-slate-800 flex flex-col justify-between">
+        <div className="p-6 bg-white rounded-3xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <PieChart className="w-4 h-4 text-purple-400" /> Income Distribution
+            <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <PieChart className="w-4 h-4 text-purple-600" /> Income Distribution
             </h3>
-            <p className="text-xs text-slate-400">Share of Salary vs Commissions</p>
+            <p className="text-xs text-slate-500 mt-0.5">Share of Salary vs Commissions</p>
           </div>
 
-          <div className="h-56 w-full flex items-center justify-center my-auto">
+          <div className="h-52 w-full flex items-center justify-center my-auto">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -781,20 +795,20 @@ export default function TrainerReports() {
                 </Pie>
                 <Tooltip
                   formatter={(val) => `₹${Number(val).toLocaleString("en-IN")}`}
-                  contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155", borderRadius: "0.75rem" }}
+                  contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "0.75rem", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}
                 />
               </PieChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="space-y-2 pt-2 border-t border-slate-800">
+          <div className="space-y-2 pt-3 border-t border-slate-100">
             {earningsPieData.map((d, idx) => (
               <div key={idx} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                  <span className="text-slate-300 font-medium">{d.name}</span>
+                  <span className="text-slate-600 font-bold">{d.name}</span>
                 </div>
-                <span className="font-bold text-white">₹{d.value.toLocaleString("en-IN")}</span>
+                <span className="font-black text-slate-900">₹{d.value.toLocaleString("en-IN")}</span>
               </div>
             ))}
           </div>
@@ -802,30 +816,30 @@ export default function TrainerReports() {
       </div>
 
       {/* Itemized Detailed Earnings Ledger */}
-      <div className="p-6 bg-slate-900/60 rounded-3xl border border-slate-800">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+      <div className="p-6 bg-white rounded-3xl border border-slate-200/80 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
           <div>
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-emerald-400" /> Itemized Income Ledger
+            <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-emerald-600" /> Itemized Income Ledger
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 mt-0.5">
               Complete breakdown of every PT admission and supplement referral reward
             </p>
           </div>
-          <span className="text-xs font-bold text-slate-400 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 self-start sm:self-auto">
+          <span className="text-xs font-black text-emerald-800 bg-emerald-50 px-3.5 py-1.5 rounded-xl border border-emerald-200 self-start sm:self-auto">
             {filteredItems.length} Transactions
           </span>
         </div>
 
         {filteredItems.length === 0 ? (
-          <div className="py-12 text-center text-slate-500 text-sm">
-            <Dumbbell className="w-10 h-10 mx-auto mb-2 text-slate-600 opacity-50" />
+          <div className="py-12 text-center text-slate-400 text-sm">
+            <Dumbbell className="w-10 h-10 mx-auto mb-2 text-slate-300" />
             No variable commissions recorded for this duration. Your base salary applies automatically.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950/80 text-slate-400 uppercase tracking-wider text-[10px] font-bold border-b border-slate-800">
+            <table className="w-full text-left text-xs text-slate-600">
+              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider text-[10px] font-black border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4 rounded-l-xl">Date</th>
                   <th className="py-3 px-4">Athlete / Buyer</th>
@@ -836,38 +850,38 @@ export default function TrainerReports() {
                   <th className="py-3 px-4 text-center rounded-r-xl">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-medium">
+              <tbody className="divide-y divide-slate-100 font-medium">
                 {filteredItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-800/40 transition">
-                    <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">
+                  <tr key={item.id} className="hover:bg-slate-50/80 transition">
+                    <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
                       {item.date}
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-white whitespace-nowrap">
+                    <td className="py-3.5 px-4 font-black text-slate-900 whitespace-nowrap">
                       {item.clientName}
                     </td>
                     <td className="py-3.5 px-4">
                       {item.type === "pt_commission" ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 font-semibold">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 font-extrabold text-[11px]">
                           <Dumbbell className="w-3 h-3" /> PT Share
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-extrabold text-[11px]">
                           <ShoppingBag className="w-3 h-3" /> Store Referral
                         </span>
                       )}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-300 max-w-xs truncate">
+                    <td className="py-3.5 px-4 text-slate-700 max-w-xs truncate font-semibold">
                       {item.planName}
                     </td>
-                    <td className="py-3.5 px-4 text-right font-bold text-slate-400 whitespace-nowrap">
+                    <td className="py-3.5 px-4 text-right font-bold text-slate-500 whitespace-nowrap">
                       ₹{item.totalSale.toLocaleString("en-IN")}
                     </td>
-                    <td className="py-3.5 px-4 text-right font-black text-emerald-400 text-sm whitespace-nowrap">
+                    <td className="py-3.5 px-4 text-right font-black text-emerald-600 text-sm whitespace-nowrap">
                       +₹{item.trainerCut.toLocaleString("en-IN")}
                     </td>
                     <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-bold">
-                        <CheckCircle2 className="w-3 h-3" /> Approved
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Approved
                       </span>
                     </td>
                   </tr>
