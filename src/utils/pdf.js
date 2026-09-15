@@ -453,3 +453,170 @@ export function generateFinancialStatementPDF({
   const safePeriod = periodLabel.replace(/[^a-zA-Z0-9]/g, "_");
   doc.save(`Financial_Statement_${periodType}_${safePeriod}.pdf`);
 }
+
+export function generateTrainerEarningsStatementPDF({
+  trainerName,
+  trainerPhone,
+  periodType,
+  periodLabel,
+  baseSalary,
+  ptCommission,
+  supplementCommission,
+  totalNetEarnings,
+  ptClientsCount,
+  supplementSalesCount,
+  breakdownItems = []
+}) {
+  const settings = getGymSettings();
+  const doc = new jsPDF();
+
+  // Header branding banner
+  doc.setFillColor(15, 23, 42); // slate-900
+  doc.rect(0, 0, 210, 28, "F");
+
+  // Accent line
+  doc.setFillColor(16, 185, 129); // emerald-500
+  doc.rect(0, 26, 210, 2, "F");
+
+  doc.setFontSize(16);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.text((settings.gymName || "UNIVO GYM MANAGEMENT").toUpperCase(), 105, 11, { align: "center" });
+
+  doc.setFontSize(8.5);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(203, 213, 225);
+  doc.text(settings.tagline || "Stronger Today, Healthier Tomorrow", 105, 17, { align: "center" });
+  doc.text(
+    `Tel: ${settings.phone || "+91 9196302375"} | Branch: ${settings.address || "Main Branch"}`,
+    105,
+    22,
+    { align: "center" }
+  );
+
+  // Document Title
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("TRAINER OFFICIAL EARNINGS & PAYOUT STATEMENT", 105, 38, { align: "center" });
+
+  // Meta Box
+  doc.setDrawColor(226, 232, 240);
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(15, 43, 180, 22, 3, 3, "FD");
+
+  doc.setFontSize(9);
+  doc.setTextColor(51, 65, 85);
+  doc.setFont("helvetica", "bold");
+  doc.text(`Trainer: ${trainerName || "Coach"}`, 22, 51);
+  doc.text(`Statement Period: ${periodLabel || periodType}`, 120, 51);
+
+  doc.setFont("helvetica", "normal");
+  doc.text(`Phone / WhatsApp: ${trainerPhone || "—"}`, 22, 59);
+  doc.text(`Generated On: ${new Date().toLocaleDateString("en-IN")} ${new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`, 120, 59);
+
+  // KPI Summary Strip (4 Cards)
+  const kpis = [
+    { title: "FIXED SALARY", val: `Rs. ${Number(baseSalary || 0).toLocaleString("en-IN")}`, fill: [241, 245, 249], border: [203, 213, 225] },
+    { title: "PT COMMISSIONS", val: `Rs. ${Number(ptCommission || 0).toLocaleString("en-IN")}`, fill: [243, 232, 255], border: [216, 180, 254] },
+    { title: "STORE REFERRAL CUT", val: `Rs. ${Number(supplementCommission || 0).toLocaleString("en-IN")}`, fill: [254, 243, 199], border: [252, 211, 77] },
+    { title: "NET EARNINGS", val: `Rs. ${Number(totalNetEarnings || 0).toLocaleString("en-IN")}`, fill: [236, 253, 245], border: [110, 231, 183] },
+  ];
+
+  kpis.forEach((k, idx) => {
+    const x = 15 + idx * 46;
+    doc.setFillColor(k.fill[0], k.fill[1], k.fill[2]);
+    doc.setDrawColor(k.border[0], k.border[1], k.border[2]);
+    doc.roundedRect(x, 70, 42, 22, 2.5, 2.5, "FD");
+
+    doc.setFontSize(6.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(100, 116, 139);
+    doc.text(k.title, x + 21, 77, { align: "center" });
+
+    doc.setFontSize(10.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(k.val, x + 21, 86, { align: "center" });
+  });
+
+  // Section Header: Itemized Ledger
+  let curY = 101;
+  doc.setFontSize(10.5);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(15, 23, 42);
+  doc.text("ITEMIZED EARNINGS & INCENTIVE LEDGER", 15, curY);
+
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Active PT Clients: ${ptClientsCount || 0}  |  Supplement Referrals: ${supplementSalesCount || 0}`, 130, curY);
+
+  curY += 4;
+  // Table Header
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(15, curY, 180, 7, 1.5, 1.5, "FD");
+
+  doc.setFontSize(7.5);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(71, 85, 105);
+  doc.text("DATE", 19, curY + 5);
+  doc.text("SOURCE / CLIENT", 45, curY + 5);
+  doc.text("PLAN / PRODUCT", 100, curY + 5);
+  doc.text("TOTAL SALE", 150, curY + 5, { align: "right" });
+  doc.text("TRAINER CUT (+Rs.)", 192, curY + 5, { align: "right" });
+
+  curY += 8;
+
+  const displayRows = breakdownItems.slice(0, 18);
+  if (displayRows.length === 0) {
+    doc.setTextColor(148, 163, 184);
+    doc.text("No specific variable commissions recorded in this duration.", 19, curY + 6);
+    curY += 12;
+  } else {
+    displayRows.forEach((row, i) => {
+      if (i % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, curY - 1, 180, 6, "F");
+      }
+      doc.setFontSize(7.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(30, 41, 59);
+      doc.text(String(row.date || "—").slice(0, 10), 19, curY + 3.5);
+      doc.text(String(row.title || row.clientName || "—").slice(0, 28), 45, curY + 3.5);
+      doc.text(String(row.typeLabel || row.planName || "Incentive").slice(0, 26), 100, curY + 3.5);
+      doc.text(Number(row.totalSale || 0).toLocaleString("en-IN"), 150, curY + 3.5, { align: "right" });
+
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(16, 185, 129);
+      doc.text(`+Rs. ${Number(row.trainerCut || 0).toLocaleString("en-IN")}`, 192, curY + 3.5, { align: "right" });
+      doc.setFont("helvetica", "normal");
+      curY += 6;
+    });
+  }
+
+  // Footer & Official Verification
+  const footerY = 252;
+  doc.setDrawColor(203, 213, 225);
+  doc.line(15, footerY, 195, footerY);
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text("Gym Manager / Authorized Signatory", 155, footerY + 14, { align: "center" });
+
+  doc.setDrawColor(16, 185, 129);
+  doc.circle(42, footerY + 12, 10);
+  doc.setTextColor(16, 185, 129);
+  doc.setFontSize(6.5);
+  doc.setFont("helvetica", "bold");
+  doc.text("PAYROLL VERIFIED", 42, footerY + 11, { align: "center" });
+  doc.text("APPROVED", 42, footerY + 15, { align: "center" });
+
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text(`Official Trainer Payroll Record issued by ${settings.gymName || "UNIVO GYM"}.`, 105, 284, { align: "center" });
+
+  const safePeriod = (periodLabel || periodType).replace(/[^a-zA-Z0-9]/g, "_");
+  doc.save(`Trainer_Earnings_${trainerName.replace(/\s+/g, "_")}_${safePeriod}.pdf`);
+}
+

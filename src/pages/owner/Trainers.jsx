@@ -39,12 +39,14 @@ import Button from "../../components/ui/Button";
 import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
 import { getTrainers, addTrainer, updateTrainer, deleteTrainer } from "../../firebase/trainers";
 import { getMembers } from "../../firebase/members";
+import { getStaff } from "../../firebase/staff";
 import { useAuth } from "../../contexts/AuthContext";
 import toast from "react-hot-toast";
 
 export default function Trainers() {
   const { gymId } = useAuth();
   const [trainers, setTrainers] = useState([]);
+  const [staffList, setStaffList] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -63,6 +65,7 @@ export default function Trainers() {
     email: "",
     password: "Coach@123",
     experience: "5 Years",
+    salary: "",
     bio: "",
     certifications: "",
     photoUrl: "",
@@ -493,10 +496,13 @@ export default function Trainers() {
   useEffect(() => {
     async function load() {
       try {
-        const [t, m] = await Promise.all([
+        const [t, m, st] = await Promise.all([
           getTrainers(gymId || "univo_main"),
-          getMembers(gymId || "univo_main")
+          getMembers(gymId || "univo_main"),
+          getStaff(gymId || "univo_main").catch(() => [])
         ]);
+
+        setStaffList(st || []);
 
         const allMembers = m || [];
         const enrichedTrainers = (t || []).map((tr) => {
@@ -569,6 +575,7 @@ export default function Trainers() {
         password: form.password || "Coach@123",
         loginPassword: form.password || "Coach@123",
         experience: form.experience,
+        salary: form.salary ? Number(form.salary) : 0,
         bio: form.bio,
         certifications: form.certifications,
         photoUrl: form.photoUrl || "",
@@ -596,6 +603,7 @@ export default function Trainers() {
         email: "",
         password: "Coach@123",
         experience: "5 Years",
+        salary: "",
         bio: "",
         certifications: "",
         photoUrl: "",
@@ -900,6 +908,89 @@ export default function Trainers() {
 
         {activeTab === "manual" ? (
           <form onSubmit={handleManualAdd} className="space-y-5">
+            {/* Staff Suggestions / Auto-fill Quick Import */}
+            {staffList.length > 0 && (
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    ⚡ Quick Import from Existing Gym Staff
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                    Auto-Fill Salary & Info
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 mb-2.5">
+                  Agar staff me trainer/coach pehle se add hai, to click karke direct details & monthly salary auto-fill karein:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {staffList
+                    .filter((st) => {
+                      const r = (st.role || "").toLowerCase();
+                      return r.includes("trainer") || r.includes("coach") || r.includes("instructor") || r.includes("nutrition");
+                    })
+                    .map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => {
+                          setForm((prev) => ({
+                            ...prev,
+                            name: st.name || prev.name,
+                            phone: st.phone || prev.phone,
+                            email: st.email || prev.email,
+                            specialization: st.role || prev.specialization,
+                            salary: st.salary ? String(st.salary) : prev.salary,
+                            photoUrl: st.photo || st.photoUrl || prev.photoUrl,
+                          }));
+                          toast.success(`Imported details for ${st.name}! Salary: ₹${st.salary || 0}`);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-emerald-300 hover:border-emerald-500 hover:bg-emerald-100/50 rounded-xl text-xs font-bold text-slate-800 shadow-2xs transition"
+                      >
+                        <UserPlus className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{st.name}</span>
+                        <span className="text-[10px] font-normal text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                          {st.role} • ₹{Number(st.salary || 0).toLocaleString("en-IN")}
+                        </span>
+                      </button>
+                    ))}
+                  {staffList.filter((st) => {
+                    const r = (st.role || "").toLowerCase();
+                    return r.includes("trainer") || r.includes("coach") || r.includes("instructor") || r.includes("nutrition");
+                  }).length === 0 && (
+                    <div className="w-full">
+                      <select
+                        onChange={(e) => {
+                          const selected = staffList.find((s) => s.id === e.target.value);
+                          if (selected) {
+                            setForm((prev) => ({
+                              ...prev,
+                              name: selected.name || prev.name,
+                              phone: selected.phone || prev.phone,
+                              email: selected.email || prev.email,
+                              specialization: selected.role || prev.specialization,
+                              salary: selected.salary ? String(selected.salary) : prev.salary,
+                              photoUrl: selected.photo || selected.photoUrl || prev.photoUrl,
+                            }));
+                            toast.success(`Imported details for ${selected.name}!`);
+                          }
+                        }}
+                        defaultValue=""
+                        className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 outline-none"
+                      >
+                        <option value="" disabled>Select from all Staff Members...</option>
+                        {staffList.map((st) => (
+                          <option key={st.id} value={st.id}>
+                            {st.name} ({st.role || "Staff"}) - ₹{Number(st.salary || 0).toLocaleString("en-IN")}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Top Profile Photo */}
             <div>
               <PhotoCaptureInput
@@ -982,7 +1073,7 @@ export default function Trainers() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
                   Experience
@@ -1006,6 +1097,22 @@ export default function Trainers() {
                   className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
                   placeholder="e.g. Weight Training & Hypertrophy"
                 />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center justify-between">
+                  <span>Monthly Fixed Salary (₹)</span>
+                </label>
+                <div className="relative mt-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.salary}
+                    onChange={(e) => setForm({ ...form, salary: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-7 pr-3 py-2.5 text-sm font-black text-slate-900 focus:border-emerald-500 focus:bg-white outline-none"
+                    placeholder="e.g. 25000"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1606,6 +1713,10 @@ export default function Trainers() {
                   <span className="flex items-center gap-1">
                     <Briefcase className="w-3.5 h-3.5 text-slate-400" />
                     Exp: {viewTrainerModal.experience || "N/A"}
+                  </span>
+                  <span className="flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                    <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
+                    Salary: ₹{Number(viewTrainerModal.salary || 0).toLocaleString("en-IN")}/mo
                   </span>
                   <span className="flex items-center gap-1">
                     <Phone className="w-3.5 h-3.5 text-slate-400" />
