@@ -834,11 +834,41 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       </div>
                     )}
 
-                    {/* Coach Certifications */}
-                    {selectedTrainerObj.certifications && (
-                      <p className="text-[11px] text-slate-600 pt-0.5">
-                        <strong className="text-slate-800">Certifications: </strong> {selectedTrainerObj.certifications}
-                      </p>
+                    {/* Coach Certifications (Text & Document/Image File) */}
+                    {(selectedTrainerObj.certifications || selectedTrainerObj.certUrl || selectedTrainerObj.certFile) && (
+                      <div className="bg-indigo-50/70 border border-indigo-200/80 p-2.5 rounded-xl space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-indigo-950 flex items-center gap-1.5">
+                            <Award className="w-3.5 h-3.5 text-indigo-600" />
+                            Trainer Verified Certification
+                          </span>
+                          {(selectedTrainerObj.certUrl || selectedTrainerObj.certFile) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const cert = selectedTrainerObj.certUrl || selectedTrainerObj.certFile;
+                                if (cert.startsWith("data:application/pdf")) {
+                                  window.open(cert, "_blank");
+                                } else {
+                                  setFullPhotoModal({
+                                    img: cert,
+                                    title: `${selectedTrainerObj.name} - Official Fitness Certification`,
+                                    desc: selectedTrainerObj.certifications || "Accredited Trainer Certificate"
+                                  });
+                                }
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-extrabold flex items-center gap-1 shadow-xs transition"
+                            >
+                              <FileText className="w-3 h-3" /> View Certificate
+                            </button>
+                          )}
+                        </div>
+                        {selectedTrainerObj.certifications && (
+                          <p className="text-[11px] text-slate-700 font-semibold">
+                            {selectedTrainerObj.certifications}
+                          </p>
+                        )}
+                      </div>
                     )}
 
                     {/* Trainer Custom PT Packages (Interactive Add-on Selection) */}

@@ -13,7 +13,9 @@ import {
   Sparkles,
   ShieldCheck,
   Briefcase,
-  Video
+  Video,
+  FileText,
+  X
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getTrainer, getTrainers } from "../../firebase/trainers";
@@ -31,6 +33,7 @@ export default function MyTrainer() {
   const [memberNote, setMemberNote] = useState("");
   const [sendingNote, setSendingNote] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [certModal, setCertModal] = useState(null);
 
   useEffect(() => {
     async function loadData() {
@@ -230,6 +233,46 @@ export default function MyTrainer() {
             </div>
           </div>
         </div>
+
+        {/* Coach Official Certification (If Uploaded) */}
+        {(trainer?.certifications || trainer?.certUrl || trainer?.certFile) && (
+          <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Award className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <span className="font-extrabold text-emerald-950 block truncate">
+                  Trainer Verified Certification
+                </span>
+                <p className="text-[11px] text-emerald-800 truncate">
+                  {trainer?.certifications || "Accredited Fitness & Training Certificate"}
+                </p>
+              </div>
+            </div>
+
+            {(trainer?.certUrl || trainer?.certFile) && (
+              <button
+                type="button"
+                onClick={() => {
+                  const cert = trainer?.certUrl || trainer?.certFile;
+                  if (cert.startsWith("data:application/pdf")) {
+                    window.open(cert, "_blank");
+                  } else {
+                    setCertModal({
+                      img: cert,
+                      title: `${coachName} - Official Certification`,
+                      desc: trainer?.certifications || "Government/Accredited Trainer Certificate"
+                    });
+                  }
+                }}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold flex items-center gap-1.5 shadow-xs transition shrink-0"
+              >
+                <FileText className="w-3.5 h-3.5" /> View Certificate
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Section 2: Assigned Meal / Diet Plan */}
@@ -344,6 +387,49 @@ export default function MyTrainer() {
         }}
         ptPlanName={memberData?.ptPlanName || "Personal Training"}
       />
+
+      {/* Certificate Full View Modal */}
+      {certModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in"
+          onClick={() => setCertModal(null)}
+        >
+          <div
+            className="relative max-w-lg w-full bg-slate-900 border border-slate-700 rounded-3xl overflow-hidden shadow-2xl p-4 text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="min-w-0 pr-3">
+                <h4 className="font-bold text-sm text-white truncate">{certModal.title}</h4>
+                {certModal.desc && <p className="text-xs text-emerald-400 truncate">{certModal.desc}</p>}
+              </div>
+              <button
+                type="button"
+                onClick={() => setCertModal(null)}
+                className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-2 flex items-center justify-center bg-black/40 rounded-2xl my-3 max-h-[70vh] overflow-auto">
+              <img
+                src={certModal.img}
+                alt="Trainer Certificate"
+                className="max-h-[65vh] w-auto object-contain rounded-xl shadow-lg border border-slate-800"
+              />
+            </div>
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setCertModal(null)}
+                className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

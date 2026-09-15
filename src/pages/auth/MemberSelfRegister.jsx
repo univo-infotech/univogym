@@ -45,6 +45,7 @@ import {
   validateInviteToken,
   markTokenUsed,
   addMember,
+  getMembers,
 } from '../../firebase/members';
 import { addPayment } from '../../firebase/payments';
 import { getActivePlans } from '../../firebase/plans';
@@ -247,6 +248,7 @@ export default function MemberSelfRegister() {
   // Step 3: Plan & Trainer
   const [plans, setPlans] = useState([]);
   const [trainers, setTrainers] = useState([]);
+  const [existingMembers, setExistingMembers] = useState([]);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [selectedTrainer, setSelectedTrainer] = useState(null);
   const [selectedPtPlan, setSelectedPtPlan] = useState(null); // { id, name, price, duration, description }
@@ -313,6 +315,27 @@ export default function MemberSelfRegister() {
     }
     return WORKOUT_TIMES;
   }, [gymSettings]);
+
+  // Compute live trainer slot booking counts & member names from existingMembers
+  const trainerSlotOccupancy = React.useMemo(() => {
+    if (!selectedTrainer) return {};
+    const tName = selectedTrainer.name || selectedTrainer.fullName;
+    const tId = selectedTrainer.id;
+
+    const assigned = (existingMembers || []).filter((m) => {
+      const match = m.trainerId === tId || m.trainerName === tName;
+      return match && m.status !== "left" && m.active !== false;
+    });
+
+    const map = {};
+    assigned.forEach((m) => {
+      const rawSlot = (m.ptSlot || m.slot || m.workoutSlot || m.preferredTime || "").trim();
+      if (!rawSlot) return;
+      if (!map[rawSlot]) map[rawSlot] = [];
+      map[rawSlot].push(m.name || m.fullName || "Athlete");
+    });
+    return map;
+  }, [selectedTrainer, existingMembers]);
 
   // Step 4: Schedule
   const [preferredTime, setPreferredTime] = useState(
@@ -382,14 +405,16 @@ export default function MemberSelfRegister() {
     async function loadData() {
       setPlansLoading(true);
       try {
-        const [p, t] = await Promise.all([
+        const [p, t, m] = await Promise.all([
           getActivePlans(gymId || 'univo_main'),
           getTrainers(gymId || 'univo_main'),
+          getMembers(gymId || 'univo_main').catch(() => [])
         ]);
         const finalPlans = p && p.length > 0 ? p : DEFAULT_PLANS;
         const finalTrainers = t && t.length > 0 ? t : DEFAULT_TRAINERS;
         setPlans(finalPlans);
         setTrainers(finalTrainers);
+        if (Array.isArray(m)) setExistingMembers(m);
 
         if (tokenData?.planId) {
           const found = finalPlans.find((item) => item.id === tokenData.planId);
@@ -952,38 +977,103 @@ export default function MemberSelfRegister() {
               <p className="text-slate-500 text-xs mt-1">Select your preferred workout slot, membership tier, and dedicated coach</p>
             </div>
 
-            {/* Preferred Workout Time Slot at Start of Step 3 */}
+            {/* Preferred Workout Time Slot with Live Trainer Shift Availability */}
             <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 space-y-2.5">
-              <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-amber-500" />
-                Preferred Workout Time Slot *
-              </label>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-amber-500" />
+                  Preferred Workout Time Slot *
+                </label>
+                {selectedTrainer && (
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-lg flex items-center gap-1 self-start sm:self-auto">
+                    <Sparkles className="w-3 h-3 text-emerald-600" />
+                    Live Shift Schedule: {selectedTrainer.name}
+                  </span>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {activeWorkoutSlots.map((t) => {
                   const fullSlotText = `${t.label} (${t.time})`;
                   const active = preferredTime === fullSlotText || preferredTime === t.id;
                   const Icon = t.icon || Sun;
+
+                  // Check if coach has booked athletes in this slot
+                  const bookedAthletes = selectedTrainer
+                    ? (trainerSlotOccupancy[fullSlotText] || trainerSlotOccupancy[t.label] || trainerSlotOccupancy[t.time] || [])
+                    : [];
+                  const bookedCount = bookedAthletes.length;
+
                   return (
                     <button
                       key={t.id}
                       type="button"
                       onClick={() => { setPreferredTime(fullSlotText); setStepError(''); }}
                       className={cn(
-                        'p-2.5 rounded-xl border-2 transition-all text-left',
+                        'p-2.5 rounded-xl border-2 transition-all text-left relative flex flex-col justify-between',
                         active
                           ? 'border-emerald-600 bg-white text-emerald-950 font-bold shadow-xs ring-1 ring-emerald-500/30'
                           : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
                       )}
                     >
-                      <div className="flex items-center gap-1.5 font-bold text-xs">
-                        <Icon className="w-3.5 h-3.5 text-amber-500" />
-                        {t.label}
+                      <div>
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 font-bold text-xs">
+                            <Icon className="w-3.5 h-3.5 text-amber-500" />
+                            {t.label}
+                          </div>
+                          {selectedTrainer && (
+                            <span
+                              className={`text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wide shrink-0 ${
+                                bookedCount === 0
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                  : bookedCount === 1
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                  : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
+                              }`}
+                            >
+                              {bookedCount === 0 ? "🟢 Khali" : bookedCount === 1 ? "🟡 1 Booked" : `🔴 Bhari (${bookedCount})`}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{t.time}</p>
                       </div>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{t.time}</p>
+
+                      {selectedTrainer && bookedCount > 0 && (
+                        <div className="mt-1.5 pt-1 border-t border-slate-200/60 text-[9.5px] text-slate-500 truncate">
+                          🏋️ {bookedAthletes.length} Active Member{bookedAthletes.length > 1 ? 's' : ''}
+                        </div>
+                      )}
                     </button>
                   );
                 })}
               </div>
+
+              {/* Overbooking Warning Alert for Member */}
+              {(() => {
+                if (!selectedTrainer) return null;
+                const curBooked = trainerSlotOccupancy[preferredTime] || [];
+                if (curBooked.length >= 2) {
+                  return (
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-900 text-xs">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="font-extrabold text-rose-800">Yeh Shift Bhari Hai (Slot Busy): </strong>
+                        Coach <strong>{selectedTrainer.name}</strong> ke paas is slot ({preferredTime}) mein pehle se <strong>{curBooked.length} members</strong> hain. Agar aapko free slot chahiye toh kripya doosra time slot select karein.
+                      </div>
+                    </div>
+                  );
+                }
+                if (curBooked.length === 1) {
+                  return (
+                    <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-900 text-[11px]">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Coach <strong>{selectedTrainer.name}</strong> ke paas is slot mein 1 member pehle se booked hai.</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             <div className="space-y-3">
@@ -1221,11 +1311,41 @@ export default function MemberSelfRegister() {
                         </div>
                       )}
 
-                      {/* Coach Certifications */}
-                      {selectedTrainer.certifications && (
-                        <p className="text-[11px] text-slate-600 pt-0.5">
-                          <strong className="text-slate-800">Certifications: </strong> {selectedTrainer.certifications}
-                        </p>
+                      {/* Coach Certifications (Text & Document/Image File) */}
+                      {(selectedTrainer.certifications || selectedTrainer.certUrl || selectedTrainer.certFile) && (
+                        <div className="bg-emerald-50/70 border border-emerald-200/80 p-2.5 rounded-xl space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-emerald-950 flex items-center gap-1.5">
+                              <Award className="w-3.5 h-3.5 text-emerald-600" />
+                              Trainer Verified Certification
+                            </span>
+                            {(selectedTrainer.certUrl || selectedTrainer.certFile) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const cert = selectedTrainer.certUrl || selectedTrainer.certFile;
+                                  if (cert.startsWith("data:application/pdf")) {
+                                    window.open(cert, "_blank");
+                                  } else {
+                                    setFullPhotoModal({
+                                      img: cert,
+                                      title: `${selectedTrainer.name} - Official Fitness Certification`,
+                                      desc: selectedTrainer.certifications || "Government/Fitness Body Accredited Certificate"
+                                    });
+                                  }
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold flex items-center gap-1 shadow-xs transition"
+                              >
+                                <FileText className="w-3 h-3" /> View Certificate
+                              </button>
+                            )}
+                          </div>
+                          {selectedTrainer.certifications && (
+                            <p className="text-[11px] text-slate-700 font-semibold">
+                              {selectedTrainer.certifications}
+                            </p>
+                          )}
+                        </div>
                       )}
 
                       {/* Coach Custom PT Packages (Clickable Add-on) */}
