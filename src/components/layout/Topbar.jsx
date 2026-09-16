@@ -21,6 +21,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import {
   openWhatsApp,
   generateRenewalReminderMessage,
+  generatePtRenewalReminderMessage,
   generatePartialDueReminderMessage,
   generateOverdueReminderMessage
 } from "../../utils/whatsapp";
@@ -93,24 +94,30 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
     load();
   }, [gymId, notificationsOpen]);
 
+  // Helper to check if member is PT
+  const isPtMember = (m) => !!m.isPt || !!m.ptPlanName || (m.trainerName && m.trainerName !== 'Unassigned' && m.trainerName !== 'General Floor Trainer (Included)' && m.trainerName !== 'No Trainer');
+
   // Candidates for reminder
-  const isPartial = (m) => Number(m.dueAmount || 0) > 0 && m.status !== 'left';
+  const isPartial = (m) => Number(m.dueAmount || 0) > 0 && m.status !== 'left' && m.status !== 'ended';
   const isEndingSoon = (m) => getMemberStatus(m) === 'ending_soon';
   const isExpired = (m) => getMemberStatus(m) === 'expired';
   const isOverdue = (m) => getMemberStatus(m) === 'overdue';
+  const isActionable = (m) => m.status !== 'left' && m.status !== 'ended' && (isPartial(m) || isEndingSoon(m) || isExpired(m) || isOverdue(m));
+
+  const totalActionCount = members.filter(isActionable).length;
+  const gymActionCount = members.filter((m) => isActionable(m) && !m.ptPlanName).length;
+  const ptActionCount = members.filter((m) => isActionable(m) && (!!m.ptPlanName || isPtMember(m))).length;
 
   const notificationList = members.filter((m) => {
-    if (m.status === 'left') return false;
+    if (m.status === 'left' || m.status === 'ended') return false;
+    if (activeTab === 'gym') return !m.ptPlanName && isActionable(m);
+    if (activeTab === 'pt') return (!!m.ptPlanName || isPtMember(m)) && isActionable(m);
     if (activeTab === 'partial') return isPartial(m);
     if (activeTab === 'ending_soon') return isEndingSoon(m);
     if (activeTab === 'expired') return isExpired(m);
     if (activeTab === 'overdue') return isOverdue(m);
-    return isPartial(m) || isEndingSoon(m) || isExpired(m) || isOverdue(m);
+    return isActionable(m);
   });
-
-  const totalActionCount = members.filter(
-    (m) => m.status !== 'left' && (isPartial(m) || isEndingSoon(m) || isExpired(m) || isOverdue(m))
-  ).length;
 
   const sentCount = notificationList.filter((m) => !!m.lastReminderSent).length;
   const pendingCount = notificationList.length - sentCount;
@@ -131,7 +138,16 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
       msg = generatePartialDueReminderMessage(
         m.name || m.fullName,
         m.dueAmount,
-        m.planName || 'Gym Plan'
+        m.ptPlanName ? `${m.planName || 'Gym'} + PT (${m.ptPlanName})` : (m.planName || 'Gym Plan')
+      );
+    } else if (isPtMember(m) && (activeTab === 'pt' || !m.planName || m.ptPlanName)) {
+      // PT-specific WhatsApp reminder template
+      msg = generatePtRenewalReminderMessage(
+        m.name || m.fullName,
+        m.ptPlanName || '1-on-1 PT Plan',
+        m.trainerName || 'Assigned Coach',
+        formatDate(m.expiryDate),
+        m.ptPlanPrice || (Number(m.planPrice || 0) + Number(m.ptPlanPrice || 0)) || '2,500'
       );
     } else if (stat === 'overdue') {
       msg = generateOverdueReminderMessage(
@@ -249,6 +265,8 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
               <div className="mt-3 flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
                 {[
                   { key: "all", label: `All (${totalActionCount})` },
+                  { key: "gym", label: `🏋️ Gym (${gymActionCount})` },
+                  { key: "pt", label: `✨ PT (${ptActionCount})` },
                   { key: "partial", label: "Partial Due" },
                   { key: "ending_soon", label: "Ending Soon" },
                   { key: "expired", label: "Expired" },
@@ -279,6 +297,8 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
                     const stat = getMemberStatus(m);
                     const isDue = Number(m.dueAmount || 0) > 0;
                     const sentTime = m.lastReminderSent ? new Date(m.lastReminderSent) : null;
+                    const hasPt = !!m.ptPlanName || isPtMember(m);
+                    const hasBoth = !!m.ptPlanName && !!m.planName;
 
                     return (
                       <div key={m.id} className="py-2.5 flex items-center justify-between gap-2.5 hover:bg-slate-50/70 px-1 rounded-lg transition">
@@ -287,6 +307,20 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
                             <span className="font-bold text-slate-900 text-xs truncate">
                               {m.name || m.fullName}
                             </span>
+                            {/* Gym vs PT Membership Pill */}
+                            {hasBoth ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-fuchsia-50 text-fuchsia-800 border border-fuchsia-200">
+                                Gym + PT
+                              </span>
+                            ) : hasPt ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200">
+                                ✨ PT Plan
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-50 text-blue-800 border border-blue-200">
+                                🏋️ Gym
+                              </span>
+                            )}
                             {/* Live Delivery Status Indicator */}
                             {m.lastReminderSent ? (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9.5px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">

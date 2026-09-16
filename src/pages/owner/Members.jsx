@@ -66,6 +66,7 @@ import { generatePaymentReceipt } from '../../utils/pdf';
 import {
   openWhatsApp,
   generateRenewalReminderMessage,
+  generatePtRenewalReminderMessage,
   generatePartialDueReminderMessage,
   generateOverdueReminderMessage
 } from '../../utils/whatsapp';
@@ -2809,6 +2810,7 @@ export default function Members() {
   const [members, setMembers] = useState(() => getSessionCachedData(`members_${gymId}`) || []);
   const [trainers, setTrainers] = useState(() => getSessionCachedData(`trainers_${gymId}`) || []);
   const [plans, setPlans] = useState(() => getSessionCachedData(`plans_${gymId}`) || []);
+  const [loading, setLoading] = useState(false);
   const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth < 768 ? 'grid' : 'table'));
   const [search, setSearch] = useState('');
   const [filterTab, setFilterTab] = useState('active');
@@ -3131,6 +3133,14 @@ export default function Members() {
         m.name || m.fullName,
         m.dueAmount,
         planTitle
+      );
+    } else if (isPtMember(m) && (!m.planName || m.ptPlanName)) {
+      message = generatePtRenewalReminderMessage(
+        m.name || m.fullName,
+        m.ptPlanName || '1-on-1 PT Plan',
+        m.trainerName || 'Assigned Coach',
+        formatDate(m.expiryDate),
+        totalPlanAmount
       );
     } else if (stat === 'due' || stat === 'overdue') {
       message = generateOverdueReminderMessage(
@@ -3640,7 +3650,7 @@ export default function Members() {
                             <span>Edit</span>
                           </button>
 
-                          {/* 5. Left for Gym Members, End for PT Members */}
+                          {/* 5. Left for Gym Members, End for PT Members, Both for Gym+PT */}
                           {isLeft ? (
                             <button
                               onClick={() => handleReactivate(m)}
@@ -3659,6 +3669,25 @@ export default function Members() {
                               <RotateCcw className='w-3.5 h-3.5 text-purple-600' />
                               <span>Restart PT</span>
                             </button>
+                          ) : membershipDetails.category === 'both' ? (
+                            <>
+                              <button
+                                onClick={() => setLeftMember(m)}
+                                className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition shadow-sm'
+                                title='Mark gym membership as left'
+                              >
+                                <LogOut className='w-3.5 h-3.5 text-rose-600' />
+                                <span>Left</span>
+                              </button>
+                              <button
+                                onClick={() => setEndMember(m)}
+                                className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold text-xs border border-purple-200 transition shadow-sm'
+                                title='End PT Membership (Inka PT package khatam karein)'
+                              >
+                                <UserX className='w-3.5 h-3.5 text-purple-600' />
+                                <span>End</span>
+                              </button>
+                            </>
                           ) : isPtMember(m) ? (
                             <button
                               onClick={() => setEndMember(m)}
@@ -3672,7 +3701,7 @@ export default function Members() {
                             <button
                               onClick={() => setLeftMember(m)}
                               className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition shadow-sm'
-                              title='Mark member as left / gym membership khatam'
+                              title='Mark gym member as left'
                             >
                               <LogOut className='w-3.5 h-3.5 text-rose-600' />
                               <span>Left</span>
@@ -3843,6 +3872,23 @@ export default function Members() {
                     >
                       Restart PT
                     </button>
+                  ) : membershipDetails.category === 'both' ? (
+                    <>
+                      <button
+                        onClick={() => setLeftMember(m)}
+                        className='px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold hover:bg-rose-100 transition'
+                        title='Mark gym member as left'
+                      >
+                        Left
+                      </button>
+                      <button
+                        onClick={() => setEndMember(m)}
+                        className='px-2.5 py-1 rounded-lg bg-purple-50 text-purple-800 border border-purple-200 text-xs font-bold hover:bg-purple-100 transition'
+                        title='End PT Membership (Inka PT package khatam karein)'
+                      >
+                        End
+                      </button>
+                    </>
                   ) : isPtMember(m) ? (
                     <button
                       onClick={() => setEndMember(m)}

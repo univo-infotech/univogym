@@ -31,6 +31,18 @@ export function generateRenewalReminderMessage(memberName, planName, expiryDate,
     .replace("{gym_name}", settings.gymName);
 }
 
+export function generatePtRenewalReminderMessage(memberName, ptPlanName, trainerName, expiryDate, amount) {
+  const settings = getGymSettings();
+  let template = settings.whatsappPtReminder || "✨ *Personal Training (PT) Renewal Reminder*\n\nHi {name},\nYour 1-on-1 Personal Training package with *{trainer}* ({plan}) is expiring on *{expiry}*.\nRenewal Amount: ₹{amount}.\n\nRenew your PT package today to keep achieving your personal transformation goals! 🎯🔥\n— {gym_name}";
+  return template
+    .replace("{name}", memberName || "Athlete")
+    .replace("{trainer}", trainerName || "Personal Trainer")
+    .replace("{plan}", ptPlanName || "1-on-1 PT Plan")
+    .replace("{expiry}", expiryDate || "upcoming date")
+    .replace("{amount}", amount || "0")
+    .replace("{gym_name}", settings.gymName);
+}
+
 export function generatePartialDueReminderMessage(memberName, dueAmount, planName) {
   const settings = getGymSettings();
   return `⚠️ *Payment Reminder - ${settings.gymName}*\n\nHi ${memberName || "Athlete"},\nThis is a friendly reminder regarding your pending fee balance for *${planName || "Membership"}*.\n\n💰 *Remaining Due: ₹${dueAmount}*\n\nPlease clear your balance at the gym reception or via UPI.\nThank you! Keep training hard! 💪`;

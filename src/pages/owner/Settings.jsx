@@ -621,9 +621,14 @@ export default function Settings() {
 
         {/* 5. WhatsApp Reminder Templates */}
         <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-emerald-600" /> WhatsApp Renewal Reminder Notification Template
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-emerald-600" /> 🏋️ WhatsApp Gym Renewal Reminder Notification Template
+            </h3>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+              Gym Membership
+            </span>
+          </div>
           <p className="text-xs text-slate-500">
             Dynamic Variables: {"{name}"} = Member Name, {"{plan}"} = Plan Name, {"{expiry}"} = Expiry Date, {"{amount}"} = Renewal Price, {"{gym_name}"} = Gym Name
           </p>
@@ -634,7 +639,25 @@ export default function Settings() {
             className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-indigo-500"
           />
 
-          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-purple-600" /> ✨ WhatsApp PT (Personal Training) Renewal Reminder Template
+            </h3>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+              Personal Training
+            </span>
+          </div>
+          <p className="text-xs text-slate-500">
+            Dynamic Variables: {"{name}"} = Member Name, {"{trainer}"} = Coach/Trainer Name, {"{plan}"} = PT Plan, {"{expiry}"} = Expiry Date, {"{amount}"} = Renewal Price, {"{gym_name}"} = Gym Name
+          </p>
+          <textarea
+            rows={4}
+            value={settings.whatsappPtReminder || "✨ *Personal Training (PT) Renewal Reminder*\n\nHi {name},\nYour 1-on-1 Personal Training package with *{trainer}* ({plan}) is expiring on *{expiry}*.\nRenewal Amount: ₹{amount}.\n\nRenew your PT package today to keep achieving your personal transformation goals! 🎯🔥\n— {gym_name}"}
+            onChange={(e) => setSettings({ ...settings, whatsappPtReminder: e.target.value })}
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-purple-500"
+          />
+
+          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 pt-3 border-t border-slate-100">
             <MessageSquare className="w-5 h-5 text-teal-600" /> WhatsApp Welcome Message
           </h3>
           <textarea
