@@ -82,7 +82,8 @@ function toDate(val) {
 }
 
 function getMemberStatus(member) {
-  if (member.status === 'ended' || member.status === 'left') return 'ended';
+  if (member.status === 'left') return 'left';
+  if (member.status === 'ended' || member.status === 'pt_ended') return 'ended';
   if (member.active === false) return 'inactive';
 
   const expiry = toDate(member.expiryDate);
@@ -138,8 +139,11 @@ function getMembershipEndingDetails(member) {
 
 function getMemberDaysInfo(member) {
   const status = getMemberStatus(member);
-  if (status === 'ended' || status === 'left') {
-    return { text: 'Membership Ended', cls: 'bg-slate-100 text-slate-700 border-slate-300 font-semibold' };
+  if (status === 'left') {
+    return { text: 'Gym Left', cls: 'bg-slate-100 text-slate-700 border-slate-300 font-semibold' };
+  }
+  if (status === 'ended') {
+    return { text: 'PT Ended', cls: 'bg-purple-100 text-purple-800 border-purple-300 font-semibold' };
   }
   const expiry = toDate(member.expiryDate);
   if (!expiry) return { text: 'No Expiry Set', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
@@ -177,18 +181,26 @@ const STATUS_CONFIG = {
   expired: { label: 'Expired (1-2d)', dot: 'bg-rose-500', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
   due: { label: 'Renewal Due (2d+)', dot: 'bg-red-600', cls: 'bg-red-100 text-red-800 border border-red-300 font-extrabold' },
   overdue: { label: 'Renewal Due (2d+)', dot: 'bg-red-600', cls: 'bg-red-100 text-red-800 border border-red-300 font-extrabold' },
-  ended: { label: 'Ended', dot: 'bg-slate-500', cls: 'bg-slate-100 text-slate-700 border border-slate-300 font-bold' },
-  left: { label: 'Ended', dot: 'bg-slate-500', cls: 'bg-slate-100 text-slate-700 border border-slate-300 font-bold' },
+  left: { label: 'Left', dot: 'bg-slate-500', cls: 'bg-slate-100 text-slate-700 border border-slate-300 font-bold' },
+  ended: { label: 'PT Ended', dot: 'bg-purple-500', cls: 'bg-purple-100 text-purple-800 border border-purple-300 font-bold' },
   inactive: { label: 'Inactive', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
 };
 
 function StatusBadge({ status, dueAmount, member }) {
-  const isEnded = status === 'ended' || status === 'left' || member?.status === 'ended' || member?.status === 'left';
-  if (isEnded) {
+  if (status === 'left' || member?.status === 'left') {
     return (
       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
         <span className="w-2 h-2 rounded-full bg-slate-500" />
-        Ended
+        Left
+      </span>
+    );
+  }
+
+  if (status === 'ended' || member?.status === 'ended' || member?.status === 'pt_ended') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-300">
+        <span className="w-2 h-2 rounded-full bg-purple-600" />
+        PT Ended
       </span>
     );
   }
@@ -2500,17 +2512,16 @@ function EditMemberModal({ member, onClose, onSave, trainers = [], plans = [], e
 }
 
 /**
- * Modal to mark a member's membership as Ended
+ * Modal to mark a Gym Member as Left (Gym Chhod Diya)
  */
-function EndMembershipModal({ member, onClose, onSave }) {
-  const [reason, setReason] = useState('Membership expired & did not renew');
+function LeftModal({ member, onClose, onSave }) {
+  const [reason, setReason] = useState('Stopped coming / Gym left');
   const [customReason, setCustomReason] = useState('');
   const [loading, setLoading] = useState(false);
 
   const presetReasons = [
-    'Membership expired & did not renew',
-    'PT / 1-on-1 Training Package Completed',
     'Stopped coming / Gym left',
+    'Membership expired & did not renew',
     'Relocated / Out of town',
     'Personal / Family reason',
     'Health / Injury break',
@@ -2524,19 +2535,17 @@ function EndMembershipModal({ member, onClose, onSave }) {
     try {
       const finalReason = reason === 'Other' ? (customReason || 'Other') : reason;
       await updateMember(member.id, {
-        status: 'ended',
+        status: 'left',
         active: false,
-        endedAt: new Date().toISOString(),
-        endReason: finalReason,
         leftAt: new Date().toISOString(),
         leftReason: finalReason
       });
 
-      toast.success(`${member.name || member.fullName} membership ended`);
+      toast.success(`${member.name || member.fullName} marked as Left`);
       onSave(member.id, finalReason);
       onClose();
     } catch (err) {
-      console.error('Error ending member membership:', err);
+      console.error('Error marking member as left:', err);
       toast.error('Failed to update member');
     } finally {
       setLoading(false);
@@ -2547,39 +2556,39 @@ function EndMembershipModal({ member, onClose, onSave }) {
     <Modal
       isOpen={true}
       onClose={onClose}
-      title="🛑 End Membership"
+      title="🚪 Mark Gym Member as Left"
       maxWidth="max-w-md"
     >
       <form onSubmit={handleConfirm} className='space-y-4 text-slate-800'>
-        <div className='p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5'>
-          <UserX className='w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5' />
+        <div className='p-3.5 bg-slate-100 border border-slate-300 rounded-2xl flex items-start gap-2.5'>
+          <LogOut className='w-5 h-5 text-slate-700 flex-shrink-0 mt-0.5' />
           <div className='text-xs'>
-            <p className='font-bold text-rose-950'>End Membership for {member.name || member.fullName}?</p>
-            <p className='text-rose-800/90 mt-0.5 leading-relaxed'>
-              Inki membership khatam kar di jayegi aur yeh member Active list se hat kar <strong>Ended</strong> filter tab me chala jayega. Aap jab chahe unhe wapas restart / reactivate kar sakte hain.
+            <p className='font-bold text-slate-900'>Mark {member.name || member.fullName} as Left?</p>
+            <p className='text-slate-600 mt-0.5 leading-relaxed'>
+              Inka Gym Membership chhoot gaya hai. Yeh member Active list se hat kar <strong>🚪 Left</strong> filter tab me chala jayega. Aap jab chahe wapas reactivate kar sakte hain.
             </p>
           </div>
         </div>
 
         <div>
-          <label className='block text-xs font-bold text-slate-700 mb-1.5'>Reason for Ending Membership</label>
+          <label className='block text-xs font-bold text-slate-700 mb-1.5'>Reason for Leaving</label>
           <div className='space-y-1.5 max-h-56 overflow-y-auto pr-1'>
             {presetReasons.map((r) => (
               <label
                 key={r}
                 className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-medium cursor-pointer transition ${
                   reason === r
-                    ? 'bg-rose-50/80 border-rose-300 text-rose-950 font-semibold'
+                    ? 'bg-slate-200/70 border-slate-400 text-slate-900 font-semibold'
                     : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 <input
                   type='radio'
-                  name='endReason'
+                  name='leftReason'
                   value={r}
                   checked={reason === r}
                   onChange={() => setReason(r)}
-                  className='accent-rose-600'
+                  className='accent-slate-700'
                 />
                 <span>{r}</span>
               </label>
@@ -2592,7 +2601,7 @@ function EndMembershipModal({ member, onClose, onSave }) {
               placeholder='Specify reason...'
               value={customReason}
               onChange={(e) => setCustomReason(e.target.value)}
-              className='mt-2 w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-rose-500'
+              className='mt-2 w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-slate-500'
               autoFocus
             />
           )}
@@ -2609,9 +2618,126 @@ function EndMembershipModal({ member, onClose, onSave }) {
           <button
             type='submit'
             disabled={loading}
-            className='flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-md disabled:opacity-50'
+            className='flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition shadow-md disabled:opacity-50'
           >
-            {loading ? 'Ending...' : '🛑 Confirm End Membership'}
+            {loading ? 'Marking...' : '🚪 Confirm Mark as Left'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Modal to mark a PT Member's package as Ended
+ */
+function EndMembershipModal({ member, onClose, onSave }) {
+  const [reason, setReason] = useState('PT / 1-on-1 Training Package Completed');
+  const [customReason, setCustomReason] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const presetReasons = [
+    'PT / 1-on-1 Training Package Completed',
+    'PT membership expired & did not renew',
+    'Switched to General Gym only (No PT)',
+    'Goal achieved / Transformation complete',
+    'Personal / Schedule / Relocation break',
+    'Discontinued by Gym Management',
+    'Other'
+  ];
+
+  const handleConfirm = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const finalReason = reason === 'Other' ? (customReason || 'Other') : reason;
+      await updateMember(member.id, {
+        status: 'ended',
+        active: false,
+        endedAt: new Date().toISOString(),
+        endReason: finalReason
+      });
+
+      toast.success(`${member.name || member.fullName} PT membership ended`);
+      onSave(member.id, finalReason);
+      onClose();
+    } catch (err) {
+      console.error('Error ending PT membership:', err);
+      toast.error('Failed to update member');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="🛑 End PT Membership"
+      maxWidth="max-w-md"
+    >
+      <form onSubmit={handleConfirm} className='space-y-4 text-slate-800'>
+        <div className='p-3.5 bg-purple-50 border border-purple-200 rounded-2xl flex items-start gap-2.5'>
+          <UserX className='w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5' />
+          <div className='text-xs'>
+            <p className='font-bold text-purple-950'>End PT Membership for {member.name || member.fullName}?</p>
+            <p className='text-purple-800/90 mt-0.5 leading-relaxed'>
+              Inka 1-on-1 Personal Training package complete / end ho gaya hai. Yeh member Active list se hat kar <strong>🛑 End</strong> filter tab me chala jayega.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label className='block text-xs font-bold text-slate-700 mb-1.5'>Reason for Ending PT</label>
+          <div className='space-y-1.5 max-h-56 overflow-y-auto pr-1'>
+            {presetReasons.map((r) => (
+              <label
+                key={r}
+                className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-medium cursor-pointer transition ${
+                  reason === r
+                    ? 'bg-purple-50 border-purple-300 text-purple-950 font-semibold'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <input
+                  type='radio'
+                  name='endReason'
+                  value={r}
+                  checked={reason === r}
+                  onChange={() => setReason(r)}
+                  className='accent-purple-600'
+                />
+                <span>{r}</span>
+              </label>
+            ))}
+          </div>
+
+          {reason === 'Other' && (
+            <input
+              type='text'
+              placeholder='Specify reason...'
+              value={customReason}
+              onChange={(e) => setCustomReason(e.target.value)}
+              className='mt-2 w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-purple-500'
+              autoFocus
+            />
+          )}
+        </div>
+
+        <div className='flex items-center gap-2 pt-2'>
+          <button
+            type='button'
+            onClick={onClose}
+            className='flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold transition'
+          >
+            Cancel
+          </button>
+          <button
+            type='submit'
+            disabled={loading}
+            className='flex-1 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold transition shadow-md disabled:opacity-50'
+          >
+            {loading ? 'Ending...' : '🛑 Confirm End PT'}
           </button>
         </div>
       </form>
@@ -2693,6 +2819,7 @@ export default function Members() {
   const [extendMember, setExtendMember] = useState(null);
   const [planMember, setPlanMember] = useState(null);
   const [editMember, setEditMember] = useState(null);
+  const [leftMember, setLeftMember] = useState(null);
   const [endMember, setEndMember] = useState(null);
   const [deleteTargetMember, setDeleteTargetMember] = useState(null);
   const [dueSubFilter, setDueSubFilter] = useState('all'); // 'all' | 'gym' | 'pt'
@@ -2913,11 +3040,21 @@ export default function Members() {
     );
   };
 
+  const handleLeftSuccess = (memberId, reason) => {
+    setMembers((prev) =>
+      prev.map((m) =>
+        m.id === memberId
+          ? { ...m, status: 'left', active: false, leftReason: reason }
+          : m
+      )
+    );
+  };
+
   const handleEndSuccess = (memberId, reason) => {
     setMembers((prev) =>
       prev.map((m) =>
         m.id === memberId
-          ? { ...m, status: 'ended', active: false, endReason: reason, leftReason: reason }
+          ? { ...m, status: 'ended', active: false, endReason: reason }
           : m
       )
     );
@@ -3016,28 +3153,31 @@ export default function Members() {
     toast.success(`WhatsApp reminder opened for ${m.name || m.fullName}`);
   };
 
-  // Status counts - "Partial Due" is ONLY for members who paid partially during fee collection
+  // Status counts
   const isPaid = (m) => Number(m.dueAmount || 0) <= 0 && !!m.lastPaymentDate;
   const isPartial = (m) => Number(m.dueAmount || 0) > 0 && !!m.lastPaymentDate;
   const isPtMember = (m) => !!m.isPt || !!m.ptPlanName || (m.trainerName && m.trainerName !== 'Unassigned' && m.trainerName !== 'General Floor Trainer (Included)' && m.trainerName !== 'No Trainer');
-  const isEndedMember = (m) => m.status === 'ended' || m.status === 'left';
+  const isLeftMember = (m) => m.status === 'left';
+  const isEndedMember = (m) => m.status === 'ended' || m.status === 'pt_ended';
+  const isInactiveMember = (m) => isLeftMember(m) || isEndedMember(m);
 
-  const paidCount = members.filter((m) => isPaid(m) && !isEndedMember(m)).length;
-  const partialCount = members.filter((m) => isPartial(m) && !isEndedMember(m)).length;
-  const ptCount = members.filter((m) => isPtMember(m) && !isEndedMember(m)).length;
-  const activeCount = members.filter((m) => getMemberStatus(m) === 'active' && !isEndedMember(m)).length;
-  const endingSoonCount = members.filter((m) => getMemberStatus(m) === 'ending_soon' && !isEndedMember(m)).length;
-  const expiredCount = members.filter((m) => getMemberStatus(m) === 'expired' && !isEndedMember(m)).length;
-  const dueCount = members.filter((m) => (getMemberStatus(m) === 'due' || getMemberStatus(m) === 'overdue') && !isEndedMember(m)).length;
+  const paidCount = members.filter((m) => isPaid(m) && !isInactiveMember(m)).length;
+  const partialCount = members.filter((m) => isPartial(m) && !isInactiveMember(m)).length;
+  const ptCount = members.filter((m) => isPtMember(m) && !isInactiveMember(m)).length;
+  const activeCount = members.filter((m) => getMemberStatus(m) === 'active' && !isInactiveMember(m)).length;
+  const endingSoonCount = members.filter((m) => getMemberStatus(m) === 'ending_soon' && !isInactiveMember(m)).length;
+  const expiredCount = members.filter((m) => getMemberStatus(m) === 'expired' && !isInactiveMember(m)).length;
+  const dueCount = members.filter((m) => (getMemberStatus(m) === 'due' || getMemberStatus(m) === 'overdue') && !isInactiveMember(m)).length;
+  const leftCount = members.filter((m) => isLeftMember(m)).length;
   const endedCount = members.filter((m) => isEndedMember(m)).length;
 
   // Due breakdown for Gym vs PT
-  const dueMembersList = members.filter((m) => (getMemberStatus(m) === 'due' || getMemberStatus(m) === 'overdue') && !isEndedMember(m));
+  const dueMembersList = members.filter((m) => (getMemberStatus(m) === 'due' || getMemberStatus(m) === 'overdue') && !isInactiveMember(m));
   const gymDueCount = dueMembersList.filter((m) => !m.ptPlanName).length;
   const ptDueCount = dueMembersList.filter((m) => !!m.ptPlanName || isPtMember(m)).length;
 
   const totalRemindersDue = members.filter(
-    (m) => !isEndedMember(m) && (isPartial(m) || ['ending_soon', 'expired', 'due', 'overdue'].includes(getMemberStatus(m)))
+    (m) => !isInactiveMember(m) && (isPartial(m) || ['ending_soon', 'expired', 'due', 'overdue'].includes(getMemberStatus(m)))
   ).length;
 
   const FILTER_TABS = [
@@ -3048,7 +3188,8 @@ export default function Members() {
     { key: 'expired', label: `Expired (${expiredCount})` },
     { key: 'due', label: `⚠️ Due (${dueCount})` },
     { key: 'partial', label: `Partial Fee (${partialCount})` },
-    { key: 'ended', label: `🛑 Ended (${endedCount})` },
+    { key: 'left', label: `🚪 Left (${leftCount})` },
+    { key: 'ended', label: `🛑 End (${endedCount})` },
     { key: 'all', label: `All (${members.length})` },
   ];
 
@@ -3058,21 +3199,25 @@ export default function Members() {
       (m.name || m.fullName || '').toLowerCase().includes(q) ||
       (m.phone || '').includes(q);
     const status = getMemberStatus(m);
+    const isLeft = isLeftMember(m);
     const isEnded = isEndedMember(m);
+    const isInactive = isLeft || isEnded;
     
     let matchTab = false;
     if (filterTab === 'all') {
       matchTab = true;
+    } else if (filterTab === 'left') {
+      matchTab = isLeft;
     } else if (filterTab === 'ended') {
       matchTab = isEnded;
     } else if (filterTab === 'pt') {
-      matchTab = isPtMember(m) && !isEnded;
+      matchTab = isPtMember(m) && !isInactive;
     } else if (filterTab === 'paid') {
-      matchTab = isPaid(m) && !isEnded;
+      matchTab = isPaid(m) && !isInactive;
     } else if (filterTab === 'partial') {
-      matchTab = isPartial(m) && !isEnded;
+      matchTab = isPartial(m) && !isInactive;
     } else if (filterTab === 'due') {
-      const isDue = (status === 'due' || status === 'overdue') && !isEnded;
+      const isDue = (status === 'due' || status === 'overdue') && !isInactive;
       if (!isDue) {
         matchTab = false;
       } else if (dueSubFilter === 'gym') {
@@ -3083,7 +3228,7 @@ export default function Members() {
         matchTab = true;
       }
     } else {
-      matchTab = status === filterTab && !isEnded;
+      matchTab = status === filterTab && !isInactive;
     }
 
     return matchSearch && matchTab;
@@ -3122,7 +3267,7 @@ export default function Members() {
       </div>
 
       {/* KPI Cards Row */}
-      <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3'>
+      <div className='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3'>
         <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
           <div className='w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0'>
             <CheckCircle className='w-4.5 h-4.5' />
@@ -3175,11 +3320,21 @@ export default function Members() {
 
         <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
           <div className='w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0'>
+            <LogOut className='w-4.5 h-4.5' />
+          </div>
+          <div className='min-w-0'>
+            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Gym Left</p>
+            <p className='text-base font-bold text-slate-900'>{leftCount}</p>
+          </div>
+        </div>
+
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
+          <div className='w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0'>
             <UserX className='w-4.5 h-4.5' />
           </div>
           <div className='min-w-0'>
-            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Ended</p>
-            <p className='text-base font-bold text-slate-900'>{endedCount}</p>
+            <p className='text-[10.5px] text-purple-800 font-medium truncate'>PT Ended</p>
+            <p className='text-base font-bold text-purple-900'>{endedCount}</p>
           </div>
         </div>
       </div>
@@ -3484,24 +3639,42 @@ export default function Members() {
                             <span>Edit</span>
                           </button>
 
-                          {/* 5. End Membership or Restart Button */}
-                          {isEnded ? (
+                          {/* 5. Left for Gym Members, End for PT Members */}
+                          {isLeft ? (
                             <button
                               onClick={() => handleReactivate(m)}
                               className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs border border-emerald-200 transition shadow-sm'
-                              title='Reactivate / Restart membership back to active'
+                              title='Reactivate member back to active status'
                             >
                               <RotateCcw className='w-3.5 h-3.5 text-emerald-600' />
-                              <span>Restart</span>
+                              <span>Return</span>
+                            </button>
+                          ) : isEnded ? (
+                            <button
+                              onClick={() => handleReactivate(m)}
+                              className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs border border-purple-200 transition shadow-sm'
+                              title='Restart PT membership back to active status'
+                            >
+                              <RotateCcw className='w-3.5 h-3.5 text-purple-600' />
+                              <span>Restart PT</span>
+                            </button>
+                          ) : isPtMember(m) ? (
+                            <button
+                              onClick={() => setEndMember(m)}
+                              className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 font-bold text-xs border border-purple-200 transition shadow-sm'
+                              title='End PT Membership (Inka PT package khatam karein)'
+                            >
+                              <UserX className='w-3.5 h-3.5 text-purple-600' />
+                              <span>End</span>
                             </button>
                           ) : (
                             <button
-                              onClick={() => setEndMember(m)}
+                              onClick={() => setLeftMember(m)}
                               className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition shadow-sm'
-                              title='End Membership (Inki membership khatam karein)'
+                              title='Mark member as left / gym membership khatam'
                             >
-                              <UserX className='w-3.5 h-3.5 text-rose-600' />
-                              <span>End</span>
+                              <LogOut className='w-3.5 h-3.5 text-rose-600' />
+                              <span>Left</span>
                             </button>
                           )}
 
@@ -3652,21 +3825,37 @@ export default function Members() {
                     Edit
                   </button>
 
-                  {isEnded ? (
+                  {isLeft ? (
                     <button
                       onClick={() => handleReactivate(m)}
                       className='px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition'
-                      title='Reactivate / Restart membership'
+                      title='Reactivate member back to active'
                     >
-                      Restart
+                      Return
+                    </button>
+                  ) : isEnded ? (
+                    <button
+                      onClick={() => handleReactivate(m)}
+                      className='px-2.5 py-1 rounded-lg bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition'
+                      title='Restart PT membership back to active'
+                    >
+                      Restart PT
+                    </button>
+                  ) : isPtMember(m) ? (
+                    <button
+                      onClick={() => setEndMember(m)}
+                      className='px-2.5 py-1 rounded-lg bg-purple-50 text-purple-800 border border-purple-200 text-xs font-bold hover:bg-purple-100 transition'
+                      title='End PT Membership (Inka PT package khatam karein)'
+                    >
+                      End
                     </button>
                   ) : (
                     <button
-                      onClick={() => setEndMember(m)}
+                      onClick={() => setLeftMember(m)}
                       className='px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold hover:bg-rose-100 transition'
-                      title='End Membership (Inki membership khatam karein)'
+                      title='Mark gym member as left'
                     >
-                      End
+                      Left
                     </button>
                   )}
                 </div>
@@ -3710,7 +3899,16 @@ export default function Members() {
         />
       )}
 
-      {/* End Membership Modal */}
+      {/* Left Member Modal (Gym) */}
+      {leftMember && (
+        <LeftModal
+          member={leftMember}
+          onClose={() => setLeftMember(null)}
+          onSave={handleLeftSuccess}
+        />
+      )}
+
+      {/* End PT Membership Modal */}
       {endMember && (
         <EndMembershipModal
           member={endMember}
