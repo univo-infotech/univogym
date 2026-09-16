@@ -82,7 +82,7 @@ function toDate(val) {
 }
 
 function getMemberStatus(member) {
-  if (member.status === 'left') return 'left';
+  if (member.status === 'ended' || member.status === 'left') return 'ended';
   if (member.active === false) return 'inactive';
 
   const expiry = toDate(member.expiryDate);
@@ -90,31 +90,63 @@ function getMemberStatus(member) {
   const now = new Date();
   const diffDays = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
 
-  // 1. Expired conditions:
-  // If plan expired more than 3 days ago -> overdue
-  if (diffDays < -3) return 'overdue';
-  // If plan expired within last 1, 2, or 3 days -> expired
+  // 1. Expired & Due conditions:
+  // Expire hone ke 2 din ke baad (diffDays < -2, e.g. -3, -4) -> 'due'
+  if (diffDays < -2) return 'due';
+  // Expired within last 1 or 2 days (diffDays <= 0 && diffDays >= -2) -> 'expired'
   if (diffDays <= 0) return 'expired';
 
   // 2. Active conditions:
-  // If plan ending in 1, 2, or 3 days (or today) -> ending_soon
+  // 3 din pehle khatam hone wale (1, 2, or 3 days remaining) -> 'ending_soon'
   if (diffDays <= 3) return 'ending_soon';
 
   // 3. Normal active
   return 'active';
 }
 
+function getMembershipEndingDetails(member) {
+  const isPt = !!member.isPt || !!member.ptPlanName || (member.trainerName && member.trainerName !== 'Unassigned' && member.trainerName !== 'General Floor Trainer (Included)' && member.trainerName !== 'No Trainer');
+  const gymPlan = member.planName || 'Standard Gym';
+  const ptPlan = member.ptPlanName || (isPt ? '1-on-1 PT' : null);
+
+  if (ptPlan && gymPlan) {
+    return {
+      category: 'both',
+      badgeText: '🏋️ Gym + ✨ PT',
+      shortText: 'Gym & PT',
+      badgeCls: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-300',
+      tagText: 'Both Gym & PT Plan'
+    };
+  }
+  if (ptPlan) {
+    return {
+      category: 'pt',
+      badgeText: '✨ 1-on-1 PT Membership',
+      shortText: 'PT Only',
+      badgeCls: 'bg-purple-50 text-purple-800 border-purple-300',
+      tagText: '1-on-1 PT Plan'
+    };
+  }
+  return {
+    category: 'gym',
+    badgeText: '🏋️ Gym Membership',
+    shortText: 'Gym Only',
+    badgeCls: 'bg-blue-50 text-blue-800 border-blue-300',
+    tagText: 'Gym Plan'
+  };
+}
+
 function getMemberDaysInfo(member) {
   const status = getMemberStatus(member);
-  if (status === 'left') {
-    return { text: 'Left / Discontinued', cls: 'bg-rose-50 text-rose-700 border-rose-200' };
+  if (status === 'ended' || status === 'left') {
+    return { text: 'Membership Ended', cls: 'bg-slate-100 text-slate-700 border-slate-300 font-semibold' };
   }
   const expiry = toDate(member.expiryDate);
   if (!expiry) return { text: 'No Expiry Set', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
   const diff = Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24));
   
-  if (diff < -3) {
-    return { text: `Overdue (${Math.abs(diff)} days ago)`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold' };
+  if (diff < -2) {
+    return { text: `Renewal Due (${Math.abs(diff)}d overdue)`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold animate-pulse' };
   }
   if (diff <= 0) {
     const daysAgo = Math.abs(diff) === 0 ? 'Today' : `${Math.abs(diff)}d ago`;
@@ -141,16 +173,28 @@ function fmtCountdown(sec) {
 const STATUS_CONFIG = {
   paid: { label: 'Paid', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
   active: { label: 'Active', dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
-  ending_soon: { label: 'Ending Soon', dot: 'bg-amber-500', cls: 'bg-amber-100 text-amber-900 border border-amber-300' },
-  expired: { label: 'Expired', dot: 'bg-rose-500', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
-  overdue: { label: 'Overdue (3+ Days)', dot: 'bg-red-600', cls: 'bg-red-100 text-red-800 border border-red-300' },
-  left: { label: 'Left', dot: 'bg-slate-500', cls: 'bg-slate-100 text-slate-700 border border-slate-300' },
+  ending_soon: { label: 'Ending Soon (≤3d)', dot: 'bg-amber-500', cls: 'bg-amber-100 text-amber-900 border border-amber-300' },
+  expired: { label: 'Expired (1-2d)', dot: 'bg-rose-500', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
+  due: { label: 'Renewal Due (2d+)', dot: 'bg-red-600', cls: 'bg-red-100 text-red-800 border border-red-300 font-extrabold' },
+  overdue: { label: 'Renewal Due (2d+)', dot: 'bg-red-600', cls: 'bg-red-100 text-red-800 border border-red-300 font-extrabold' },
+  ended: { label: 'Ended', dot: 'bg-slate-500', cls: 'bg-slate-100 text-slate-700 border border-slate-300 font-bold' },
+  left: { label: 'Ended', dot: 'bg-slate-500', cls: 'bg-slate-100 text-slate-700 border border-slate-300 font-bold' },
   inactive: { label: 'Inactive', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
 };
 
 function StatusBadge({ status, dueAmount, member }) {
+  const isEnded = status === 'ended' || status === 'left' || member?.status === 'ended' || member?.status === 'left';
+  if (isEnded) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
+        <span className="w-2 h-2 rounded-full bg-slate-500" />
+        Ended
+      </span>
+    );
+  }
+
   // 1. If member has paid and due is 0 (or paid full amount), show Paid badge
-  const isFullyPaid = !!member?.lastPaymentDate && Number(member?.dueAmount ?? dueAmount ?? 0) <= 0 && status !== 'left';
+  const isFullyPaid = !!member?.lastPaymentDate && Number(member?.dueAmount ?? dueAmount ?? 0) <= 0;
   if (isFullyPaid) {
     return (
       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
@@ -161,7 +205,7 @@ function StatusBadge({ status, dueAmount, member }) {
   }
 
   // 2. Only show "Due" badge if member has actually made a partial payment during collection
-  const hasPartialDue = Number(member?.dueAmount ?? dueAmount) > 0 && !!member?.lastPaymentDate && status !== 'left';
+  const hasPartialDue = Number(member?.dueAmount ?? dueAmount) > 0 && !!member?.lastPaymentDate;
   if (hasPartialDue) {
     return (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300">
@@ -755,9 +799,9 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
   const hasPartialPaymentDue = Number(member.dueAmount || 0) > 0 && !!member.lastPaymentDate;
   const existingDueAmount = Number(member.dueAmount || 0);
 
-  // Check if member is renewing an ending soon, expired, or overdue plan
+  // Check if member is renewing an ending soon, expired, or due plan
   const memberStatus = getMemberStatus(member);
-  const isRenewing = ['ending_soon', 'expired', 'overdue'].includes(memberStatus) || (member.lastPaymentDate && !hasPartialPaymentDue);
+  const isRenewing = ['ending_soon', 'expired', 'due', 'overdue'].includes(memberStatus) || (member.lastPaymentDate && !hasPartialPaymentDue);
 
   // Match initial plan from member or default to first
   const initialPlan = PLANS_CATALOG.find((p) =>
@@ -2456,19 +2500,21 @@ function EditMemberModal({ member, onClose, onSave, trainers = [], plans = [], e
 }
 
 /**
- * Modal to mark a member as Left / Discontinued
+ * Modal to mark a member's membership as Ended
  */
-function LeftModal({ member, onClose, onSave }) {
-  const [reason, setReason] = useState('Stopped coming / Gym left');
+function EndMembershipModal({ member, onClose, onSave }) {
+  const [reason, setReason] = useState('Membership expired & did not renew');
   const [customReason, setCustomReason] = useState('');
   const [loading, setLoading] = useState(false);
 
   const presetReasons = [
+    'Membership expired & did not renew',
+    'PT / 1-on-1 Training Package Completed',
     'Stopped coming / Gym left',
     'Relocated / Out of town',
     'Personal / Family reason',
     'Health / Injury break',
-    'Membership expired & did not renew',
+    'Discontinued by Gym Management',
     'Other'
   ];
 
@@ -2478,17 +2524,19 @@ function LeftModal({ member, onClose, onSave }) {
     try {
       const finalReason = reason === 'Other' ? (customReason || 'Other') : reason;
       await updateMember(member.id, {
-        status: 'left',
+        status: 'ended',
         active: false,
+        endedAt: new Date().toISOString(),
+        endReason: finalReason,
         leftAt: new Date().toISOString(),
         leftReason: finalReason
       });
 
-      toast.success(`${member.name || member.fullName} marked as Left`);
+      toast.success(`${member.name || member.fullName} membership ended`);
       onSave(member.id, finalReason);
       onClose();
     } catch (err) {
-      console.error('Error marking member as left:', err);
+      console.error('Error ending member membership:', err);
       toast.error('Failed to update member');
     } finally {
       setLoading(false);
@@ -2499,35 +2547,35 @@ function LeftModal({ member, onClose, onSave }) {
     <Modal
       isOpen={true}
       onClose={onClose}
-      title="🚪 Mark Member as Left"
+      title="🛑 End Membership"
       maxWidth="max-w-md"
     >
       <form onSubmit={handleConfirm} className='space-y-4 text-slate-800'>
         <div className='p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5'>
-          <LogOut className='w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5' />
+          <UserX className='w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5' />
           <div className='text-xs'>
-            <p className='font-bold text-rose-950'>Mark {member.name || member.fullName} as Left?</p>
-            <p className='text-rose-800/80 mt-0.5 leading-relaxed'>
-              Yeh member Active list se hat kar <strong>Left / Inactive</strong> filter tab me chala jayega. Aap jab chahe isse wapas reactivate kar sakte hain.
+            <p className='font-bold text-rose-950'>End Membership for {member.name || member.fullName}?</p>
+            <p className='text-rose-800/90 mt-0.5 leading-relaxed'>
+              Inki membership khatam kar di jayegi aur yeh member Active list se hat kar <strong>Ended</strong> filter tab me chala jayega. Aap jab chahe unhe wapas restart / reactivate kar sakte hain.
             </p>
           </div>
         </div>
 
         <div>
-          <label className='block text-xs font-bold text-slate-700 mb-1.5'>Reason for Leaving</label>
-          <div className='space-y-1.5'>
+          <label className='block text-xs font-bold text-slate-700 mb-1.5'>Reason for Ending Membership</label>
+          <div className='space-y-1.5 max-h-56 overflow-y-auto pr-1'>
             {presetReasons.map((r) => (
               <label
                 key={r}
                 className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-medium cursor-pointer transition ${
                   reason === r
-                    ? 'bg-rose-50/70 border-rose-300 text-rose-950 font-semibold'
+                    ? 'bg-rose-50/80 border-rose-300 text-rose-950 font-semibold'
                     : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 <input
                   type='radio'
-                  name='leftReason'
+                  name='endReason'
                   value={r}
                   checked={reason === r}
                   onChange={() => setReason(r)}
@@ -2563,7 +2611,7 @@ function LeftModal({ member, onClose, onSave }) {
             disabled={loading}
             className='flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-md disabled:opacity-50'
           >
-            {loading ? 'Marking...' : 'Confirm Mark as Left'}
+            {loading ? 'Ending...' : '🛑 Confirm End Membership'}
           </button>
         </div>
       </form>
@@ -2645,8 +2693,9 @@ export default function Members() {
   const [extendMember, setExtendMember] = useState(null);
   const [planMember, setPlanMember] = useState(null);
   const [editMember, setEditMember] = useState(null);
-  const [leftMember, setLeftMember] = useState(null);
+  const [endMember, setEndMember] = useState(null);
   const [deleteTargetMember, setDeleteTargetMember] = useState(null);
+  const [dueSubFilter, setDueSubFilter] = useState('all'); // 'all' | 'gym' | 'pt'
 
   const dummyMembers = [
     {
@@ -2864,11 +2913,11 @@ export default function Members() {
     );
   };
 
-  const handleLeftSuccess = (memberId, reason) => {
+  const handleEndSuccess = (memberId, reason) => {
     setMembers((prev) =>
       prev.map((m) =>
         m.id === memberId
-          ? { ...m, status: 'left', active: false, leftReason: reason }
+          ? { ...m, status: 'ended', active: false, endReason: reason, leftReason: reason }
           : m
       )
     );
@@ -2879,7 +2928,7 @@ export default function Members() {
       const now = new Date();
       const currentExp = toDate(m.expiryDate);
       const newExp = (!currentExp || currentExp < now)
-        ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+        ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         : m.expiryDate;
 
       await updateMember(m.id, {
@@ -2934,25 +2983,31 @@ export default function Members() {
     const diff = expiry ? Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24)) : 0;
     const daysOverdue = Math.abs(diff);
 
+    const planTitle = m.ptPlanName
+      ? `${m.planName || 'Gym'} + 1-on-1 PT (${m.ptPlanName})`
+      : (m.planName || 'Gym Plan');
+
+    const totalPlanAmount = (Number(m.planPrice || 0) + Number(m.ptPlanPrice || 0)) || '2,500';
+
     if (Number(m.dueAmount || 0) > 0 && !!m.lastPaymentDate) {
       message = generatePartialDueReminderMessage(
         m.name || m.fullName,
         m.dueAmount,
-        m.planName || 'Gym Plan'
+        planTitle
       );
-    } else if (stat === 'overdue') {
+    } else if (stat === 'due' || stat === 'overdue') {
       message = generateOverdueReminderMessage(
         m.name || m.fullName,
-        m.planName || 'Gym Plan',
+        planTitle,
         daysOverdue,
-        m.planPrice || '2,500'
+        totalPlanAmount
       );
     } else {
       message = generateRenewalReminderMessage(
         m.name || m.fullName,
-        m.planName || 'Gym Plan',
+        planTitle,
         formatDate(m.expiryDate),
-        m.planPrice || '2,500'
+        totalPlanAmount
       );
     }
 
@@ -2964,28 +3019,36 @@ export default function Members() {
   // Status counts - "Partial Due" is ONLY for members who paid partially during fee collection
   const isPaid = (m) => Number(m.dueAmount || 0) <= 0 && !!m.lastPaymentDate;
   const isPartial = (m) => Number(m.dueAmount || 0) > 0 && !!m.lastPaymentDate;
-  const isPtMember = (m) => !!m.isPt || !!m.ptPlanName || (m.trainerName && m.trainerName !== 'Unassigned' && m.trainerName !== 'General');
-  const paidCount = members.filter((m) => isPaid(m) && m.status !== 'left').length;
-  const partialCount = members.filter((m) => isPartial(m) && m.status !== 'left').length;
-  const ptCount = members.filter((m) => isPtMember(m) && m.status !== 'left').length;
-  const activeCount = members.filter((m) => getMemberStatus(m) === 'active').length;
-  const endingSoonCount = members.filter((m) => getMemberStatus(m) === 'ending_soon').length;
-  const expiredCount = members.filter((m) => getMemberStatus(m) === 'expired').length;
-  const overdueCount = members.filter((m) => getMemberStatus(m) === 'overdue').length;
-  const leftCount = members.filter((m) => getMemberStatus(m) === 'left').length;
+  const isPtMember = (m) => !!m.isPt || !!m.ptPlanName || (m.trainerName && m.trainerName !== 'Unassigned' && m.trainerName !== 'General Floor Trainer (Included)' && m.trainerName !== 'No Trainer');
+  const isEndedMember = (m) => m.status === 'ended' || m.status === 'left';
+
+  const paidCount = members.filter((m) => isPaid(m) && !isEndedMember(m)).length;
+  const partialCount = members.filter((m) => isPartial(m) && !isEndedMember(m)).length;
+  const ptCount = members.filter((m) => isPtMember(m) && !isEndedMember(m)).length;
+  const activeCount = members.filter((m) => getMemberStatus(m) === 'active' && !isEndedMember(m)).length;
+  const endingSoonCount = members.filter((m) => getMemberStatus(m) === 'ending_soon' && !isEndedMember(m)).length;
+  const expiredCount = members.filter((m) => getMemberStatus(m) === 'expired' && !isEndedMember(m)).length;
+  const dueCount = members.filter((m) => (getMemberStatus(m) === 'due' || getMemberStatus(m) === 'overdue') && !isEndedMember(m)).length;
+  const endedCount = members.filter((m) => isEndedMember(m)).length;
+
+  // Due breakdown for Gym vs PT
+  const dueMembersList = members.filter((m) => (getMemberStatus(m) === 'due' || getMemberStatus(m) === 'overdue') && !isEndedMember(m));
+  const gymDueCount = dueMembersList.filter((m) => !m.ptPlanName).length;
+  const ptDueCount = dueMembersList.filter((m) => !!m.ptPlanName || isPtMember(m)).length;
+
   const totalRemindersDue = members.filter(
-    (m) => m.status !== 'left' && (isPartial(m) || ['ending_soon', 'expired', 'overdue'].includes(getMemberStatus(m)))
+    (m) => !isEndedMember(m) && (isPartial(m) || ['ending_soon', 'expired', 'due', 'overdue'].includes(getMemberStatus(m)))
   ).length;
 
   const FILTER_TABS = [
     { key: 'active', label: `Active (${activeCount})` },
     { key: 'pt', label: `🏋️ PT Members (${ptCount})` },
     { key: 'paid', label: `Paid (${paidCount})` },
-    { key: 'partial', label: `Partial / Due (${partialCount})` },
     { key: 'ending_soon', label: `Ending Soon (${endingSoonCount})` },
     { key: 'expired', label: `Expired (${expiredCount})` },
-    { key: 'overdue', label: `Overdue (${overdueCount})` },
-    { key: 'left', label: `Left / Inactive (${leftCount})` },
+    { key: 'due', label: `⚠️ Due (${dueCount})` },
+    { key: 'partial', label: `Partial Fee (${partialCount})` },
+    { key: 'ended', label: `🛑 Ended (${endedCount})` },
     { key: 'all', label: `All (${members.length})` },
   ];
 
@@ -2995,18 +3058,32 @@ export default function Members() {
       (m.name || m.fullName || '').toLowerCase().includes(q) ||
       (m.phone || '').includes(q);
     const status = getMemberStatus(m);
+    const isEnded = isEndedMember(m);
     
     let matchTab = false;
     if (filterTab === 'all') {
       matchTab = true;
+    } else if (filterTab === 'ended') {
+      matchTab = isEnded;
     } else if (filterTab === 'pt') {
-      matchTab = isPtMember(m) && m.status !== 'left';
+      matchTab = isPtMember(m) && !isEnded;
     } else if (filterTab === 'paid') {
-      matchTab = isPaid(m) && m.status !== 'left';
+      matchTab = isPaid(m) && !isEnded;
     } else if (filterTab === 'partial') {
-      matchTab = isPartial(m) && m.status !== 'left';
+      matchTab = isPartial(m) && !isEnded;
+    } else if (filterTab === 'due') {
+      const isDue = (status === 'due' || status === 'overdue') && !isEnded;
+      if (!isDue) {
+        matchTab = false;
+      } else if (dueSubFilter === 'gym') {
+        matchTab = !m.ptPlanName;
+      } else if (dueSubFilter === 'pt') {
+        matchTab = !!m.ptPlanName || isPtMember(m);
+      } else {
+        matchTab = true;
+      }
     } else {
-      matchTab = status === filterTab;
+      matchTab = status === filterTab && !isEnded;
     }
 
     return matchSearch && matchTab;
@@ -3057,16 +3134,6 @@ export default function Members() {
         </div>
 
         <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
-          <div className='w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0'>
-            <IndianRupee className='w-4.5 h-4.5' />
-          </div>
-          <div className='min-w-0'>
-            <p className='text-[10.5px] text-amber-800 font-medium truncate'>Partial Due</p>
-            <p className='text-base font-bold text-amber-700'>{partialCount}</p>
-          </div>
-        </div>
-
-        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
           <div className='w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0'>
             <Clock className='w-4.5 h-4.5' />
           </div>
@@ -3081,28 +3148,38 @@ export default function Members() {
             <AlertTriangle className='w-4.5 h-4.5' />
           </div>
           <div className='min-w-0'>
-            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Expired (1-3d)</p>
+            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Expired (1-2d)</p>
             <p className='text-base font-bold text-rose-600'>{expiredCount}</p>
           </div>
         </div>
 
         <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
           <div className='w-9 h-9 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0'>
-            <UserX className='w-4.5 h-4.5' />
+            <AlertTriangle className='w-4.5 h-4.5' />
           </div>
           <div className='min-w-0'>
-            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Overdue (&gt;3d)</p>
-            <p className='text-base font-bold text-red-700'>{overdueCount}</p>
+            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Due (2d+ Overdue)</p>
+            <p className='text-base font-bold text-red-700'>{dueCount}</p>
+          </div>
+        </div>
+
+        <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
+          <div className='w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0'>
+            <IndianRupee className='w-4.5 h-4.5' />
+          </div>
+          <div className='min-w-0'>
+            <p className='text-[10.5px] text-amber-800 font-medium truncate'>Partial Due</p>
+            <p className='text-base font-bold text-amber-700'>{partialCount}</p>
           </div>
         </div>
 
         <div className='p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-2.5'>
           <div className='w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0'>
-            <LogOut className='w-4.5 h-4.5' />
+            <UserX className='w-4.5 h-4.5' />
           </div>
           <div className='min-w-0'>
-            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Left / Inactive</p>
-            <p className='text-base font-bold text-slate-900'>{leftCount}</p>
+            <p className='text-[10.5px] text-slate-500 font-medium truncate'>Ended</p>
+            <p className='text-base font-bold text-slate-900'>{endedCount}</p>
           </div>
         </div>
       </div>
@@ -3159,6 +3236,53 @@ export default function Members() {
         </div>
       </div>
 
+      {/* Due Category Sub-Filter (Gym vs PT Due) */}
+      {filterTab === 'due' && (
+        <div className='p-3 rounded-2xl bg-red-50/90 border border-red-200/90 flex flex-wrap items-center justify-between gap-2.5 text-xs'>
+          <div className='flex items-center gap-2'>
+            <AlertTriangle className='w-4 h-4 text-red-600 shrink-0' />
+            <div>
+              <span className='font-bold text-red-950'>Overdue Renewal Filter:</span>
+              <span className='text-[11px] text-red-800/90 ml-1.5 hidden sm:inline'>
+                Membership expired over 2 days ago. Check whether Gym or PT plan is due:
+              </span>
+            </div>
+          </div>
+          <div className='flex items-center gap-1.5 shrink-0'>
+            <button
+              onClick={() => setDueSubFilter('all')}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
+                dueSubFilter === 'all'
+                  ? 'bg-red-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-red-100/60 border border-red-200'
+              }`}
+            >
+              All Due ({dueCount})
+            </button>
+            <button
+              onClick={() => setDueSubFilter('gym')}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
+                dueSubFilter === 'gym'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
+              }`}
+            >
+              🏋️ Gym Due ({gymDueCount})
+            </button>
+            <button
+              onClick={() => setDueSubFilter('pt')}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
+                dueSubFilter === 'pt'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-purple-50 border border-slate-200'
+              }`}
+            >
+              ✨ PT Due ({ptDueCount})
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Member Directory Table */}
       {view === 'table' ? (
         <div className='overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-sm'>
@@ -3183,7 +3307,8 @@ export default function Members() {
                 filtered.map((m) => {
                   const status = getMemberStatus(m);
                   const daysInfo = getMemberDaysInfo(m);
-                  const isLeft = status === 'left';
+                  const isEnded = status === 'ended' || status === 'left' || m.status === 'ended' || m.status === 'left';
+                  const membershipDetails = getMembershipEndingDetails(m);
 
                   return (
                     <tr key={m.id} className='hover:bg-slate-50/70 transition items-center'>
@@ -3219,16 +3344,32 @@ export default function Members() {
 
                       {/* Column 3: Plan & Fee with Days Left Pill & Combined Total */}
                       <td className='px-5 py-3.5'>
-                        <div className='space-y-1'>
-                          <p className='font-bold text-slate-900 text-xs'>
-                            {m.planName || 'Standard Plan'} {m.planPrice ? `(₹${Number(m.planPrice).toLocaleString('en-IN')})` : ''}
-                          </p>
+                        <div className='space-y-1.5'>
+                          <div className='flex items-center gap-1.5 flex-wrap'>
+                            <p className='font-bold text-slate-900 text-xs'>
+                              {m.planName || 'Standard Plan'} {m.planPrice ? `(₹${Number(m.planPrice).toLocaleString('en-IN')})` : ''}
+                            </p>
+                            {/* Gym vs PT Indicator */}
+                            {membershipDetails.category === 'both' ? (
+                              <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-fuchsia-50 text-fuchsia-800 border border-fuchsia-200'>
+                                🏋️ Gym + ✨ PT
+                              </span>
+                            ) : membershipDetails.category === 'pt' ? (
+                              <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200'>
+                                ✨ 1-on-1 PT
+                              </span>
+                            ) : (
+                              <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-blue-50 text-blue-800 border border-blue-200'>
+                                🏋️ Gym Plan
+                              </span>
+                            )}
+                          </div>
                           {m.ptPlanName && (
                             <div className='inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-bold text-[10px] border border-purple-200'>
                               ✨ PT: {m.ptPlanName} {m.ptPlanPrice ? `(+₹${Number(m.ptPlanPrice).toLocaleString('en-IN')})` : ''}
                             </div>
                           )}
-                          <div className='flex items-center gap-2 pt-0.5'>
+                          <div className='flex items-center gap-2 pt-0.5 flex-wrap'>
                             <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${daysInfo.cls}`}>
                               {daysInfo.text}
                             </span>
@@ -3276,15 +3417,15 @@ export default function Members() {
                             const isFullyPaid = hasPaidAtLeastOnce && due <= 0;
                             const isPartialDue = hasPaidAtLeastOnce && due > 0;
                             const memberStat = getMemberStatus(m);
-                            const needsRenewal = ['ending_soon', 'expired', 'overdue'].includes(memberStat);
+                            const needsRenewal = ['ending_soon', 'expired', 'due', 'overdue'].includes(memberStat);
 
-                            // Case 1: Needs Renewal (Ending Soon, Expired, or Overdue) -> Show "⚡ Renew"
+                            // Case 1: Needs Renewal (Ending Soon, Expired, or Due) -> Show "⚡ Renew"
                             if (needsRenewal) {
                               return (
                                 <button
                                   onClick={() => setPlanMember(m)}
                                   className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs transition shadow-sm animate-pulse'
-                                  title={`Membership ${memberStat === 'ending_soon' ? 'Ending Soon' : 'Expired/Overdue'} - Click to Renew Plan`}
+                                  title={`Membership ${memberStat === 'ending_soon' ? 'Ending Soon' : memberStat === 'expired' ? 'Expired' : 'Due'} - Click to Renew Plan`}
                                 >
                                   <RotateCcw className='w-3.5 h-3.5 text-white' />
                                   <span>Renew</span>
@@ -3343,24 +3484,24 @@ export default function Members() {
                             <span>Edit</span>
                           </button>
 
-                          {/* 5. Left or Return Button */}
-                          {isLeft ? (
+                          {/* 5. End Membership or Restart Button */}
+                          {isEnded ? (
                             <button
                               onClick={() => handleReactivate(m)}
                               className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs border border-emerald-200 transition shadow-sm'
-                              title='Reactivate member back to active status'
+                              title='Reactivate / Restart membership back to active'
                             >
                               <RotateCcw className='w-3.5 h-3.5 text-emerald-600' />
-                              <span>Return</span>
+                              <span>Restart</span>
                             </button>
                           ) : (
                             <button
-                              onClick={() => setLeftMember(m)}
-                              className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-xs border border-rose-200 transition shadow-sm'
-                              title='Mark member as left / discontinued'
+                              onClick={() => setEndMember(m)}
+                              className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition shadow-sm'
+                              title='End Membership (Inki membership khatam karein)'
                             >
-                              <UserMinus className='w-3.5 h-3.5 text-rose-600' />
-                              <span>Left</span>
+                              <UserX className='w-3.5 h-3.5 text-rose-600' />
+                              <span>End</span>
                             </button>
                           )}
 
@@ -3387,7 +3528,8 @@ export default function Members() {
           {filtered.map((m) => {
             const status = getMemberStatus(m);
             const daysInfo = getMemberDaysInfo(m);
-            const isLeft = status === 'left';
+            const isEnded = status === 'ended' || status === 'left' || m.status === 'ended' || m.status === 'left';
+            const membershipDetails = getMembershipEndingDetails(m);
 
             return (
               <div key={m.id} className='p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3.5 hover:border-emerald-300 transition flex flex-col justify-between'>
@@ -3400,8 +3542,23 @@ export default function Members() {
                     <h4 className='font-bold text-slate-900 text-sm leading-tight'>{m.name || m.fullName}</h4>
                     <p className='text-xs text-slate-400 mt-0.5'>{m.phone || 'No phone'}</p>
                   </div>
-                  <div className='mt-3 space-y-1'>
-                    <p className='text-xs font-semibold text-slate-800'>{m.planName || 'Standard Plan'}</p>
+                  <div className='mt-3 space-y-1.5'>
+                    <div className='flex items-center gap-1.5 flex-wrap'>
+                      <p className='text-xs font-semibold text-slate-800'>{m.planName || 'Standard Plan'}</p>
+                      {membershipDetails.category === 'both' ? (
+                        <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-fuchsia-50 text-fuchsia-800 border border-fuchsia-200'>
+                          Gym + PT
+                        </span>
+                      ) : membershipDetails.category === 'pt' ? (
+                        <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200'>
+                          1-on-1 PT
+                        </span>
+                      ) : (
+                        <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-blue-50 text-blue-800 border border-blue-200'>
+                          Gym Plan
+                        </span>
+                      )}
+                    </div>
                     {m.ptPlanName && (
                       <p className='text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 truncate'>
                         ✨ PT: {m.ptPlanName} (+₹{m.ptPlanPrice})
@@ -3435,7 +3592,7 @@ export default function Members() {
                     const isFullyPaid = hasPaidAtLeastOnce && due <= 0;
                     const isPartialDue = hasPaidAtLeastOnce && due > 0;
                     const memberStat = getMemberStatus(m);
-                    const needsRenewal = ['ending_soon', 'expired', 'overdue'].includes(memberStat);
+                    const needsRenewal = ['ending_soon', 'expired', 'due', 'overdue'].includes(memberStat);
 
                     // Case 1: Needs Renewal
                     if (needsRenewal) {
@@ -3443,7 +3600,7 @@ export default function Members() {
                         <button
                           onClick={() => setPlanMember(m)}
                           className='px-2.5 py-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white border border-emerald-500 text-xs font-black hover:from-emerald-700 hover:to-teal-700 transition shadow-xs animate-pulse'
-                          title={`Membership ${memberStat === 'ending_soon' ? 'Ending Soon' : 'Expired/Overdue'} - Click to Renew`}
+                          title={`Membership ${memberStat === 'ending_soon' ? 'Ending Soon' : memberStat === 'expired' ? 'Expired' : 'Due'} - Click to Renew`}
                         >
                           ⚡ Renew
                         </button>
@@ -3495,19 +3652,21 @@ export default function Members() {
                     Edit
                   </button>
 
-                  {isLeft ? (
+                  {isEnded ? (
                     <button
                       onClick={() => handleReactivate(m)}
                       className='px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition'
+                      title='Reactivate / Restart membership'
                     >
-                      Return
+                      Restart
                     </button>
                   ) : (
                     <button
-                      onClick={() => setLeftMember(m)}
+                      onClick={() => setEndMember(m)}
                       className='px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold hover:bg-rose-100 transition'
+                      title='End Membership (Inki membership khatam karein)'
                     >
-                      Left
+                      End
                     </button>
                   )}
                 </div>
@@ -3551,12 +3710,12 @@ export default function Members() {
         />
       )}
 
-      {/* Left Member Modal */}
-      {leftMember && (
-        <LeftModal
-          member={leftMember}
-          onClose={() => setLeftMember(null)}
-          onSave={handleLeftSuccess}
+      {/* End Membership Modal */}
+      {endMember && (
+        <EndMembershipModal
+          member={endMember}
+          onClose={() => setEndMember(null)}
+          onSave={handleEndSuccess}
         />
       )}
 
