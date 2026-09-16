@@ -56,7 +56,7 @@ export default function Layout({ children, role = "owner" }) {
         </main>
 
         {/* Mobile Bottom Navigation Bar (App-like Feel) */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 px-3 py-1.5 flex justify-around items-center shadow-xl">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex justify-around items-center shadow-xl">
           {mobileNav.map((tab) => {
             const Icon = tab.icon;
             const active = location.pathname.startsWith(tab.to);

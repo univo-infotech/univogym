@@ -887,8 +887,8 @@ export default function Payments() {
         </div>
       </div>
 
-      {/* High-Fidelity Table */}
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {/* High-Fidelity Table (Desktop & Tablet) */}
+      <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-xs text-slate-600">
           <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-extrabold border-b border-slate-200">
             <tr>
@@ -1132,6 +1132,186 @@ export default function Payments() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Card View for Fee & Subscription (Visible only on <md screens) */}
+      <div className="md:hidden space-y-3">
+        {filteredSubscriptions.length === 0 ? (
+          <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center text-slate-400">
+            <UserX className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+            <p className="font-bold text-slate-600">No records found for this filter</p>
+            <p className="text-xs text-slate-400 mt-0.5">Try selecting another filter or searching</p>
+          </div>
+        ) : (
+          filteredSubscriptions.map((item) => {
+            const initials = (item.memberName || "M")
+              .split(" ")
+              .map((n) => n[0])
+              .join("")
+              .toUpperCase()
+              .slice(0, 2);
+
+            const days = item.computedDays;
+            const isLeft = item.dynamicStatus === "left";
+            const hasDue = Number(item.dueAmount) > 0;
+
+            return (
+              <div
+                key={item.id}
+                className={`p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3 ${
+                  isLeft ? "bg-slate-50/60 opacity-80" : ""
+                }`}
+              >
+                {/* Header: Name, Initials, Status */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className={`w-9 h-9 rounded-full text-white font-bold flex items-center justify-center text-xs shadow-xs shrink-0 ${
+                        isLeft ? "bg-slate-400" : "bg-gradient-to-br from-indigo-500 to-purple-600"
+                      }`}
+                    >
+                      {initials}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm leading-tight flex items-center gap-1.5">
+                        {item.memberName}
+                        {isLeft && (
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-600 font-bold">
+                            LEFT
+                          </span>
+                        )}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                        <Phone className="w-3 h-3 text-slate-400" /> {item.phone || "No Phone"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Status badge */}
+                  <div>
+                    {item.dynamicStatus === "left" && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                        Left
+                      </span>
+                    )}
+                    {item.dynamicStatus === "paid" && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Paid
+                      </span>
+                    )}
+                    {item.dynamicStatus === "partial" && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                        Due: ₹{item.dueAmount}
+                      </span>
+                    )}
+                    {item.dynamicStatus === "ending_soon" && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                        Ending Soon
+                      </span>
+                    )}
+                    {item.dynamicStatus === "expired" && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
+                        Expired
+                      </span>
+                    )}
+                    {item.dynamicStatus === "overdue" && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                        Overdue
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Details Grid */}
+                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Slot & Plan</span>
+                    <span className="font-semibold text-slate-800 text-[11px] block truncate">{item.slot || "General"}</span>
+                    <span className="text-[10px] text-slate-500 block truncate">{item.planName}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Fee / Due</span>
+                    <span className="font-extrabold text-slate-900 text-[11px] block">
+                      ₹{item.amount}{" "}
+                      <span className="text-[10px] font-normal text-slate-500 uppercase">({item.paymentMode || "Cash"})</span>
+                    </span>
+                    {hasDue ? (
+                      <span className="text-[10px] font-bold text-rose-600 block">Due: ₹{item.dueAmount}</span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-emerald-600 block">
+                        {item.discount > 0 ? `-₹${item.discount} Off` : "Full Paid"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="col-span-2 pt-1 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500">
+                      Validity: <strong className="text-slate-800">{item.validityEnd}</strong>
+                    </span>
+                    {days !== null && (
+                      <span>
+                        {days > 3 ? (
+                          <span className="font-bold text-slate-500">{days} days left</span>
+                        ) : days >= 0 ? (
+                          <span className="font-extrabold text-amber-700">{days === 0 ? "Expires Today!" : `${days}d left`}</span>
+                        ) : (
+                          <span className="font-extrabold text-rose-600">{Math.abs(days)}d past due</span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions Row */}
+                <div className="flex items-center justify-between pt-1 gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => generatePaymentReceipt(item, settings)}
+                      className="px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1 transition"
+                    >
+                      <Download className="w-3 h-3 text-indigo-600" /> Bill
+                    </button>
+                    <button
+                      onClick={() => {
+                        const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${item.memberName}*,\nHere are your membership details:\n\n📋 *Plan:* ${item.planName}\n📅 *Validity:* ${item.validityStart} to ${item.validityEnd}\n💰 *Amount:* ₹${item.amount}\n${hasDue ? `⚠️ *Pending Due:* ₹${item.dueAmount}\n` : `✅ *Status:* ${item.dynamicStatus.toUpperCase()}\n`}\nThank you! 💪`;
+                        openWhatsApp(item.phone, msg);
+                      }}
+                      className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {hasDue && !isLeft && (
+                      <button
+                        onClick={() => handleOpenCollectModal(item, "clear_due")}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition"
+                      >
+                        Collect Due
+                      </button>
+                    )}
+                    {!isLeft && (
+                      <button
+                        onClick={() => handleOpenCollectModal(item, "renew")}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition"
+                      >
+                        Renew
+                      </button>
+                    )}
+                    {!isLeft && (
+                      <button
+                        onClick={() => handleOpenLeftModal(item)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
+                      >
+                        <UserX className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* COLLECT FEE & RENEW / CLEAR DUE MODAL */}

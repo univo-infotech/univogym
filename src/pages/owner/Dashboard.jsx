@@ -329,21 +329,21 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
             <button
               onClick={() => {
                 setGeneratedLink("");
                 setInvitePhone("");
                 setInviteModalOpen(true);
               }}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white text-emerald-800 text-xs sm:text-sm font-bold shadow-md hover:bg-emerald-50 transition"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white text-emerald-800 text-xs sm:text-sm font-bold shadow-md hover:bg-emerald-50 transition"
             >
               <Share2 className="w-4 h-4 text-emerald-600" /> Share 10-Min WhatsApp Link
             </button>
 
             <button
               onClick={() => setDirectAddOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-950/40 text-white border border-white/30 text-xs sm:text-sm font-bold backdrop-blur-md hover:bg-emerald-950/60 transition"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-950/40 text-white border border-white/30 text-xs sm:text-sm font-bold backdrop-blur-md hover:bg-emerald-950/60 transition"
             >
               <UserPlus className="w-4 h-4" /> Add Member Directly
             </button>
@@ -402,42 +402,42 @@ export default function Dashboard() {
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-3 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 pt-3 text-center">
           <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">Gross Inflow</span>
-            <span className="text-base sm:text-lg font-black text-white mt-0.5 block">
+            <span className="text-[10px] uppercase font-bold text-slate-400 block truncate">Gross Inflow</span>
+            <span className="text-sm sm:text-base lg:text-lg font-black text-white mt-0.5 block truncate">
               ₹{totalGrossRevenue.toLocaleString("en-IN")}
             </span>
             <span className="text-[10px] text-slate-400">Total collected</span>
           </div>
 
           <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20">
-            <span className="text-[10px] uppercase font-bold text-amber-400 block">Trainer Commissions</span>
-            <span className="text-base sm:text-lg font-black text-amber-300 mt-0.5 block">
+            <span className="text-[10px] uppercase font-bold text-amber-400 block truncate">Trainer Cuts</span>
+            <span className="text-sm sm:text-base lg:text-lg font-black text-amber-300 mt-0.5 block truncate">
               -₹{totalTrainerLiability.toLocaleString("en-IN")}
             </span>
-            <span className="text-[10px] text-amber-200/70">PT & Store cut</span>
+            <span className="text-[10px] text-amber-200/70">PT & Store share</span>
           </div>
 
           <div className="p-2.5 rounded-2xl bg-teal-500/10 border border-teal-500/20">
-            <span className="text-[10px] uppercase font-bold text-teal-300 block">Gym Net Revenue</span>
-            <span className="text-base sm:text-lg font-black text-teal-200 mt-0.5 block">
+            <span className="text-[10px] uppercase font-bold text-teal-300 block truncate">Gym Net Rev</span>
+            <span className="text-sm sm:text-base lg:text-lg font-black text-teal-200 mt-0.5 block truncate">
               ₹{totalNetRevenue.toLocaleString("en-IN")}
             </span>
             <span className="text-[10px] text-teal-300/70">Retained revenue</span>
           </div>
 
           <div className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/20">
-            <span className="text-[10px] uppercase font-bold text-rose-300 block">Overhead Expenses</span>
-            <span className="text-base sm:text-lg font-black text-rose-300 mt-0.5 block">
+            <span className="text-[10px] uppercase font-bold text-rose-300 block truncate">Overhead Costs</span>
+            <span className="text-sm sm:text-base lg:text-lg font-black text-rose-300 mt-0.5 block truncate">
               -₹{totalExpensesAmount.toLocaleString("en-IN")}
             </span>
-            <span className="text-[10px] text-rose-200/70">Bills, rent & repairs</span>
+            <span className="text-[10px] text-rose-200/70">Bills, rent & upkeep</span>
           </div>
 
           <div className="p-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 col-span-2 sm:col-span-1">
-            <span className="text-[10px] uppercase font-bold text-emerald-300 block">Net Operating Profit</span>
-            <span className="text-base sm:text-lg font-black text-emerald-300 mt-0.5 block">
+            <span className="text-[10px] uppercase font-bold text-emerald-300 block truncate">Net Operating Profit</span>
+            <span className="text-base sm:text-lg font-black text-emerald-300 mt-0.5 block truncate">
               ₹{netOperatingProfit.toLocaleString("en-IN")}
             </span>
             <span className="text-[10px] text-emerald-200 font-semibold">Owner Take-Home</span>

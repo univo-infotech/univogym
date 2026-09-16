@@ -209,7 +209,7 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
 
           {/* Interactive Notifications & Reminder Dropdown Panel */}
           {notificationsOpen && (
-            <div className="absolute right-0 mt-2 w-[340px] sm:w-[420px] bg-white rounded-2xl border border-slate-200 shadow-2xl p-4 text-xs z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="fixed sm:absolute right-2 sm:right-0 top-16 sm:top-auto sm:mt-2 w-[calc(100vw-16px)] max-w-sm sm:max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-4 text-xs z-50 animate-in fade-in slide-in-from-top-2 duration-150">
               {/* Header */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">

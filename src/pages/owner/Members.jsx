@@ -2635,8 +2635,7 @@ export default function Members() {
   const [members, setMembers] = useState(() => getSessionCachedData(`members_${gymId}`) || []);
   const [trainers, setTrainers] = useState(() => getSessionCachedData(`trainers_${gymId}`) || []);
   const [plans, setPlans] = useState(() => getSessionCachedData(`plans_${gymId}`) || []);
-  const [loading, setLoading] = useState(() => !getSessionCachedData(`members_${gymId}`));
-  const [view, setView] = useState('table');
+  const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth < 768 ? 'grid' : 'table'));
   const [search, setSearch] = useState('');
   const [filterTab, setFilterTab] = useState('active');
   const [showInvite, setShowInvite] = useState(false);
