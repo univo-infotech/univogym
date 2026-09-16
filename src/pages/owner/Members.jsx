@@ -60,6 +60,7 @@ import { getMembers, generateInviteToken, addMember, updateMember, deleteMember 
 import { getTrainers } from '../../firebase/trainers';
 import { getPlans } from '../../firebase/plans';
 import { addPayment, getAllPayments } from '../../firebase/payments';
+import { getServices, DEFAULT_SERVICES } from '../../firebase/services';
 import { useAuth } from '../../contexts/AuthContext';
 import { getGymSettings } from '../../utils/settings';
 import { generatePaymentReceipt } from '../../utils/pdf';
@@ -890,13 +891,63 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
   const [remarks, setRemarks] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Add-on Gym Services (Steam & Sauna, Locker, Diet Consultation, etc.)
+  const [selectedServices, setSelectedServices] = useState(() => {
+    if (Array.isArray(member.selectedServices) && member.selectedServices.length > 0) {
+      return member.selectedServices;
+    }
+    return [];
+  });
+  const [availableServices, setAvailableServices] = useState([]);
+
+  useEffect(() => {
+    async function loadGymServices() {
+      try {
+        const s = await getServices(gymId || "univo_main");
+        if (s && s.length > 0) {
+          const activeOnly = s.filter((item) => item.isActive !== false);
+          setAvailableServices(activeOnly.length > 0 ? activeOnly : DEFAULT_SERVICES);
+        } else {
+          setAvailableServices(DEFAULT_SERVICES);
+        }
+      } catch (e) {
+        setAvailableServices(DEFAULT_SERVICES);
+      }
+    }
+    loadGymServices();
+  }, [gymId]);
+
+  const servicesTotal = useMemo(() => {
+    return selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+  }, [selectedServices]);
+
+  const toggleServiceSelection = (srv) => {
+    setSelectedServices((prev) => {
+      const exists = prev.some((s) => s.id === srv.id || s.name === srv.name);
+      if (exists) {
+        return prev.filter((s) => s.id !== srv.id && s.name !== srv.name);
+      } else {
+        return [
+          ...prev,
+          {
+            id: srv.id,
+            name: srv.name,
+            price: Number(srv.price || 0),
+            category: srv.category || "General",
+            billingType: srv.billingType || "Per Month",
+          },
+        ];
+      }
+    });
+  };
+
   const currentPlan = PLANS_CATALOG.find((p) => p.id === selectedPlanId) || PLANS_CATALOG[0];
   const targetPayableTotal = hasPartialPaymentDue
     ? existingDueAmount
-    : Math.max(0, currentPlan.price + Number(selectedPtPrice || 0) - Number(discountAmount || 0));
+    : Math.max(0, currentPlan.price + Number(selectedPtPrice || 0) + Number(servicesTotal || 0) - Number(discountAmount || 0));
   const calculatedTotal = targetPayableTotal;
 
-  const [payingNow, setPayingNow] = useState(hasPartialPaymentDue ? existingDueAmount : (initialPlan.price + Number(member.ptPlanPrice || 0)));
+  const [payingNow, setPayingNow] = useState(hasPartialPaymentDue ? existingDueAmount : (initialPlan.price + Number(member.ptPlanPrice || 0) + (Array.isArray(member.selectedServices) ? member.selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0) : 0)));
 
   // Auto calculate validity end date
   useEffect(() => {
@@ -916,6 +967,55 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
       setPayingNow(calculatedTotal);
     }
   }, [calculatedTotal, paymentType]);
+
+  // Split payment auto-calculation logic (half default, typing in one updates the other)
+  const handleSelectPaymentMode = (modeKey) => {
+    setPaymentMode(modeKey);
+    if (modeKey === "split") {
+      const total = Number(payingNow || 0);
+      const half = Math.floor(total / 2);
+      setCashAmount(String(half));
+      setOnlineAmount(String(total - half));
+    }
+  };
+
+  const handleCashChange = (val) => {
+    setCashAmount(val);
+    if (val === "") {
+      setOnlineAmount(String(payingNow || 0));
+      return;
+    }
+    const num = Number(val) || 0;
+    const total = Number(payingNow || 0);
+    const remaining = Math.max(0, total - num);
+    setOnlineAmount(String(remaining));
+  };
+
+  const handleOnlineChange = (val) => {
+    setOnlineAmount(val);
+    if (val === "") {
+      setCashAmount(String(payingNow || 0));
+      return;
+    }
+    const num = Number(val) || 0;
+    const total = Number(payingNow || 0);
+    const remaining = Math.max(0, total - num);
+    setCashAmount(String(remaining));
+  };
+
+  useEffect(() => {
+    if (paymentMode === "split") {
+      const total = Number(payingNow || 0);
+      const numCash = Number(cashAmount) || 0;
+      if (numCash > 0 && numCash <= total) {
+        setOnlineAmount(String(total - numCash));
+      } else {
+        const half = Math.floor(total / 2);
+        setCashAmount(String(half));
+        setOnlineAmount(String(total - half));
+      }
+    }
+  }, [payingNow, paymentMode]);
 
   const remainingDue = Math.max(0, calculatedTotal - Number(payingNow || 0));
 
@@ -952,14 +1052,23 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
       phone,
       slot: memberSlot,
       batch: member.batch || "Alpha Gym",
+      selectedServices: selectedServices.map((s) => ({
+        id: s.id,
+        name: s.name,
+        price: Number(s.price || 0),
+        category: s.category || "General",
+        billingType: s.billingType || "Per Month",
+      })),
+      servicesTotalPrice: servicesTotal,
       planName: hasPartialPaymentDue 
-        ? `${member.planName || currentPlan.name}${selectedPtPlanName ? ` + PT (${selectedPtPlanName})` : ''} (Due Balance Settlement)` 
-        : `${currentPlan.name}${selectedPtPlanName ? ` + PT (${selectedPtPlanName})` : ''}`,
+        ? `${member.planName || currentPlan.name}${selectedPtPlanName ? ` + PT (${selectedPtPlanName})` : ''}${servicesTotal > 0 ? ` + Services (${selectedServices.map((s) => s.name).join(', ')})` : ''} (Due Balance Settlement)` 
+        : `${currentPlan.name}${selectedPtPlanName ? ` + PT (${selectedPtPlanName})` : ''}${servicesTotal > 0 ? ` + Services (${selectedServices.map((s) => s.name).join(', ')})` : ''}`,
       validityStart: toIndianDate(validityStart),
       validityEnd: hasPartialPaymentDue && member.expiryDate ? toIndianDate(member.expiryDate) : validityEnd,
       dueDate: validityEnd,
       planPrice: currentPlan.price,
       ptPlanPrice: Number(selectedPtPrice || 0),
+      servicesPrice: Number(servicesTotal || 0),
       discount: Number(discountAmount || 0),
       amount: calculatedTotal,
       paidAmount: Number(payingNow),
@@ -982,7 +1091,15 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
           hasPersonalCoach: isTrainerSelected && Number(selectedPtPrice) > 0,
           ptPlanId: selectedPtPlanId,
           ptPlanName: selectedPtPlanName,
-          ptPlanPrice: Number(selectedPtPrice || 0)
+          ptPlanPrice: Number(selectedPtPrice || 0),
+          selectedServices: selectedServices.map((s) => ({
+            id: s.id,
+            name: s.name,
+            price: Number(s.price || 0),
+            category: s.category || "General",
+            billingType: s.billingType || "Per Month",
+          })),
+          servicesTotalPrice: servicesTotal,
         }),
         expiryDate: newExpiryIso,
         status: "active",
@@ -1261,6 +1378,65 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
           </div>
         </div>
 
+        {/* Add-on Gym Services (Steam & Sauna, Locker, Diet Consultation, etc.) */}
+        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-teal-50/70 via-emerald-50/40 to-slate-50 border border-teal-200 space-y-3 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-teal-600" />
+              <span className="font-extrabold text-teal-950 text-xs">
+                Add-on Gym Services & Facilities (अतिरिक्त सेवाएं)
+              </span>
+            </div>
+            {selectedServices.length > 0 ? (
+              <span className="text-[10px] font-black bg-teal-600 text-white px-2.5 py-0.5 rounded-full shadow-2xs">
+                {selectedServices.length} Selected (+₹{servicesTotal.toLocaleString('en-IN')})
+              </span>
+            ) : (
+              <span className="text-[10px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                Optional
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-600">
+            Member ne jo services li hain unhe check karein. Yahan se service <b>add</b> ya <b>hata (remove)</b> sakte hain:
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {availableServices.map((srv) => {
+              const isChecked = selectedServices.some((s) => s.id === srv.id || s.name === srv.name);
+              const sPrice = Number(srv.price || 0);
+
+              return (
+                <div
+                  key={srv.id}
+                  onClick={() => toggleServiceSelection(srv)}
+                  className={`p-2.5 rounded-xl border-2 cursor-pointer transition flex items-center justify-between gap-2 select-none ${
+                    isChecked
+                      ? 'bg-teal-50 border-teal-500 shadow-2xs'
+                      : 'bg-white border-slate-200 hover:border-teal-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => {}}
+                      className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 pointer-events-none"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-900 truncate">{srv.name}</p>
+                      <p className="text-[10px] text-slate-500 truncate">{srv.category || 'Facility'}</p>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-extrabold shrink-0 ${isChecked ? 'text-teal-800' : 'text-slate-700'}`}>
+                    +₹{sPrice.toLocaleString('en-IN')}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Membership Bill Validity Period Box (Enhanced) */}
         <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50/70 to-teal-50/40 border border-emerald-200 space-y-2.5 shadow-2xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1311,6 +1487,11 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
             {selectedPtPrice > 0 && (
               <span className="px-2 py-0.5 rounded-md bg-purple-900/70 text-purple-200 font-bold text-[10px] border border-purple-700/60">
                 + PT {selectedPtPlanName ? `(${selectedPtPlanName})` : ''}: ₹{selectedPtPrice}
+              </span>
+            )}
+            {servicesTotal > 0 && (
+              <span className="px-2 py-0.5 rounded-md bg-teal-900/70 text-teal-200 font-bold text-[10px] border border-teal-700/60">
+                + Services: ₹{servicesTotal}
               </span>
             )}
             {discountAmount > 0 && (
@@ -1423,7 +1604,7 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
                 <button
                   type="button"
                   key={m.key}
-                  onClick={() => setPaymentMode(m.key)}
+                  onClick={() => handleSelectPaymentMode(m.key)}
                   className={`py-2.5 px-2 rounded-xl text-xs font-bold border flex flex-col items-center justify-center gap-1.5 transition ${
                     isSelected
                       ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
@@ -1439,26 +1620,46 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
 
           {/* Split Amount Inputs if Split is chosen */}
           {paymentMode === "split" && (
-            <div className="p-3.5 bg-amber-500/10 border border-amber-300 rounded-xl grid grid-cols-2 gap-3 text-xs animate-in fade-in duration-150">
-              <div>
-                <label className="font-bold text-amber-950 block mb-1">💵 Cash Amount (₹)</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 1000"
-                  value={cashAmount}
-                  onChange={(e) => setCashAmount(e.target.value)}
-                  className="w-full bg-white border border-amber-400 rounded-xl px-3 py-2 font-bold text-slate-900 focus:outline-none"
-                />
+            <div className="p-3.5 bg-amber-500/10 border-2 border-amber-400/80 rounded-2xl grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs animate-in fade-in duration-150 shadow-sm">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="font-extrabold text-amber-950 flex items-center gap-1">
+                    💵 Cash Amount (₹)
+                  </label>
+                  <span className="text-[10px] text-amber-800 font-bold bg-amber-100 px-1.5 py-0.5 rounded">Auto-syncs with UPI</span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-amber-800">₹</span>
+                  <input
+                    type="number"
+                    placeholder="e.g. 50"
+                    value={cashAmount}
+                    onChange={(e) => handleCashChange(e.target.value)}
+                    className="w-full bg-white border-2 border-amber-400 focus:border-amber-600 rounded-xl pl-7 pr-3 py-2 font-black text-slate-900 focus:outline-none transition shadow-2xs"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="font-bold text-amber-950 block mb-1">📱 UPI Amount (₹)</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 1799"
-                  value={onlineAmount}
-                  onChange={(e) => setOnlineAmount(e.target.value)}
-                  className="w-full bg-white border border-amber-400 rounded-xl px-3 py-2 font-bold text-slate-900 focus:outline-none"
-                />
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="font-extrabold text-amber-950 flex items-center gap-1">
+                    📱 UPI / QR Amount (₹)
+                  </label>
+                  <span className="text-[10px] text-amber-800 font-bold bg-amber-100 px-1.5 py-0.5 rounded">Auto-syncs with Cash</span>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-indigo-700">₹</span>
+                  <input
+                    type="number"
+                    placeholder="e.g. 50"
+                    value={onlineAmount}
+                    onChange={(e) => handleOnlineChange(e.target.value)}
+                    className="w-full bg-white border-2 border-amber-400 focus:border-amber-600 rounded-xl pl-7 pr-3 py-2 font-black text-slate-900 focus:outline-none transition shadow-2xs"
+                  />
+                </div>
+              </div>
+              <div className="sm:col-span-2 text-[11px] text-amber-950 font-bold bg-amber-100/80 p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-1 border border-amber-300">
+                <span>Split Total: <b className="text-slate-900">₹{Number(cashAmount || 0) + Number(onlineAmount || 0)}</b> / ₹{payingNow}</span>
+                <span className="text-emerald-800 font-black">✓ Ek jagah badalne par doosra apne aap calculate hota hai</span>
               </div>
             </div>
           )}

@@ -41,7 +41,7 @@ import toast from "react-hot-toast";
 import { addMember } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
 import { getPlans, getActivePlans } from "../../firebase/plans";
-import { getServices } from "../../firebase/services";
+import { getServices, DEFAULT_SERVICES } from "../../firebase/services";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -106,7 +106,9 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
         }
         if (serviceList && serviceList.length > 0) {
           const activeServices = serviceList.filter(s => s.isActive !== false);
-          setDbServices(activeServices.length > 0 ? activeServices : serviceList);
+          setDbServices(activeServices.length > 0 ? activeServices : DEFAULT_SERVICES);
+        } else {
+          setDbServices(DEFAULT_SERVICES);
         }
       } catch (err) {
         console.warn("Could not load data in AddMemberModal:", err);
