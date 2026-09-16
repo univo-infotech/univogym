@@ -62,28 +62,52 @@ export async function getPaymentById(paymentId) {
 
 /**
  * Get all payments for a member.
- * @param {string} memberId
+ * Supports both getMemberPayments(memberId) and getMemberPayments(gymId, memberId).
+ * Avoids requiring composite Firestore indexes by querying by memberId and sorting in memory.
+ * @param {string} gymIdOrMemberId
+ * @param {string} [maybeMemberId]
  * @returns {Promise<Array>}
  */
-export async function getMemberPayments(memberId) {
-  const localList = getLocalPayments().filter((p) => p.memberId === memberId);
+export async function getMemberPayments(gymIdOrMemberId, maybeMemberId) {
+  const targetMemberId = maybeMemberId || gymIdOrMemberId;
+  if (!targetMemberId) return [];
+
+  const localList = getLocalPayments().filter((p) => p.memberId === targetMemberId);
+  let serverList = [];
+
   try {
+    // Single equality filter: no composite index required
     const q = query(
       collection(db, "payments"),
-      where("memberId", "==", memberId),
-      orderBy("date", "desc")
+      where("memberId", "==", targetMemberId)
     );
     const snap = await getDocs(q);
-    const serverList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-
-    // Merge server and local, prioritizing server if duplicate IDs
-    const serverIds = new Set(serverList.map((p) => p.id));
-    const merged = [...serverList, ...localList.filter((p) => !serverIds.has(p.id))];
-    return merged.length > 0 ? merged : localList;
+    serverList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (err) {
-    console.error("getMemberPayments error:", err);
-    return localList;
+    console.warn("getMemberPayments direct query warning:", err);
+    try {
+      // Fallback: fetch and filter client-side
+      const allSnap = await getDocs(collection(db, "payments"));
+      serverList = allSnap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((p) => p.memberId === targetMemberId);
+    } catch (fallbackErr) {
+      console.error("getMemberPayments fallback error:", fallbackErr);
+    }
   }
+
+  // Merge server and local, prioritizing server if duplicate IDs
+  const serverIds = new Set(serverList.map((p) => p.id));
+  const merged = [...serverList, ...localList.filter((p) => !serverIds.has(p.id))];
+
+  // In-memory sort by date / createdAt descending
+  merged.sort((a, b) => {
+    const dateA = a.date || a.createdAt || "";
+    const dateB = b.date || b.createdAt || "";
+    return dateB.localeCompare(dateA);
+  });
+
+  return merged.length > 0 ? merged : localList;
 }
 
 /**
