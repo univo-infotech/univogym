@@ -86,6 +86,7 @@ export async function getExpenses(gymId, forceRefresh = false) {
               category: tpl.category || "General",
               amount: Number(tpl.amount) || 0,
               type: "monthly",
+              monthlyPaymentType: tpl.monthlyPaymentType || "advance",
               isRecurringInstance: true,
               templateId: tpl.id,
               date: entryDate,

@@ -68,7 +68,11 @@ function normalizeDate(dStr) {
 export default function Reports() {
   const { gymId: currentGymId } = useAuth();
   const gymId = currentGymId || "univo_main";
-  const settings = getGymSettings();
+  const [settings, setSettings] = useState(getGymSettings());
+
+  useEffect(() => {
+    setSettings(getGymSettings());
+  }, []);
 
   // Mode: "daily" | "monthly" | "custom"
   const [reportMode, setReportMode] = useState("daily");
@@ -459,14 +463,40 @@ export default function Reports() {
       {/* Header Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
-              <BarChart2 className="w-5 h-5" />
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200/80 p-1 flex items-center justify-center text-white shadow-md shadow-emerald-500/10 shrink-0 overflow-hidden">
+              {settings?.logoUrl ? (
+                <img
+                  src={settings.logoUrl}
+                  alt={settings.gymName || "Gym Logo"}
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                    if (e.currentTarget.nextSibling) {
+                      e.currentTarget.nextSibling.style.display = "flex";
+                    }
+                  }}
+                />
+              ) : null}
+              <div
+                className={`w-full h-full rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white ${
+                  settings?.logoUrl ? "hidden" : "flex"
+                }`}
+              >
+                <BarChart2 className="w-6 h-6" />
+              </div>
             </div>
             <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                Financial Reports & Audit Statements
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                  Financial Reports & Audit Statements
+                </h1>
+                {settings?.gymName && (
+                  <span className="hidden sm:inline-flex text-[10px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    {settings.gymName}
+                  </span>
+                )}
+              </div>
               <p className="text-slate-500 text-xs">
                 Comprehensive Daily, Monthly & Lifetime profit, expenses and balance ledger
               </p>

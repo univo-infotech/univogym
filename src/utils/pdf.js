@@ -296,9 +296,14 @@ export function generateFinancialStatementPDF({
   // Logo if dataUrl provided
   if (settings.logoUrl && settings.logoUrl.startsWith("data:image")) {
     try {
-      doc.addImage(settings.logoUrl, "PNG", 14, 5, 22, 22);
+      const format = settings.logoUrl.includes("image/png") ? "PNG" : "JPEG";
+      doc.addImage(settings.logoUrl, format, 14, 5, 22, 22);
     } catch (e) {
-      console.warn("Logo embed failed:", e);
+      try {
+        doc.addImage(settings.logoUrl, 14, 5, 22, 22);
+      } catch (err) {
+        console.warn("Logo embed failed:", err);
+      }
     }
   }
 

@@ -61,8 +61,9 @@ export default function Expenses() {
 
   const [form, setForm] = useState({
     title: "",
-    category: "Electricity",
+    category: "Rent",
     type: "monthly", // "monthly" | "onetime"
+    monthlyPaymentType: "advance", // "advance" (महीने के शुरू में / अग्रिम) | "postpaid" (महीने के बाद / बिल आने पर)
     amount: "",
     date: todayIso,
     dayOfMonth: new Date().getDate(),
@@ -99,32 +100,67 @@ export default function Expenses() {
     try {
       const isMonthly = form.type === "monthly";
       const isAuto = isMonthly && form.autoMonthlyRecur;
+      const isAdvance = isMonthly && form.monthlyPaymentType === "advance";
 
-      const newExpense = {
-        title: form.title.trim(),
-        category: form.category,
-        amount: Number(form.amount),
-        type: form.type,
-        date: form.date,
-        notes: form.notes || "",
-        isRecurringTemplate: isAuto,
-        isActive: true,
-        startDate: form.date,
-        dayOfMonth: Number(form.dayOfMonth) || Number(form.date.split("-")[2]) || 1,
-        status: isAuto ? "active_recurring" : "paid"
-      };
+      if (isMonthly) {
+        // 1. Create recurring rule template
+        const templateDoc = await addExpense(gymId, {
+          title: form.title.trim(),
+          category: form.category,
+          amount: Number(form.amount),
+          type: "monthly",
+          monthlyPaymentType: form.monthlyPaymentType || "advance",
+          date: form.date,
+          notes: form.notes || "",
+          isRecurringTemplate: isAuto,
+          isActive: true,
+          startDate: form.date,
+          dayOfMonth: Number(form.dayOfMonth) || Number(form.date.split("-")[2]) || 1,
+          status: "active_recurring",
+          createdAt: new Date().toISOString()
+        });
 
-      await addExpense(gymId, newExpense);
-      toast.success(
-        isAuto
-          ? "Monthly recurring expense created! Automatic billing set up. ✨"
-          : "Expense added successfully!"
-      );
+        // 2. If Advance: immediately add today's / effective date's expense record to the ledger!
+        if (isAdvance) {
+          await addExpense(gymId, {
+            title: form.title.trim(),
+            category: form.category,
+            amount: Number(form.amount),
+            type: "monthly",
+            monthlyPaymentType: "advance",
+            isRecurringInstance: true,
+            templateId: templateDoc?.id || "",
+            date: form.date,
+            status: "paid",
+            notes: form.notes ? `Advance payment (${form.notes})` : "Advance monthly payment (Current Month)",
+            createdAt: new Date().toISOString()
+          });
+          toast.success("⚡ Advance monthly expense added! Instant ledger entry recorded & monthly schedule active.");
+        } else {
+          toast.success("🗓️ Postpaid monthly rule created! Expense will bill on scheduled cycle date.");
+        }
+      } else {
+        // One-time expense
+        await addExpense(gymId, {
+          title: form.title.trim(),
+          category: form.category,
+          amount: Number(form.amount),
+          type: "onetime",
+          date: form.date,
+          notes: form.notes || "",
+          isRecurringTemplate: false,
+          status: "paid",
+          createdAt: new Date().toISOString()
+        });
+        toast.success("One-time expense recorded successfully!");
+      }
+
       setModalOpen(false);
       setForm({
         title: "",
-        category: "Electricity",
+        category: "Rent",
         type: "monthly",
+        monthlyPaymentType: "advance",
         amount: "",
         date: todayIso,
         dayOfMonth: new Date().getDate(),
@@ -176,6 +212,10 @@ export default function Expenses() {
       // Tab filter
       if (activeTab === "monthly_templates") {
         if (!e.isRecurringTemplate) return false;
+      } else if (activeTab === "monthly_advance") {
+        if (e.type !== "monthly" || (e.monthlyPaymentType && e.monthlyPaymentType !== "advance")) return false;
+      } else if (activeTab === "monthly_postpaid") {
+        if (e.type !== "monthly" || e.monthlyPaymentType !== "postpaid") return false;
       } else if (activeTab === "onetime") {
         if (e.type !== "onetime") return false;
       }
@@ -358,25 +398,43 @@ export default function Expenses() {
                         <span className="text-[10px] text-slate-400 font-semibold">{t.category}</span>
                       </div>
                     </div>
-                    <span
-                      className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                        isActive
-                          ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-                          : "bg-slate-100 text-slate-600 border-slate-200"
-                      }`}
-                    >
-                      {isActive ? "Active Auto" : "Paused"}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                          (t.monthlyPaymentType || "advance") === "advance"
+                            ? "bg-amber-50 text-amber-800 border-amber-200"
+                            : "bg-blue-50 text-blue-800 border-blue-200"
+                        }`}
+                      >
+                        {(t.monthlyPaymentType || "advance") === "advance" ? "⚡ Advance" : "🗓️ Postpaid"}
+                      </span>
+                      <span
+                        className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                          isActive
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                            : "bg-slate-100 text-slate-600 border-slate-200"
+                        }`}
+                      >
+                        {isActive ? "Active Auto" : "Paused"}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold uppercase block">Fixed Amount</span>
-                      <p className="text-base font-black text-rose-600">₹{Number(t.amount).toLocaleString("en-IN")}<span className="text-xs text-slate-400 font-normal">/mo</span></p>
+                      <p className="text-base font-black text-rose-600">
+                        ₹{Number(t.amount).toLocaleString("en-IN")}
+                        <span className="text-xs text-slate-400 font-normal">/mo</span>
+                      </p>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Auto-Bill Date</span>
-                      <p className="text-xs font-black text-slate-800">Day {t.dayOfMonth || 1} of Month</p>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">
+                        {(t.monthlyPaymentType || "advance") === "advance" ? "Billed Upfront" : "Billed After Month"}
+                      </span>
+                      <p className="text-xs font-black text-slate-800">
+                        Day {t.dayOfMonth || 1} of Month
+                      </p>
                     </div>
                   </div>
 
@@ -424,33 +482,53 @@ export default function Expenses() {
         <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl overflow-x-auto">
           <button
             onClick={() => setActiveTab("all")}
-            className={`px-4 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap ${
+            className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap ${
               activeTab === "all"
                 ? "bg-white text-emerald-700 shadow-xs border border-emerald-100"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            All Ledger Entries ({expenses.length})
+            All Ledger ({expenses.length})
           </button>
           <button
             onClick={() => setActiveTab("monthly_templates")}
-            className={`px-4 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "monthly_templates"
                 ? "bg-white text-emerald-700 shadow-xs border border-emerald-100"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <Repeat className="w-3.5 h-3.5" /> Fixed Recurring Rules ({recurringTemplates.length})
+            <Repeat className="w-3.5 h-3.5" /> Recurring Rules ({recurringTemplates.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("monthly_advance")}
+            className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === "monthly_advance"
+                ? "bg-white text-amber-700 shadow-xs border border-amber-100"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Zap className="w-3.5 h-3.5 text-amber-600" /> ⚡ Advance Monthly
+          </button>
+          <button
+            onClick={() => setActiveTab("monthly_postpaid")}
+            className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === "monthly_postpaid"
+                ? "bg-white text-blue-700 shadow-xs border border-blue-100"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5 text-blue-600" /> 🗓️ Postpaid Bills
           </button>
           <button
             onClick={() => setActiveTab("onetime")}
-            className={`px-4 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap ${
+            className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap ${
               activeTab === "onetime"
                 ? "bg-white text-emerald-700 shadow-xs border border-emerald-100"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            One-Time Expenses Only
+            One-Time Only
           </button>
         </div>
 
@@ -529,12 +607,40 @@ export default function Expenses() {
                       </td>
                       <td className="px-5 py-3.5">
                         {exp.isRecurringTemplate ? (
-                          <span className="inline-flex items-center gap-1 text-purple-700 font-extrabold text-[11px] bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
-                            <Repeat className="w-3 h-3" /> Monthly Rule (Day {exp.dayOfMonth || 1})
+                          <span
+                            className={`inline-flex items-center gap-1 font-extrabold text-[11px] px-2.5 py-0.5 rounded-md border ${
+                              (exp.monthlyPaymentType || "advance") === "advance"
+                                ? "text-amber-700 bg-amber-50 border-amber-200"
+                                : "text-blue-700 bg-blue-50 border-blue-200"
+                            }`}
+                          >
+                            {(exp.monthlyPaymentType || "advance") === "advance" ? (
+                              <>
+                                <Zap className="w-3 h-3 text-amber-600" /> ⚡ Advance Rule (Day {exp.dayOfMonth || 1})
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-3 h-3 text-blue-600" /> 🗓️ Postpaid Rule (Day {exp.dayOfMonth || 1})
+                              </>
+                            )}
                           </span>
-                        ) : exp.isRecurringInstance ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[11px] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                            <CheckCircle2 className="w-3 h-3" /> Auto-Generated
+                        ) : exp.type === "monthly" || exp.isRecurringInstance ? (
+                          <span
+                            className={`inline-flex items-center gap-1 font-bold text-[11px] px-2 py-0.5 rounded-md border ${
+                              (exp.monthlyPaymentType || "advance") === "advance"
+                                ? "text-amber-800 bg-amber-50/80 border-amber-200"
+                                : "text-blue-800 bg-blue-50/80 border-blue-200"
+                            }`}
+                          >
+                            {(exp.monthlyPaymentType || "advance") === "advance" ? (
+                              <>
+                                <Zap className="w-3 h-3 text-amber-600" /> ⚡ Monthly: Advance
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-3 h-3 text-blue-600" /> 🗓️ Monthly: Postpaid
+                              </>
+                            )}
                           </span>
                         ) : (
                           <span className="text-slate-500 text-[11px] font-medium capitalize">
@@ -667,25 +773,97 @@ export default function Expenses() {
             </div>
 
             {form.type === "monthly" && (
-              <div className="pt-2 border-t border-slate-200/80 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-700">Billing Day of the Month:</span>
+              <div className="pt-3 border-t border-slate-200/80 space-y-3">
+                <div>
+                  <label className="text-xs font-black text-slate-800 uppercase tracking-wider block mb-1.5">
+                    Monthly Payment Timing / भुगतान का समय *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, monthlyPaymentType: "advance" })}
+                      className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                        form.monthlyPaymentType === "advance"
+                          ? "bg-amber-50/70 border-amber-500 shadow-xs ring-1 ring-amber-500"
+                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-white"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <Zap className={`w-4 h-4 ${form.monthlyPaymentType === "advance" ? "text-amber-600" : "text-slate-400"}`} />
+                          <span className="text-xs font-black text-slate-900">⚡ Advance (अग्रिम)</span>
+                        </div>
+                        <p className="text-[11px] font-bold text-amber-700 mt-0.5">
+                          महीने के शुरू में (Rent, Salary)
+                        </p>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
+                        Chuni hui date/aaj hi turant ledger me jud jayega aur har month advance repeat hoga.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, monthlyPaymentType: "postpaid" })}
+                      className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                        form.monthlyPaymentType === "postpaid"
+                          ? "bg-blue-50/70 border-blue-500 shadow-xs ring-1 ring-blue-500"
+                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-white"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <Clock className={`w-4 h-4 ${form.monthlyPaymentType === "postpaid" ? "text-blue-600" : "text-slate-400"}`} />
+                          <span className="text-xs font-black text-slate-900">🗓️ Postpaid (बिल आने पर)</span>
+                        </div>
+                        <p className="text-[11px] font-bold text-blue-700 mt-0.5">
+                          महीने के बाद (Bijli, Paani)
+                        </p>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
+                        Mahina pura hone ke baad agle cycle date par kharcha auto-bill hoga.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs bg-slate-100/70 p-2.5 rounded-xl border border-slate-200">
+                  <span className="font-bold text-slate-700">Billing / Repeat Cycle Day:</span>
                   <select
                     value={form.dayOfMonth}
                     onChange={(e) => setForm({ ...form, dayOfMonth: Number(e.target.value) })}
                     className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 font-extrabold text-slate-800"
                   >
-                    {[1, 5, 10, 15, 20, 25, 28].map((day) => (
+                    {[1, 2, 3, 4, 5, 7, 10, 15, 20, 25, 28, 30].map((day) => (
                       <option key={day} value={day}>
-                        {day}st/th of each month
+                        {day}th of every month
                       </option>
                     ))}
                   </select>
                 </div>
-                <div className="flex items-center gap-2 text-[11px] text-emerald-800 bg-emerald-50 p-2 rounded-xl border border-emerald-200">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+
+                <div
+                  className={`flex items-start gap-2 text-[11px] p-2.5 rounded-xl border ${
+                    form.monthlyPaymentType === "advance"
+                      ? "text-amber-900 bg-amber-50/70 border-amber-200"
+                      : "text-blue-900 bg-blue-50/70 border-blue-200"
+                  }`}
+                >
+                  {form.monthlyPaymentType === "advance" ? (
+                    <Zap className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                  ) : (
+                    <Clock className="w-4 h-4 shrink-0 text-blue-600 mt-0.5" />
+                  )}
                   <span>
-                    Auto-Pilot on: Har mahine ki tarikh {form.dayOfMonth} ko ledger me automatic kharcha jud jayega jab tak aap ise pause ya delete nahi karte.
+                    {form.monthlyPaymentType === "advance" ? (
+                      <>
+                        <strong>⚡ Advance Mode Active:</strong> Is kharche ka ₹{form.amount || "0"} ka record turant ledger me <strong>{form.date}</strong> par add ho jayega, aur agli har mahine ki <strong>{form.dayOfMonth}</strong> tarikh ko advance recurring repeat hoga.
+                      </>
+                    ) : (
+                      <>
+                        <strong>🗓️ Postpaid Mode Active:</strong> Month pura hone ke baad har mahine ki <strong>{form.dayOfMonth}</strong> tarikh ko scheduled auto-bill kharcha generate hoga.
+                      </>
+                    )}
                   </span>
                 </div>
               </div>
@@ -718,7 +896,11 @@ export default function Expenses() {
             type="submit"
             className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-md shadow-emerald-500/20 transition active:scale-98"
           >
-            {form.type === "monthly" ? "Save & Activate Automated Monthly Bill ✨" : "Record One-Time Expense"}
+            {form.type === "monthly"
+              ? form.monthlyPaymentType === "advance"
+                ? "Record Advance Payment & Schedule Monthly Rule ✨"
+                : "Save & Schedule Postpaid Monthly Bill ✨"
+              : "Record One-Time Expense"}
           </button>
         </form>
       </Modal>
