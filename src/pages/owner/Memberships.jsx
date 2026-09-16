@@ -32,11 +32,13 @@ import {
   Star,
   CheckSquare,
   Gift,
-  Coins
+  Coins,
+  Users
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import { getPlans, addPlan, updatePlan, deletePlan } from "../../firebase/plans";
+import { getTrainers } from "../../firebase/trainers";
 import { useAuth } from "../../contexts/AuthContext";
 import toast from "react-hot-toast";
 
@@ -214,6 +216,57 @@ const DEFAULT_PLANS = [
     ],
     isActive: true,
     memberCount: 31
+  },
+  {
+    id: "pt_p1",
+    name: "1-Month Dedicated 1-on-1 PT",
+    category: "Personal Training (1-on-1 PT)",
+    duration: 30,
+    price: 4500,
+    originalPrice: 6000,
+    admissionFee: 0,
+    color: "rose",
+    tag: "1-on-1 Coach",
+    isPtOnly: true,
+    ptSessions: 24,
+    accessTiming: "All Day Unlimited (6:00 AM - 10:00 PM)",
+    freezeDays: "7 Days Free Freeze",
+    ptOption: "Dedicated Personal Trainer Included",
+    features: [
+      "24 Dedicated 1-on-1 Personal Training Sessions",
+      "Daily Form & Posture Correction",
+      "Custom Macro & Calorie Diet Plan",
+      "Weekly Body Composition & Fat Tracking",
+      "WhatsApp Direct Access with Coach"
+    ],
+    isActive: true,
+    memberCount: 18
+  },
+  {
+    id: "pt_p2",
+    name: "3-Month Elite Transformation PT",
+    category: "Personal Training (1-on-1 PT)",
+    duration: 90,
+    price: 11500,
+    originalPrice: 16000,
+    admissionFee: 0,
+    color: "purple",
+    tag: "VIP Result",
+    isPtOnly: true,
+    ptSessions: 72,
+    accessTiming: "All Day Unlimited (6:00 AM - 10:00 PM)",
+    freezeDays: "15 Days Free Freeze",
+    ptOption: "Dedicated Personal Trainer Included",
+    features: [
+      "72 Dedicated 1-on-1 Personal Training Sessions",
+      "100% Guaranteed Transformation Roadmap",
+      "Advanced Diet, Nutrition & Supplement Stack",
+      "Bi-Weekly InBody Body Composition Audits",
+      "Priority Slot Reservation with Top Coach",
+      "Complimentary Gym Shaker & Towel"
+    ],
+    isActive: true,
+    memberCount: 26
   }
 ];
 
@@ -222,7 +275,11 @@ export default function Memberships() {
   const currentGymId = gymId || "univo_main";
 
   const [plans, setPlans] = useState([]);
+  const [trainers, setTrainers] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Active membership type tab: 'all' | 'regular' | 'pt'
+  const [membershipTypeTab, setMembershipTypeTab] = useState("all");
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState("");
@@ -239,6 +296,10 @@ export default function Memberships() {
   const initialForm = {
     name: "",
     category: "General Fitness",
+    planType: "regular", // "regular" | "pt"
+    isPtOnly: false,
+    ptSessions: 24,
+    assignedTrainerId: "all",
     duration: 90,
     price: 6500,
     originalPrice: 9000,
@@ -262,13 +323,21 @@ export default function Memberships() {
   // Delete Confirmation Modal
   const [deletePlanModal, setDeletePlanModal] = useState(null);
 
-  // Load plans from Firestore
+  // Load plans & trainers from Firestore
   const loadPlans = async () => {
     setLoading(true);
     try {
-      const data = await getPlans(currentGymId);
-      if (data && data.length > 0) {
-        setPlans(data);
+      const [plansData, trainersData] = await Promise.all([
+        getPlans(currentGymId),
+        getTrainers(currentGymId)
+      ]);
+
+      if (trainersData && trainersData.length > 0) {
+        setTrainers(trainersData);
+      }
+
+      if (plansData && plansData.length > 0) {
+        setPlans(plansData);
       } else {
         // Seed default plans if empty
         setPlans(DEFAULT_PLANS);
@@ -285,10 +354,34 @@ export default function Memberships() {
     loadPlans();
   }, [currentGymId]);
 
-  // Open Create Modal
-  const handleOpenCreate = () => {
+  // Open Create Modal for Regular or PT Package
+  const handleOpenCreate = (forcedPlanType = "regular") => {
     setEditingPlanId(null);
-    setForm(initialForm);
+    setForm({
+      ...initialForm,
+      planType: forcedPlanType,
+      isPtOnly: forcedPlanType === "pt",
+      category: forcedPlanType === "pt" ? "Personal Training (1-on-1 PT)" : "General Fitness",
+      color: forcedPlanType === "pt" ? "purple" : "emerald",
+      tag: forcedPlanType === "pt" ? "1-on-1 Coach" : "Most Popular",
+      ptOption: forcedPlanType === "pt" ? "Dedicated Personal Trainer Included" : "General Floor Support",
+      price: forcedPlanType === "pt" ? 4500 : 6500,
+      originalPrice: forcedPlanType === "pt" ? 6000 : 9000,
+      duration: 30,
+      ptSessions: 24,
+      features: forcedPlanType === "pt" ? [
+        "24 Dedicated 1-on-1 Personal Training Sessions",
+        "Daily Form & Posture Correction",
+        "Custom Macro & Calorie Diet Plan",
+        "Weekly Body Composition & Fat Tracking",
+        "WhatsApp Direct Access with Coach"
+      ] : [
+        "All Cardio & Strength Equipment",
+        "Locker & Steam Bath Access",
+        "Free InBody BMI Body Composition Test",
+        "Custom Diet & Nutrition Meal Chart"
+      ]
+    });
     setModalTab("basic");
     setModalOpen(true);
   };
@@ -296,18 +389,23 @@ export default function Memberships() {
   // Open Edit Modal
   const handleOpenEdit = (plan) => {
     setEditingPlanId(plan.id);
+    const isPt = plan.isPtOnly || plan.category === "Personal Training (1-on-1 PT)" || plan.ptSessions > 0;
     setForm({
       name: plan.name || "",
-      category: plan.category || "General Fitness",
+      category: plan.category || (isPt ? "Personal Training (1-on-1 PT)" : "General Fitness"),
+      planType: isPt ? "pt" : "regular",
+      isPtOnly: isPt,
+      ptSessions: plan.ptSessions || (isPt ? 24 : 0),
+      assignedTrainerId: plan.assignedTrainerId || "all",
       duration: plan.duration || 30,
       price: plan.price || 0,
       originalPrice: plan.originalPrice || 0,
       admissionFee: plan.admissionFee || 0,
-      color: plan.color || "emerald",
+      color: plan.color || (isPt ? "purple" : "emerald"),
       tag: plan.tag || "None",
       accessTiming: plan.accessTiming || "All Day Unlimited (6:00 AM - 10:00 PM)",
       freezeDays: plan.freezeDays || "No Pause Allowed",
-      ptOption: plan.ptOption || (plan.ptAddon ? "Dedicated PT Option" : "General Floor Support"),
+      ptOption: plan.ptOption || (isPt ? "Dedicated Personal Trainer Included" : "General Floor Support"),
       features: Array.isArray(plan.features) ? plan.features : (plan.features ? [plan.features] : []),
       customFeatureInput: "",
       isActive: plan.isActive !== false
@@ -406,9 +504,14 @@ export default function Memberships() {
       return;
     }
 
+    const isPt = form.planType === "pt" || form.isPtOnly || form.category === "Personal Training (1-on-1 PT)";
     const payload = {
       name: form.name.trim(),
-      category: form.category,
+      category: isPt ? "Personal Training (1-on-1 PT)" : form.category,
+      planType: isPt ? "pt" : "regular",
+      isPtOnly: isPt,
+      ptSessions: isPt ? Number(form.ptSessions || 0) : 0,
+      assignedTrainerId: isPt ? (form.assignedTrainerId || "all") : "all",
       duration: Number(form.duration),
       price: Number(form.price),
       originalPrice: Number(form.originalPrice) || Number(form.price),
@@ -417,9 +520,9 @@ export default function Memberships() {
       tag: form.tag,
       accessTiming: form.accessTiming,
       freezeDays: form.freezeDays,
-      ptOption: form.ptOption,
+      ptOption: isPt ? "Dedicated Personal Trainer Included" : form.ptOption,
       features: form.features,
-      ptAddon: form.ptOption !== "None (General Floor Support)",
+      ptAddon: isPt || form.ptOption !== "None (General Floor Support)",
       isActive: form.isActive
     };
 
@@ -476,13 +579,18 @@ export default function Memberships() {
         p.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.features || []).some(f => f.toLowerCase().includes(searchTerm.toLowerCase()));
 
+      // Membership Type Tab Filter (All | Regular Gym | 1-on-1 PT)
+      const isPlanPt = p.isPtOnly || p.planType === "pt" || p.category === "Personal Training (1-on-1 PT)" || p.ptSessions > 0;
+      if (membershipTypeTab === "regular" && isPlanPt) return false;
+      if (membershipTypeTab === "pt" && !isPlanPt) return false;
+
       // Duration filter
       let matchesDuration = true;
       if (selectedDurationFilter === "monthly") matchesDuration = p.duration <= 45;
       else if (selectedDurationFilter === "quarterly") matchesDuration = p.duration > 45 && p.duration <= 100;
       else if (selectedDurationFilter === "half_yearly") matchesDuration = p.duration > 100 && p.duration <= 200;
       else if (selectedDurationFilter === "annual") matchesDuration = p.duration > 200;
-      else if (selectedDurationFilter === "pt") matchesDuration = p.ptAddon || p.category?.toLowerCase().includes("pt");
+      else if (selectedDurationFilter === "pt") matchesDuration = isPlanPt;
 
       // Status filter
       let matchesStatus = true;
@@ -540,13 +648,22 @@ export default function Memberships() {
           </p>
         </div>
 
-        <Button
-          icon={<Plus className="w-4 h-4" />}
-          onClick={handleOpenCreate}
-          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md hover:shadow-emerald-500/20 transition duration-200 self-start sm:self-auto"
-        >
-          Create New Package
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          <Button
+            icon={<Dumbbell className="w-4 h-4 text-purple-200" />}
+            onClick={() => handleOpenCreate("pt")}
+            className="bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white font-bold shadow-md hover:shadow-purple-500/20 transition duration-200 text-xs py-2.5 px-3.5"
+          >
+            + New 1-on-1 PT Plan
+          </Button>
+          <Button
+            icon={<Plus className="w-4 h-4" />}
+            onClick={() => handleOpenCreate("regular")}
+            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md hover:shadow-emerald-500/20 transition duration-200 text-xs py-2.5 px-3.5"
+          >
+            + New Gym Package
+          </Button>
+        </div>
       </div>
 
       {/* ============================================================
@@ -608,6 +725,51 @@ export default function Memberships() {
           <p className="text-2xl font-black text-slate-900">100%</p>
           <p className="text-[11px] text-purple-600 font-semibold">Full equipment + locker</p>
         </div>
+      </div>
+
+      {/* ============================================================
+          MEMBERSHIP TYPE SEGMENT SWITCHER & CONTROLS
+      ============================================================ */}
+      {/* Top Segment Switcher */}
+      <div className="flex rounded-2xl bg-white p-1.5 border border-slate-200/90 shadow-xs max-w-xl">
+        <button
+          type="button"
+          onClick={() => setMembershipTypeTab("all")}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+            membershipTypeTab === "all"
+              ? "bg-slate-900 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+          }`}
+        >
+          <Tag className="w-3.5 h-3.5" />
+          <span>All Tiers ({plans.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMembershipTypeTab("regular")}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+            membershipTypeTab === "regular"
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
+          <span>General Gym Plans ({plans.filter(p => !p.isPtOnly && p.planType !== "pt" && p.category !== "Personal Training (1-on-1 PT)").length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMembershipTypeTab("pt")}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+            membershipTypeTab === "pt"
+              ? "bg-purple-600 text-white shadow-sm"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+          }`}
+        >
+          <Dumbbell className="w-3.5 h-3.5 text-purple-300" />
+          <span>1-on-1 PT Packages ({plans.filter(p => p.isPtOnly || p.planType === "pt" || p.category === "Personal Training (1-on-1 PT)").length})</span>
+        </button>
       </div>
 
       {/* ============================================================
@@ -824,6 +986,23 @@ export default function Memberships() {
 
                   {/* Operational Terms Badges (Timing, Freeze, PT) */}
                   <div className="space-y-1.5 text-xs">
+                    {(p.isPtOnly || p.planType === "pt" || p.ptSessions > 0) && (
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-purple-50 border border-purple-200">
+                        <div className="flex items-center gap-1.5 text-purple-900 font-extrabold text-xs">
+                          <Dumbbell className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                          <span>{p.ptSessions || 24} Dedicated 1-on-1 Sessions</span>
+                        </div>
+                        <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded bg-purple-200 text-purple-900">
+                          PT Package
+                        </span>
+                      </div>
+                    )}
+                    {p.assignedTrainerId && p.assignedTrainerId !== "all" && (
+                      <div className="flex items-center gap-1.5 text-slate-700 text-[11px] font-semibold">
+                        <Users className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span>Assigned Coach: {trainers.find(t => t.id === p.assignedTrainerId)?.name || "Dedicated Coach"}</span>
+                      </div>
+                    )}
                     {p.accessTiming && (
                       <div className="flex items-center gap-1.5 text-slate-600 text-[11px]">
                         <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -836,7 +1015,7 @@ export default function Memberships() {
                         <span className="text-blue-700 font-semibold">{p.freezeDays}</span>
                       </div>
                     )}
-                    {p.ptOption && (
+                    {p.ptOption && !p.isPtOnly && p.planType !== "pt" && (
                       <div className="flex items-center gap-1.5 text-slate-600 text-[11px]">
                         <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                         <span className="text-slate-800 font-semibold">{p.ptOption}</span>
@@ -950,6 +1129,108 @@ export default function Memberships() {
           {/* TAB 1: BASIC & PRICING */}
           {modalTab === "basic" && (
             <div className="space-y-3.5">
+              {/* Package Type Switcher: Regular Gym Plan vs Dedicated 1-on-1 PT */}
+              <div className="p-3 bg-slate-100 rounded-2xl border border-slate-200">
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                  Package Type / Category *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm({
+                        ...form,
+                        planType: "regular",
+                        isPtOnly: false,
+                        category: "General Fitness",
+                        color: "emerald",
+                        ptOption: "General Floor Support"
+                      });
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border ${
+                      form.planType !== "pt"
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>General Gym Plan</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm({
+                        ...form,
+                        planType: "pt",
+                        isPtOnly: true,
+                        category: "Personal Training (1-on-1 PT)",
+                        color: "purple",
+                        ptOption: "Dedicated Personal Trainer Included"
+                      });
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border ${
+                      form.planType === "pt"
+                        ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <Dumbbell className="w-3.5 h-3.5" />
+                    <span>1-on-1 PT Membership</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* If PT Package: Sessions Count & Dedicated Coach Selection */}
+              {(form.planType === "pt" || form.isPtOnly) && (
+                <div className="p-3.5 bg-purple-50/80 rounded-2xl border border-purple-200 space-y-3">
+                  <div className="flex items-center gap-2 text-purple-900 font-extrabold text-xs">
+                    <Dumbbell className="w-4 h-4 text-purple-600" />
+                    <span>Personal Training (PT) Specific Rules</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">
+                        1-on-1 PT Sessions Included *
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={form.ptSessions || 24}
+                        onChange={(e) => setForm({ ...form, ptSessions: Number(e.target.value) })}
+                        className="w-full bg-white border border-purple-200 rounded-xl px-3 py-2 text-xs font-bold text-purple-950 focus:outline-none focus:border-purple-500"
+                        placeholder="e.g. 24 or 36 sessions"
+                      />
+                      <span className="text-[10px] text-purple-700 font-medium">
+                        Total coach-guided workout slots
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">
+                        Assigned Coach / Trainer
+                      </label>
+                      <select
+                        value={form.assignedTrainerId || "all"}
+                        onChange={(e) => setForm({ ...form, assignedTrainerId: e.target.value })}
+                        className="w-full bg-white border border-purple-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="all">Any Available Gym Trainer</option>
+                        {trainers.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            Coach {t.name} ({t.specialization || "Fitness Coach"})
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-[10px] text-slate-500">
+                        Can be chosen during member registration
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Plan Name */}
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
@@ -958,7 +1239,7 @@ export default function Memberships() {
                 <input
                   required
                   type="text"
-                  placeholder="e.g. 3-Month Pro Transformation"
+                  placeholder={form.planType === "pt" ? "e.g. 1-Month 1-on-1 PT Transformation" : "e.g. 3-Month Pro Transformation"}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"

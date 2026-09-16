@@ -2964,8 +2964,10 @@ export default function Members() {
   // Status counts - "Partial Due" is ONLY for members who paid partially during fee collection
   const isPaid = (m) => Number(m.dueAmount || 0) <= 0 && !!m.lastPaymentDate;
   const isPartial = (m) => Number(m.dueAmount || 0) > 0 && !!m.lastPaymentDate;
+  const isPtMember = (m) => !!m.isPt || !!m.ptPlanName || (m.trainerName && m.trainerName !== 'Unassigned' && m.trainerName !== 'General');
   const paidCount = members.filter((m) => isPaid(m) && m.status !== 'left').length;
   const partialCount = members.filter((m) => isPartial(m) && m.status !== 'left').length;
+  const ptCount = members.filter((m) => isPtMember(m) && m.status !== 'left').length;
   const activeCount = members.filter((m) => getMemberStatus(m) === 'active').length;
   const endingSoonCount = members.filter((m) => getMemberStatus(m) === 'ending_soon').length;
   const expiredCount = members.filter((m) => getMemberStatus(m) === 'expired').length;
@@ -2977,6 +2979,7 @@ export default function Members() {
 
   const FILTER_TABS = [
     { key: 'active', label: `Active (${activeCount})` },
+    { key: 'pt', label: `🏋️ PT Members (${ptCount})` },
     { key: 'paid', label: `Paid (${paidCount})` },
     { key: 'partial', label: `Partial / Due (${partialCount})` },
     { key: 'ending_soon', label: `Ending Soon (${endingSoonCount})` },
@@ -2996,6 +2999,8 @@ export default function Members() {
     let matchTab = false;
     if (filterTab === 'all') {
       matchTab = true;
+    } else if (filterTab === 'pt') {
+      matchTab = isPtMember(m) && m.status !== 'left';
     } else if (filterTab === 'paid') {
       matchTab = isPaid(m) && m.status !== 'left';
     } else if (filterTab === 'partial') {
