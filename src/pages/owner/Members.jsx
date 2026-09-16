@@ -3462,7 +3462,8 @@ export default function Members() {
                 filtered.map((m) => {
                   const status = getMemberStatus(m);
                   const daysInfo = getMemberDaysInfo(m);
-                  const isEnded = status === 'ended' || status === 'left' || m.status === 'ended' || m.status === 'left';
+                  const isLeft = isLeftMember(m);
+                  const isEnded = isEndedMember(m);
                   const membershipDetails = getMembershipEndingDetails(m);
 
                   return (
@@ -3701,7 +3702,8 @@ export default function Members() {
           {filtered.map((m) => {
             const status = getMemberStatus(m);
             const daysInfo = getMemberDaysInfo(m);
-            const isEnded = status === 'ended' || status === 'left' || m.status === 'ended' || m.status === 'left';
+            const isLeft = isLeftMember(m);
+            const isEnded = isEndedMember(m);
             const membershipDetails = getMembershipEndingDetails(m);
 
             return (
