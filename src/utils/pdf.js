@@ -5,177 +5,255 @@ export function generatePaymentReceipt(payment, customSettings = null) {
   const settings = customSettings || getGymSettings();
   const doc = new jsPDF();
 
-  // Header branding banner
+  // 1. Header branding banner
   doc.setFillColor(16, 185, 129); // emerald-500
-  doc.rect(0, 0, 210, 26, "F");
+  doc.rect(0, 0, 210, 28, "F");
 
-  doc.setFontSize(18);
+  // Logo embedding in top banner
+  if (settings.logoUrl && settings.logoUrl.startsWith("data:image")) {
+    try {
+      const format = settings.logoUrl.includes("image/png") ? "PNG" : "JPEG";
+      doc.addImage(settings.logoUrl, format, 12, 3, 22, 22);
+    } catch (e) {
+      try {
+        doc.addImage(settings.logoUrl, 12, 3, 22, 22);
+      } catch (err) {
+        console.warn("Logo image embed failed in receipt:", err);
+      }
+    }
+  }
+
+  doc.setFontSize(17);
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.text((settings.gymName || "UNIVO GYM MANAGEMENT").toUpperCase(), 105, 12, { align: "center" });
 
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setFont("helvetica", "normal");
   doc.text(settings.tagline || "Stronger Today, Healthier Tomorrow", 105, 18, { align: "center" });
   doc.text(
     `Tel: ${settings.phone || "+91 9196302375"} | Branch: ${settings.address || "Main Branch"}`,
     105,
-    23,
+    24,
     { align: "center" }
   );
 
-  // Receipt Title
+  // 2. Receipt Title
   doc.setTextColor(30, 41, 59);
-  doc.setFontSize(15);
+  doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
   doc.text("OFFICIAL MEMBERSHIP RECEIPT & TAX INVOICE", 105, 38, { align: "center" });
 
-  // Receipt Meta box
+  // 3. Receipt Meta box
   doc.setDrawColor(226, 232, 240);
   doc.setFillColor(248, 250, 252);
-  doc.roundedRect(15, 45, 180, 24, 3, 3, "FD");
+  doc.roundedRect(15, 43, 180, 24, 3, 3, "FD");
 
   const receiptNo = payment.receiptNo || payment.id || `INV-${Date.now().toString().slice(-6)}`;
   const payDate = payment.date || new Date().toLocaleDateString("en-IN");
   const isPartial = Number(payment.dueAmount) > 0;
 
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(71, 85, 105);
-  doc.text(`Receipt No: ${receiptNo}`, 22, 53);
-  doc.text(`Invoice Date: ${payDate}`, 125, 53);
+  doc.text(`Receipt No: ${receiptNo}`, 22, 51);
+  doc.text(`Invoice Date: ${payDate}`, 125, 51);
 
   doc.setFont("helvetica", "normal");
-  doc.text(`Payment Mode: ${(payment.paymentMode || "CASH").toUpperCase()}`, 22, 60);
-  doc.text(`Payment Status: ${isPartial ? "PARTIAL PAYMENT (DUES PENDING)" : "FULL PAYMENT (CLEARED)"}`, 125, 60);
+  const modeLabel = payment.paymentMode === "split" ? "SPLIT (CASH + UPI)" : (payment.paymentMode || "CASH").toUpperCase();
+  doc.text(`Payment Mode: ${modeLabel}`, 22, 57);
+  doc.text(`Payment Status: ${isPartial ? "PARTIAL PAYMENT (DUES PENDING)" : "FULL PAYMENT (CLEARED)"}`, 125, 57);
 
-  if (payment.remarks || payment.reference) {
-    doc.text(`Ref / Remarks: ${payment.remarks || payment.reference}`, 22, 66);
+  if (payment.remarks || payment.reference || (payment.cashAmount && payment.onlineAmount)) {
+    const refText = payment.cashAmount && payment.onlineAmount 
+      ? `Cash: Rs. ${payment.cashAmount} | UPI: Rs. ${payment.onlineAmount}`
+      : (payment.remarks || payment.reference || "");
+    doc.text(`Ref / Remarks: ${refText.slice(0, 65)}`, 22, 63);
   }
 
-  // Member Information Card
+  // 4. Member Information Card
   doc.setDrawColor(226, 232, 240);
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(15, 73, 180, 22, 3, 3, "FD");
+  doc.roundedRect(15, 70, 180, 20, 3, 3, "FD");
 
   doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
-  doc.text("MEMBER DETAILS:", 22, 81);
+  doc.text("MEMBER DETAILS:", 22, 77);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(51, 65, 85);
-  doc.text(`Name: ${payment.memberName || "Athlete"}`, 22, 88);
-  doc.text(`Phone: ${payment.phone || "—"}`, 85, 88);
-  doc.text(`Slot/Batch: ${payment.slot || payment.batch || "General Floor"}`, 140, 88);
+  doc.text(`Name: ${payment.memberName || "Athlete"}`, 22, 84);
+  doc.text(`Phone: ${payment.phone || "—"}`, 85, 84);
+  doc.text(`Slot/Batch: ${payment.slot || payment.batch || "General Floor"}`, 140, 84);
 
-  // Billing Particulars Table Header
+  // 5. Billing Particulars Table Header
   doc.setDrawColor(203, 213, 225);
   doc.setFillColor(241, 245, 249);
-  doc.rect(15, 100, 180, 8, "FD");
+  doc.rect(15, 94, 180, 8, "FD");
 
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(30, 41, 59);
-  doc.text("Plan Description", 20, 105.5);
-  doc.text("Validity Period", 90, 105.5);
-  doc.text("Discount", 142, 105.5);
-  doc.text("Amount (INR)", 168, 105.5);
-
-  // Table Row
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(51, 65, 85);
-  doc.text(payment.planName || "Gym Membership Subscription", 20, 117);
+  doc.text("Particulars / Service Description", 20, 99.5);
+  doc.text("Validity Period", 100, 99.5);
+  doc.text("Amount (INR)", 165, 99.5);
 
   const validityText = (payment.validityStart && payment.validityEnd)
     ? `${payment.validityStart} to ${payment.validityEnd}`
-    : payment.validity || "1 Month Access";
-  doc.text(validityText, 90, 117);
+    : payment.validity || "Active Validity";
 
-  const discountText = Number(payment.discount) > 0 ? `Rs. ${payment.discount}` : "Rs. 0";
-  doc.text(discountText, 142, 117);
-
-  const paidAmount = Number(payment.paidAmount || payment.amount || 0);
+  // Build itemized list of particulars
+  const items = [];
+  const paidTotal = Number(payment.paidAmount || payment.amount || 0);
   const totalPlanPrice = Number(payment.amount || payment.paidAmount || 0);
-  const remainingDue = Number(payment.dueAmount || 0);
+  const basePrice = Number(payment.planPrice || 0);
+  const ptPrice = Number(payment.ptPlanPrice || payment.ptFee || 0);
+  const servicesPrice = Number(payment.servicesPrice || payment.servicesTotalPrice || 0);
 
-  doc.setFont("helvetica", "bold");
-  doc.text(`Rs. ${paidAmount.toLocaleString()}`, 168, 117);
+  // 1) Base Plan Item
+  const baseTitle = payment.planName ? payment.planName.split("+")[0].trim() : "Gym Membership Base Fee";
+  const finalBasePrice = basePrice > 0 ? basePrice : Math.max(0, totalPlanPrice - ptPrice - servicesPrice);
+  items.push({
+    desc: `Base Membership: ${baseTitle}`,
+    period: validityText,
+    amount: finalBasePrice
+  });
 
-  // Line separator
-  doc.setDrawColor(226, 232, 240);
-  doc.line(15, 126, 195, 126);
+  // 2) Personal Trainer (PT) Item
+  if (ptPrice > 0 || (payment.ptPlanName && !payment.planName?.toLowerCase().includes("services only"))) {
+    items.push({
+      desc: `Personal Training (PT)${payment.ptPlanName ? ` - ${payment.ptPlanName}` : ""}`,
+      period: validityText,
+      amount: ptPrice
+    });
+  }
 
-  // Summary box
-  doc.setFontSize(9.5);
+  // 3) Add-on Services Items
+  if (Array.isArray(payment.selectedServices) && payment.selectedServices.length > 0) {
+    payment.selectedServices.forEach((s) => {
+      items.push({
+        desc: `Add-on Service: ${s.name}${s.billingType ? ` (${s.billingType})` : ""}`,
+        period: validityText,
+        amount: Number(s.price || 0)
+      });
+    });
+  } else if (servicesPrice > 0 || (payment.planName && payment.planName.includes("Services ("))) {
+    const sMatch = payment.planName ? payment.planName.match(/\+\s*Services\s*\((.*?)\)/i) : null;
+    const sName = sMatch && sMatch[1] ? sMatch[1].trim() : "Add-on Gym Services";
+    items.push({
+      desc: `Add-on Service: ${sName}`,
+      period: validityText,
+      amount: servicesPrice
+    });
+  }
+
+  // Draw Table Rows
+  let startY = 107;
   doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(51, 65, 85);
+
+  items.forEach((item, idx) => {
+    const currentItemY = startY + idx * 6.5;
+    doc.text(item.desc.slice(0, 48), 20, currentItemY);
+    doc.text(item.period, 100, currentItemY);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Rs. ${Number(item.amount).toLocaleString("en-IN")}`, 165, currentItemY);
+    doc.setFont("helvetica", "normal");
+  });
+
+  const tableBottomY = startY + items.length * 6.5 + 2;
+  doc.setDrawColor(226, 232, 240);
+  doc.line(15, tableBottomY, 195, tableBottomY);
+
+  // 6. Summary Box
+  let summaryY = tableBottomY + 5;
+  doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
-  doc.text("Plan Base Fee:", 125, 135);
-  doc.text(`Rs. ${totalPlanPrice.toLocaleString()}`, 172, 135);
+
+  doc.text("Plan Base Fee:", 120, summaryY);
+  doc.text(`Rs. ${finalBasePrice.toLocaleString("en-IN")}`, 172, summaryY);
+  summaryY += 5;
+
+  if (ptPrice > 0) {
+    doc.text("Personal Training (PT):", 120, summaryY);
+    doc.text(`+ Rs. ${ptPrice.toLocaleString("en-IN")}`, 172, summaryY);
+    summaryY += 5;
+  }
+
+  if (servicesPrice > 0) {
+    doc.text("Add-on Services:", 120, summaryY);
+    doc.text(`+ Rs. ${servicesPrice.toLocaleString("en-IN")}`, 172, summaryY);
+    summaryY += 5;
+  }
 
   if (Number(payment.discount) > 0) {
-    doc.text("Special Discount:", 125, 142);
-    doc.text(`- Rs. ${Number(payment.discount).toLocaleString()}`, 172, 142);
+    doc.text("Special Discount:", 120, summaryY);
+    doc.text(`- Rs. ${Number(payment.discount).toLocaleString("en-IN")}`, 172, summaryY);
+    summaryY += 5;
   }
 
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(16, 185, 129);
-  doc.text("Amount Received:", 125, 150);
-  doc.text(`Rs. ${paidAmount.toLocaleString()}`, 172, 150);
+  doc.setTextColor(15, 23, 42);
+  doc.text("Total Package Bill:", 120, summaryY);
+  doc.text(`Rs. ${totalPlanPrice.toLocaleString("en-IN")}`, 172, summaryY);
+  summaryY += 5.5;
 
+  doc.setTextColor(16, 185, 129);
+  doc.text("Amount Received:", 120, summaryY);
+  doc.text(`Rs. ${paidTotal.toLocaleString("en-IN")}`, 172, summaryY);
+  summaryY += 5;
+
+  const remainingDue = Number(payment.dueAmount || 0);
   if (remainingDue > 0) {
     doc.setTextColor(225, 29, 72);
-    doc.text("Pending Balance Due:", 125, 158);
-    doc.text(`Rs. ${remainingDue.toLocaleString()}`, 172, 158);
+    doc.text("Pending Balance Due:", 120, summaryY);
+    doc.text(`Rs. ${remainingDue.toLocaleString("en-IN")}`, 172, summaryY);
+    summaryY += 5;
   }
 
-  // Terms & Conditions Box
+  // 7. Terms & Conditions Box
+  const tcY = Math.max(summaryY + 5, 160);
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(15, 170, 180, 22, 2, 2);
+  doc.roundedRect(15, tcY, 180, 20, 2, 2);
   doc.setTextColor(71, 85, 105);
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
-  doc.text("TERMS & CONDITIONS:", 20, 176);
+  doc.text("TERMS & CONDITIONS:", 20, tcY + 5);
   doc.setFont("helvetica", "normal");
-  doc.text("1. Fees once paid is strictly non-refundable and non-transferable under any circumstances.", 20, 182);
-  doc.text("2. Please present this receipt or member ID pass upon entering the fitness facility.", 20, 187);
+  doc.text("1. Fees once paid is strictly non-refundable and non-transferable under any circumstances.", 20, tcY + 10);
+  doc.text("2. Please present this official receipt or member QR upon entering the fitness facility.", 20, tcY + 15);
 
-  // Logo embedding if custom dataUrl is provided
-  if (settings.logoUrl && settings.logoUrl.startsWith("data:image")) {
-    try {
-      doc.addImage(settings.logoUrl, "PNG", 14, 4, 18, 18);
-    } catch (e) {
-      console.warn("Logo image embed failed:", e);
-    }
-  }
-
-  // Signature Block
+  // 8. Signature Block & Stamp
+  const sigY = tcY + 26;
   if (settings.signatureUrl && settings.signatureUrl.startsWith("data:image")) {
     try {
-      doc.addImage(settings.signatureUrl, "PNG", 135, 196, 40, 16);
+      doc.addImage(settings.signatureUrl, "PNG", 135, sigY - 10, 40, 15);
     } catch (e) {
       console.warn("Signature image embed failed:", e);
     }
   }
 
   doc.setTextColor(71, 85, 105);
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setFont("helvetica", "bold");
-  doc.text(settings.ownerSignatureName || "Authorized Signatory", 155, 220, { align: "center" });
+  doc.text(settings.ownerSignatureName || "Authorized Signatory", 155, sigY + 12, { align: "center" });
   doc.setFont("helvetica", "normal");
-  doc.text(settings.ownerSignatureTitle || "Gym Manager / Owner", 155, 226, { align: "center" });
+  doc.text(settings.ownerSignatureTitle || "Gym Manager / Owner", 155, sigY + 17, { align: "center" });
   doc.setDrawColor(148, 163, 184);
-  doc.line(130, 213, 180, 213);
+  doc.line(130, sigY + 7, 180, sigY + 7);
 
   // Stamp circle simulation
   doc.setDrawColor(16, 185, 129);
-  doc.circle(45, 216, 14);
+  doc.circle(45, sigY + 6, 12);
   doc.setTextColor(16, 185, 129);
   doc.setFontSize(7);
   doc.setFont("helvetica", "bold");
-  doc.text("VERIFIED & PAID", 45, 215, { align: "center" });
-  doc.text((settings.gymName || "UNIVO GYM").slice(0, 15).toUpperCase(), 45, 220, { align: "center" });
+  doc.text("VERIFIED & PAID", 45, sigY + 5, { align: "center" });
+  doc.text((settings.gymName || "UNIVO GYM").slice(0, 15).toUpperCase(), 45, sigY + 9, { align: "center" });
 
-  // Footer
-  doc.setFontSize(8);
+  // 9. Footer
+  doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184);
   doc.text(`This is a computer-generated tax invoice issued by ${settings.gymName || "UNIVO GYM MANAGEMENT"}.`, 105, 280, { align: "center" });
 

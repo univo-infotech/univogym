@@ -1074,6 +1074,8 @@ function CollectFeeModal({ member, gymId, onClose, onSave, trainers = [], plans 
       paidAmount: Number(payingNow),
       dueAmount: remainingDue,
       paymentMode,
+      cashAmount: Number(cashAmount || 0),
+      onlineAmount: Number(onlineAmount || 0),
       paymentType,
       remarks: remarks || (paymentMode === "split" ? `Cash: ₹${cashAmount}, Online: ₹${onlineAmount}` : (hasPartialPaymentDue ? "Balance Due Payment" : "")),
       date: toIndianDate(new Date()),
