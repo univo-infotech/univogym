@@ -57,3 +57,37 @@ export function generatePaymentReceiptMessage(memberName, amount, planName, date
   const settings = getGymSettings();
   return `🧾 *Payment Confirmation - ${settings.gymName}*\n\nHi ${memberName},\nWe have successfully received your payment of *₹${amount}* for *${planName}* on ${date || "today"}.\n\nThank you for choosing us! Keep crushing your workouts! 💪`;
 }
+
+export function generateSupplementSaleReceiptMessage({
+  memberName = "Customer",
+  productName = "Product",
+  brand = "",
+  quantity = 1,
+  unitPrice = 0,
+  totalAmount = 0,
+  paymentMode = "Cash",
+  date = "",
+  trainerName = "",
+  receiptLink = ""
+}) {
+  const settings = getGymSettings();
+  const gym = settings.gymName || "UNIVO GYM MANAGEMENT";
+  const dateStr = date || new Date().toLocaleDateString("en-IN");
+
+  let msg = `🧾 *OFFICIAL STORE TAX INVOICE & BILL*\n*${gym}*\n\n`;
+  msg += `Dear *${memberName}*,\nThank you for purchasing fitness products from our Gym Store! Here is your official bill:\n\n`;
+  msg += `📦 *Item:* ${productName}\n`;
+  if (brand) msg += `🏷️ *Brand:* ${brand}\n`;
+  msg += `🔢 *Quantity:* ${quantity} ${quantity > 1 ? "Units" : "Unit"}\n`;
+  msg += `💵 *Rate:* ₹${Number(unitPrice).toLocaleString("en-IN")}\n`;
+  msg += `💰 *Total Amount Paid:* ₹${Number(totalAmount).toLocaleString("en-IN")}\n`;
+  msg += `💳 *Payment Mode:* ${paymentMode.toUpperCase()}\n`;
+  msg += `📅 *Date:* ${dateStr}\n`;
+  if (trainerName) msg += `🏋️ *Referred By:* Coach ${trainerName}\n`;
+  msg += `✨ *Status:* VERIFIED & PAID IN FULL\n\n`;
+  if (receiptLink) {
+    msg += `📄 *View & Download Official Digital Receipt:*\n${receiptLink}\n\n`;
+  }
+  msg += `Stay fit, healthy and keep crushing your fitness goals! 🔥💪\n— *${gym}*`;
+  return msg;
+}

@@ -29,7 +29,10 @@ import {
   Check,
   HandCoins,
   BadgePercent,
-  UserCheck
+  UserCheck,
+  MessageSquare,
+  ExternalLink,
+  Printer
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
@@ -51,7 +54,11 @@ import {
 import { getMembers } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
 import { addExpense } from "../../firebase/expenses";
+import { addPayment } from "../../firebase/payments";
 import { useAuth } from "../../contexts/AuthContext";
+import { openWhatsApp, generateSupplementSaleReceiptMessage } from "../../utils/whatsapp";
+import { getGymSettings } from "../../utils/settings";
+import { generatePaymentReceipt } from "../../utils/pdf";
 
 // Initial Demo Supplements if Firebase is pristine
 const DEFAULT_SUPPLEMENTS = [
@@ -236,6 +243,9 @@ export default function Stock() {
   const [salesSearch, setSalesSearch] = useState("");
   const [salesFilterTrainer, setSalesFilterTrainer] = useState("all");
 
+  const [sendWhatsAppBill, setSendWhatsAppBill] = useState(true);
+  const settings = getGymSettings();
+
   const [sellForm, setSellForm] = useState({
     memberId: "",
     memberName: "Walk-in Member",
@@ -411,6 +421,7 @@ export default function Stock() {
   // Open Quick Sell Modal
   const handleOpenSellModal = (product) => {
     setSelectedProductForSale(product);
+    setSendWhatsAppBill(true);
     setSellForm({
       memberId: "",
       memberName: "Walk-in Customer",
@@ -450,7 +461,11 @@ export default function Stock() {
     }
     const gymNetRevenue = Math.max(0, totalAmount - trainerCommission);
 
+    const paymentId = "bill_" + Date.now();
+    const receiptLink = `${window.location.origin}/#/receipt/${paymentId}`;
+
     const saleData = {
+      id: paymentId,
       productName: selectedProductForSale.name || "Supplement",
       productBrand: selectedProductForSale.brand || "",
       quantitySold: qtyToSell,
@@ -469,19 +484,42 @@ export default function Stock() {
       commissionType: sellForm.referredByTrainerId ? (sellForm.commissionType || "percentage") : "none",
       commissionValue: sellForm.referredByTrainerId ? Number(sellForm.commissionValue || 0) : 0,
       commissionAmount: trainerCommission,
-      gymNetRevenue
+      gymNetRevenue,
+      receiptLink
     };
 
     try {
       const res = await sellSupplement(gymId, selectedProductForSale.id, saleData);
       
+      // Also register official payment record so online receipt & finance ledgers sync seamlessly
+      try {
+        await addPayment({
+          id: paymentId,
+          memberId: sellForm.memberId || "store_walkin",
+          memberName: sellForm.memberName || "Walk-in Customer",
+          phone: sellForm.memberPhone || "",
+          planName: `Store Sale: ${selectedProductForSale.name} (x${qtyToSell})`,
+          planPrice: totalAmount,
+          amount: totalAmount,
+          paidAmount: totalAmount,
+          dueAmount: 0,
+          paymentMode: sellForm.paymentMode.toLowerCase(),
+          paymentType: "supplement",
+          date: new Date().toLocaleDateString("en-IN"),
+          remarks: `Store Purchase: ${selectedProductForSale.name} x${qtyToSell} @ Rs.${unitPrice}`,
+          status: "paid"
+        });
+      } catch (pErr) {
+        console.warn("Payment record log fallback:", pErr);
+      }
+
       // Update local state
       const updatedQty = Math.max(0, availStock - qtyToSell);
       setSupplements((prev) =>
         prev.map((s) => (s.id === selectedProductForSale.id ? { ...s, quantity: updatedQty } : s))
       );
       setSupplementSalesList((prev) => [
-        { id: res?.id || ("sale_" + Date.now()), ...saleData, timestamp: new Date().toISOString() },
+        { id: res?.id || paymentId, ...saleData, timestamp: new Date().toISOString() },
         ...prev
       ]);
 
@@ -489,6 +527,26 @@ export default function Stock() {
         ? ` (₹${trainerCommission.toLocaleString("en-IN")} commission credited to ${sellForm.referredByTrainerName})`
         : "";
       toast.success(`Sale Recorded! ₹${totalAmount.toLocaleString("en-IN")} received via ${sellForm.paymentMode}${commMsg}`);
+
+      // Dispatch bill directly on WhatsApp if requested!
+      if (sendWhatsAppBill && sellForm.memberPhone) {
+        const msg = generateSupplementSaleReceiptMessage({
+          memberName: sellForm.memberName || "Customer",
+          productName: selectedProductForSale.name,
+          brand: selectedProductForSale.brand,
+          quantity: qtyToSell,
+          unitPrice,
+          totalAmount,
+          paymentMode: sellForm.paymentMode,
+          date: new Date().toLocaleDateString("en-IN"),
+          trainerName: sellForm.referredByTrainerName,
+          receiptLink
+        });
+        openWhatsApp(sellForm.memberPhone, msg);
+      } else if (sendWhatsAppBill && !sellForm.memberPhone) {
+        toast("Enter customer phone to share digital bill directly on WhatsApp!", { icon: "📱" });
+      }
+
       setSellModalOpen(false);
     } catch (err) {
       console.error("Sale recording error:", err);
@@ -498,12 +556,53 @@ export default function Stock() {
         prev.map((s) => (s.id === selectedProductForSale.id ? { ...s, quantity: updatedQty } : s))
       );
       setSupplementSalesList((prev) => [
-        { id: "sale_" + Date.now(), ...saleData, timestamp: new Date().toISOString() },
+        { id: paymentId, ...saleData, timestamp: new Date().toISOString() },
         ...prev
       ]);
+
+      if (sendWhatsAppBill && sellForm.memberPhone) {
+        const msg = generateSupplementSaleReceiptMessage({
+          memberName: sellForm.memberName || "Customer",
+          productName: selectedProductForSale.name,
+          brand: selectedProductForSale.brand,
+          quantity: qtyToSell,
+          unitPrice,
+          totalAmount,
+          paymentMode: sellForm.paymentMode,
+          date: new Date().toLocaleDateString("en-IN"),
+          trainerName: sellForm.referredByTrainerName,
+          receiptLink
+        });
+        openWhatsApp(sellForm.memberPhone, msg);
+      }
+
       toast.success(`Sale Recorded! ₹${totalAmount.toLocaleString("en-IN")} saved.`);
       setSellModalOpen(false);
     }
+  };
+
+  // Helper to re-send bill to WhatsApp from Sales Ledger table
+  const handleSendSaleWhatsApp = (sale) => {
+    let phone = sale.memberPhone;
+    if (!phone) {
+      phone = window.prompt("Enter customer WhatsApp number (10 digits):");
+      if (!phone) return;
+    }
+    const receiptLink = sale.receiptLink || `${window.location.origin}/#/receipt/${sale.id || ""}`;
+    const msg = generateSupplementSaleReceiptMessage({
+      memberName: sale.memberName || "Valued Customer",
+      productName: sale.productName,
+      brand: sale.productBrand,
+      quantity: sale.quantitySold || 1,
+      unitPrice: sale.unitPrice || 0,
+      totalAmount: sale.totalAmount || 0,
+      paymentMode: sale.paymentMode || "Cash",
+      date: sale.timestamp ? new Date(sale.timestamp).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN"),
+      trainerName: sale.referredByTrainerName || "",
+      receiptLink
+    });
+    openWhatsApp(phone, msg);
+    toast.success("Opening WhatsApp with digital bill!");
   };
 
   // --- EQUIPMENT ACTIONS ---
@@ -1524,6 +1623,7 @@ export default function Stock() {
                             <th className="py-3 px-4">Payment</th>
                             <th className="py-3 px-4">Referring Trainer & Commission</th>
                             <th className="py-3 px-4 text-right">Gym Net Revenue</th>
+                            <th className="py-3 px-4 text-center">Receipt & WhatsApp</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -1598,6 +1698,29 @@ export default function Stock() {
                                 </td>
                                 <td className="py-3.5 px-4 text-right font-black text-emerald-700">
                                   Rs. {Number(sale.gymNetRevenue !== undefined ? sale.gymNetRevenue : (sale.totalAmount - commAmt)).toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSendSaleWhatsApp(sale)}
+                                      title="Send Bill directly to Customer WhatsApp"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300/80 text-[11px] font-bold transition shadow-2xs cursor-pointer"
+                                    >
+                                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>WhatsApp Bill</span>
+                                    </button>
+
+                                    <a
+                                      href={`/#/receipt/${sale.id || ""}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      title="View & Download Digital Receipt"
+                                      className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition shadow-2xs inline-flex items-center justify-center"
+                                    >
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                    </a>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -1844,30 +1967,35 @@ export default function Stock() {
               </select>
             </div>
 
-            {/* If Walk-in, allow typing name/phone */}
-            {!sellForm.memberId && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700">Buyer Name</label>
-                  <input
-                    type="text"
-                    value={sellForm.memberName}
-                    onChange={(e) => setSellForm({ ...sellForm, memberName: e.target.value })}
-                    className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-700">Phone / WhatsApp</label>
+            {/* Customer / Buyer Name & Phone */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700">Buyer Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Rahul Sharma"
+                  value={sellForm.memberName}
+                  onChange={(e) => setSellForm({ ...sellForm, memberName: e.target.value })}
+                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>WhatsApp Number</span>
+                  <span className="text-[10px] text-emerald-600 font-bold">For Bill</span>
+                </label>
+                <div className="relative mt-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs">📱</span>
                   <input
                     type="tel"
-                    placeholder="e.g. 9876543210"
+                    placeholder="10-digit mobile number"
                     value={sellForm.memberPhone}
                     onChange={(e) => setSellForm({ ...sellForm, memberPhone: e.target.value })}
-                    className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Qty & Selling Rate */}
             <div className="grid grid-cols-2 gap-3">
@@ -1896,8 +2024,8 @@ export default function Stock() {
             </div>
 
             {/* Total Bill & Payment Mode */}
-            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
-              <div className="flex justify-between items-center mb-2">
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
+              <div className="flex justify-between items-center">
                 <span className="text-xs font-bold text-slate-600">Total Payable Amount:</span>
                 <span className="text-xl font-black text-emerald-700">
                   Rs. {(Number(sellForm.sellingPrice) * Number(sellForm.quantity)).toLocaleString("en-IN")}
@@ -1922,6 +2050,27 @@ export default function Stock() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* WhatsApp Bill Dispatch Toggle */}
+              <div className="pt-2 border-t border-emerald-200/80">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={sendWhatsAppBill}
+                    onChange={(e) => setSendWhatsAppBill(e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <span className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                      Send Bill directly on WhatsApp (व्हाट्सएप पर पक्का बिल भेजें)
+                    </span>
+                    <p className="text-[11px] text-emerald-800">
+                      Customer ke WhatsApp par itemized bill aur online receipt link turant jayega.
+                    </p>
+                  </div>
+                </label>
               </div>
             </div>
 
