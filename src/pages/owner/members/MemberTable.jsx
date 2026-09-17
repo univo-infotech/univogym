@@ -207,18 +207,6 @@ export default function MemberTable({
                           </button>
                         ) : (
                           <>
-                            {gymDue > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => onCollect(m)}
-                                className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
-                                title="Collect Remaining Gym Due"
-                              >
-                                <IndianRupee size={11} />
-                                <span>Collect Due</span>
-                              </button>
-                            )}
-
                             {/* Show Renew Gym when ending soon, expired, or due */}
                             {(gymStatus === 'ending_soon' || gymStatus === 'expired' || gymStatus === 'due' || (gymDays !== null && gymDays <= 3)) && (
                               <button
@@ -384,7 +372,7 @@ export default function MemberTable({
                         <button
                           type="button"
                           onClick={() => onCollect(m)}
-                          className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
                           title="Collect Member Fee"
                         >
                           <IndianRupee size={13} />

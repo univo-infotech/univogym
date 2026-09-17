@@ -172,15 +172,6 @@ export default function MemberGrid({
                     </button>
                   ) : (
                     <>
-                      {gymDue > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => onCollect(m)}
-                          className="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] inline-flex items-center gap-1 transition"
-                        >
-                          <IndianRupee size={10} /> Collect Due
-                        </button>
-                      )}
                       {(gymStatus === 'ending_soon' || gymStatus === 'expired' || gymStatus === 'due' || (gymDays !== null && gymDays <= 3)) && (
                         <button
                           type="button"
@@ -309,7 +300,7 @@ export default function MemberGrid({
                 <button
                   type="button"
                   onClick={() => onCollect(m)}
-                  className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
                   title="Collect Member Fee"
                 >
                   <IndianRupee size={12} /> Collect
