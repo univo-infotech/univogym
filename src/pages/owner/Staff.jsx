@@ -6,7 +6,7 @@ import {
   Camera, MessageCircle, FileText, Filter,
   TrendingUp, TrendingDown, AlertCircle, Download,
   ShieldCheck, Eye, ChevronLeft, DollarSign, UserCheck,
-  UserX, Briefcase, Award, CheckCircle2, ChevronDown
+  UserX, Briefcase, Award, CheckCircle2, ChevronDown, Dumbbell
 } from "lucide-react";
 import Modal from "../../components/ui/Modal";
 import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
@@ -22,10 +22,13 @@ import toast from "react-hot-toast";
 
 // --- Constants ---------------------------------------------------
 const ROLES = [
-  "Head Trainer", "Senior Trainer", "Female Fitness Coach",
-  "Yoga / Zumba Instructor", "Nutritionist",
-  "Reception / Front Desk", "Accounts & Billing",
-  "Maintenance & Cleaning", "Security Guard", "Custom Role"
+  "Reception / Front Desk",
+  "Manager / Floor Supervisor",
+  "Accounts & Billing",
+  "Housekeeping & Cleaning",
+  "Security Guard",
+  "Dietitian / Nutritionist",
+  "Custom Role"
 ];
 
 const STATUS_COLORS = {
@@ -35,15 +38,14 @@ const STATUS_COLORS = {
 };
 
 const ROLE_COLORS = {
-  "Head Trainer": "bg-emerald-50 text-emerald-700 border-emerald-200",
-  "Senior Trainer": "bg-teal-50 text-teal-700 border-teal-200",
-  "Female Fitness Coach": "bg-pink-50 text-pink-700 border-pink-200",
-  "Yoga / Zumba Instructor": "bg-purple-50 text-purple-700 border-purple-200",
-  "Nutritionist": "bg-lime-50 text-lime-700 border-lime-200",
   "Reception / Front Desk": "bg-blue-50 text-blue-700 border-blue-200",
+  "Manager / Floor Supervisor": "bg-emerald-50 text-emerald-700 border-emerald-200",
   "Accounts & Billing": "bg-indigo-50 text-indigo-700 border-indigo-200",
+  "Housekeeping & Cleaning": "bg-amber-50 text-amber-700 border-amber-200",
   "Maintenance & Cleaning": "bg-amber-50 text-amber-700 border-amber-200",
   "Security Guard": "bg-slate-100 text-slate-700 border-slate-200",
+  "Dietitian / Nutritionist": "bg-lime-50 text-lime-700 border-lime-200",
+  "Nutritionist": "bg-lime-50 text-lime-700 border-lime-200",
   "Custom Role": "bg-slate-50 text-slate-600 border-slate-200",
 };
 
@@ -128,7 +130,7 @@ export default function Staff() {
 
   // Forms
   const emptyForm = {
-    name: "", role: "Senior Trainer", customRole: "",
+    name: "", role: "Reception / Front Desk", customRole: "",
     phone: "", email: "",
     salary: "", joinDate: todayStr(),
     aadhaarNo: "", aadhaarFront: "", aadhaarBack: "",
@@ -302,11 +304,18 @@ export default function Staff() {
     }
   };
 
-  // --- Filtering ---------------------------------------------------
-  const uniqueRoles = Array.from(new Set(staffList.map(s => s.role).filter(Boolean)));
+  // --- Filtering (Trainers are managed under dedicated Trainers section) ---
+  const nonTrainerStaff = useMemo(() => {
+    return (staffList || []).filter((s) => {
+      const r = (s.role || "").toLowerCase();
+      return !r.includes("trainer") && !r.includes("coach") && !r.includes("instructor");
+    });
+  }, [staffList]);
+
+  const uniqueRoles = Array.from(new Set(nonTrainerStaff.map(s => s.role).filter(Boolean)));
 
   const filteredStaff = useMemo(() => {
-    return staffList.filter(s => {
+    return nonTrainerStaff.filter(s => {
       const q = search.toLowerCase();
       const matchQ = (s.name || "").toLowerCase().includes(q)
         || (s.role || "").toLowerCase().includes(q)
@@ -315,11 +324,11 @@ export default function Staff() {
       const matchS = filterStatus === "all" || (s.status || "active") === filterStatus;
       return matchQ && matchR && matchS;
     });
-  }, [staffList, search, filterRole, filterStatus]);
+  }, [nonTrainerStaff, search, filterRole, filterStatus]);
 
   // Salary Table rows
   const salaryRows = useMemo(() => {
-    return staffList.filter(s => {
+    return nonTrainerStaff.filter(s => {
       const q = salarySearch.toLowerCase();
       const matchQ = (s.name || "").toLowerCase().includes(q) || (s.role || "").toLowerCase().includes(q);
       const pd = staffPayrollMap[s.id] || {};
@@ -331,7 +340,7 @@ export default function Staff() {
       const joinedBeforeOrDuring = joinMK <= salaryMonth;
       return matchQ && matchF && joinedBeforeOrDuring;
     });
-  }, [staffList, salarySearch, staffPayrollMap, salaryFilter, salaryMonth]);
+  }, [nonTrainerStaff, salarySearch, staffPayrollMap, salaryFilter, salaryMonth]);
 
   const totalPayroll = salaryRows.reduce((a, s) => {
     const pd = staffPayrollMap[s.id] || {};
@@ -442,6 +451,24 @@ export default function Staff() {
       ============================================================ */}
       {activeTab === "directory" && (
         <div className="space-y-5">
+          {/* Notice: Trainers managed separately */}
+          <div className="p-3.5 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200/80 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center flex-shrink-0">
+                <Dumbbell className="w-4 h-4" />
+              </div>
+              <p className="text-xs text-slate-700">
+                <span className="font-bold text-teal-950">Looking for Gym Trainers & Coaches?</span> Trainers ko manage karne ke liye alag se dedicated <strong>"Trainers"</strong> menu hai jaha unki Monthly Salary, Joining Date, PT Deals aur Auto-Expenses manage hote hain.
+              </p>
+            </div>
+            <a
+              href="/owner/trainers"
+              className="px-3 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold whitespace-nowrap transition shrink-0"
+            >
+              Go to Trainers →
+            </a>
+          </div>
+
           {/* Search & Filter Bar */}
           <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="relative flex-1 w-full">

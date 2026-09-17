@@ -40,6 +40,7 @@ import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
 import { getTrainers, addTrainer, updateTrainer, deleteTrainer } from "../../firebase/trainers";
 import { getMembers } from "../../firebase/members";
 import { getStaff } from "../../firebase/staff";
+import { addExpense, getExpenses, updateExpense } from "../../firebase/expenses";
 import { useAuth } from "../../contexts/AuthContext";
 import toast from "react-hot-toast";
 
@@ -58,6 +59,8 @@ export default function Trainers() {
   const [activeTab, setActiveTab] = useState("manual");
   const [inviteLink, setInviteLink] = useState("");
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
   const [form, setForm] = useState({
     name: "",
     specialization: "Weight Training & Hypertrophy",
@@ -66,6 +69,7 @@ export default function Trainers() {
     password: "Coach@123",
     experience: "5 Years",
     salary: "",
+    joinDate: todayStr,
     bio: "",
     certifications: "",
     photoUrl: "",
@@ -109,6 +113,7 @@ export default function Trainers() {
     email: "",
     experience: "5 Years",
     salary: "",
+    joinDate: todayStr,
     bio: "",
     certifications: "",
     photoUrl: "",
@@ -298,6 +303,7 @@ export default function Trainers() {
       password: trainer.password || trainer.loginPassword || "Coach@123",
       experience: trainer.experience || "5 Years",
       salary: trainer.salary || "",
+      joinDate: trainer.joinDate || trainer.joiningDate || (trainer.createdAt ? (trainer.createdAt.toDate ? trainer.createdAt.toDate().toISOString().split("T")[0] : String(trainer.createdAt).slice(0, 10)) : todayStr),
       bio: trainer.bio || "",
       certifications: trainer.certifications || "",
       photoUrl: trainer.photoUrl || "",
@@ -446,6 +452,8 @@ export default function Trainers() {
 
     setLoading(true);
     try {
+      const joinDate = editForm.joinDate || editingTrainer.joinDate || todayStr;
+      const salaryNum = editForm.salary ? Number(editForm.salary) : 0;
       const updatedData = {
         name: editForm.name,
         specialization: editForm.specialization,
@@ -455,7 +463,8 @@ export default function Trainers() {
         password: editForm.password || editingTrainer.password || editingTrainer.loginPassword || "Coach@123",
         loginPassword: editForm.password || editingTrainer.password || editingTrainer.loginPassword || "Coach@123",
         experience: editForm.experience,
-        salary: editForm.salary ? Number(editForm.salary) : 0,
+        salary: salaryNum,
+        joinDate: joinDate,
         bio: editForm.bio,
         certifications: editForm.certifications,
         photoUrl: editForm.photoUrl || "",
@@ -471,6 +480,49 @@ export default function Trainers() {
       };
 
       await updateTrainer(gymId || "univo_main", editingTrainer.id, updatedData);
+
+      // Sync or update recurring salary expense rule
+      try {
+        const existingExp = await getExpenses(gymId || "univo_main", true);
+        const foundTpl = existingExp.find(
+          (e) => e.isRecurringTemplate && (e.trainerId === editingTrainer.id || (e.title && e.title.includes(editingTrainer.name)))
+        );
+        const joinDay = Number(joinDate.split("-")[2]) || 1;
+
+        if (foundTpl) {
+          await updateExpense(gymId || "univo_main", foundTpl.id, {
+            title: `Trainer Salary: ${editForm.name}`,
+            amount: salaryNum,
+            startDate: joinDate,
+            dayOfMonth: joinDay,
+            isActive: salaryNum > 0,
+            trainerName: editForm.name,
+            updatedAt: new Date().toISOString()
+          });
+        } else if (salaryNum > 0) {
+          await addExpense(gymId || "univo_main", {
+            title: `Trainer Salary: ${editForm.name}`,
+            category: "Trainer Salary",
+            amount: salaryNum,
+            type: "monthly",
+            monthlyPaymentType: "postpaid",
+            isSalary: true,
+            isTrainerSalary: true,
+            trainerId: editingTrainer.id,
+            trainerName: editForm.name,
+            date: joinDate,
+            startDate: joinDate,
+            dayOfMonth: joinDay,
+            isRecurringTemplate: true,
+            isActive: true,
+            status: "active_recurring",
+            notes: `Monthly recurring salary for Trainer ${editForm.name} (Joined: ${joinDate}). Auto-bills on day ${joinDay} of every month starting next month.`,
+            createdAt: new Date().toISOString()
+          });
+        }
+      } catch (expSyncErr) {
+        console.warn("Could not sync recurring expense for trainer:", expSyncErr);
+      }
 
       setTrainers((prev) =>
         prev.map((t) =>
@@ -537,6 +589,18 @@ export default function Trainers() {
     if (window.confirm("Are you sure you want to delete this trainer?")) {
       try {
         await deleteTrainer(gymId || "univo_main", id);
+        try {
+          const expList = await getExpenses(gymId || "univo_main", true);
+          const tpl = expList.find((e) => e.isRecurringTemplate && e.trainerId === id);
+          if (tpl) {
+            await updateExpense(gymId || "univo_main", tpl.id, {
+              isActive: false,
+              status: "deactivated",
+              notes: `Trainer deleted on ${todayStr}`,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        } catch (eExp) {}
         setTrainers(trainers.filter((t) => t.id !== id));
         toast.success("Trainer deleted");
       } catch (err) {
@@ -566,6 +630,8 @@ export default function Trainers() {
 
     setLoading(true);
     try {
+      const joinDate = form.joinDate || todayStr;
+      const salaryNum = form.salary ? Number(form.salary) : 0;
       const newT = {
         name: form.name,
         specialization: form.specialization,
@@ -575,7 +641,8 @@ export default function Trainers() {
         password: form.password || "Coach@123",
         loginPassword: form.password || "Coach@123",
         experience: form.experience,
-        salary: form.salary ? Number(form.salary) : 0,
+        salary: salaryNum,
+        joinDate: joinDate,
         bio: form.bio,
         certifications: form.certifications,
         photoUrl: form.photoUrl || "",
@@ -591,8 +658,40 @@ export default function Trainers() {
       };
       const trainerId = await addTrainer(gymId || "univo_main", newT);
 
+      // Create automated recurring monthly salary expense rule
+      if (salaryNum > 0) {
+        try {
+          const joinDay = Number(joinDate.split("-")[2]) || 1;
+          await addExpense(gymId || "univo_main", {
+            title: `Trainer Salary: ${newT.name}`,
+            category: "Trainer Salary",
+            amount: salaryNum,
+            type: "monthly",
+            monthlyPaymentType: "postpaid",
+            isSalary: true,
+            isTrainerSalary: true,
+            trainerId: trainerId,
+            trainerName: newT.name,
+            date: joinDate,
+            startDate: joinDate,
+            dayOfMonth: joinDay,
+            isRecurringTemplate: true,
+            isActive: true,
+            status: "active_recurring",
+            notes: `Monthly recurring salary for Trainer ${newT.name} (Joined: ${joinDate}). Auto-bills on day ${joinDay} of every month starting next month.`,
+            createdAt: new Date().toISOString()
+          });
+        } catch (expErr) {
+          console.warn("Could not create recurring expense rule for trainer:", expErr);
+        }
+      }
+
       setTrainers([{ ...newT, id: trainerId }, ...trainers]);
-      toast.success("Trainer created with Login ID & PT packages!");
+      toast.success(
+        salaryNum > 0
+          ? `Trainer created! Monthly salary ₹${salaryNum.toLocaleString("en-IN")} schedule added to Gym Expenses.`
+          : "Trainer created with Login ID & PT packages!"
+      );
       setModalOpen(false);
 
       // Reset form
@@ -604,6 +703,7 @@ export default function Trainers() {
         password: "Coach@123",
         experience: "5 Years",
         salary: "",
+        joinDate: todayStr,
         bio: "",
         certifications: "",
         photoUrl: "",
@@ -908,89 +1008,6 @@ export default function Trainers() {
 
         {activeTab === "manual" ? (
           <form onSubmit={handleManualAdd} className="space-y-5">
-            {/* Staff Suggestions / Auto-fill Quick Import */}
-            {staffList.length > 0 && (
-              <div className="p-3 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-emerald-600" />
-                    ⚡ Quick Import from Existing Gym Staff
-                  </span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
-                    Auto-Fill Salary & Info
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-600 mb-2.5">
-                  Agar staff me trainer/coach pehle se add hai, to click karke direct details & monthly salary auto-fill karein:
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {staffList
-                    .filter((st) => {
-                      const r = (st.role || "").toLowerCase();
-                      return r.includes("trainer") || r.includes("coach") || r.includes("instructor") || r.includes("nutrition");
-                    })
-                    .map((st) => (
-                      <button
-                        key={st.id}
-                        type="button"
-                        onClick={() => {
-                          setForm((prev) => ({
-                            ...prev,
-                            name: st.name || prev.name,
-                            phone: st.phone || prev.phone,
-                            email: st.email || prev.email,
-                            specialization: st.role || prev.specialization,
-                            salary: st.salary ? String(st.salary) : prev.salary,
-                            photoUrl: st.photo || st.photoUrl || prev.photoUrl,
-                          }));
-                          toast.success(`Imported details for ${st.name}! Salary: ₹${st.salary || 0}`);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-emerald-300 hover:border-emerald-500 hover:bg-emerald-100/50 rounded-xl text-xs font-bold text-slate-800 shadow-2xs transition"
-                      >
-                        <UserPlus className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>{st.name}</span>
-                        <span className="text-[10px] font-normal text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                          {st.role} • ₹{Number(st.salary || 0).toLocaleString("en-IN")}
-                        </span>
-                      </button>
-                    ))}
-                  {staffList.filter((st) => {
-                    const r = (st.role || "").toLowerCase();
-                    return r.includes("trainer") || r.includes("coach") || r.includes("instructor") || r.includes("nutrition");
-                  }).length === 0 && (
-                    <div className="w-full">
-                      <select
-                        onChange={(e) => {
-                          const selected = staffList.find((s) => s.id === e.target.value);
-                          if (selected) {
-                            setForm((prev) => ({
-                              ...prev,
-                              name: selected.name || prev.name,
-                              phone: selected.phone || prev.phone,
-                              email: selected.email || prev.email,
-                              specialization: selected.role || prev.specialization,
-                              salary: selected.salary ? String(selected.salary) : prev.salary,
-                              photoUrl: selected.photo || selected.photoUrl || prev.photoUrl,
-                            }));
-                            toast.success(`Imported details for ${selected.name}!`);
-                          }
-                        }}
-                        defaultValue=""
-                        className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 outline-none"
-                      >
-                        <option value="" disabled>Select from all Staff Members...</option>
-                        {staffList.map((st) => (
-                          <option key={st.id} value={st.id}>
-                            {st.name} ({st.role || "Staff"}) - ₹{Number(st.salary || 0).toLocaleString("en-IN")}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* Top Profile Photo */}
             <div>
               <PhotoCaptureInput
@@ -1073,7 +1090,7 @@ export default function Trainers() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
                   Experience
@@ -1098,9 +1115,31 @@ export default function Trainers() {
                   placeholder="e.g. Weight Training & Hypertrophy"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                  Joining Date *
+                </label>
+                <input
+                  required
+                  type="date"
+                  value={form.joinDate}
+                  onChange={(e) => setForm({ ...form, joinDate: e.target.value })}
+                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-500 focus:bg-white outline-none"
+                />
+              </div>
               <div>
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center justify-between">
-                  <span>Monthly Fixed Salary (₹)</span>
+                  <span className="flex items-center gap-1">
+                    <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
+                    Monthly Fixed Salary (₹)
+                  </span>
+                  <span className="text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+                    Auto-Expense
+                  </span>
                 </label>
                 <div className="relative mt-1">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
@@ -1115,6 +1154,37 @@ export default function Trainers() {
                 </div>
               </div>
             </div>
+
+            {/* Automated Salary Expense Schedule Preview */}
+            {form.salary && Number(form.salary) > 0 && (
+              <div className="p-3.5 bg-gradient-to-r from-teal-50 via-emerald-50 to-slate-50 border border-teal-200/90 rounded-2xl flex items-start gap-3 shadow-2xs">
+                <div className="p-2 rounded-xl bg-teal-600 text-white flex-shrink-0 mt-0.5">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div className="text-xs text-slate-700 space-y-1.5 flex-1">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <span className="font-extrabold text-teal-950">Auto-Salary Expense Schedule Active</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-teal-200/80 text-teal-900 border border-teal-300">
+                      Day {form.joinDate ? Number(form.joinDate.split("-")[2]) || 1 : 1} of Every Month
+                    </span>
+                  </div>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">
+                    Trainer ki monthly salary (<strong>₹{Number(form.salary).toLocaleString("en-IN")}</strong>) har mahine unki joining date ({form.joinDate || todayStr}) ke hisaab se gym expenses me auto-add hogi.
+                  </p>
+                  <div className="p-2 bg-white/80 rounded-xl border border-teal-200/60 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 font-medium">🗓️ First Salary Expense Due:</span>
+                    <span className="font-bold text-teal-900">
+                      {(() => {
+                        const raw = form.joinDate || todayStr;
+                        const [y, m, d] = raw.split("-").map(Number);
+                        const nextD = new Date(y, m, d);
+                        return nextD.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+                      })()} (Next Month)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
@@ -2098,7 +2168,7 @@ export default function Trainers() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
                 Phone Number (WhatsApp) *
@@ -2123,19 +2193,76 @@ export default function Trainers() {
                 placeholder="e.g. 5 Years"
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-                Monthly Salary (₹)
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                Joining Date *
               </label>
               <input
-                type="number"
-                value={editForm.salary}
-                onChange={(e) => setEditForm({ ...editForm, salary: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
-                placeholder="30000"
+                required
+                type="date"
+                value={editForm.joinDate}
+                onChange={(e) => setEditForm({ ...editForm, joinDate: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-900 focus:border-emerald-500 focus:bg-white outline-none"
               />
             </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <IndianRupee className="w-3.5 h-3.5 text-emerald-600" />
+                  Monthly Salary (₹)
+                </span>
+                <span className="text-[10px] text-teal-700 font-bold bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+                  Auto-Expense
+                </span>
+              </label>
+              <div className="relative mt-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={editForm.salary}
+                  onChange={(e) => setEditForm({ ...editForm, salary: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-7 pr-3 py-2.5 text-sm font-black text-slate-900 focus:border-emerald-500 focus:bg-white outline-none"
+                  placeholder="30000"
+                />
+              </div>
+            </div>
           </div>
+
+          {/* Automated Salary Expense Schedule Preview */}
+          {editForm.salary && Number(editForm.salary) > 0 && (
+            <div className="p-3.5 bg-gradient-to-r from-teal-50 via-emerald-50 to-slate-50 border border-teal-200/90 rounded-2xl flex items-start gap-3 shadow-2xs">
+              <div className="p-2 rounded-xl bg-teal-600 text-white flex-shrink-0 mt-0.5">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div className="text-xs text-slate-700 space-y-1.5 flex-1">
+                <div className="flex items-center justify-between flex-wrap gap-1">
+                  <span className="font-extrabold text-teal-950">Auto-Salary Expense Schedule Active</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-teal-200/80 text-teal-900 border border-teal-300">
+                    Day {editForm.joinDate ? Number(editForm.joinDate.split("-")[2]) || 1 : 1} of Every Month
+                  </span>
+                </div>
+                <p className="text-slate-600 text-[11px] leading-relaxed">
+                  Trainer ki monthly salary (<strong>₹{Number(editForm.salary).toLocaleString("en-IN")}</strong>) har mahine unki joining date ({editForm.joinDate || todayStr}) ke hisaab se gym expenses me auto-update / sync hogi.
+                </p>
+                <div className="p-2 bg-white/80 rounded-xl border border-teal-200/60 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500 font-medium">🗓️ First Salary Expense Due:</span>
+                  <span className="font-bold text-teal-900">
+                    {(() => {
+                      const raw = editForm.joinDate || todayStr;
+                      const [y, m, d] = raw.split("-").map(Number);
+                      const nextD = new Date(y, m, d);
+                      return nextD.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+                    })()} (Next Month)
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">

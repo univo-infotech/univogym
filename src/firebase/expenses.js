@@ -43,6 +43,59 @@ export async function getExpenses(gymId, forceRefresh = false) {
 
   // Check recurring templates and automatically create monthly entries if due
   try {
+    // 1. Auto-sync active trainers with salary > 0 into recurring expense templates
+    try {
+      const trainersSnap = await getDocs(collection(db, `gyms/${targetGymId}/trainers`));
+      const trainers = trainersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      for (const tr of trainers) {
+        const trSalary = Number(tr.salary || 0);
+        if (trSalary > 0 && tr.active !== false) {
+          const hasTemplate = expensesList.some(
+            (e) =>
+              e.isRecurringTemplate &&
+              (e.trainerId === tr.id ||
+                (e.title && (tr.name || tr.fullName) && e.title.includes(tr.name || tr.fullName)))
+          );
+
+          if (!hasTemplate) {
+            const trJoin =
+              tr.joinDate ||
+              tr.joiningDate ||
+              (tr.createdAt
+                ? new Date(tr.createdAt.toDate ? tr.createdAt.toDate() : tr.createdAt)
+                    .toISOString()
+                    .split("T")[0]
+                : new Date().toISOString().split("T")[0]);
+            const joinDay = Number(trJoin.split("-")[2]) || 1;
+            const newTpl = {
+              title: `Trainer Salary: ${tr.name || tr.fullName || "Trainer"}`,
+              category: "Trainer Salary",
+              amount: trSalary,
+              type: "monthly",
+              monthlyPaymentType: "postpaid",
+              isSalary: true,
+              isTrainerSalary: true,
+              trainerId: tr.id,
+              trainerName: tr.name || tr.fullName || "Trainer",
+              date: trJoin,
+              startDate: trJoin,
+              dayOfMonth: joinDay,
+              isRecurringTemplate: true,
+              isActive: true,
+              status: "active_recurring",
+              notes: `Monthly recurring salary for Trainer ${tr.name || tr.fullName} (Joined: ${trJoin}). Auto-bills on day ${joinDay} of every month starting next month.`,
+              createdAt: new Date().toISOString()
+            };
+            const docRef = await addDoc(colRef, newTpl);
+            expensesList.push({ id: docRef.id, ...newTpl });
+          }
+        }
+      }
+    } catch (trErr) {
+      console.warn("Trainer salary recurring check skipped:", trErr);
+    }
+
     const recurringTemplates = expensesList.filter(
       (e) => e.type === "monthly" && e.isRecurringTemplate === true && e.isActive !== false
     );
@@ -51,6 +104,7 @@ export async function getExpenses(gymId, forceRefresh = false) {
       const now = new Date();
       const currentYear = now.getFullYear();
       const currentMonth = now.getMonth(); // 0-indexed
+      const todayIsoStr = now.toISOString().split("T")[0];
 
       let newlyCreated = [];
 
@@ -64,39 +118,55 @@ export async function getExpenses(gymId, forceRefresh = false) {
         let curY = sYear;
         let curM = sMonth - 1; // 0-indexed
 
+        // If postpaid or salary, first payout cycle is NEXT month from joining date!
+        if (tpl.monthlyPaymentType === "postpaid" || tpl.isSalary || tpl.isTrainerSalary) {
+          curM++;
+          if (curM > 11) {
+            curM = 0;
+            curY++;
+          }
+        }
+
         while (curY < currentYear || (curY === currentYear && curM <= currentMonth)) {
           const formattedM = String(curM + 1).padStart(2, "0");
           const targetMonthKey = `${curY}-${formattedM}`;
-          
+
           // Construct entry date (clamp to month max days)
           const daysInMonth = new Date(curY, curM + 1, 0).getDate();
           const actualDay = Math.min(billDay, daysInMonth);
           const entryDate = `${targetMonthKey}-${String(actualDay).padStart(2, "0")}`;
 
-          // Check if instance already exists
-          const exists = expensesList.some(
-            (e) =>
-              (e.templateId === tpl.id && e.date.startsWith(targetMonthKey)) ||
-              (e.id === tpl.id && e.date.startsWith(targetMonthKey))
-          );
+          // Only generate if today's date is >= entryDate (scheduled date has actually arrived)
+          if (entryDate <= todayIsoStr) {
+            // Check if instance already exists
+            const exists = expensesList.some(
+              (e) =>
+                (e.templateId === tpl.id && e.date && e.date.startsWith(targetMonthKey)) ||
+                (e.id === tpl.id && e.date && e.date.startsWith(targetMonthKey)) ||
+                (tpl.trainerId && e.trainerId === tpl.trainerId && e.date && e.date.startsWith(targetMonthKey))
+            );
 
-          if (!exists) {
-            const newEntry = {
-              title: tpl.title,
-              category: tpl.category || "General",
-              amount: Number(tpl.amount) || 0,
-              type: "monthly",
-              monthlyPaymentType: tpl.monthlyPaymentType || "advance",
-              isRecurringInstance: true,
-              templateId: tpl.id,
-              date: entryDate,
-              status: "auto_generated",
-              notes: tpl.notes ? `Auto-billed: ${tpl.notes}` : "Automated monthly recurring expense",
-              createdAt: new Date().toISOString()
-            };
+            if (!exists) {
+              const newEntry = {
+                title: tpl.title,
+                category: tpl.category || (tpl.isTrainerSalary ? "Trainer Salary" : "General"),
+                amount: Number(tpl.amount) || 0,
+                type: "monthly",
+                monthlyPaymentType: tpl.monthlyPaymentType || "postpaid",
+                isRecurringInstance: true,
+                templateId: tpl.id,
+                trainerId: tpl.trainerId || null,
+                trainerName: tpl.trainerName || null,
+                isTrainerSalary: Boolean(tpl.isTrainerSalary),
+                date: entryDate,
+                status: "paid",
+                notes: tpl.notes ? `Auto-billed: ${tpl.notes}` : "Automated monthly recurring expense",
+                createdAt: new Date().toISOString()
+              };
 
-            const createdRef = await addDoc(colRef, newEntry);
-            newlyCreated.push({ id: createdRef.id, ...newEntry });
+              const createdRef = await addDoc(colRef, newEntry);
+              newlyCreated.push({ id: createdRef.id, ...newEntry });
+            }
           }
 
           // Advance one month

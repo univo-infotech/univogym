@@ -218,12 +218,17 @@ export default function TrainerDashboard() {
       }
     });
 
+    const baseSalary = Number(trainerProfile?.salary || 0);
+    const totalTrainerEarnings = baseSalary + totalTrainerCut;
+
     return {
       totalPtRevenue,
       totalOwnerCut,
       totalTrainerCut,
+      baseSalary,
+      totalTrainerEarnings,
       payoutsPaid: Number(trainerProfile?.payoutsPaid || 0),
-      pendingPayout: Math.max(0, totalTrainerCut - Number(trainerProfile?.payoutsPaid || 0))
+      pendingPayout: Math.max(0, totalTrainerEarnings - Number(trainerProfile?.payoutsPaid || 0))
     };
   }, [members, trainerProfile]);
 
@@ -329,9 +334,13 @@ export default function TrainerDashboard() {
           color="blue"
         />
         <StatCard
-          title="Trainer Net Payout"
-          value={`₹${financialSummary.totalTrainerCut.toLocaleString("en-IN")}`}
-          change={`₹${financialSummary.pendingPayout.toLocaleString("en-IN")} Pending`}
+          title="Trainer Total Earnings"
+          value={`₹${financialSummary.totalTrainerEarnings.toLocaleString("en-IN")}`}
+          change={
+            financialSummary.baseSalary > 0
+              ? `₹${financialSummary.baseSalary.toLocaleString("en-IN")} Base + PT`
+              : `₹${financialSummary.pendingPayout.toLocaleString("en-IN")} Pending`
+          }
           changeType="up"
           icon={<IndianRupee className="w-5 h-5 text-amber-600" />}
           color="orange"
@@ -360,7 +369,7 @@ export default function TrainerDashboard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className={`grid grid-cols-1 ${financialSummary.baseSalary > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4"} gap-4`}>
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
             <span className="text-[10px] font-bold text-slate-500 uppercase">Total PT Fees (Owner Collected)</span>
             <p className="text-xl font-black text-slate-900 mt-1">
@@ -377,12 +386,22 @@ export default function TrainerDashboard() {
             <p className="text-[10px] text-indigo-600 mt-0.5">Gym Facility & Maintenance Share</p>
           </div>
 
+          {financialSummary.baseSalary > 0 && (
+            <div className="p-4 rounded-2xl bg-teal-50/80 border border-teal-200">
+              <span className="text-[10px] font-bold text-teal-800 uppercase">💰 Base Monthly Salary</span>
+              <p className="text-xl font-black text-teal-950 mt-1">
+                ₹{financialSummary.baseSalary.toLocaleString("en-IN")}
+              </p>
+              <p className="text-[10px] text-teal-700 mt-0.5">Fixed monthly salary from Gym</p>
+            </div>
+          )}
+
           <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200">
-            <span className="text-[10px] font-bold text-emerald-800 uppercase">🏋️ Trainer Earning Share</span>
+            <span className="text-[10px] font-bold text-emerald-800 uppercase">🏋️ Trainer PT Earning Share</span>
             <p className="text-xl font-black text-emerald-950 mt-1">
               ₹{financialSummary.totalTrainerCut.toLocaleString("en-IN")}
             </p>
-            <p className="text-[10px] text-emerald-700 mt-0.5">Net Payout Earned by Coach</p>
+            <p className="text-[10px] text-emerald-700 mt-0.5">Net PT Commissions Earned</p>
           </div>
 
           <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200">

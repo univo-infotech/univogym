@@ -111,6 +111,31 @@ function ProfileTab({ trainer }) {
             color="purple"
           />
         )}
+        {trainer.joinDate && Number(trainer.salary || 0) > 0 && (
+          <InfoCard
+            icon={Clock}
+            label="Next Salary Cycle"
+            value={(() => {
+              try {
+                const raw = String(trainer.joinDate);
+                const [y, m, d] = raw.split("-").map(Number);
+                const now = new Date();
+                let cycleY = now.getFullYear();
+                let cycleM = now.getMonth();
+                const todayD = now.getDate();
+                if (todayD >= d) {
+                  cycleM++;
+                  if (cycleM > 11) { cycleM = 0; cycleY++; }
+                }
+                const nextDue = new Date(cycleY, cycleM, d || 1);
+                return `${nextDue.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} (Day ${d || 1})`;
+              } catch (e) {
+                return "Monthly Recurring";
+              }
+            })()}
+            color="teal"
+          />
+        )}
         {trainer.phone && (
           <InfoCard icon={Phone} label="Phone Number" value={trainer.phone} color="blue" />
         )}

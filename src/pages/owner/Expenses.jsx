@@ -21,7 +21,8 @@ import {
   HelpCircle,
   Filter,
   ArrowUpRight,
-  Info
+  Info,
+  Dumbbell
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
@@ -41,6 +42,7 @@ const CATEGORIES = [
   { id: "Water", name: "Water & Dispensers", icon: Droplets, color: "text-cyan-600 bg-cyan-50 border-cyan-200" },
   { id: "Maintenance", name: "Equipment Repair", icon: Wrench, color: "text-purple-600 bg-purple-50 border-purple-200" },
   { id: "Staff Salary", name: "Staff Payroll", icon: Layers, color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+  { id: "Trainer Salary", name: "Trainer Salary", icon: Dumbbell, color: "text-teal-600 bg-teal-50 border-teal-200" },
   { id: "Supplements", name: "Store Restock", icon: ShoppingBag, color: "text-rose-600 bg-rose-50 border-rose-200" },
   { id: "Marketing", name: "Marketing & Ads", icon: Megaphone, color: "text-indigo-600 bg-indigo-50 border-indigo-200" },
   { id: "Miscellaneous", name: "Other Expenses", icon: Receipt, color: "text-slate-600 bg-slate-100 border-slate-200" }
