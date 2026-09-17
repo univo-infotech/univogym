@@ -44,6 +44,7 @@ import { generatePaymentReceipt } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
 import { openWhatsApp, generatePtAddonReceiptMessage } from "../../utils/whatsapp";
 import { invalidateCache } from "../../utils/dataCache";
+import { calculateBmi, parseHeightToMeters } from "../../utils/bmi";
 import Modal from "../../components/ui/Modal";
 import { collection, getDocs, query } from "firebase/firestore";
 import { db } from "../../firebase/config";
@@ -97,6 +98,23 @@ export default function MemberDetail() {
   const [isEditingPass, setIsEditingPass] = useState(false);
   const [passInput, setPassInput] = useState("");
   const [isSavingPass, setIsSavingPass] = useState(false);
+
+  // Compute accurate real-time BMI and ideal weight range
+  const computedBmi = React.useMemo(() => {
+    if (!member) return null;
+    const w = parseFloat(member.weight);
+    if (!w) return null;
+    return calculateBmi({
+      weight: w,
+      heightFeet: member.heightFeet,
+      heightInches: member.heightInches,
+      heightCm: member.heightCm,
+      heightUnit: member.heightCm ? "cm" : "ft",
+    }) || (member.height ? (() => {
+      const hM = parseHeightToMeters(member.height);
+      return hM ? calculateBmi({ weight: w, heightCm: hM * 100, heightUnit: "cm" }) : null;
+    })() : null);
+  }, [member]);
 
   const handleCopy = (text, key) => {
     if (!text || text === "—" || text === "-") return;
@@ -851,26 +869,38 @@ export default function MemberDetail() {
                   <p className="text-sm font-extrabold text-slate-900 mt-0.5">{member.weight ? `${member.weight} kg` : "-"}</p>
                 </div>
                 <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Height (ft & in)</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Height</p>
                   <p className="text-sm font-extrabold text-slate-900 mt-0.5">
-                    {member.heightFeet
+                    {member.height
+                      ? member.height
+                      : member.heightFeet
                       ? `${member.heightFeet} ft ${member.heightInches || 0} in`
-                      : member.height
-                      ? String(member.height).includes('ft')
-                        ? member.height
-                        : `${Math.floor(parseFloat(member.height) / 30.48)} ft ${Math.round((parseFloat(member.height) % 30.48) / 2.54)} in`
+                      : member.heightCm
+                      ? `${member.heightCm} cm`
                       : '-'}
                   </p>
                 </div>
                 <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
                   <p className="text-[10px] text-slate-400 font-bold uppercase">BMI Score</p>
                   <p className="text-sm font-extrabold text-purple-700 mt-0.5">
-                    {member.bmi ? `${member.bmi} (${member.bmiCategory || "Normal"})` : "-"}
+                    {computedBmi
+                      ? `${computedBmi.val} (${computedBmi.category})`
+                      : member.bmi
+                      ? `${member.bmi} (${member.bmiCategory || "Normal"})`
+                      : "-"}
                   </p>
                 </div>
                 <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Target Goal</p>
-                  <p className="text-xs font-extrabold text-emerald-700 mt-0.5 truncate">{member.fitnessGoal || "General Fitness"}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">
+                    {member.targetWeight ? "Target Weight" : "Ideal Weight (Healthy)"}
+                  </p>
+                  <p className="text-xs font-extrabold text-emerald-700 mt-0.5 truncate">
+                    {member.targetWeight
+                      ? `${member.targetWeight} kg`
+                      : computedBmi
+                      ? computedBmi.idealRangeText
+                      : member.fitnessGoal || "General Fitness"}
+                  </p>
                 </div>
               </div>
             </div>

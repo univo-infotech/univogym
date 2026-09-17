@@ -44,6 +44,7 @@ import { getPlans, getActivePlans } from "../../firebase/plans";
 import { getServices, DEFAULT_SERVICES } from "../../firebase/services";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
+import { calculateBmi, parseHeightToMeters } from "../../utils/bmi";
 
 const WORKOUT_SLOTS = [
   { id: "morning", label: "Morning", time: "6:00 AM - 9:00 AM", icon: Sun },
@@ -184,8 +185,10 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     loginPassword: "",
     // Personal Training & Assessment metrics
     weight: "",
-    heightFeet: "5",
-    heightInches: "8",
+    heightUnit: "ft", // "ft" | "cm"
+    heightCm: "",
+    heightFeet: "",
+    heightInches: "",
     fitnessGoal: "Weight Loss & Fat Burn",
     targetWeight: "",
     targetTimeline: "90 Days",
@@ -252,41 +255,16 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     return map;
   }, [selectedTrainerObj, isPersonalTrainer, existingMembers]);
 
-  // Dynamic BMI Calculation from Weight in kg and Height in ft & in
+  // Dynamic Accurate BMI Calculation (WHO Standard with cm and ft/in conversion)
   const bmiInfo = useMemo(() => {
-    const w = parseFloat(formData.weight);
-    const ft = parseFloat(formData.heightFeet);
-    const inch = parseFloat(formData.heightInches || 0);
-    if (!w || !ft || w <= 0 || ft <= 0) return null;
-
-    // 1 ft = 12 in, 1 in = 0.0254 meters
-    const totalInches = ft * 12 + inch;
-    const hM = totalInches * 0.0254;
-    const val = parseFloat((w / (hM * hM)).toFixed(1));
-    let category = "Normal";
-    let color = "text-emerald-700 bg-emerald-50 border-emerald-200";
-    let message = "Healthy range for overall fitness and performance";
-
-    if (val < 18.5) {
-      category = "Underweight";
-      color = "text-blue-700 bg-blue-50 border-blue-200";
-      message = "Higher protein intake & progressive overload recommended";
-    } else if (val <= 24.9) {
-      category = "Normal Weight (Healthy)";
-      color = "text-emerald-700 bg-emerald-50 border-emerald-200";
-      message = "Prime condition for lean muscle growth & strength conditioning";
-    } else if (val <= 29.9) {
-      category = "Overweight";
-      color = "text-amber-700 bg-amber-50 border-amber-200";
-      message = "Caloric deficit & structured cardio/resistance split advised";
-    } else {
-      category = "Obese";
-      color = "text-rose-700 bg-rose-50 border-rose-200";
-      message = "Customized cardio, joint-friendly lifting & nutrition advised";
-    }
-
-    return { val, category, color, message };
-  }, [formData.weight, formData.heightFeet, formData.heightInches]);
+    return calculateBmi({
+      weight: formData.weight,
+      heightFeet: formData.heightFeet,
+      heightInches: formData.heightInches,
+      heightCm: formData.heightCm,
+      heightUnit: formData.heightUnit || "ft",
+    });
+  }, [formData.weight, formData.heightFeet, formData.heightInches, formData.heightCm, formData.heightUnit]);
 
   // Handle Photo Upload
   const handlePhotoUpload = (e) => {
@@ -403,11 +381,15 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
         : "",
       // Physical Assessment Metrics
       weight: formData.weight ? String(formData.weight) : "",
-      height: formData.heightFeet ? `${formData.heightFeet} ft ${formData.heightInches || 0} in` : "",
+      height: formData.heightUnit === "cm"
+        ? (formData.heightCm ? `${formData.heightCm} cm` : (bmiInfo ? bmiInfo.heightFtIn : ""))
+        : (formData.heightFeet ? `${formData.heightFeet} ft ${formData.heightInches || 0} in` : (bmiInfo ? `${bmiInfo.heightCm} cm` : "")),
       heightFeet: formData.heightFeet || "",
       heightInches: formData.heightInches || "",
+      heightCm: formData.heightCm || (bmiInfo ? String(bmiInfo.heightCm) : ""),
       bmi: bmiInfo ? String(bmiInfo.val) : "",
       bmiCategory: bmiInfo ? bmiInfo.category : "",
+      idealWeightRange: bmiInfo ? bmiInfo.idealRangeText : "",
       fitnessGoal: formData.fitnessGoal,
       targetWeight: formData.targetWeight ? String(formData.targetWeight) : "",
       targetTimeline: formData.targetTimeline,
@@ -456,8 +438,10 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       preferredSlot: "Morning (6:00 AM - 9:00 AM)",
       healthNotes: "",
       weight: "",
-      heightFeet: "5",
-      heightInches: "8",
+      heightUnit: "ft",
+      heightCm: "",
+      heightFeet: "",
+      heightInches: "",
       fitnessGoal: "Weight Loss & Fat Burn",
       targetWeight: "",
       targetTimeline: "90 Days",
@@ -1129,18 +1113,18 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 </div>
 
                 {/* Weight, Height and BMI Display Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
                   {/* Weight Input */}
                   <div>
                     <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1 text-xs">
-                      <Scale className="w-3.5 h-3.5 text-purple-600" /> Body Weight (kg) *
+                      <Scale className="w-3.5 h-3.5 text-purple-600" /> Body Weight (kg)
                     </label>
                     <input
                       type="number"
                       step="0.1"
-                      min="30"
-                      max="250"
-                      placeholder="e.g. 74.5"
+                      min="20"
+                      max="300"
+                      placeholder="e.g. 72.5"
                       value={formData.weight}
                       onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
                       className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-purple-600"
@@ -1148,48 +1132,92 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     <span className="text-[10px] text-slate-400 mt-0.5 block">Recorded in kg</span>
                   </div>
 
-                  {/* Height Input (Feet & Inches) */}
+                  {/* Height Input with Unit Toggle (Feet & Inches OR Centimeters) */}
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1 flex items-center gap-1 text-xs">
-                      <Activity className="w-3.5 h-3.5 text-purple-600" /> Height (ft & in) *
-                    </label>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min="3"
-                          max="8"
-                          step="1"
-                          placeholder="5"
-                          value={formData.heightFeet}
-                          onChange={(e) => setFormData({ ...formData, heightFeet: e.target.value })}
-                          className="w-full bg-white border border-purple-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:outline-none focus:border-purple-600"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">ft</span>
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min="0"
-                          max="11"
-                          step="1"
-                          placeholder="8"
-                          value={formData.heightInches}
-                          onChange={(e) => setFormData({ ...formData, heightInches: e.target.value })}
-                          className="w-full bg-white border border-purple-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:outline-none focus:border-purple-600"
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">in</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-slate-700 flex items-center gap-1 text-xs">
+                        <Activity className="w-3.5 h-3.5 text-purple-600" /> Height
+                      </label>
+                      <div className="inline-flex rounded-lg p-0.5 bg-purple-100 border border-purple-200 text-[10px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, heightUnit: "ft" }))}
+                          className={`px-2 py-0.5 rounded-md transition ${formData.heightUnit !== "cm" ? "bg-purple-600 text-white shadow-xs" : "text-purple-700 hover:text-purple-900"}`}
+                        >
+                          ft & in
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, heightUnit: "cm" }))}
+                          className={`px-2 py-0.5 rounded-md transition ${formData.heightUnit === "cm" ? "bg-purple-600 text-white shadow-xs" : "text-purple-700 hover:text-purple-900"}`}
+                        >
+                          cm
+                        </button>
                       </div>
                     </div>
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">
-                      {formData.heightFeet ? `${formData.heightFeet} ft ${formData.heightInches || 0} in` : "e.g. 5 ft 8 in"}
-                    </span>
+
+                    {formData.heightUnit === "cm" ? (
+                      <div>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="80"
+                            max="250"
+                            step="0.5"
+                            placeholder="e.g. 172"
+                            value={formData.heightCm}
+                            onChange={(e) => setFormData({ ...formData, heightCm: e.target.value })}
+                            className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 pr-10 focus:outline-none focus:border-purple-600"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">cm</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">
+                          {bmiInfo?.heightFtIn ? `≈ ${bmiInfo.heightFtIn}` : "Standard height in cm"}
+                        </span>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="3"
+                              max="8"
+                              step="1"
+                              placeholder="Feet (5)"
+                              value={formData.heightFeet}
+                              onChange={(e) => setFormData({ ...formData, heightFeet: e.target.value })}
+                              className="w-full bg-white border border-purple-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:outline-none focus:border-purple-600"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">ft</span>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              max="11"
+                              step="0.5"
+                              placeholder="Inch (8)"
+                              value={formData.heightInches}
+                              onChange={(e) => setFormData({ ...formData, heightInches: e.target.value })}
+                              className="w-full bg-white border border-purple-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:outline-none focus:border-purple-600"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">in</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">
+                          {bmiInfo?.heightCm ? `≈ ${bmiInfo.heightCm} cm` : "e.g. 5 ft 8 in"}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Auto Calculated BMI Card */}
-                  <div className="bg-white p-2.5 rounded-xl border border-purple-200 flex flex-col justify-between">
+                  {/* Auto Calculated Accurate BMI Card */}
+                  <div className="bg-white p-3 rounded-xl border border-purple-200 flex flex-col justify-between shadow-2xs min-h-[92px]">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">Calculated BMI</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                        <Scale className="w-3 h-3 text-purple-600" /> Accurate BMI
+                      </span>
                       {bmiInfo && (
                         <span className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded border ${bmiInfo.color}`}>
                           {bmiInfo.category}
@@ -1197,20 +1225,32 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       )}
                     </div>
 
-                    <div className="my-0.5">
+                    <div className="my-1">
                       {bmiInfo ? (
-                        <div className="flex items-baseline gap-1.5">
+                        <div className="flex items-baseline gap-1.5 flex-wrap">
                           <span className="text-xl font-black text-purple-950">{bmiInfo.val}</span>
                           <span className="text-[10px] text-slate-500 font-bold">kg/m²</span>
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            Ideal: {bmiInfo.idealRangeText}
+                          </span>
                         </div>
                       ) : (
-                        <span className="text-xs text-slate-400 italic">Enter Weight & Height</span>
+                        <span className="text-xs text-slate-400 italic">Enter Weight & Height for BMI</span>
                       )}
                     </div>
 
-                    <p className="text-[10px] text-slate-500 leading-tight truncate">
-                      {bmiInfo ? bmiInfo.message : "Formula: Weight / (Height in m)²"}
-                    </p>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-purple-50">
+                      <span className="truncate max-w-[170px]">{bmiInfo ? bmiInfo.message : "Formula: Weight / (Height in m)²"}</span>
+                      {(formData.weight || formData.heightFeet || formData.heightCm) && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({ ...prev, weight: "", heightFeet: "", heightInches: "", heightCm: "" }))}
+                          className="text-purple-600 hover:text-purple-800 font-bold underline shrink-0 ml-1"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 

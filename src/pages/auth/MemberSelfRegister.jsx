@@ -58,8 +58,8 @@ import {
   uploadBytes,
   getDownloadURL,
 } from 'firebase/storage';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { getGymSettings } from '../../utils/settings';
+import { calculateBmi } from '../../utils/bmi';
 
 const STEPS = [
   { id: 1, label: 'Verify' },
@@ -281,40 +281,23 @@ export default function MemberSelfRegister() {
 
   // Body Assessment (when dedicated coach selected)
   const [weight, setWeight] = useState('');
-  const [heightFeet, setHeightFeet] = useState('5');
-  const [heightInches, setHeightInches] = useState('8');
+  const [heightUnit, setHeightUnit] = useState('ft'); // 'ft' | 'cm'
+  const [heightCm, setHeightCm] = useState('');
+  const [heightFeet, setHeightFeet] = useState('');
+  const [heightInches, setHeightInches] = useState('');
   const [fitnessGoal, setFitnessGoal] = useState('Weight Loss & Fat Burn');
   const [targetWeight, setTargetWeight] = useState('');
 
-  // Dynamic BMI Calculation from Weight (kg) and Height (ft & in)
+  // Dynamic Accurate BMI Calculation (WHO Standard)
   const bmiInfo = React.useMemo(() => {
-    const w = parseFloat(weight);
-    const ft = parseFloat(heightFeet);
-    const inch = parseFloat(heightInches || 0);
-    if (!w || !ft || w <= 0 || ft <= 0) return null;
-
-    // 1 ft = 12 in, 1 in = 0.0254 m
-    const totalInches = ft * 12 + inch;
-    const hM = totalInches * 0.0254;
-    const val = parseFloat((w / (hM * hM)).toFixed(1));
-    let category = "Normal";
-    let color = "text-emerald-700 bg-emerald-50 border-emerald-200";
-
-    if (val < 18.5) {
-      category = "Underweight";
-      color = "text-blue-700 bg-blue-50 border-blue-200";
-    } else if (val <= 24.9) {
-      category = "Normal (Healthy)";
-      color = "text-emerald-700 bg-emerald-50 border-emerald-200";
-    } else if (val <= 29.9) {
-      category = "Overweight";
-      color = "text-amber-700 bg-amber-50 border-amber-200";
-    } else {
-      category = "Obese";
-      color = "text-rose-700 bg-rose-50 border-rose-200";
-    }
-    return { val, category, color };
-  }, [weight, heightFeet, heightInches]);
+    return calculateBmi({
+      weight,
+      heightFeet,
+      heightInches,
+      heightCm,
+      heightUnit,
+    });
+  }, [weight, heightFeet, heightInches, heightCm, heightUnit]);
 
   // Load dynamic workout slots configured by owner in Settings
   const gymSettings = React.useMemo(() => getGymSettings(), []);
@@ -626,13 +609,16 @@ export default function MemberSelfRegister() {
         isPTMember: Boolean(selectedTrainer),
         loginEmail: selectedTrainer ? (loginEmail || tokenData?.loginEmail || personalData.phone || tokenData?.phone || '').trim() : '',
         loginPassword: selectedTrainer ? (loginPassword || tokenData?.loginPassword || 'Member@123').trim() : '',
-        password: selectedTrainer ? (loginPassword || tokenData?.loginPassword || 'Member@123').trim() : '',
         weight: weight || '',
-        height: heightFeet ? `${heightFeet} ft ${heightInches || 0} in` : '',
+        height: heightUnit === 'cm'
+          ? (heightCm ? `${heightCm} cm` : (bmiInfo ? bmiInfo.heightFtIn : ''))
+          : (heightFeet ? `${heightFeet} ft ${heightInches || 0} in` : (bmiInfo ? `${bmiInfo.heightCm} cm` : '')),
         heightFeet: heightFeet || '',
         heightInches: heightInches || '',
+        heightCm: heightCm || (bmiInfo ? String(bmiInfo.heightCm) : ''),
         bmi: bmiInfo ? String(bmiInfo.val) : '',
         bmiCategory: bmiInfo ? bmiInfo.category : '',
+        idealWeightRange: bmiInfo ? bmiInfo.idealRangeText : '',
         fitnessGoal: fitnessGoal || '',
         targetWeight: targetWeight || '',
         preferredTime,
@@ -1586,55 +1572,108 @@ export default function MemberSelfRegister() {
                       </div>
 
                       <div>
-                        <label className="font-bold text-slate-700 block mb-1 text-[11px]">Height (ft & in) *</label>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min="3"
-                              max="8"
-                              step="1"
-                              placeholder="5"
-                              value={heightFeet}
-                              onChange={(e) => setHeightFeet(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:bg-white focus:outline-none focus:border-emerald-500"
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">ft</span>
-                          </div>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min="0"
-                              max="11"
-                              step="1"
-                              placeholder="8"
-                              value={heightInches}
-                              onChange={(e) => setHeightInches(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:bg-white focus:outline-none focus:border-emerald-500"
-                            />
-                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">in</span>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="font-bold text-slate-700 text-[11px]">Height *</label>
+                          <div className="inline-flex rounded-lg p-0.5 bg-emerald-100/70 border border-emerald-200 text-[10px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => setHeightUnit("ft")}
+                              className={`px-2 py-0.5 rounded-md transition ${heightUnit !== "cm" ? "bg-emerald-600 text-white shadow-xs" : "text-emerald-800 hover:text-emerald-950"}`}
+                            >
+                              ft & in
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setHeightUnit("cm")}
+                              className={`px-2 py-0.5 rounded-md transition ${heightUnit === "cm" ? "bg-emerald-600 text-white shadow-xs" : "text-emerald-800 hover:text-emerald-950"}`}
+                            >
+                              cm
+                            </button>
                           </div>
                         </div>
-                        <span className="text-[10px] text-slate-400 mt-0.5 block">
-                          {heightFeet ? `${heightFeet} ft ${heightInches || 0} in` : "e.g. 5 ft 8 in"}
-                        </span>
+
+                        {heightUnit === "cm" ? (
+                          <div>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="80"
+                                max="250"
+                                step="0.5"
+                                placeholder="e.g. 172"
+                                value={heightCm}
+                                onChange={(e) => setHeightCm(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 pr-10 focus:bg-white focus:outline-none focus:border-emerald-500"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">cm</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 mt-0.5 block">
+                              {bmiInfo?.heightFtIn ? `≈ ${bmiInfo.heightFtIn}` : "Standard height in cm"}
+                            </span>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  min="3"
+                                  max="8"
+                                  step="1"
+                                  placeholder="Feet (5)"
+                                  value={heightFeet}
+                                  onChange={(e) => setHeightFeet(e.target.value)}
+                                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:bg-white focus:outline-none focus:border-emerald-500"
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">ft</span>
+                              </div>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="11"
+                                  step="0.5"
+                                  placeholder="Inch (8)"
+                                  value={heightInches}
+                                  onChange={(e) => setHeightInches(e.target.value)}
+                                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 pr-6 focus:bg-white focus:outline-none focus:border-emerald-500"
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] font-bold text-slate-400">in</span>
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-slate-400 mt-0.5 block">
+                              {bmiInfo?.heightCm ? `≈ ${bmiInfo.heightCm} cm` : "e.g. 5 ft 8 in"}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-col justify-between">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Your BMI</span>
-                        <div className="flex items-baseline gap-1.5 my-0.5">
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex flex-col justify-between min-h-[88px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                            <Scale className="w-3 h-3 text-emerald-600" /> Accurate BMI
+                          </span>
+                          {bmiInfo && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${bmiInfo.color}`}>
+                              {bmiInfo.category}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-baseline gap-1.5 my-0.5 flex-wrap">
                           {bmiInfo ? (
                             <>
                               <span className="text-xl font-black text-slate-900">{bmiInfo.val}</span>
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${bmiInfo.color}`}>
-                                {bmiInfo.category}
+                              <span className="text-[10px] text-slate-500 font-bold">kg/m²</span>
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                Ideal: {bmiInfo.idealRangeText}
                               </span>
                             </>
                           ) : (
-                            <span className="text-[11px] text-slate-400 italic">Enter Wt & Ht</span>
+                            <span className="text-[11px] text-slate-400 italic">Enter Weight & Height for BMI</span>
                           )}
                         </div>
-                        <span className="text-[9px] text-slate-400">BMI = Weight / (Height in m)²</span>
+                        <span className="text-[9px] text-slate-400 truncate">{bmiInfo ? bmiInfo.message : "Formula: Weight (kg) / (Height in m)²"}</span>
                       </div>
                     </div>
 

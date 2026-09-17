@@ -38,6 +38,7 @@ import {
   getTrainer,
   getTrainers
 } from "../../firebase/trainers";
+import { calculateBmi, parseHeightToMeters } from "../../utils/bmi";
 
 const DIET_PRESETS = [
   {
@@ -215,10 +216,21 @@ export default function AthleteHealthDietModal({
     }
   }, [member, gymId]);
 
-  // Calculate BMI
-  const heightM = member.height ? Number(member.height) / 100 : null;
+  // Calculate Accurate BMI (WHO Standard)
   const currentWeightNum = Number(weightInput || member.weight || 0);
-  const bmi = heightM && currentWeightNum > 0 ? (currentWeightNum / (heightM * heightM)).toFixed(1) : null;
+  const bmiInfo = calculateBmi({
+    weight: currentWeightNum,
+    heightFeet: member.heightFeet,
+    heightInches: member.heightInches,
+    heightCm: member.heightCm,
+    heightUnit: member.heightCm ? "cm" : "ft"
+  }) || (member.height ? (() => {
+    const hM = parseHeightToMeters(member.height);
+    return hM && currentWeightNum > 0 ? calculateBmi({ weight: currentWeightNum, heightCm: hM * 100, heightUnit: "cm" }) : null;
+  })() : null);
+
+  const bmi = bmiInfo ? bmiInfo.val : (member.bmi || null);
+  const bmiCategory = bmiInfo ? bmiInfo.category : (member.bmiCategory || null);
 
   // Calculate PT Timeline ("Kab tak training deni hai")
   const startDate = member.ptStartDate || member.joinDate || "N/A";
@@ -565,19 +577,29 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
                   </div>
                   <div>
                     <span className="text-slate-500 font-medium block">Height</span>
-                    <strong className="text-slate-900">{member.height ? `${member.height} cm` : 'N/A'}</strong>
+                    <strong className="text-slate-900">
+                      {member.height
+                        ? (String(member.height).includes('ft') || String(member.height).includes('cm')
+                            ? member.height
+                            : `${member.height} cm`)
+                        : (member.heightFeet ? `${member.heightFeet} ft ${member.heightInches || 0} in` : 'N/A')}
+                    </strong>
                   </div>
                   <div>
                     <span className="text-slate-500 font-medium block">Weight</span>
                     <strong className="text-slate-900">{currentWeightNum > 0 ? `${currentWeightNum} kg` : 'N/A'}</strong>
                   </div>
                   <div>
-                    <span className="text-slate-500 font-medium block">BMI</span>
-                    <strong className="text-slate-900">{bmi || 'N/A'}</strong>
+                    <span className="text-slate-500 font-medium block">BMI Score</span>
+                    <strong className="text-slate-900">
+                      {bmi ? `${bmi}${bmiCategory ? ` (${bmiCategory})` : ''}` : 'N/A'}
+                    </strong>
                   </div>
                   <div>
                     <span className="text-slate-500 font-medium block">Target Weight</span>
-                    <strong className="text-slate-900">{member.targetWeight ? `${member.targetWeight} kg` : 'N/A'}</strong>
+                    <strong className="text-slate-900">
+                      {member.targetWeight ? `${member.targetWeight} kg` : (bmiInfo ? `Ideal: ${bmiInfo.idealMin}-${bmiInfo.idealMax} kg` : 'N/A')}
+                    </strong>
                   </div>
                 </div>
               </div>
