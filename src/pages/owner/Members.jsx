@@ -3557,6 +3557,7 @@ export default function Members() {
   const isPtActive = (m) => isPtMember(m) && m.ptStatus !== 'ended';
   const isLeftMember = (m) => m.status === 'left';
   const isFullyEndedMember = (m) => m.status === 'ended' || (m.status === 'pt_ended' && !m.planName && m.status !== 'active');
+  const isEndedMember = (m) => isFullyEndedMember(m) || m.ptStatus === 'ended';
   const isInactiveMember = (m) => isLeftMember(m) || isFullyEndedMember(m);
 
   const paidCount = members.filter((m) => isPaid(m) && !isInactiveMember(m)).length;
