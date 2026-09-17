@@ -1,9 +1,9 @@
-/**
- * memberUtils.js — Single Source of Truth for all Member lifecycle, status, and field helpers.
+﻿/**
+ * memberUtils.js ΓÇö Single Source of Truth for all Member lifecycle, status, and field helpers.
  * Every component in the Members section imports from here. No duplication.
  */
 
-// ─── Date Helpers ─────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Date Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 /** Convert Firestore Timestamp / ISO string / Date to native JS Date. Returns null if falsy. */
 export function toDate(val) {
@@ -22,10 +22,10 @@ export function getDaysRemaining(dateVal) {
   return Math.ceil((d - now) / (1000 * 60 * 60 * 24));
 }
 
-/** Format date as '15 Sep 2026'. Returns '—' if invalid. */
+/** Format date as '15 Sep 2026'. Returns 'ΓÇö' if invalid. */
 export function formatDate(val) {
   const d = toDate(val);
-  if (!d) return '—';
+  if (!d) return 'ΓÇö';
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
@@ -69,7 +69,7 @@ export function toIndianDate(val) {
   return str;
 }
 
-// ─── Field Normalizers (handle inconsistent field names in one place) ─────────
+// ΓöÇΓöÇΓöÇ Field Normalizers (handle inconsistent field names in one place) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 /** Get member display name. */
 export function getName(m) {
@@ -96,7 +96,7 @@ export function getAadhaar(m) {
   return m?.aadharNumber || m?.aadharNo || m?.aadhaar || '';
 }
 
-// ─── PT Detection ─────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ PT Detection ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const NON_PT_TRAINERS = ['Unassigned', 'General Floor Trainer (Included)', 'No Trainer', 'Unassigned (General Floor)'];
 
@@ -113,7 +113,7 @@ export function isPtActive(m) {
   return hasPt(m) && m.ptStatus !== 'ended';
 }
 
-// ─── Status Computation ───────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Status Computation ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 /**
  * Get Gym floor membership status.
@@ -169,7 +169,7 @@ export function getMemberStatus(member) {
   return 'active';
 }
 
-// ─── Renewal / Payment Booleans ───────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Renewal / Payment Booleans ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 /** Does this member need Gym renewal? (ending_soon, expired, or due) */
 export function needsGymRenewal(m) {
@@ -207,7 +207,7 @@ export function isInactive(m) {
   return isLeft(m) || isEnded(m);
 }
 
-// ─── Days Info (for countdown pills in table/grid) ────────────────────────────
+// ΓöÇΓöÇΓöÇ Days Info (for countdown pills in table/grid) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 /**
  * Returns { text, cls } for displaying days remaining pill.
@@ -227,10 +227,10 @@ export function getMemberDaysInfo(member) {
   // Member has both Gym and PT
   if (pStatus !== null && gymDiff !== null) {
     if (pStatus === 'ended') {
-      if (gymDiff < -2) return { text: `Gym Due (${Math.abs(gymDiff)}d) • PT Ended`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold' };
-      if (gymDiff <= 0) return { text: `Gym Expired • PT Ended`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
-      if (gymDiff <= 3) return { text: `Gym Ending Soon (${gymDiff}d) • PT Ended`, cls: 'bg-amber-100 text-amber-900 border-amber-300 font-bold' };
-      return { text: `Gym Active (${gymDiff}d left) • PT Ended`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-bold' };
+      if (gymDiff < -2) return { text: `Gym Due (${Math.abs(gymDiff)}d) ΓÇó PT Ended`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold' };
+      if (gymDiff <= 0) return { text: `Gym Expired ΓÇó PT Ended`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
+      if (gymDiff <= 3) return { text: `Gym Ending Soon (${gymDiff}d) ΓÇó PT Ended`, cls: 'bg-amber-100 text-amber-900 border-amber-300 font-bold' };
+      return { text: `Gym Active (${gymDiff}d left) ΓÇó PT Ended`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-bold' };
     }
 
     if (ptDiff !== null) {
@@ -238,33 +238,99 @@ export function getMemberDaysInfo(member) {
       const pTxt = ptDiff < -2 ? `PT Due (${Math.abs(ptDiff)}d)` : ptDiff <= 0 ? 'PT Expired' : `PT ${ptDiff}d`;
 
       if (gymDiff < -2 || ptDiff < -2) {
-        return { text: `${gTxt} • ${pTxt}`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold animate-pulse' };
+        return { text: `${gTxt} ΓÇó ${pTxt}`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold animate-pulse' };
       }
       if (gymDiff <= 0 || ptDiff <= 0) {
-        return { text: `${gTxt} • ${pTxt}`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
+        return { text: `${gTxt} ΓÇó ${pTxt}`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
       }
       if (gymDiff <= 3 || ptDiff <= 3) {
-        return { text: `Ending Soon: ${gTxt} • ${pTxt}`, cls: 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' };
+        return { text: `Ending Soon: ${gTxt} ΓÇó ${pTxt}`, cls: 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' };
       }
-      return { text: `Active: Gym (${gymDiff}d) • PT (${ptDiff}d)`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold' };
+      return { text: `Active: Gym (${gymDiff}d) ΓÇó PT (${ptDiff}d)`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold' };
     }
   }
 
   // Single Gym member
   if (gymDiff !== null) {
-    if (gymDiff < -2) return { text: `Renewal Due (${Math.abs(gymDiff)}d overdue)`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold animate-pulse' };
-    if (gymDiff <= 0) {
-      const daysAgo = Math.abs(gymDiff) === 0 ? 'Today' : `${Math.abs(gymDiff)}d ago`;
-      return { text: `Expired (${daysAgo})`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
-    }
-    if (gymDiff <= 3) return { text: `Ending Soon (${gymDiff}d left)`, cls: 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' };
-    return { text: `Active (${gymDiff} days left)`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    if (gymDiff < -2) return { text: `≡ƒö┤ Overdue (${Math.abs(gymDiff)}d ago)`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
+    if (gymDiff < 0) return { text: `≡ƒƒí Expired (${Math.abs(gymDiff)}d Grace)`, cls: 'bg-amber-50 text-amber-900 border-amber-200 font-bold' };
+    if (gymDiff === 0) return { text: 'ΓÜá∩╕Å Ending Today', cls: 'bg-amber-50 text-amber-900 border-amber-200 font-bold' };
+    if (gymDiff <= 3) return { text: `ΓÅ│ In ${gymDiff} day${gymDiff > 1 ? 's' : ''}`, cls: 'bg-amber-50 text-amber-800 border-amber-200 font-bold' };
+    return { text: `Active (${gymDiff} days left)`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold' };
   }
 
   return { text: 'No Expiry Set', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
 }
 
-// ─── Membership Category Details ──────────────────────────────────────────────
+/**
+ * Direct matching implementation of studypoint's getMembershipRemainingDays
+ */
+export function getMembershipRemainingDays(membershipEnd) {
+  if (!membershipEnd) return { diffDays: 0, isExpired: false, isEndingToday: false, label: 'ΓÇö', color: 'bg-slate-50 text-slate-500 border-slate-200' };
+  const end = toDate(membershipEnd);
+  if (!end || isNaN(end.getTime())) return { diffDays: 0, isExpired: false, isEndingToday: false, label: 'ΓÇö', color: 'bg-slate-50 text-slate-500 border-slate-200' };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const target = new Date(end);
+  target.setHours(0, 0, 0, 0);
+
+  const diffMs = target.getTime() - today.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays < -2) {
+    return {
+      diffDays,
+      isExpired: true,
+      isOverdue: true,
+      isEndingToday: false,
+      label: `≡ƒö┤ Overdue (${Math.abs(diffDays)}d ago)`,
+      shortLabel: `${Math.abs(diffDays)}d Overdue`,
+      color: 'bg-rose-50 text-rose-700 border-rose-200 font-bold',
+    };
+  } else if (diffDays < 0) {
+    return {
+      diffDays,
+      isExpired: true,
+      isGrace: true,
+      isEndingToday: false,
+      label: `≡ƒƒí Expired (${Math.abs(diffDays)}d Grace)`,
+      shortLabel: `${Math.abs(diffDays)}d Grace`,
+      color: 'bg-amber-50 text-amber-900 border-amber-200 font-bold',
+    };
+  } else if (diffDays === 0) {
+    return {
+      diffDays: 0,
+      isExpired: false,
+      isEndingToday: true,
+      label: 'ΓÜá∩╕Å Ending Today',
+      shortLabel: 'Today',
+      color: 'bg-amber-50 text-amber-900 border-amber-200 font-bold',
+    };
+  } else if (diffDays <= 3) {
+    return {
+      diffDays,
+      isExpired: false,
+      isEndingToday: false,
+      isEndingSoon: true,
+      label: `ΓÅ│ In ${diffDays} day${diffDays > 1 ? 's' : ''}`,
+      shortLabel: `${diffDays}d left`,
+      color: 'bg-amber-50 text-amber-800 border-amber-200 font-bold',
+    };
+  } else {
+    return {
+      diffDays,
+      isExpired: false,
+      isEndingToday: false,
+      label: `Active (${diffDays} days left)`,
+      shortLabel: `${diffDays}d left`,
+      color: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold',
+    };
+  }
+}
+
+// ΓöÇΓöÇΓöÇ Membership Category Details ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 /**
  * Returns { category, badgeText, shortText, badgeCls, tagText }
@@ -279,15 +345,15 @@ export function getMembershipDetails(member) {
     if (member.ptStatus === 'ended') {
       return {
         category: 'both_pt_ended',
-        badgeText: '🏋️ Gym Active (PT Ended)',
+        badgeText: '≡ƒÅï∩╕Å Gym Active (PT Ended)',
         shortText: 'Gym Active (PT Ended)',
         badgeCls: 'bg-emerald-50 text-emerald-800 border-emerald-300',
-        tagText: 'Gym Active • PT Completed'
+        tagText: 'Gym Active ΓÇó PT Completed'
       };
     }
     return {
       category: 'both',
-      badgeText: '🏋️ Gym + ✨ PT',
+      badgeText: '≡ƒÅï∩╕Å Gym + Γ£¿ PT',
       shortText: 'Gym & PT',
       badgeCls: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-300',
       tagText: 'Both Gym & PT Plan'
@@ -297,7 +363,7 @@ export function getMembershipDetails(member) {
     if (member.ptStatus === 'ended') {
       return {
         category: 'pt_ended',
-        badgeText: '🛑 PT Ended',
+        badgeText: '≡ƒ¢æ PT Ended',
         shortText: 'PT Ended',
         badgeCls: 'bg-purple-50 text-purple-800 border-purple-300',
         tagText: '1-on-1 PT Ended'
@@ -305,7 +371,7 @@ export function getMembershipDetails(member) {
     }
     return {
       category: 'pt',
-      badgeText: '✨ 1-on-1 PT Membership',
+      badgeText: 'Γ£¿ 1-on-1 PT Membership',
       shortText: 'PT Only',
       badgeCls: 'bg-purple-50 text-purple-800 border-purple-300',
       tagText: '1-on-1 PT Plan'
@@ -313,19 +379,19 @@ export function getMembershipDetails(member) {
   }
   return {
     category: 'gym',
-    badgeText: '🏋️ Gym Membership',
+    badgeText: '≡ƒÅï∩╕Å Gym Membership',
     shortText: 'Gym Only',
     badgeCls: 'bg-blue-50 text-blue-800 border-blue-300',
     tagText: 'Gym Plan'
   };
 }
 
-// ─── Status Styling Config ────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Status Styling Config ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 export const STATUS_CONFIG = {
   paid:        { label: 'Paid',               dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
   active:      { label: 'Active',             dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
-  ending_soon: { label: 'Ending Soon (≤3d)',  dot: 'bg-amber-500',   cls: 'bg-amber-100 text-amber-900 border border-amber-300' },
+  ending_soon: { label: 'Ending Soon (Γëñ3d)',  dot: 'bg-amber-500',   cls: 'bg-amber-100 text-amber-900 border border-amber-300' },
   expired:     { label: 'Expired (1-2d)',     dot: 'bg-rose-500',    cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
   due:         { label: 'Renewal Due (2d+)',  dot: 'bg-red-600',     cls: 'bg-red-100 text-red-800 border border-red-300 font-extrabold' },
   overdue:     { label: 'Renewal Due (2d+)',  dot: 'bg-red-600',     cls: 'bg-red-100 text-red-800 border border-red-300 font-extrabold' },

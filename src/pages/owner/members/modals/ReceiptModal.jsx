@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+﻿import React, { useRef } from 'react';
 import {
   Printer,
   Download,
@@ -32,7 +32,7 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
   const gymLogo = settings.logoUrl || '';
 
   const memberName = payment.memberName || member?.name || member?.fullName || 'Athlete';
-  const memberPhone = payment.phone || member?.phone || '—';
+  const memberPhone = payment.phone || member?.phone || 'ΓÇö';
   const memberSlot = payment.slot || member?.slot || member?.preferredTime || 'General Shift';
 
   const receiptNo = payment.receiptNo || payment.receiptNumber || payment.id || `REC-${Date.now().toString().slice(-6)}`;
@@ -50,7 +50,7 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
   const isPartial = payment.status === 'partial' || dueAmount > 0;
 
   const modeLabel = payment.paymentMode === 'split'
-    ? `SPLIT (Cash: ₹${payment.cashAmount || 0} + Online: ₹${payment.onlineAmount || 0})`
+    ? `SPLIT (Cash: Γé╣${payment.cashAmount || 0} + Online: Γé╣${payment.onlineAmount || 0})`
     : (payment.paymentMode || payment.mode || 'CASH').toUpperCase();
 
   const handlePrint = () => {
@@ -85,8 +85,8 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
   };
 
   const handleWhatsApp = () => {
-    if (!memberPhone || memberPhone === '—') return;
-    const msg = `🧾 *Official Gym Fee Receipt - ${gymName}*\n\nHello *${memberName}*,\nThank you for your payment! Here are your membership billing details:\n\n📋 *Receipt No:* ${receiptNo}\n🗓️ *Date:* ${payDate}\n💪 *Plan:* ${planTitle}\n📅 *Validity:* ${validityText}\n💰 *Total Fee:* ₹${totalAmount.toLocaleString('en-IN')}\n✅ *Amount Paid:* ₹${paidAmount.toLocaleString('en-IN')} (${modeLabel})\n${dueAmount > 0 ? `⚠️ *Remaining Due:* ₹${dueAmount.toLocaleString('en-IN')}\n` : '✨ *Status:* FULLY CLEARED & PAID\n'}\nThank you for choosing ${gymName}! Stay fit, stay strong! 💪🏋️`;
+    if (!memberPhone || memberPhone === 'ΓÇö') return;
+    const msg = `≡ƒº╛ *Official Gym Fee Receipt - ${gymName}*\n\nHello *${memberName}*,\nThank you for your payment! Here are your membership billing details:\n\n≡ƒôï *Receipt No:* ${receiptNo}\n≡ƒùô∩╕Å *Date:* ${payDate}\n≡ƒÆ¬ *Plan:* ${planTitle}\n≡ƒôà *Validity:* ${validityText}\n≡ƒÆ░ *Total Fee:* Γé╣${totalAmount.toLocaleString('en-IN')}\nΓ£à *Amount Paid:* Γé╣${paidAmount.toLocaleString('en-IN')} (${modeLabel})\n${dueAmount > 0 ? `ΓÜá∩╕Å *Remaining Due:* Γé╣${dueAmount.toLocaleString('en-IN')}\n` : 'Γ£¿ *Status:* FULLY CLEARED & PAID\n'}\nThank you for choosing ${gymName}! Stay fit, stay strong! ≡ƒÆ¬≡ƒÅï∩╕Å`;
     openWhatsApp(memberPhone, msg);
   };
 
@@ -94,7 +94,7 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Official Fee Receipt (फीस रसीद)"
+      title="Official Fee Receipt (αñ½αÑÇαñ╕ αñ░αñ╕αÑÇαñª)"
       maxWidth="max-w-2xl"
     >
       <div className="space-y-4">
@@ -122,7 +122,7 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
                   {gymTagline}
                 </p>
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  📍 {gymAddress} {gymPhone && `• 📞 ${gymPhone}`}
+                  ≡ƒôì {gymAddress} {gymPhone && `ΓÇó ≡ƒô₧ ${gymPhone}`}
                 </p>
               </div>
             </div>
@@ -210,7 +210,7 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
                     {validityText}
                   </td>
                   <td className="px-4 py-3 text-right font-bold text-slate-900">
-                    ₹{totalAmount.toLocaleString('en-IN')}
+                    Γé╣{totalAmount.toLocaleString('en-IN')}
                   </td>
                 </tr>
               </tbody>
@@ -239,26 +239,26 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
             <div className="space-y-1.5 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
               <div className="flex justify-between text-slate-600">
                 <span>Plan Base Fee:</span>
-                <span className="font-semibold">₹{totalAmount.toLocaleString('en-IN')}</span>
+                <span className="font-semibold">Γé╣{totalAmount.toLocaleString('en-IN')}</span>
               </div>
               {discountAmount > 0 && (
                 <div className="flex justify-between text-emerald-700 font-semibold">
                   <span>Special Discount:</span>
-                  <span>-₹{discountAmount.toLocaleString('en-IN')}</span>
+                  <span>-Γé╣{discountAmount.toLocaleString('en-IN')}</span>
                 </div>
               )}
               <div className="flex justify-between text-slate-900 font-extrabold pt-1 border-t border-slate-200">
                 <span>Total Payable:</span>
-                <span>₹{(totalAmount - discountAmount).toLocaleString('en-IN')}</span>
+                <span>Γé╣{(totalAmount - discountAmount).toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between text-emerald-700 font-black text-sm bg-emerald-100/60 p-1.5 rounded-lg">
                 <span>Amount Paid:</span>
-                <span>₹{paidAmount.toLocaleString('en-IN')}</span>
+                <span>Γé╣{paidAmount.toLocaleString('en-IN')}</span>
               </div>
               {dueAmount > 0 && (
                 <div className="flex justify-between text-rose-700 font-bold bg-rose-50 p-1.5 rounded-lg border border-rose-200">
                   <span>Remaining Due:</span>
-                  <span>₹{dueAmount.toLocaleString('en-IN')}</span>
+                  <span>Γé╣{dueAmount.toLocaleString('en-IN')}</span>
                 </div>
               )}
             </div>
@@ -282,7 +282,7 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
               <Download className="w-4 h-4 text-indigo-600" />
               <span>Download PDF</span>
             </button>
-            {memberPhone && memberPhone !== '—' && (
+            {memberPhone && memberPhone !== 'ΓÇö' && (
               <button
                 onClick={handleWhatsApp}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition shadow-xs cursor-pointer"
