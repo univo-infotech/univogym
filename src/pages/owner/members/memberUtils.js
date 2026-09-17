@@ -1,0 +1,315 @@
+/**
+ * memberUtils.js — Single Source of Truth for all Member lifecycle, status, and field helpers.
+ * Every component in the Members section imports from here. No duplication.
+ */
+
+// ─── Date Helpers ─────────────────────────────────────────────────────────────
+
+/** Convert Firestore Timestamp / ISO string / Date to native JS Date. Returns null if falsy. */
+export function toDate(val) {
+  if (!val) return null;
+  if (val.toDate) return val.toDate(); // Firestore Timestamp
+  if (val instanceof Date) return val;
+  return new Date(val);
+}
+
+/** Days from today (positive = future, negative = past). null if no date. */
+export function getDaysRemaining(dateVal) {
+  const d = toDate(dateVal);
+  if (!d) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return Math.ceil((d - now) / (1000 * 60 * 60 * 24));
+}
+
+/** Format date as '15 Sep 2026'. Returns '—' if invalid. */
+export function formatDate(val) {
+  const d = toDate(val);
+  if (!d) return '—';
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+/** Format seconds as MM:SS for countdown timer. */
+export function fmtCountdown(sec) {
+  const m = String(Math.floor(sec / 60)).padStart(2, '0');
+  const s = String(sec % 60).padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+/** Format Indian date string DD/MM/YYYY from YYYY-MM-DD. */
+export function toIndianDate(dateStr) {
+  if (!dateStr) return '';
+  if (dateStr.includes('/')) return dateStr;
+  const parts = dateStr.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  const d = new Date(dateStr);
+  if (!isNaN(d.getTime())) {
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  }
+  return dateStr;
+}
+
+// ─── Field Normalizers (handle inconsistent field names in one place) ─────────
+
+/** Get member display name. */
+export function getName(m) {
+  return m?.name || m?.fullName || 'Member';
+}
+
+/** Get member phone number. */
+export function getPhone(m) {
+  return m?.phone || '';
+}
+
+/** Get workout slot. */
+export function getSlot(m) {
+  return m?.slot || m?.workoutSlot || m?.preferredTime || 'General Shift';
+}
+
+/** Get join date string. */
+export function getJoinDate(m) {
+  return m?.joiningDate || m?.joinDate || m?.createdAt || '';
+}
+
+/** Get Aadhaar number (handles all variant field names). */
+export function getAadhaar(m) {
+  return m?.aadharNumber || m?.aadharNo || m?.aadhaar || '';
+}
+
+// ─── PT Detection ─────────────────────────────────────────────────────────────
+
+const NON_PT_TRAINERS = ['Unassigned', 'General Floor Trainer (Included)', 'No Trainer', 'Unassigned (General Floor)'];
+
+/** Check if member has/had a PT package. */
+export function hasPt(m) {
+  if (!m) return false;
+  return !!m.isPt || !!m.ptPlanName || !!m.ptEndDate || (
+    m.trainerName && !NON_PT_TRAINERS.includes(m.trainerName)
+  );
+}
+
+/** Check if member's PT is currently active (not ended). */
+export function isPtActive(m) {
+  return hasPt(m) && m.ptStatus !== 'ended';
+}
+
+// ─── Status Computation ───────────────────────────────────────────────────────
+
+/**
+ * Get Gym floor membership status.
+ * @returns {'active'|'ending_soon'|'expired'|'due'|'left'|'inactive'}
+ */
+export function getGymStatus(member) {
+  if (member.status === 'left') return 'left';
+  if (member.active === false && member.status !== 'ended') return 'inactive';
+  const diff = getDaysRemaining(member.expiryDate);
+  if (diff === null) return 'active';
+  if (diff < -2) return 'due';
+  if (diff <= 0) return 'expired';
+  if (diff <= 3) return 'ending_soon';
+  return 'active';
+}
+
+/**
+ * Get 1-on-1 PT package status.
+ * @returns {null|'active'|'ending_soon'|'expired'|'due'|'ended'}
+ */
+export function getPtStatus(member) {
+  if (!hasPt(member)) return null;
+  if (member.ptStatus === 'ended') return 'ended';
+
+  const ptDate = member.ptEndDate || member.ptExpiryDate;
+  const diff = ptDate
+    ? getDaysRemaining(ptDate)
+    : (member.isPt && member.expiryDate ? getDaysRemaining(member.expiryDate) : null);
+
+  if (diff === null) return 'active';
+  if (diff < -2) return 'due';
+  if (diff <= 0) return 'expired';
+  if (diff <= 3) return 'ending_soon';
+  return 'active';
+}
+
+/**
+ * Unified composite member status (for tab filtering & KPI counting).
+ * Priority: left > ended > due > expired > ending_soon > active.
+ */
+export function getMemberStatus(member) {
+  if (member.status === 'left') return 'left';
+  if (member.status === 'ended') return 'ended';
+
+  const gStatus = getGymStatus(member);
+  const pStatus = getPtStatus(member);
+
+  if (gStatus === 'due' || pStatus === 'due') return 'due';
+  if (gStatus === 'expired' || pStatus === 'expired') return 'expired';
+  if (gStatus === 'ending_soon' || pStatus === 'ending_soon') return 'ending_soon';
+  if (pStatus === 'ended') return gStatus === 'active' ? 'active' : 'ended';
+  if (member.active === false) return 'inactive';
+  return 'active';
+}
+
+// ─── Renewal / Payment Booleans ───────────────────────────────────────────────
+
+/** Does this member need Gym renewal? (ending_soon, expired, or due) */
+export function needsGymRenewal(m) {
+  return ['ending_soon', 'expired', 'due'].includes(getGymStatus(m));
+}
+
+/** Does this member need PT renewal? (ending_soon, expired, due, or ended) */
+export function needsPtRenewal(m) {
+  const ps = getPtStatus(m);
+  return ['ending_soon', 'expired', 'due', 'ended'].includes(ps);
+}
+
+/** Is member fully paid? */
+export function isPaid(m) {
+  return Number(m?.dueAmount || 0) <= 0 && !!m?.lastPaymentDate;
+}
+
+/** Does member have a partial payment due? */
+export function isPartial(m) {
+  return Number(m?.dueAmount || 0) > 0 && !!m?.lastPaymentDate;
+}
+
+/** Is member marked as Left? */
+export function isLeft(m) {
+  return m?.status === 'left';
+}
+
+/** Is member fully ended (both gym and PT)? */
+export function isEnded(m) {
+  return m?.status === 'ended' || (m?.status === 'pt_ended' && !m?.planName && m?.status !== 'active');
+}
+
+/** Is member inactive (left or fully ended)? */
+export function isInactive(m) {
+  return isLeft(m) || isEnded(m);
+}
+
+// ─── Days Info (for countdown pills in table/grid) ────────────────────────────
+
+/**
+ * Returns { text, cls } for displaying days remaining pill.
+ * Handles single gym, dual gym+pt, and all status combinations.
+ */
+export function getMemberDaysInfo(member) {
+  const gStatus = getGymStatus(member);
+  const pStatus = getPtStatus(member);
+
+  if (gStatus === 'left') {
+    return { text: 'Gym Left', cls: 'bg-slate-100 text-slate-700 border-slate-300 font-semibold' };
+  }
+
+  const gymDiff = getDaysRemaining(member.expiryDate);
+  const ptDiff = getDaysRemaining(member.ptEndDate || member.ptExpiryDate);
+
+  // Member has both Gym and PT
+  if (pStatus !== null && gymDiff !== null) {
+    if (pStatus === 'ended') {
+      if (gymDiff < -2) return { text: `Gym Due (${Math.abs(gymDiff)}d) • PT Ended`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold' };
+      if (gymDiff <= 0) return { text: `Gym Expired • PT Ended`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
+      if (gymDiff <= 3) return { text: `Gym Ending Soon (${gymDiff}d) • PT Ended`, cls: 'bg-amber-100 text-amber-900 border-amber-300 font-bold' };
+      return { text: `Gym Active (${gymDiff}d left) • PT Ended`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-bold' };
+    }
+
+    if (ptDiff !== null) {
+      const gTxt = gymDiff < -2 ? `Gym Due (${Math.abs(gymDiff)}d)` : gymDiff <= 0 ? 'Gym Expired' : `Gym ${gymDiff}d`;
+      const pTxt = ptDiff < -2 ? `PT Due (${Math.abs(ptDiff)}d)` : ptDiff <= 0 ? 'PT Expired' : `PT ${ptDiff}d`;
+
+      if (gymDiff < -2 || ptDiff < -2) {
+        return { text: `${gTxt} • ${pTxt}`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold animate-pulse' };
+      }
+      if (gymDiff <= 0 || ptDiff <= 0) {
+        return { text: `${gTxt} • ${pTxt}`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
+      }
+      if (gymDiff <= 3 || ptDiff <= 3) {
+        return { text: `Ending Soon: ${gTxt} • ${pTxt}`, cls: 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' };
+      }
+      return { text: `Active: Gym (${gymDiff}d) • PT (${ptDiff}d)`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold' };
+    }
+  }
+
+  // Single Gym member
+  if (gymDiff !== null) {
+    if (gymDiff < -2) return { text: `Renewal Due (${Math.abs(gymDiff)}d overdue)`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold animate-pulse' };
+    if (gymDiff <= 0) {
+      const daysAgo = Math.abs(gymDiff) === 0 ? 'Today' : `${Math.abs(gymDiff)}d ago`;
+      return { text: `Expired (${daysAgo})`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
+    }
+    if (gymDiff <= 3) return { text: `Ending Soon (${gymDiff}d left)`, cls: 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' };
+    return { text: `Active (${gymDiff} days left)`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+
+  return { text: 'No Expiry Set', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
+}
+
+// ─── Membership Category Details ──────────────────────────────────────────────
+
+/**
+ * Returns { category, badgeText, shortText, badgeCls, tagText }
+ * Categories: 'both', 'both_pt_ended', 'pt', 'pt_ended', 'gym'
+ */
+export function getMembershipDetails(member) {
+  const hasP = hasPt(member);
+  const gymPlan = member.planName || 'Standard Gym';
+  const ptPlan = member.ptPlanName || (hasP ? '1-on-1 PT' : null);
+
+  if (ptPlan && gymPlan) {
+    if (member.ptStatus === 'ended') {
+      return {
+        category: 'both_pt_ended',
+        badgeText: '🏋️ Gym Active (PT Ended)',
+        shortText: 'Gym Active (PT Ended)',
+        badgeCls: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+        tagText: 'Gym Active • PT Completed'
+      };
+    }
+    return {
+      category: 'both',
+      badgeText: '🏋️ Gym + ✨ PT',
+      shortText: 'Gym & PT',
+      badgeCls: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-300',
+      tagText: 'Both Gym & PT Plan'
+    };
+  }
+  if (ptPlan) {
+    if (member.ptStatus === 'ended') {
+      return {
+        category: 'pt_ended',
+        badgeText: '🛑 PT Ended',
+        shortText: 'PT Ended',
+        badgeCls: 'bg-purple-50 text-purple-800 border-purple-300',
+        tagText: '1-on-1 PT Ended'
+      };
+    }
+    return {
+      category: 'pt',
+      badgeText: '✨ 1-on-1 PT Membership',
+      shortText: 'PT Only',
+      badgeCls: 'bg-purple-50 text-purple-800 border-purple-300',
+      tagText: '1-on-1 PT Plan'
+    };
+  }
+  return {
+    category: 'gym',
+    badgeText: '🏋️ Gym Membership',
+    shortText: 'Gym Only',
+    badgeCls: 'bg-blue-50 text-blue-800 border-blue-300',
+    tagText: 'Gym Plan'
+  };
+}
+
+// ─── Status Styling Config ────────────────────────────────────────────────────
+
+export const STATUS_CONFIG = {
+  paid:        { label: 'Paid',               dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  active:      { label: 'Active',             dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+  ending_soon: { label: 'Ending Soon (≤3d)',  dot: 'bg-amber-500',   cls: 'bg-amber-100 text-amber-900 border border-amber-300' },
+  expired:     { label: 'Expired (1-2d)',     dot: 'bg-rose-500',    cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
+  due:         { label: 'Renewal Due (2d+)',  dot: 'bg-red-600',     cls: 'bg-red-100 text-red-800 border border-red-300 font-extrabold' },
+  overdue:     { label: 'Renewal Due (2d+)',  dot: 'bg-red-600',     cls: 'bg-red-100 text-red-800 border border-red-300 font-extrabold' },
+  left:        { label: 'Left',              dot: 'bg-slate-500',   cls: 'bg-slate-100 text-slate-700 border border-slate-300 font-bold' },
+  ended:       { label: 'PT Ended',          dot: 'bg-purple-500',  cls: 'bg-purple-100 text-purple-800 border border-purple-300 font-bold' },
+  inactive:    { label: 'Inactive',          dot: 'bg-slate-400',   cls: 'bg-slate-100 text-slate-600 border border-slate-200' },
+};
