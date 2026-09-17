@@ -56,11 +56,16 @@ export default function MemberTable({
                         <p className="font-bold text-slate-900 text-sm leading-tight">
                           {name}
                         </p>
-                        <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5">
+                        <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
                           <span>{phone || 'No phone'}</span>
                           <span>•</span>
                           <span>{joinDate}</span>
                         </p>
+                        {m.email && (
+                          <p className="text-[10px] text-slate-400 truncate max-w-[180px]">
+                            {m.email}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </td>

@@ -67,6 +67,9 @@ export default function Members() {
   const [search, setSearch] = useState('');
   const [filterTab, setFilterTab] = useState('active');
   const [dueSubFilter, setDueSubFilter] = useState('all');
+  const [trainerFilter, setTrainerFilter] = useState('all');
+  const [slotFilter, setSlotFilter] = useState('all');
+  const [expireFilter, setExpireFilter] = useState('all');
 
   // Modals state
   const [showInvite, setShowInvite] = useState(false);
@@ -223,7 +226,37 @@ export default function Members() {
       const pStat = getPtStatus(m);
       const isDue = gStat === 'due' || pStat === 'due' || (Number(m.dueAmount || 0) > 0 && !!m.lastPaymentDate);
 
-      // 2. Tab Filter
+      // 2. Trainer Filter
+      if (trainerFilter !== 'all') {
+        const tName = m.trainerName || '';
+        if (trainerFilter === 'unassigned') {
+          if (tName && !['Unassigned', 'General Floor Trainer (Included)', 'No Trainer'].includes(tName)) return false;
+        } else if (tName !== trainerFilter) {
+          return false;
+        }
+      }
+
+      // 3. Slot Filter
+      if (slotFilter !== 'all') {
+        const memberSlot = (m.slot || m.workoutSlot || m.preferredTime || '').toLowerCase();
+        if (slotFilter === 'morning' && !memberSlot.includes('morn') && !memberSlot.includes('6:00') && !memberSlot.includes('am')) return false;
+        if (slotFilter === 'afternoon' && !memberSlot.includes('after') && !memberSlot.includes('12:00')) return false;
+        if (slotFilter === 'evening' && !memberSlot.includes('even') && !memberSlot.includes('pm') && !memberSlot.includes('4:00')) return false;
+        if (slotFilter === 'night' && !memberSlot.includes('night') && !memberSlot.includes('7:00')) return false;
+      }
+
+      // 4. Expire In Filter
+      if (expireFilter !== 'all') {
+        const daysLeft = getDaysRemaining(m.expiryDate);
+        if (daysLeft === null) return false;
+        if (expireFilter === '3d' && (daysLeft < 0 || daysLeft > 3)) return false;
+        if (expireFilter === '7d' && (daysLeft < 0 || daysLeft > 7)) return false;
+        if (expireFilter === '15d' && (daysLeft < 0 || daysLeft > 15)) return false;
+        if (expireFilter === '30d' && (daysLeft < 0 || daysLeft > 30)) return false;
+        if (expireFilter === 'overdue' && daysLeft >= 0) return false;
+      }
+
+      // 5. Tab Filter
       switch (filterTab) {
         case 'all':
           return true;
@@ -252,7 +285,7 @@ export default function Members() {
           return (gStat === 'active' || pStat === 'active') && !inactive;
       }
     });
-  }, [members, search, filterTab, dueSubFilter]);
+  }, [members, search, filterTab, dueSubFilter, trainerFilter, slotFilter, expireFilter]);
 
   // ─── Modal Success Handlers ────────────────────────────────────────────────
   const handleExtendSuccess = useCallback((memberId, newExpiryIso) => {
@@ -441,11 +474,11 @@ export default function Members() {
       <div className="p-3 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
         {/* Row 1: Primary View Tabs + Search Input + Table/Grid Switcher */}
         <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-          {/* Primary View Segmented Control */}
+          {/* Primary View Segmented Control (Active, Left / Inactive, All) */}
           <div className="inline-flex p-1 bg-slate-100 rounded-xl shrink-0">
             <button
               onClick={() => setFilterTab('active')}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
+              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${
                 filterTab === 'active'
                   ? 'bg-white text-emerald-700 shadow-xs ring-1 ring-slate-200'
                   : 'text-slate-600 hover:text-slate-900'
@@ -455,24 +488,19 @@ export default function Members() {
             </button>
 
             <button
-              onClick={() => setFilterTab('pt')}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition flex items-center gap-1.5 ${
-                filterTab === 'pt'
-                  ? 'bg-purple-600 text-white shadow-xs'
+              onClick={() => setFilterTab('left')}
+              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${
+                filterTab === 'left'
+                  ? 'bg-white text-rose-700 shadow-xs ring-1 ring-slate-200'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <span>🏋️ PT Members</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                filterTab === 'pt' ? 'bg-purple-700 text-white' : 'bg-slate-200 text-slate-700'
-              }`}>
-                {counts.ptCount}
-              </span>
+              Left / Inactive ({counts.leftCount})
             </button>
 
             <button
               onClick={() => setFilterTab('all')}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
+              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition ${
                 filterTab === 'all'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -526,140 +554,79 @@ export default function Members() {
           </div>
         </div>
 
-        {/* Row 2: Categorized Quick Filters (Alerts · Fees · Exited) */}
-        <div className="pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 mr-0.5">
-              <Filter className="w-3 h-3 text-slate-400" />
-              <span>Filters:</span>
-            </span>
-
-            {/* 1. Renewal Alerts Group */}
-            <div className="inline-flex items-center gap-1 bg-amber-50/60 p-1 rounded-xl border border-amber-200/60">
-              <button
-                onClick={() => setFilterTab('ending_soon')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                  filterTab === 'ending_soon'
-                    ? 'bg-amber-500 text-white shadow-xs'
-                    : 'text-amber-900 hover:bg-amber-100/70'
-                }`}
-                title="Expiring within 3 days"
+        {/* Row 2: Screenshot Matching Dropdown Filters (Trainers, Slots, Expire In) & Showing Count */}
+        <div className="pt-2.5 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Trainer Dropdown */}
+            <div className="flex items-center gap-1.5">
+              <select
+                value={trainerFilter}
+                onChange={(e) => setTrainerFilter(e.target.value)}
+                className="bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition cursor-pointer"
               >
-                <span>⏰ Ending Soon</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-100 text-amber-900 font-extrabold">
-                  {counts.endingSoonCount}
-                </span>
-              </button>
-
-              <button
-                onClick={() => setFilterTab('due')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                  filterTab === 'due'
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'text-red-800 hover:bg-red-100/70'
-                }`}
-                title="Overdue by 2+ days"
-              >
-                <span>⚠️ Due</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-100 text-red-900 font-extrabold">
-                  {counts.dueCount}
-                </span>
-              </button>
-
-              <button
-                onClick={() => setFilterTab('expired')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                  filterTab === 'expired'
-                    ? 'bg-rose-500 text-white shadow-xs'
-                    : 'text-rose-800 hover:bg-rose-100/70'
-                }`}
-                title="Expired 1-2 days ago"
-              >
-                <span>🔴 Expired</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-100 text-rose-900 font-extrabold">
-                  {counts.expiredCount}
-                </span>
-              </button>
+                <option value="all">All Trainers</option>
+                <option value="unassigned">General Floor / Unassigned</option>
+                {trainers.map((t) => (
+                  <option key={t.id || t.name} value={t.name}>
+                    Coach {t.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* 2. Fee Collection Group */}
-            <div className="inline-flex items-center gap-1 bg-slate-100/70 p-1 rounded-xl border border-slate-200/70">
-              <button
-                onClick={() => setFilterTab('paid')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                  filterTab === 'paid'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-emerald-800 hover:bg-emerald-50'
-                }`}
-                title="Fully paid active members"
+            {/* Shift / Slot Dropdown */}
+            <div className="flex items-center gap-1.5">
+              <select
+                value={slotFilter}
+                onChange={(e) => setSlotFilter(e.target.value)}
+                className="bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition cursor-pointer"
               >
-                <span>✓ Paid</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-900 font-extrabold">
-                  {counts.paidCount}
-                </span>
-              </button>
-
-              <button
-                onClick={() => setFilterTab('partial')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                  filterTab === 'partial'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-amber-800 hover:bg-amber-100/60'
-                }`}
-                title="Members with remaining due balance"
-              >
-                <span>₹ Partial Fee</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-100 text-amber-900 font-extrabold">
-                  {counts.partialCount}
-                </span>
-              </button>
+                <option value="all">All Shifts / Slots</option>
+                <option value="morning">Morning (6:00 AM - 9:00 AM)</option>
+                <option value="afternoon">Afternoon (12:00 PM - 3:00 PM)</option>
+                <option value="evening">Evening (4:00 PM - 7:00 PM)</option>
+                <option value="night">Night (7:00 PM - 10:00 PM)</option>
+              </select>
             </div>
 
-            {/* 3. Exited / Inactive Group */}
-            <div className="inline-flex items-center gap-1 bg-slate-100/70 p-1 rounded-xl border border-slate-200/70">
-              <button
-                onClick={() => setFilterTab('left')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                  filterTab === 'left'
-                    ? 'bg-slate-700 text-white shadow-xs'
-                    : 'text-slate-700 hover:bg-slate-200'
-                }`}
-                title="Members who left the gym"
+            {/* Expire In Dropdown */}
+            <div className="flex items-center gap-1.5">
+              <select
+                value={expireFilter}
+                onChange={(e) => setExpireFilter(e.target.value)}
+                className="bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition cursor-pointer"
               >
-                <span>🚪 Left</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 text-slate-800 font-extrabold">
-                  {counts.leftCount}
-                </span>
-              </button>
-
-              <button
-                onClick={() => setFilterTab('ended')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                  filterTab === 'ended'
-                    ? 'bg-purple-700 text-white shadow-xs'
-                    : 'text-purple-800 hover:bg-purple-100'
-                }`}
-                title="Members whose PT package ended"
-              >
-                <span>🛑 PT Ended</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-purple-100 text-purple-900 font-extrabold">
-                  {counts.endedCount}
-                </span>
-              </button>
+                <option value="all">Expire In: All</option>
+                <option value="3d">Expiring in 3 days</option>
+                <option value="7d">Expiring in 7 days</option>
+                <option value="15d">Expiring in 15 days</option>
+                <option value="30d">Expiring in 30 days</option>
+                <option value="overdue">Overdue / Expired</option>
+              </select>
             </div>
+
+            {/* Reset Filters button if any filter is set */}
+            {(trainerFilter !== 'all' || slotFilter !== 'all' || expireFilter !== 'all' || search) && (
+              <button
+                onClick={() => {
+                  setTrainerFilter('all');
+                  setSlotFilter('all');
+                  setExpireFilter('all');
+                  setSearch('');
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 px-2.5 py-1.5 rounded-xl transition border border-slate-200"
+                title="Clear all filters"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Reset</span>
+              </button>
+            )}
           </div>
 
-          {/* Reset Filter Action (Visible when any sub-filter is active) */}
-          {filterTab !== 'active' && (
-            <button
-              onClick={() => setFilterTab('active')}
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition border border-slate-200 shrink-0"
-              title="Reset view to Active Members"
-            >
-              <X className="w-3.5 h-3.5" />
-              <span>Reset Filter</span>
-            </button>
-          )}
+          {/* Showing Count (matches reference screenshot) */}
+          <div className="text-xs font-semibold text-slate-400">
+            Showing <span className="font-bold text-slate-700">{filteredMembers.length}</span> members
+          </div>
         </div>
       </div>
 
