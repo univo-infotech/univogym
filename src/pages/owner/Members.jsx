@@ -25,6 +25,8 @@ import {
   toDate,
   formatDate,
   getName,
+  getPhone,
+  toIndianDate,
   getGymStatus,
   getPtStatus,
   getMemberStatus,
@@ -82,6 +84,7 @@ export default function Members() {
   const [leftMember, setLeftMember] = useState(null);
   const [endMember, setEndMember] = useState(null);
   const [deleteTargetMember, setDeleteTargetMember] = useState(null);
+  const [payments, setPayments] = useState([]);
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [receiptMember, setReceiptMember] = useState(null);
 
@@ -125,6 +128,7 @@ export default function Members() {
         });
 
         setMembers(reconciledMembers);
+        setPayments(paymentsData || []);
         setTrainers(trainersData || []);
         setPlans(plansData || []);
         setCachedData('members_' + targetGymId, reconciledMembers);
@@ -451,8 +455,30 @@ export default function Members() {
     onAddPt: (m) => setPtAddonMember(m),
     onRestartPt: handleRestartPT,
     onReturn: handleReactivate,
-    onDelete: (m) => setDeleteTargetMember(m)
-  }), [navigate, handleRestartPT, handleReactivate]);
+    onReactivate: handleReactivate,
+    onDelete: (m) => setDeleteTargetMember(m),
+    onReceipt: (m) => {
+      const found = (payments || []).find((p) => p.memberId === m.id || p.phone === m.phone);
+      setReceiptPayment(
+        found || {
+          id: 'bill_' + (m.id || Date.now()),
+          memberId: m.id,
+          memberName: getName(m),
+          phone: getPhone(m),
+          planName: m.planName || m.plan || 'Gym Membership Plan',
+          amount: Number(m.totalAmount || m.planPrice || 2500),
+          paidAmount: Number(m.paidAmount || m.totalAmount || m.planPrice || 2500),
+          dueAmount: Number(m.dueAmount || 0),
+          paymentMode: m.paymentMode || 'cash',
+          date: toIndianDate(m.lastPaymentDate || m.createdAt || new Date()),
+          validityStart: toIndianDate(m.joiningDate || m.joinDate || m.createdAt || new Date()),
+          validityEnd: toIndianDate(m.expiryDate || new Date()),
+          status: Number(m.dueAmount || 0) > 0 ? 'partial' : 'paid'
+        }
+      );
+      setReceiptMember(m);
+    }
+  }), [navigate, handleRestartPT, handleReactivate, payments]);
 
   return (
     <div className="space-y-6">

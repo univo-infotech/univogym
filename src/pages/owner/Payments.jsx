@@ -30,11 +30,26 @@ import Modal from "../../components/ui/Modal";
 import toast from "react-hot-toast";
 import { getAllPayments, addPayment } from "../../firebase/payments";
 import { getMembers, updateMember } from "../../firebase/members";
+import { getTrainers } from "../../firebase/trainers";
+import { getPlans } from "../../firebase/plans";
 import { generatePaymentReceipt } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
 import { openWhatsApp, formatPhone } from "../../utils/whatsapp";
 import { useAuth } from "../../contexts/AuthContext";
 import ReceiptModal from "./members/modals/ReceiptModal";
+import AddPtPackageModal from "./members/modals/AddPtPackageModal";
+
+const NON_PT_TRAINERS = ['Unassigned', 'General Floor Trainer (Included)', 'No Trainer', 'Unassigned (General Floor)'];
+
+function checkMemberPt(m) {
+  if (!m) return false;
+  return Boolean(
+    m.isPt ||
+    m.ptPlanName ||
+    m.ptEndDate ||
+    (m.trainerName && !NON_PT_TRAINERS.includes(m.trainerName))
+  );
+}
 
 // Available plans for quick selection
 const PLANS_CATALOG = [
@@ -93,6 +108,9 @@ function calculateEndDate(startDateStr, months) {
 export default function Payments() {
   const [paymentsList, setPaymentsList] = useState([]);
   const [membersList, setMembersList] = useState([]);
+  const [trainersList, setTrainersList] = useState([]);
+  const [plansList, setPlansList] = useState([]);
+  const [ptModalMember, setPtModalMember] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [slotFilter, setSlotFilter] = useState("all");
@@ -341,14 +359,22 @@ export default function Payments() {
 
   const loadData = async (force = true) => {
     try {
-      const storedPayments = await getAllPayments(activeGymId, force);
-      const storedMembers = await getMembers(activeGymId, force);
+      const [storedPayments, storedMembers, storedTrainers, storedPlans] = await Promise.all([
+        getAllPayments(activeGymId, force).catch(() => []),
+        getMembers(activeGymId, force).catch(() => []),
+        getTrainers(activeGymId, force).catch(() => []),
+        getPlans(activeGymId, force).catch(() => [])
+      ]);
       setPaymentsList(storedPayments || []);
       setMembersList(storedMembers || []);
+      setTrainersList(storedTrainers || []);
+      setPlansList(storedPlans || []);
     } catch (err) {
       console.warn("Could not load payments:", err);
       setPaymentsList([]);
       setMembersList([]);
+      setTrainersList([]);
+      setPlansList([]);
     }
   };
 
@@ -621,6 +647,7 @@ export default function Payments() {
         const joinFormatted = m.joinDate ? toIndianDate(m.joinDate) : toIndianDate(m.createdAt || new Date());
         const expiryFormatted = m.expiryDate ? toIndianDate(m.expiryDate) : toIndianDate(new Date());
 
+        const isMemPt = checkMemberPt(m);
         return {
           id: "bill_member_" + (m.id || Date.now()),
           memberId: m.id || "",
@@ -628,7 +655,7 @@ export default function Payments() {
           phone: m.phone || "",
           slot: m.preferredTime || m.slot || "General Floor",
           batch: "Direct Registration",
-          planName: m.planName || m.plan || "Membership Plan",
+          planName: m.planName || m.plan || "Gym Membership Plan",
           validityStart: joinFormatted,
           validityEnd: expiryFormatted,
           dueDate: expiryFormatted,
@@ -642,6 +669,8 @@ export default function Payments() {
           date: joinFormatted,
           status: due > 0 ? (paid > 0 ? "partial" : "pending") : "paid",
           isSynthesized: true,
+          isPt: isMemPt,
+          trainerName: m.trainerName || "",
         };
       });
 
@@ -654,10 +683,17 @@ export default function Payments() {
 
     return allCombined.map((item) => {
       const days = getDaysRemaining(item.dueDate || item.validityEnd);
+      const associatedMember = (item.memberId && membersMap[item.memberId]) || (item.phone && membersMap[item.phone]) || null;
       const isMemberLeft =
         item.status === "left" ||
-        (item.memberId && membersMap[item.memberId]?.status === "left") ||
-        (item.phone && membersMap[item.phone]?.status === "left");
+        associatedMember?.status === "left";
+
+      const isPtPackage = Boolean(
+        item.isPt ||
+        item.type === "pt" ||
+        (item.planName && item.planName.toLowerCase().includes("pt")) ||
+        (associatedMember && checkMemberPt(associatedMember))
+      );
 
       let dynamicStatus = "paid";
 
@@ -689,7 +725,14 @@ export default function Payments() {
         dynamicStatus = item.status || "paid";
       }
 
-      return { ...item, computedDays: days, dynamicStatus, isLeft: isMemberLeft };
+      return {
+        ...item,
+        computedDays: days,
+        dynamicStatus,
+        isLeft: isMemberLeft,
+        associatedMember,
+        isPtPackage
+      };
     });
   }, [paymentsList, membersMap, membersList]);
 
@@ -1027,11 +1070,25 @@ export default function Payments() {
 
                     {/* Billing Validity Period */}
                     <td className="px-5 py-3.5">
-                      <div className="space-y-0.5">
+                      <div className="space-y-1">
                         <p className="font-bold text-slate-800 text-[11px]">
                           {item.validityStart} to {item.validityEnd}
                         </p>
-                        <p className="text-[10px] text-slate-500 font-medium">{item.planName}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {item.isPtPackage ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-200">
+                              ⭐ PT Package
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-50 text-teal-700 text-[10px] font-bold border border-teal-200">
+                              🏋️ Gym Plan
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-600 font-semibold">{item.planName}</span>
+                        </div>
+                        {item.associatedMember?.trainerName && !NON_PT_TRAINERS.includes(item.associatedMember.trainerName) && (
+                          <p className="text-[10px] text-purple-700 font-medium">Coach: {item.associatedMember.trainerName}</p>
+                        )}
                       </div>
                     </td>
 
@@ -1125,12 +1182,12 @@ export default function Payments() {
 
                     {/* Actions */}
                     <td className="px-5 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
                         {/* Receipt Button */}
                         <button
                           onClick={() => {
                             setReceiptPayment(item);
-                            setReceiptMember(membersMap[item.memberId] || membersMap[item.phone] || null);
+                            setReceiptMember(item.associatedMember || membersMap[item.memberId] || membersMap[item.phone] || null);
                           }}
                           className="px-2 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1 transition shadow-2xs cursor-pointer"
                           title="View & Print Official Fee Receipt (रसीद देखें)"
@@ -1143,21 +1200,35 @@ export default function Payments() {
                         {hasDue && !isLeft && (
                           <button
                             onClick={() => handleOpenCollectModal(item, "clear_due")}
-                            className="px-2 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-2xs"
+                            className="px-2 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-2xs cursor-pointer flex items-center gap-1"
                             title="Collect Remaining Due"
                           >
-                            Collect Due
+                            <DollarSign className="w-3 h-3" />
+                            <span>Collect Due</span>
                           </button>
                         )}
 
-                        {/* Renew Fee Button - ONLY visible for ending_soon, expired, overdue, or due/pending */}
+                        {/* Renew Gym Button - ONLY visible for ending_soon, expired, overdue, or due/pending */}
                         {!isLeft && (item.dynamicStatus === "ending_soon" || item.dynamicStatus === "expired" || item.dynamicStatus === "overdue" || item.dynamicStatus === "partial" || Number(item.dueAmount) > 0 || item.status === "pending") && (
                           <button
                             onClick={() => handleOpenCollectModal(item, "renew")}
-                            className="px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-2xs cursor-pointer"
-                            title="Renew Membership"
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-2xs cursor-pointer flex items-center gap-1"
+                            title="Renew Gym Floor Membership (जिम रिन्यू)"
                           >
-                            Renew
+                            <RefreshCw className="w-3 h-3" />
+                            <span>Renew Gym</span>
+                          </button>
+                        )}
+
+                        {/* Renew PT Button if member has PT package */}
+                        {!isLeft && item.associatedMember && checkMemberPt(item.associatedMember) && (
+                          <button
+                            onClick={() => setPtModalMember(item.associatedMember)}
+                            className="px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-2xs cursor-pointer flex items-center gap-1"
+                            title="Renew Personal Training Package (PT रिन्यू)"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            <span>Renew PT</span>
                           </button>
                         )}
 
@@ -1167,7 +1238,7 @@ export default function Payments() {
                             const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${item.memberName}*,\nHere are your membership details:\n\n📋 *Plan:* ${item.planName}\n📅 *Validity:* ${item.validityStart} to ${item.validityEnd}\n💰 *Amount:* ₹${item.amount}\n${hasDue ? `⚠️ *Pending Due:* ₹${item.dueAmount}\n` : `✅ *Status:* ${item.dynamicStatus.toUpperCase()}\n`}\nThank you! 💪`;
                             openWhatsApp(item.phone, msg);
                           }}
-                          className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition"
+                          className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition cursor-pointer"
                           title="Share on WhatsApp"
                         >
                           <MessageCircle className="w-3.5 h-3.5" />
@@ -1177,8 +1248,8 @@ export default function Payments() {
                         {!isLeft && (
                           <button
                             onClick={() => handleOpenLeftModal(item)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
-                            title="Mark Member as Left Gym"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition cursor-pointer"
+                            title="Mark Member as Left Gym (जिम छोड़ दिया)"
                           >
                             <UserX className="w-3.5 h-3.5" />
                           </button>
@@ -1284,9 +1355,22 @@ export default function Payments() {
                 {/* Details Grid */}
                 <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Slot & Plan</span>
-                    <span className="font-semibold text-slate-800 text-[11px] block truncate">{item.slot || "General"}</span>
-                    <span className="text-[10px] text-slate-500 block truncate">{item.planName}</span>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Plan Type & Name</span>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      {item.isPtPackage ? (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 text-[10px] font-bold border border-purple-200">
+                          ⭐ PT
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded bg-teal-50 text-teal-700 text-[10px] font-bold border border-teal-200">
+                          🏋️ Gym
+                        </span>
+                      )}
+                      <span className="text-[10px] text-slate-700 font-semibold truncate">{item.planName}</span>
+                    </div>
+                    {item.associatedMember?.trainerName && !NON_PT_TRAINERS.includes(item.associatedMember.trainerName) && (
+                      <p className="text-[9px] text-purple-700 font-medium truncate mt-0.5">Coach: {item.associatedMember.trainerName}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">Fee / Due</span>
@@ -1321,30 +1405,33 @@ export default function Payments() {
                 </div>
 
                 {/* Actions Row */}
-                <div className="flex items-center justify-between pt-1 gap-1.5">
+                <div className="flex items-center justify-between pt-1 gap-1.5 flex-wrap">
                   <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => generatePaymentReceipt(item, settings)}
-                      className="px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1 transition"
+                      onClick={() => {
+                        setReceiptPayment(item);
+                        setReceiptMember(item.associatedMember || membersMap[item.memberId] || membersMap[item.phone] || null);
+                      }}
+                      className="px-2 py-1 rounded-lg border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
                     >
-                      <Download className="w-3 h-3 text-indigo-600" /> Bill
+                      <Receipt className="w-3 h-3 text-indigo-600" /> Receipt
                     </button>
                     <button
                       onClick={() => {
                         const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${item.memberName}*,\nHere are your membership details:\n\n📋 *Plan:* ${item.planName}\n📅 *Validity:* ${item.validityStart} to ${item.validityEnd}\n💰 *Amount:* ₹${item.amount}\n${hasDue ? `⚠️ *Pending Due:* ₹${item.dueAmount}\n` : `✅ *Status:* ${item.dynamicStatus.toUpperCase()}\n`}\nThank you! 💪`;
                         openWhatsApp(item.phone, msg);
                       }}
-                      className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition"
+                      className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition cursor-pointer"
                     >
                       <MessageCircle className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     {hasDue && !isLeft && (
                       <button
                         onClick={() => handleOpenCollectModal(item, "clear_due")}
-                        className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition"
+                        className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition cursor-pointer"
                       >
                         Collect Due
                       </button>
@@ -1352,15 +1439,26 @@ export default function Payments() {
                     {!isLeft && (item.dynamicStatus === "ending_soon" || item.dynamicStatus === "expired" || item.dynamicStatus === "overdue" || item.dynamicStatus === "partial" || Number(item.dueAmount) > 0 || item.status === "pending") && (
                       <button
                         onClick={() => handleOpenCollectModal(item, "renew")}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer"
+                        className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer flex items-center gap-0.5"
                       >
-                        Renew
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Renew Gym</span>
+                      </button>
+                    )}
+                    {!isLeft && item.associatedMember && checkMemberPt(item.associatedMember) && (
+                      <button
+                        onClick={() => setPtModalMember(item.associatedMember)}
+                        className="px-2 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition cursor-pointer flex items-center gap-0.5"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        <span>Renew PT</span>
                       </button>
                     )}
                     {!isLeft && (
                       <button
                         onClick={() => handleOpenLeftModal(item)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition cursor-pointer"
+                        title="Mark as Left Gym"
                       >
                         <UserX className="w-3.5 h-3.5" />
                       </button>
@@ -1838,6 +1936,21 @@ export default function Payments() {
           }}
           payment={receiptPayment}
           member={receiptMember}
+        />
+      )}
+
+      {/* Add / Renew Personal Training (PT) Package Modal */}
+      {ptModalMember && (
+        <AddPtPackageModal
+          member={ptModalMember}
+          gymId={activeGymId}
+          trainers={trainersList}
+          plans={plansList}
+          onClose={() => setPtModalMember(null)}
+          onSave={() => {
+            setPtModalMember(null);
+            loadData(true);
+          }}
         />
       )}
     </div>
