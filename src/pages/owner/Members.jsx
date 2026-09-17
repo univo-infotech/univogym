@@ -1789,8 +1789,8 @@ const EDIT_GOAL_TIMELINES = [
 /**
  * Modal to Edit ALL Member Information (Matches DirectAddMemberModal)
  */
-function EditMemberModal({ member, onClose, onSave, trainers = [], plans = [], existingMembers = [] }) {
-  const [activeTab, setActiveTab] = useState('personal'); // 'personal' | 'membership' | 'assessment'
+function EditMemberModal({ member, initialTab = 'personal', onClose, onSave, trainers = [], plans = [], existingMembers = [] }) {
+  const [activeTab, setActiveTab] = useState(initialTab); // 'personal' | 'membership' | 'assessment'
 
   // --- Tab 1: Personal & Photo ---
   const [photoURL, setPhotoURL] = useState(member.photoURL || member.photo || '');
@@ -2051,6 +2051,9 @@ function EditMemberModal({ member, onClose, onSave, trainers = [], plans = [], e
       trainerName: selectedTrainerObj ? (selectedTrainerObj.name || selectedTrainerObj.fullName) : trainerName,
       trainerId: selectedTrainerObj?.id || '',
       hasPersonalCoach: isPersonalTrainer,
+      isPt: isPersonalTrainer,
+      ptStatus: isPersonalTrainer ? 'active' : (member.ptStatus || ''),
+      ptStartDate: isPersonalTrainer ? (member.ptStartDate || new Date().toISOString().split('T')[0]) : null,
       ptPlanId: isPersonalTrainer ? (ptPlanId || '') : '',
       ptPlanName: isPersonalTrainer ? (ptPlanName || '') : '',
       ptPlanPrice: isPersonalTrainer ? ptPriceNum : 0,
@@ -3164,6 +3167,7 @@ export default function Members() {
   const [extendMember, setExtendMember] = useState(null);
   const [planMember, setPlanMember] = useState(null);
   const [editMember, setEditMember] = useState(null);
+  const [editMemberInitialTab, setEditMemberInitialTab] = useState('personal');
   const [leftMember, setLeftMember] = useState(null);
   const [endMember, setEndMember] = useState(null);
   const [deleteTargetMember, setDeleteTargetMember] = useState(null);
@@ -4118,14 +4122,27 @@ export default function Members() {
                               <span>End</span>
                             </button>
                           ) : (
-                            <button
-                              onClick={() => setLeftMember(m)}
-                              className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition shadow-sm'
-                              title='Mark gym member as left'
-                            >
-                              <LogOut className='w-3.5 h-3.5 text-rose-600' />
-                              <span>Left</span>
-                            </button>
+                            <>
+                              <button
+                                onClick={() => {
+                                  setEditMemberTab?.('membership') || setEditMemberInitialTab('membership');
+                                  setEditMember(m);
+                                }}
+                                className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs border border-purple-200 transition shadow-sm'
+                                title='Bich month me 1-on-1 PT package aur coach add karein'
+                              >
+                                <Sparkles className='w-3.5 h-3.5 text-purple-600' />
+                                <span>+ PT</span>
+                              </button>
+                              <button
+                                onClick={() => setLeftMember(m)}
+                                className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition shadow-sm'
+                                title='Mark gym member as left'
+                              >
+                                <LogOut className='w-3.5 h-3.5 text-rose-600' />
+                                <span>Left</span>
+                              </button>
+                            </>
                           )}
 
                           {/* 6. Delete Button */}
@@ -4347,13 +4364,26 @@ export default function Members() {
                       End
                     </button>
                   ) : (
-                    <button
-                      onClick={() => setLeftMember(m)}
-                      className='px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold hover:bg-rose-100 transition'
-                      title='Mark gym member as left'
-                    >
-                      Left
-                    </button>
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditMemberInitialTab('membership');
+                          setEditMember(m);
+                        }}
+                        className='px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 text-xs font-bold hover:bg-purple-100 transition flex items-center gap-1'
+                        title='Bich month me 1-on-1 PT package aur coach add karein'
+                      >
+                        <Sparkles className='w-3 h-3 text-purple-600' />
+                        <span>+ PT</span>
+                      </button>
+                      <button
+                        onClick={() => setLeftMember(m)}
+                        className='px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold hover:bg-rose-100 transition'
+                        title='Mark gym member as left'
+                      >
+                        Left
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -4388,10 +4418,14 @@ export default function Members() {
       {editMember && (
         <EditMemberModal
           member={editMember}
+          initialTab={editMemberInitialTab}
           trainers={trainers}
           plans={plans}
           existingMembers={members}
-          onClose={() => setEditMember(null)}
+          onClose={() => {
+            setEditMember(null);
+            setEditMemberInitialTab('personal');
+          }}
           onSave={handleEditSuccess}
         />
       )}
