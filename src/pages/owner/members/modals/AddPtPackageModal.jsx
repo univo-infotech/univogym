@@ -193,6 +193,7 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
       // 3. Update Member Document (PT Active, dates set, gym floor membership untouched)
       const updatedFields = {
         isPt: true,
+        isPTMember: true,
         hasPersonalCoach: true,
         ptStatus: "active",
         status: "active",
@@ -213,6 +214,9 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
         dueAmount: Number(member.dueAmount || 0) + remainingDue,
         paidAmount: Number(member.paidAmount || 0) + paidNum,
         lastPaymentDate: new Date().toISOString(),
+        loginEmail: member.loginEmail || member.email || phone,
+        loginPassword: member.loginPassword || member.password || "Member@123",
+        password: member.password || member.loginPassword || "Member@123",
       };
 
       await updateMember(member.id, updatedFields);

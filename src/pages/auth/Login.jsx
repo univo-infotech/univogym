@@ -193,6 +193,27 @@ export default function Login() {
         });
 
         if (matchedMember) {
+          // Check if member has Personal Training (PT) membership
+          const NON_PT_TRAINERS = ['Unassigned', 'General Floor Trainer (Included)', 'No Trainer', 'Unassigned (General Floor)'];
+          const isPtMember = Boolean(
+            matchedMember.isPt ||
+            matchedMember.isPTMember ||
+            matchedMember.hasPersonalCoach ||
+            matchedMember.ptPlanName ||
+            matchedMember.ptPlanPrice ||
+            matchedMember.planType === 'PT' ||
+            (matchedMember.trainerName && !NON_PT_TRAINERS.includes(matchedMember.trainerName)) ||
+            (matchedMember.planName && matchedMember.planName.toLowerCase().includes('pt'))
+          );
+
+          if (!isPtMember) {
+            setError(
+              '⚠️ Access Restricted: Member login portal sirf un members ke liye hai jinhone Personal Training (PT) li hai. General gym members ke liye app login enabled nahi hai.'
+            );
+            setLoading(false);
+            return;
+          }
+
           // Check Membership / PT Expiry status
           let isExpired = false;
           if (matchedMember.status === 'left' || matchedMember.status === 'expired' || matchedMember.active === false) {

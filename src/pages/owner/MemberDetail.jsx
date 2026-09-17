@@ -352,6 +352,7 @@ export default function MemberDetail() {
 
       const updatedFields = {
         isPt: true,
+        isPTMember: true,
         hasPersonalCoach: true,
         ptStatus: "active",
         trainerId: selTrainer?.id || "",
@@ -366,6 +367,9 @@ export default function MemberDetail() {
         dueAmount: Number(member.dueAmount || 0) + remainingDue,
         paidAmount: Number(member.paidAmount || 0) + paidNum,
         lastPaymentDate: new Date().toISOString(),
+        loginEmail: member.loginEmail || member.email || member.phone || "",
+        loginPassword: member.loginPassword || member.password || "Member@123",
+        password: member.loginPassword || member.password || "Member@123",
       };
 
       await updateMember("univo_main", targetMemberId, updatedFields);
@@ -410,6 +414,20 @@ export default function MemberDetail() {
     .join("")
     .toUpperCase()
     .slice(0, 2);
+
+  const NON_PT_TRAINERS = ['Unassigned', 'General Floor Trainer (Included)', 'No Trainer', 'Unassigned (General Floor)'];
+  const isPtMember = Boolean(
+    member && (
+      member.isPt ||
+      member.isPTMember ||
+      member.hasPersonalCoach ||
+      member.ptPlanName ||
+      member.ptPlanPrice ||
+      (member.trainerName && !NON_PT_TRAINERS.includes(member.trainerName)) ||
+      (member.planName && member.planName.toLowerCase().includes('pt')) ||
+      member.planType === 'PT'
+    )
+  );
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -459,20 +477,22 @@ export default function MemberDetail() {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
-          <button
-            onClick={() => {
-              setActiveTab("overview");
-              setShowPassword(true);
-              setTimeout(() => {
-                const el = document.getElementById("credentials-card");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
-              }, 50);
-            }}
-            className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-xs font-bold flex items-center justify-center gap-1.5 transition border border-indigo-200 shadow-2xs"
-            title="Member ke Login ID & Password dekhein"
-          >
-            <Key className="w-4 h-4 text-indigo-600" /> ID & Password
-          </button>
+          {isPtMember && (
+            <button
+              onClick={() => {
+                setActiveTab("overview");
+                setShowPassword(true);
+                setTimeout(() => {
+                  const el = document.getElementById("credentials-card");
+                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                }, 50);
+              }}
+              className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-xs font-bold flex items-center justify-center gap-1.5 transition border border-indigo-200 shadow-2xs"
+              title="PT Member ke Login ID & Password dekhein"
+            >
+              <Key className="w-4 h-4 text-indigo-600" /> ID & Password
+            </button>
+          )}
           <button
             onClick={() => {
               const num = (member.phone || "").replace(/\D/g, "");
@@ -525,222 +545,253 @@ export default function MemberDetail() {
       {/* Tab 1: Overview */}
       {activeTab === "overview" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Member Portal Login Credentials Dedicated Card */}
-          <div
-            id="credentials-card"
-            className="md:col-span-2 p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 border border-slate-800 text-white shadow-md relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-inner">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-base font-bold text-white tracking-wide">
-                      Member Portal Login Credentials
-                    </h3>
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      Login Active
-                    </span>
+          {/* Member Portal Login Credentials Dedicated Card (Only for PT Members) */}
+          {isPtMember ? (
+            <div
+              id="credentials-card"
+              className="md:col-span-2 p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 border border-slate-800 text-white shadow-md relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-inner">
+                    <ShieldCheck className="w-5 h-5" />
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Member is ID & Password se Portal (<span className="text-slate-300 font-mono">/#/login</span>) par login kar sakta hai.
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-base font-bold text-white tracking-wide">
+                        PT Member Portal Credentials
+                      </h3>
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        PT Login Active
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Personal Training athlete is ID & Password se Portal (<span className="text-slate-300 font-mono">/#/login</span>) par login kar sakta hai.
+                    </p>
+                  </div>
                 </div>
+
+                {/* Action: Send to Member via WhatsApp */}
+                <button
+                  type="button"
+                  onClick={handleSendCredentialsWA}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 transition shadow-sm"
+                  title="Member ko WhatsApp par login ID aur password share karein"
+                >
+                  <MessageCircle className="w-4 h-4" /> Share on WhatsApp
+                </button>
               </div>
 
-              {/* Action: Send to Member via WhatsApp */}
-              <button
-                type="button"
-                onClick={handleSendCredentialsWA}
-                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 transition shadow-sm"
-                title="Member ko WhatsApp par login ID aur password share karein"
-              >
-                <MessageCircle className="w-4 h-4" /> Share on WhatsApp
-              </button>
-            </div>
-
-            {/* Credentials 3-Column Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-              {/* Login ID (Mobile) */}
-              <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1.5">
-                    <span className="flex items-center gap-1.5 font-semibold text-slate-300">
-                      <Smartphone className="w-3.5 h-3.5 text-indigo-400" /> Primary Login (Phone)
-                    </span>
-                    <span className="text-[9px] uppercase font-bold text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded">
-                      Default ID
-                    </span>
+              {/* Credentials 3-Column Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                {/* Login ID (Mobile) */}
+                <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1.5">
+                      <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+                        <Smartphone className="w-3.5 h-3.5 text-indigo-400" /> Primary Login (Phone)
+                      </span>
+                      <span className="text-[9px] uppercase font-bold text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded">
+                        Default ID
+                      </span>
+                    </div>
+                    <div className="font-mono font-bold text-base text-white tracking-wide truncate">
+                      {member.phone || "—"}
+                    </div>
                   </div>
-                  <div className="font-mono font-bold text-base text-white tracking-wide truncate">
-                    {member.phone || "—"}
-                  </div>
-                </div>
-                {member.phone && member.phone !== "—" && (
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(member.phone, "Phone Number")}
-                    className="mt-3 text-xs font-semibold text-indigo-300 hover:text-white flex items-center gap-1.5 transition self-start"
-                  >
-                    {copiedKey === "Phone Number" ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" /> Copy Phone
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-
-              {/* Login Email */}
-              <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1.5">
-                    <span className="flex items-center gap-1.5 font-semibold text-slate-300">
-                      <Mail className="w-3.5 h-3.5 text-teal-400" /> Alternate ID (Email)
-                    </span>
-                  </div>
-                  <div
-                    className="font-mono font-bold text-sm text-white tracking-wide truncate"
-                    title={member.loginEmail || member.email || "Not set"}
-                  >
-                    {member.loginEmail || member.email || "Not set"}
-                  </div>
-                </div>
-                {(member.loginEmail || member.email) && member.email !== "—" && (
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(member.loginEmail || member.email, "Email")}
-                    className="mt-3 text-xs font-semibold text-teal-300 hover:text-white flex items-center gap-1.5 transition self-start"
-                  >
-                    {copiedKey === "Email" ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" /> Copy Email
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-
-              {/* Portal Password */}
-              <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1.5">
-                    <span className="flex items-center gap-1.5 font-semibold text-slate-300">
-                      <Lock className="w-3.5 h-3.5 text-emerald-400" /> Portal Password
-                    </span>
+                  {member.phone && member.phone !== "—" && (
                     <button
                       type="button"
-                      onClick={() => setShowPassword(p => !p)}
-                      className="text-xs text-slate-300 hover:text-white flex items-center gap-1 transition px-1.5 py-0.5 rounded bg-slate-700/60"
-                      title={showPassword ? "Hide password" : "Show password"}
+                      onClick={() => handleCopy(member.phone, "Phone Number")}
+                      className="mt-3 text-xs font-semibold text-indigo-300 hover:text-white flex items-center gap-1.5 transition self-start"
                     >
-                      {showPassword ? (
-                        <><EyeOff className="w-3 h-3" /> Hide</>
+                      {copiedKey === "Phone Number" ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">Copied!</span>
+                        </>
                       ) : (
-                        <><Eye className="w-3 h-3" /> Show</>
+                        <>
+                          <Copy className="w-3.5 h-3.5" /> Copy Phone
+                        </>
                       )}
                     </button>
+                  )}
+                </div>
+
+                {/* Login Email */}
+                <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1.5">
+                      <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+                        <Mail className="w-3.5 h-3.5 text-teal-400" /> Alternate ID (Email)
+                      </span>
+                    </div>
+                    <div
+                      className="font-mono font-bold text-sm text-white tracking-wide truncate"
+                      title={member.loginEmail || member.email || "Not set"}
+                    >
+                      {member.loginEmail || member.email || "Not set"}
+                    </div>
+                  </div>
+                  {(member.loginEmail || member.email) && member.email !== "—" && (
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(member.loginEmail || member.email, "Email")}
+                      className="mt-3 text-xs font-semibold text-teal-300 hover:text-white flex items-center gap-1.5 transition self-start"
+                    >
+                      {copiedKey === "Email" ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" /> Copy Email
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {/* Portal Password */}
+                <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1.5">
+                      <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+                        <Lock className="w-3.5 h-3.5 text-emerald-400" /> Portal Password
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(p => !p)}
+                        className="text-xs text-slate-300 hover:text-white flex items-center gap-1 transition px-1.5 py-0.5 rounded bg-slate-700/60"
+                        title={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? (
+                          <><EyeOff className="w-3 h-3" /> Hide</>
+                        ) : (
+                          <><Eye className="w-3 h-3" /> Show</>
+                        )}
+                      </button>
+                    </div>
+
+                    {!isEditingPass ? (
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="font-mono font-bold text-base text-emerald-400 tracking-wider">
+                          {showPassword ? (member.loginPassword || member.password || "Member@123") : "••••••••••••"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPassInput(member.loginPassword || member.password || "Member@123");
+                            setIsEditingPass(true);
+                          }}
+                          className="text-slate-400 hover:text-emerald-400 text-xs flex items-center gap-1 p-1 transition"
+                          title="Change / Reset Password"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={passInput}
+                          onChange={(e) => setPassInput(e.target.value)}
+                          placeholder="New password"
+                          className="w-full px-2.5 py-1 text-xs font-mono rounded-lg bg-slate-950 border border-slate-600 text-white focus:outline-none focus:border-emerald-500"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          disabled={isSavingPass}
+                          onClick={handleSavePassword}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
+                        >
+                          {isSavingPass ? "..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingPass(false)}
+                          className="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded-lg transition"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  {!isEditingPass ? (
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="font-mono font-bold text-base text-emerald-400 tracking-wider">
-                        {showPassword ? (member.loginPassword || member.password || "Member@123") : "••••••••••••"}
-                      </span>
+                  {!isEditingPass && (
+                    <div className="mt-3 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(member.loginPassword || member.password || "Member@123", "Password")}
+                        className="text-xs font-semibold text-emerald-300 hover:text-white flex items-center gap-1.5 transition"
+                      >
+                        {copiedKey === "Password" ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" /> Copy Pass
+                          </>
+                        )}
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
                           setPassInput(member.loginPassword || member.password || "Member@123");
                           setIsEditingPass(true);
                         }}
-                        className="text-slate-400 hover:text-emerald-400 text-xs flex items-center gap-1 p-1 transition"
-                        title="Change / Reset Password"
+                        className="text-xs text-slate-400 hover:text-slate-200 transition underline underline-offset-2"
                       >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        value={passInput}
-                        onChange={(e) => setPassInput(e.target.value)}
-                        placeholder="New password"
-                        className="w-full px-2.5 py-1 text-xs font-mono rounded-lg bg-slate-950 border border-slate-600 text-white focus:outline-none focus:border-emerald-500"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        disabled={isSavingPass}
-                        onClick={handleSavePassword}
-                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
-                      >
-                        {isSavingPass ? "..." : "Save"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsEditingPass(false)}
-                        className="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded-lg transition"
-                      >
-                        ✕
+                        Edit Pass
                       </button>
                     </div>
                   )}
                 </div>
+              </div>
 
-                {!isEditingPass && (
-                  <div className="mt-3 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(member.loginPassword || member.password || "Member@123", "Password")}
-                      className="text-xs font-semibold text-emerald-300 hover:text-white flex items-center gap-1.5 transition"
-                    >
-                      {copiedKey === "Password" ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" /> Copy Pass
-                        </>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPassInput(member.loginPassword || member.password || "Member@123");
-                        setIsEditingPass(true);
-                      }}
-                      className="text-xs text-slate-400 hover:text-slate-200 transition underline underline-offset-2"
-                    >
-                      Edit Pass
-                    </button>
-                  </div>
-                )}
+              {/* Hint footer */}
+              <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between text-[11px] text-slate-400 gap-2">
+                <span className="flex items-center gap-1.5">
+                  💡 <span className="text-slate-300">Tip:</span> Member apne Mobile Number ya Email me se koi bhi ID daal kar password ke sath login kar sakta hai.
+                </span>
+                <span className="font-mono text-slate-400 text-[10px] bg-slate-800/80 px-2 py-0.5 rounded">
+                  Default Password: Member@123
+                </span>
               </div>
             </div>
-
-            {/* Hint footer */}
-            <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between text-[11px] text-slate-400 gap-2">
-              <span className="flex items-center gap-1.5">
-                💡 <span className="text-slate-300">Tip:</span> Member apne Mobile Number ya Email me se koi bhi ID daal kar password ke sath login kar sakta hai.
-              </span>
-              <span className="font-mono text-slate-400 text-[10px] bg-slate-800/80 px-2 py-0.5 rounded">
-                Default Password: Member@123
-              </span>
+          ) : (
+            <div className="md:col-span-2 p-5 rounded-3xl bg-slate-50 border border-slate-200 text-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-slate-200/80 border border-slate-300 flex items-center justify-center text-slate-500">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-slate-800">General Gym Member (No PT Portal Login)</h4>
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-600 border border-slate-300">
+                      Portal Login Disabled
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Member portal login ID & password sirf Personal Training (PT) athletes ke liye generate hota hai. General members ke liye portal login access nahi banta.
+                  </p>
+                </div>
+              </div>
+              {member.ptStatus !== 'active' && (
+                <button
+                  type="button"
+                  onClick={() => setPtModalOpen(true)}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm whitespace-nowrap"
+                  title="Is member ko 1-on-1 PT package dekar portal login enable karein"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-purple-200" /> + Add PT Package
+                </button>
+              )}
             </div>
-          </div>
+          )}
 
           <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-3">
             <h3 className="text-base font-bold text-slate-900">Personal Information</h3>
