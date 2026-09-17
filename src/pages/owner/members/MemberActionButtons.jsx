@@ -198,27 +198,59 @@ export default function MemberActionButtons({
 
       {/* 6. Lifecycle Actions (Left / Return / End / Restart PT / +PT) */}
       {isLeftMember ? (
-        onReturn && (
-          <button
-            onClick={() => onReturn(member)}
-            className={`inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition shadow-xs ${btnBase}`}
-            title="Reactivate Member back to Active"
-          >
-            <RotateCcw className="w-3 h-3" />
-            <span>Return</span>
-          </button>
-        )
+        <div className="inline-flex items-center gap-1 flex-wrap">
+          {onGymRenew && (
+            <button
+              onClick={() => onGymRenew(member)}
+              className={`inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black transition shadow-xs ${btnBase}`}
+              title="Rejoin & Renew - Wapas shuru karein aur naya plan/fee collect karein"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Rejoin & Renew</span>
+            </button>
+          )}
+          {onReturn && (
+            <button
+              onClick={() => onReturn(member)}
+              className={`inline-flex items-center gap-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold transition ${btnBase}`}
+              title="Quick restore without billing (Galti se Left mark kiya tha toh)"
+            >
+              <span>Quick Return</span>
+            </button>
+          )}
+        </div>
       ) : isFullyEnded ? (
-        onReturn && (
-          <button
-            onClick={() => onReturn(member)}
-            className={`inline-flex items-center gap-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold transition shadow-xs ${btnBase}`}
-            title="Restart Membership"
-          >
-            <RotateCcw className="w-3 h-3" />
-            <span>Return</span>
-          </button>
-        )
+        <div className="inline-flex items-center gap-1 flex-wrap">
+          {onGymRenew && (
+            <button
+              onClick={() => onGymRenew(member)}
+              className={`inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black transition shadow-xs ${btnBase}`}
+              title="Rejoin & Renew - Nayi membership shuru karein aur fee collect karein"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Rejoin & Renew</span>
+            </button>
+          )}
+          {memberHasPt && onPtRenew && (
+            <button
+              onClick={() => onPtRenew(member)}
+              className={`inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black transition shadow-xs ${btnBase}`}
+              title="Renew PT - Naya PT package lein"
+            >
+              <Sparkles className="w-3 h-3 text-purple-200" />
+              <span>Renew PT</span>
+            </button>
+          )}
+          {onReturn && (
+            <button
+              onClick={() => onReturn(member)}
+              className={`inline-flex items-center gap-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold transition ${btnBase}`}
+              title="Quick restore without billing"
+            >
+              <span>Quick Return</span>
+            </button>
+          )}
+        </div>
       ) : member.ptStatus === 'ended' ? (
         <>
           {onLeft && (
@@ -231,14 +263,14 @@ export default function MemberActionButtons({
               <span>Left</span>
             </button>
           )}
-          {onRestartPt && (
+          {onPtRenew && (
             <button
-              onClick={() => onRestartPt(member)}
-              className={`inline-flex items-center gap-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold border border-purple-200 transition shadow-xs ${btnBase}`}
-              title="Restart 1-on-1 PT package"
+              onClick={() => onPtRenew(member)}
+              className={`inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black transition shadow-xs ${btnBase}`}
+              title="Restart / Renew 1-on-1 PT package (Package aur fee bill banayein)"
             >
-              <RotateCcw className="w-3 h-3 text-purple-600" />
-              <span>Restart PT</span>
+              <Sparkles className="w-3 h-3 text-purple-200" />
+              <span>Renew PT</span>
             </button>
           )}
         </>

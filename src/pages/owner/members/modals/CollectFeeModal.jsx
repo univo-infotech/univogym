@@ -127,8 +127,12 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
     return list;
   }, [selectedTrainerObj, member]);
 
-  // Smart validity start: if member has never paid yet, start from admission/joining date or today!
+  // Smart validity start: if member left or ended, start TODAY. If new, start from joining date or today!
   const getSmartValidityStart = () => {
+    if (member.status === 'left' || member.status === 'ended') {
+      return new Date().toISOString().split("T")[0];
+    }
+
     if (!member.lastPaymentDate) {
       if (member.joiningDate) {
         return toDate(member.joiningDate)?.toISOString().split("T")[0] || new Date().toISOString().split("T")[0];
@@ -366,6 +370,9 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
         expiryDate: newExpiryIso,
         status: "active",
         active: true,
+        leftReason: null,
+        endReason: null,
+        ...(member.status === 'left' || member.status === 'ended' ? { rejoinedAt: new Date().toISOString() } : {}),
         dueAmount: remainingDue,
         paidAmount: Number(member.paidAmount || 0) + Number(payingNow),
         lastPaymentDate: new Date().toISOString()
@@ -417,8 +424,32 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
       maxWidth="max-w-2xl"
     >
       <div className="space-y-4 text-slate-800 text-xs">
+        {/* Rejoin / Welcome Back Banner if Member previously Left or was Ended */}
+        {(member.status === 'left' || member.status === 'ended') && (
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent border border-emerald-300 flex items-center justify-between shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                🎉
+              </div>
+              <div>
+                <p className="font-bold text-xs text-emerald-950">
+                  {member.status === 'left' ? 'Member Rejoining (वापसी पर नई मेंबरशिप)' : 'New Membership Rejoin (नई मेंबरशिप शुरू करें)'}
+                </p>
+                <p className="text-[11px] text-emerald-800 font-medium">
+                  {member.name || member.fullName} gym me wapas shuru kar rahe hain. Naya plan chunein aur fee collect karke fresh validity start karein.
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-extrabold text-xs shadow-xs tracking-wide">
+                Rejoin & Bill
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Renewal Banner if Member's plan is ending soon or expired */}
-        {isRenewing && !hasPartialPaymentDue && (
+        {isRenewing && !hasPartialPaymentDue && member.status !== 'left' && member.status !== 'ended' && (
           <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent border border-emerald-300 flex items-center justify-between shadow-xs">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shadow-xs">
