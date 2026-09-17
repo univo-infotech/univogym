@@ -198,27 +198,16 @@ export default function MemberActionButtons({
 
       {/* 6. Lifecycle Actions (Left / Return / End / Restart PT / +PT) */}
       {isLeftMember ? (
-        <div className="inline-flex items-center gap-1 flex-wrap">
-          {onGymRenew && (
-            <button
-              onClick={() => onGymRenew(member)}
-              className={`inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black transition shadow-xs ${btnBase}`}
-              title="Rejoin & Renew - Wapas shuru karein aur naya plan/fee collect karein"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Rejoin & Renew</span>
-            </button>
-          )}
-          {onReturn && (
-            <button
-              onClick={() => onReturn(member)}
-              className={`inline-flex items-center gap-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold transition ${btnBase}`}
-              title="Quick restore without billing (Galti se Left mark kiya tha toh)"
-            >
-              <span>Quick Return</span>
-            </button>
-          )}
-        </div>
+        onGymRenew && (
+          <button
+            onClick={() => onGymRenew(member)}
+            className={`inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black transition shadow-xs ${btnBase}`}
+            title="Rejoin & Renew - Naya plan chunein aur fee collect karein"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Rejoin & Renew</span>
+          </button>
+        )
       ) : isFullyEnded ? (
         <div className="inline-flex items-center gap-1 flex-wrap">
           {onGymRenew && (
@@ -241,39 +230,19 @@ export default function MemberActionButtons({
               <span>Renew PT</span>
             </button>
           )}
-          {onReturn && (
-            <button
-              onClick={() => onReturn(member)}
-              className={`inline-flex items-center gap-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold transition ${btnBase}`}
-              title="Quick restore without billing"
-            >
-              <span>Quick Return</span>
-            </button>
-          )}
         </div>
       ) : member.ptStatus === 'ended' ? (
-        <>
-          {onLeft && (
-            <button
-              onClick={() => onLeft(member)}
-              className={`inline-flex items-center gap-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 transition shadow-xs ${btnBase}`}
-              title="Mark gym membership as left"
-            >
-              <LogOut className="w-3 h-3 text-rose-600" />
-              <span>Left</span>
-            </button>
-          )}
-          {onPtRenew && (
-            <button
-              onClick={() => onPtRenew(member)}
-              className={`inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black transition shadow-xs ${btnBase}`}
-              title="Restart / Renew 1-on-1 PT package (Package aur fee bill banayein)"
-            >
-              <Sparkles className="w-3 h-3 text-purple-200" />
-              <span>Renew PT</span>
-            </button>
-          )}
-        </>
+        /* Note: PT Renew is already rendered in Section 3 above, so only Left is needed here */
+        onLeft && (
+          <button
+            onClick={() => onLeft(member)}
+            className={`inline-flex items-center gap-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border border-rose-200 transition shadow-xs ${btnBase}`}
+            title="Mark gym membership as left"
+          >
+            <LogOut className="w-3 h-3 text-rose-600" />
+            <span>Left</span>
+          </button>
+        )
       ) : membershipDetails.category === 'both' ? (
         <>
           {onLeft && (
