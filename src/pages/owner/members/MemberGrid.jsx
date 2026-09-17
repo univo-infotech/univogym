@@ -144,7 +144,7 @@ export default function MemberGrid({
                     </span>
                   ) : gymDue > 0 ? (
                     <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-red-100 text-red-800">
-                      Due: ₹{gymDue.toLocaleString('en-IN')}
+                      Remaining: ₹{gymDue.toLocaleString('en-IN')}
                     </span>
                   ) : gymDays !== null && gymDays < 0 ? (
                     <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-rose-100 text-rose-800">
@@ -303,9 +303,9 @@ export default function MemberGrid({
                     type="button"
                     onClick={() => onCollect(m)}
                     className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
-                    title={`Collect Remaining Due: ₹${gymDue.toLocaleString('en-IN')}`}
+                    title={`Collect Remaining Fee: ₹${gymDue.toLocaleString('en-IN')}`}
                   >
-                    <IndianRupee size={12} /> Due
+                    <IndianRupee size={12} /> Remaining
                   </button>
                   <button
                     type="button"

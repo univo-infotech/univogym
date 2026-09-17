@@ -180,11 +180,11 @@ export default function Members() {
         if (gStat === 'ending_soon' || pStat === 'ending_soon') endingSoonCount++;
         if (gStat === 'expired' || pStat === 'expired') expiredCount++;
 
-        const isDue = gStat === 'due' || pStat === 'due' || dueAmt > 0;
+        const isDue = gStat === 'due' || pStat === 'due';
         if (isDue) {
           dueCount++;
-          if (gStat === 'due' || !isPtActive(m) || dueAmt > 0) gymDueCount++;
-          if (pStat === 'due' || (isPtActive(m) && dueAmt > 0)) ptDueCount++;
+          if (gStat === 'due') gymDueCount++;
+          if (pStat === 'due') ptDueCount++;
         }
       }
     }
@@ -284,9 +284,10 @@ export default function Members() {
         case 'expired':
           return (gStat === 'expired' || pStat === 'expired') && !inactive;
         case 'due': {
-          if (!isDue || inactive) return false;
-          if (dueSubFilter === 'gym') return gStat === 'due' || !isPtActive(m);
-          if (dueSubFilter === 'pt') return pStat === 'due' || (isPtActive(m) && Number(m.dueAmount || 0) > 0);
+          const isRenewalDue = gStat === 'due' || pStat === 'due';
+          if (!isRenewalDue || inactive) return false;
+          if (dueSubFilter === 'gym') return gStat === 'due';
+          if (dueSubFilter === 'pt') return pStat === 'due';
           return true;
         }
         case 'active':
@@ -757,7 +758,7 @@ export default function Members() {
         </div>
       </div>
 
-      {/* --- Due Category Sub-Filter (Gym vs PT Due) */} --- */}
+      {/* --- Due Category Sub-Filter (Gym vs PT Due) --- */}
       {filterTab === 'due' && (
         <div className="p-3 rounded-2xl bg-red-50/90 border border-red-200/90 flex flex-wrap items-center justify-between gap-2.5 text-xs">
           <div className="flex items-center gap-2">
@@ -806,7 +807,7 @@ export default function Members() {
         </div>
       )}
 
-      {/* --- Directory Body: Table or Grid */} --- */}
+      {/* --- Directory Body: Table or Grid --- */}
       {view === 'table' ? (
         <MemberTable
           members={filteredMembers}
@@ -819,7 +820,7 @@ export default function Members() {
         />
       )}
 
-      {/* --- Modals */} --- */}
+      {/* --- Modals --- */}
 
       {/* Extend Membership Modal */}
       {extendMember && (

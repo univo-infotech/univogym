@@ -178,7 +178,7 @@ export default function MemberTable({
                           </span>
                         ) : gymDue > 0 ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-300">
-                            <AlertTriangle className="w-3 h-3 text-amber-600" /> Due: ₹{gymDue.toLocaleString('en-IN')}
+                            <AlertTriangle className="w-3 h-3 text-amber-600" /> Remaining: ₹{gymDue.toLocaleString('en-IN')}
                           </span>
                         ) : gymDays !== null && gymDays < 0 ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
@@ -376,10 +376,10 @@ export default function MemberTable({
                             type="button"
                             onClick={() => onCollect(m)}
                             className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
-                            title={`Collect Remaining Due: ₹${gymDue.toLocaleString('en-IN')}`}
+                            title={`Collect Remaining Fee: ₹${gymDue.toLocaleString('en-IN')}`}
                           >
                             <IndianRupee size={13} />
-                            <span className="hidden sm:inline">Due</span>
+                            <span className="hidden sm:inline">Remaining</span>
                           </button>
                           <button
                             type="button"
