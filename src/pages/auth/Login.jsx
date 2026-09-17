@@ -83,6 +83,42 @@ export default function Login() {
         }
       }
 
+      // 1b. Check Provisioned Staff / Co-Owner login from Firestore users collection
+      try {
+        const { collection, query, where, getDocs } = await import('firebase/firestore');
+        const { db } = await import('../../firebase/config');
+        const userQ = query(
+          collection(db, "users"),
+          where("email", "==", cleanEmail)
+        );
+        const userSnap = await getDocs(userQ);
+        if (!userSnap.empty) {
+          const matchedUser = userSnap.docs.map(d => ({ uid: d.id, ...d.data() }))[0];
+          if (matchedUser.password && matchedUser.password === password) {
+            if (matchedUser.status === 'inactive' || matchedUser.status === 'blocked') {
+              setError('Account suspended. Kripya gym owner se sampark karein.');
+              setLoading(false);
+              return;
+            }
+            
+            const isOwner = matchedUser.role === 'owner' || matchedUser.role === 'co-owner' || (matchedUser.role || '').toLowerCase().includes('owner');
+            
+            localStorage.removeItem('univo_trainer_session');
+            localStorage.removeItem('univo_member_session');
+            localStorage.setItem('univo_staff_session', JSON.stringify(matchedUser));
+            
+            if (setRole) setRole(isOwner ? 'owner' : 'staff');
+            if (setProfileId) setProfileId(matchedUser.profileId || matchedUser.uid);
+            if (setUser) setUser(matchedUser);
+            
+            navigate('/owner/dashboard', { replace: true });
+            return;
+          }
+        }
+      } catch (staffErr) {
+        console.warn('Staff login note:', staffErr.message);
+      }
+
       // 2. Trainer login check from Firestore
       try {
         const trainersList = await getTrainers('univo_main');

@@ -29,16 +29,18 @@ export async function getUserRole(uid) {
 
 export async function createStaffUser(email, password, role, gymId, name = "", profileId = "", permissions = []) {
   try {
-    // Only owner exists in Firebase Auth. Staff/trainers are stored in Firestore.
+    // Only owner exists in Firebase Auth. Staff/trainers/co-owners are stored in Firestore.
     const staffDocId = `staff_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     
     await setDoc(doc(db, "users", staffDocId), {
       email,
+      password,
       role,
       gymId,
       name,
       profileId,
       permissions,
+      status: "active",
       createdAt: new Date().toISOString()
     });
     
@@ -51,9 +53,12 @@ export async function createStaffUser(email, password, role, gymId, name = "", p
 
 export async function getStaffUsers(gymId) {
   const { collection, query, where, getDocs } = await import("firebase/firestore");
-  const q = query(collection(db, "users"), where("gymId", "==", gymId), where("role", "in", ["staff", "receptionist", "manager"]));
+  const q = query(collection(db, "users"), where("gymId", "==", gymId));
   const snap = await getDocs(q);
-  return snap.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+  // Return users who have staff, receptionist, manager, co-owner, or partner roles (excluding members/trainers)
+  return snap.docs
+    .map(doc => ({ uid: doc.id, ...doc.data() }))
+    .filter(u => u.role !== 'member' && u.role !== 'trainer');
 }
 
 export async function updateStaffUser(uid, profileId, gymId, data) {

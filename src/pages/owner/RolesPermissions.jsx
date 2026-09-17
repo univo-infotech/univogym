@@ -94,12 +94,32 @@ export default function RolesPermissions() {
             visits: { view: true, create: true, edit: true, delete: true }
           }
         };
+        const coOwner = {
+          title: "Co-Owner", icon: "👑", desc: "Full administrative partner with 100% unrestricted access to all modules, financial P&L, settings, staff, and deletion rights.",
+          perms: {
+            dashboard: { view: true },
+            members: { view: true, create: true, edit: true, delete: true },
+            payments: { view: true, create: true, edit: true, delete: true },
+            trainers: { view: true, create: true, edit: true, delete: true },
+            staff: { view: true, create: true, edit: true, delete: true },
+            memberships: { view: true, create: true, edit: true, delete: true },
+            services: { view: true, create: true, edit: true, delete: true },
+            stock: { view: true, create: true, edit: true, delete: true },
+            expenses: { view: true, create: true, edit: true, delete: true },
+            reports: { view: true },
+            visits: { view: true, create: true, edit: true, delete: true },
+            offers: { view: true },
+            settings: { view: true, create: true, edit: true, delete: true }
+          }
+        };
         await addRole(GID, rec);
         await addRole(GID, man);
+        await addRole(GID, coOwner);
         rData = await getRoles(GID);
       }
       
-      setUsers(uData.filter(u => u.role !== 'owner'));
+      // Filter out only the primary root owner account so provisioned co-owners and staff appear
+      setUsers(uData.filter(u => u.email !== 'univo@gmail.com'));
       setRoles(rData);
     } catch (err) {
       console.error(err);
@@ -109,7 +129,16 @@ export default function RolesPermissions() {
     }
   }
 
-  const allPresets = roles;
+  // Deduplicate presets by title so duplicate buttons can never render
+  const allPresets = useMemo(() => {
+    const seen = new Set();
+    return roles.filter(r => {
+      const title = (r.title || "").trim().toLowerCase();
+      if (!title || seen.has(title)) return false;
+      seen.add(title);
+      return true;
+    });
+  }, [roles]);
 
   // Filtered staff list
   const filteredUsers = useMemo(() => {
@@ -187,14 +216,17 @@ export default function RolesPermissions() {
     
     setProcessing(true);
     try {
+      const isOwnerRole = (staffForm.role || "").toLowerCase().includes("owner");
+      const assignedRole = isOwnerRole ? "owner" : staffForm.role;
+
       if (selectedStaff) {
         await updateStaffUser(selectedStaff.uid, selectedStaff.profileId, GID, {
           name: staffForm.name,
-          role: staffForm.role,
+          role: assignedRole,
           status: staffForm.status,
           permissions: staffForm.permissions
         });
-        toast.success("Staff permissions updated successfully");
+        toast.success(isOwnerRole ? "👑 Co-Owner privileges updated successfully" : "Staff permissions updated successfully");
       } else {
         const profileId = await addStaff(GID, {
           name: staffForm.name, phone: staffForm.phone, email: staffForm.email,
@@ -202,9 +234,9 @@ export default function RolesPermissions() {
           status: staffForm.status
         });
         await createStaffUser(
-          staffForm.email, staffForm.password, staffForm.role, GID, staffForm.name, profileId, staffForm.permissions
+          staffForm.email, staffForm.password, assignedRole, GID, staffForm.name, profileId, staffForm.permissions
         );
-        toast.success("Staff account provisioned with access");
+        toast.success(isOwnerRole ? "👑 Co-Owner account provisioned with full Owner access!" : "Staff account provisioned with access");
       }
       setStaffModalOpen(false);
       loadData();
