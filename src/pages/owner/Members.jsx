@@ -342,10 +342,20 @@ export default function Members() {
     );
   }, []);
 
-  const handlePtAddonSuccess = useCallback((memberId, updatedFields) => {
+  const handlePtAddonSuccess = useCallback((memberId, updatedFields, createdPayment) => {
     setMembers((prev) =>
       prev.map((m) => (m.id === memberId ? { ...m, ...updatedFields } : m))
     );
+
+    if (createdPayment) {
+      setPayments((prev) => [createdPayment, ...(prev || [])]);
+      setReceiptPayment(createdPayment);
+      setMembers((prev) => {
+        const found = prev.find((m) => m.id === memberId);
+        setReceiptMember(found ? { ...found, ...updatedFields } : { id: memberId, ...updatedFields });
+        return prev;
+      });
+    }
   }, []);
 
   const handleLeftSuccess = useCallback((memberId, reason) => {
@@ -459,11 +469,71 @@ export default function Members() {
     onRestartPt: handleRestartPT,
     onReturn: handleReactivate,
     onReactivate: handleReactivate,
-    onDelete: (m) => setDeleteTargetMember(m),
-    onReceipt: (m) => {
-      const found = (payments || []).find((p) => p.memberId === m.id || p.phone === m.phone);
+    onReceipt: (m, typeOrPayment) => {
+      const memberPayments = (payments || []).filter(
+        (p) => (p.memberId === m.id || (m.phone && p.phone === m.phone))
+      );
+
+      // If a specific payment object was passed
+      if (typeOrPayment && typeof typeOrPayment === 'object') {
+        setReceiptPayment(typeOrPayment);
+        setReceiptMember(m);
+        return;
+      }
+
+      // If user specifically clicked PT bill button
+      if (typeOrPayment === 'pt') {
+        const ptPayment = memberPayments.find(
+          (p) => p.isPtOnly || p.planType === 'PT' || (p.planName && p.planName.toLowerCase().includes('personal training'))
+        );
+        if (ptPayment) {
+          setReceiptPayment(ptPayment);
+          setReceiptMember(m);
+          return;
+        } else {
+          // Construct synthetic PT bill if not found in ledger
+          const synthPtPayment = {
+            id: 'bill_pt_' + (m.id || Date.now()),
+            receiptNo: 'REC-PT-' + Date.now().toString().slice(-6),
+            memberId: m.id,
+            memberName: getName(m),
+            phone: getPhone(m),
+            slot: m.slot || m.workoutSlot || 'General Shift',
+            planName: `Personal Training (PT) - ${m.ptPlanName || '1-on-1 PT'}`,
+            planType: 'PT',
+            isPtOnly: true,
+            ptPlanName: m.ptPlanName || '1-on-1 PT',
+            ptPlanPrice: Number(m.ptPlanPrice || 4500),
+            planPrice: 0,
+            amount: Number(m.ptPlanPrice || 4500),
+            paidAmount: Number(m.ptPlanPrice || 4500),
+            dueAmount: 0,
+            trainerName: m.trainerName || 'Assigned Coach',
+            paymentMode: m.paymentMode || 'cash',
+            date: toIndianDate(m.ptStartDate || m.lastPaymentDate || new Date()),
+            validityStart: toIndianDate(m.ptStartDate || new Date()),
+            validityEnd: toIndianDate(m.ptEndDate || new Date()),
+            status: 'paid'
+          };
+          setReceiptPayment(synthPtPayment);
+          setReceiptMember(m);
+          return;
+        }
+      }
+
+      // Default: Find the latest payment
+      let chosenPayment = null;
+      if (memberPayments.length > 0) {
+        const sorted = [...memberPayments].sort((a, b) => {
+          const tA = toDate(a.createdAt || a.date)?.getTime() || 0;
+          const tB = toDate(b.createdAt || b.date)?.getTime() || 0;
+          return tB - tA;
+        });
+        chosenPayment = sorted[0];
+      }
+
       setReceiptPayment(
-        found || {
+        chosenPayment || {
           id: 'bill_' + (m.id || Date.now()),
           memberId: m.id,
           memberName: getName(m),
@@ -485,7 +555,7 @@ export default function Members() {
 
   return (
     <div className="space-y-6">
-      {/* --- Header & Top Actions */} --- */}
+      {/* Header & Top Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
@@ -517,15 +587,14 @@ export default function Members() {
         </div>
       </div>
 
-      {/* --- 7 KPI Metric Cards Row */} --- */}
+      {/* 7 KPI Metric Cards Row */}
       <MemberKpiBar
         {...counts}
         activeTab={filterTab}
         onSelectTab={(tabKey) => setFilterTab(tabKey)}
       />
 
-      {/* --- Systematic Filter & Search Bar */} --- */}
-      {/* ─── Systematic Filter & Search Bar (Exact Screenshot Match) ────────── */}
+      {/* Systematic Filter & Search Bar */}
       <div className="p-3 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
         {/* Row 1: Primary View Tabs + Search Input + Table/Grid Switcher */}
         <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
@@ -925,6 +994,8 @@ export default function Members() {
           }}
           payment={receiptPayment}
           member={receiptMember}
+          allPayments={payments}
+          onSelectPayment={(p) => setReceiptPayment(p)}
         />
       )}
     </div>

@@ -143,9 +143,10 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
     const phone = getPhone(member) || "";
     const billId = "bill_pt_" + Date.now();
 
-    // 1. Construct Transaction Record (Counts towards financial transactions ledger & revenue)
+    // 1. Construct Transaction Record (Dedicated PT-only bill)
     const newPaymentRecord = {
       id: billId,
+      receiptNo: "REC-PT-" + Date.now().toString().slice(-6),
       memberId: member.id,
       memberName,
       phone,
@@ -153,6 +154,12 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
       batch: member.batch || "Alpha Gym",
       planName: `Personal Training (PT) - ${ptPackageName}`,
       planType: "PT",
+      isPtOnly: true,
+      ptPlanId: selectedPackageId,
+      ptPlanName: ptPackageName,
+      ptPlanPrice: feeNum,
+      planPrice: 0,
+      servicesPrice: 0,
       trainerId: selectedTrainerObj?.id || "",
       trainerName,
       amount: feeNum,
@@ -168,7 +175,7 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
       dueDate: toIndianDate(computedPtEndDate),
       date: toIndianDate(new Date().toISOString().split("T")[0]),
       status: remainingDue > 0 ? "partial" : "paid",
-      remarks: remarks || `Mid-month 1-on-1 PT package (${activeDurationDays} Days) with Coach ${trainerName}`,
+      remarks: remarks || `1-on-1 PT package (${activeDurationDays} Days) with Coach ${trainerName}`,
       createdAt: new Date().toISOString(),
     };
 
@@ -211,8 +218,8 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
       invalidateCache("payments");
       invalidateCache("members");
 
-      // 5. Update local state in Members table/grid
-      onSave(member.id, updatedFields);
+      // 5. Update local state in Members table/grid and trigger receipt
+      onSave(member.id, updatedFields, newPaymentRecord);
 
       toast.success(`PT Package activated for ${memberName}! ₹${paidNum} transaction recorded.`);
 

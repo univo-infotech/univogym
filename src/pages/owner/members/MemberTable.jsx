@@ -291,6 +291,17 @@ export default function MemberTable({
 
                           {/* Dedicated PT Action Buttons */}
                           <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-purple-100">
+                            {/* Dedicated PT Bill Receipt */}
+                            <button
+                              type="button"
+                              onClick={() => onReceipt && onReceipt(m, 'pt')}
+                              className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-[11px] inline-flex items-center gap-1 transition cursor-pointer"
+                              title="View Dedicated PT Fee Receipt & WhatsApp"
+                            >
+                              <Receipt size={11} className="text-purple-600" />
+                              <span>PT Bill</span>
+                            </button>
+
                             {/* Renew PT (Only shown when ending soon, expired, or due) */}
                             {(ptStatus === 'ending_soon' || ptStatus === 'expired' || ptStatus === 'due' || (ptDays !== null && ptDays <= 3)) && (
                               <button

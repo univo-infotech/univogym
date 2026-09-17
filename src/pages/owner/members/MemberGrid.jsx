@@ -240,6 +240,14 @@ export default function MemberGrid({
                     </div>
 
                     <div className="flex items-center justify-end gap-1 pt-1 border-t border-purple-100/60">
+                      <button
+                        type="button"
+                        onClick={() => onReceipt && onReceipt(m, 'pt')}
+                        className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 border border-purple-200 font-bold text-[10px] inline-flex items-center gap-1 transition"
+                        title="View Dedicated PT Bill"
+                      >
+                        <Receipt size={10} className="text-purple-600" /> PT Bill
+                      </button>
                       {(ptStatus === 'ending_soon' || ptStatus === 'expired' || ptStatus === 'due' || (ptDays !== null && ptDays <= 3)) && (
                         <button
                           type="button"

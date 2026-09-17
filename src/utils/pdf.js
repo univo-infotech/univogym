@@ -39,10 +39,17 @@ export function generatePaymentReceipt(payment, customSettings = null) {
   );
 
   // 2. Receipt Title
+  const isPtBill = Boolean(
+    payment.isPtOnly ||
+    payment.planType === "PT" ||
+    (Number(payment.ptPlanPrice || 0) > 0 && Number(payment.planPrice || 0) === 0) ||
+    (payment.planName && payment.planName.toLowerCase().startsWith("personal training") && !payment.planName.includes("+"))
+  );
+
   doc.setTextColor(30, 41, 59);
-  doc.setFontSize(14);
+  doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
-  doc.text("OFFICIAL MEMBERSHIP RECEIPT & TAX INVOICE", 105, 38, { align: "center" });
+  doc.text(isPtBill ? "OFFICIAL PERSONAL TRAINING (PT) TAX INVOICE" : "OFFICIAL MEMBERSHIP RECEIPT & TAX INVOICE", 105, 38, { align: "center" });
 
   // 3. Receipt Meta box
   doc.setDrawColor(226, 232, 240);
@@ -110,22 +117,30 @@ export function generatePaymentReceipt(payment, customSettings = null) {
   const ptPrice = Number(payment.ptPlanPrice || payment.ptFee || 0);
   const servicesPrice = Number(payment.servicesPrice || payment.servicesTotalPrice || 0);
 
-  // 1) Base Plan Item
-  const baseTitle = payment.planName ? payment.planName.split("+")[0].trim() : "Gym Membership Base Fee";
-  const finalBasePrice = basePrice > 0 ? basePrice : Math.max(0, totalPlanPrice - ptPrice - servicesPrice);
-  items.push({
-    desc: `Base Membership: ${baseTitle}`,
-    period: validityText,
-    amount: finalBasePrice
-  });
-
-  // 2) Personal Trainer (PT) Item
-  if (ptPrice > 0 || (payment.ptPlanName && !payment.planName?.toLowerCase().includes("services only"))) {
+  // 1) Base Plan or Dedicated PT Item
+  if (isPtBill) {
     items.push({
-      desc: `Personal Training (PT)${payment.ptPlanName ? ` - ${payment.ptPlanName}` : ""}`,
+      desc: `Personal Training (PT) - ${payment.ptPlanName || payment.planName?.replace(/^Personal Training \(PT\) - /i, '') || "1-on-1 PT"}${payment.trainerName ? ` (Coach: ${payment.trainerName})` : ""}`,
       period: validityText,
-      amount: ptPrice
+      amount: totalPlanPrice
     });
+  } else {
+    const baseTitle = payment.planName ? payment.planName.split("+")[0].trim() : "Gym Membership Base Fee";
+    const finalBasePrice = basePrice > 0 ? basePrice : Math.max(0, totalPlanPrice - ptPrice - servicesPrice);
+    items.push({
+      desc: `Base Membership: ${baseTitle}`,
+      period: validityText,
+      amount: finalBasePrice
+    });
+
+    // 2) Personal Trainer (PT) Item
+    if (ptPrice > 0 || (payment.ptPlanName && !payment.planName?.toLowerCase().includes("services only"))) {
+      items.push({
+        desc: `Personal Training (PT)${payment.ptPlanName ? ` - ${payment.ptPlanName}` : ""}${payment.trainerName ? ` (Coach: ${payment.trainerName})` : ""}`,
+        period: validityText,
+        amount: ptPrice
+      });
+    }
   }
 
   // 3) Add-on Services Items
@@ -171,14 +186,20 @@ export function generatePaymentReceipt(payment, customSettings = null) {
   doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
 
-  doc.text("Plan Base Fee:", 120, summaryY);
-  doc.text(`Rs. ${finalBasePrice.toLocaleString("en-IN")}`, 172, summaryY);
-  summaryY += 5;
-
-  if (ptPrice > 0) {
-    doc.text("Personal Training (PT):", 120, summaryY);
-    doc.text(`+ Rs. ${ptPrice.toLocaleString("en-IN")}`, 172, summaryY);
+  if (isPtBill) {
+    doc.text("PT Package Fee:", 120, summaryY);
+    doc.text(`Rs. ${totalPlanPrice.toLocaleString("en-IN")}`, 172, summaryY);
     summaryY += 5;
+  } else {
+    doc.text("Plan Base Fee:", 120, summaryY);
+    doc.text(`Rs. ${finalBasePrice.toLocaleString("en-IN")}`, 172, summaryY);
+    summaryY += 5;
+
+    if (ptPrice > 0) {
+      doc.text("Personal Training (PT):", 120, summaryY);
+      doc.text(`+ Rs. ${ptPrice.toLocaleString("en-IN")}`, 172, summaryY);
+      summaryY += 5;
+    }
   }
 
   if (servicesPrice > 0) {
