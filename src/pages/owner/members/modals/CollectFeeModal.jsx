@@ -402,7 +402,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
       toast.success(`Fee collected successfully for ${memberName}!`);
 
       // 3. Update parent list
-      onSave(member.id, updatedFields, newPaymentRecord);
+      onSave(member.id, updatedFields);
 
       // 4. Online Receipt Web Link (Member can click link anytime to view & download official receipt)
       const receiptLink = `${window.location.origin}/#/receipt/${newPaymentRecord.id}`;

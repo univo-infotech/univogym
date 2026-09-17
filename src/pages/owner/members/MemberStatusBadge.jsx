@@ -75,11 +75,33 @@ export function StatusBadge({ status, dueAmount, member }) {
     );
   }
 
+  // Fully paid & active
+  const isFullyPaid = !!member?.lastPaymentDate && Number(member?.dueAmount ?? dueAmount ?? 0) <= 0;
+  if (isFullyPaid && gStatus === 'active') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
+        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+        Paid
+      </span>
+    );
+  }
+
+  // Partial due
+  const hasPartialDue = Number(member?.dueAmount ?? dueAmount) > 0 && !!member?.lastPaymentDate;
+  if (hasPartialDue && gStatus === 'active') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300">
+        <span className="w-2 h-2 rounded-full bg-amber-500" />
+        Due: ₹{member?.dueAmount ?? dueAmount}
+      </span>
+    );
+  }
+
   // Default single status
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.active;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${cfg.cls}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${cfg.cls}`}>
+      <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
       {cfg.label}
     </span>
   );

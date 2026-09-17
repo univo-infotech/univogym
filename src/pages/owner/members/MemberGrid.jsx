@@ -1,14 +1,13 @@
 import React from 'react';
-import { Sun, Sunrise, Sunset, Clock, UserCheck } from 'lucide-react';
-import { Avatar } from './MemberStatusBadge';
+import { Avatar, StatusBadge } from './MemberStatusBadge';
 import MemberActionButtons from './MemberActionButtons';
 import {
   getName,
   getPhone,
   getSlot,
-  formatDate,
-  getMembershipRemainingDays,
-  isLeft
+  getMemberStatus,
+  getMemberDaysInfo,
+  getMembershipDetails
 } from './memberUtils';
 
 export default function MemberGrid({
@@ -24,25 +23,15 @@ export default function MemberGrid({
     );
   }
 
-  const getSlotIcon = (slotStr = '') => {
-    const s = String(slotStr).toLowerCase();
-    if (s.includes('morn')) return <Sunrise className="w-3 h-3 text-amber-500" />;
-    if (s.includes('even') || s.includes('night')) return <Sunset className="w-3 h-3 text-indigo-500" />;
-    if (s.includes('noon') || s.includes('after')) return <Sun className="w-3 h-3 text-orange-500" />;
-    return <Clock className="w-3 h-3 text-teal-500" />;
-  };
-
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
       {members.map((m) => {
-        const memberIsLeft = isLeft(m);
-        const remainingInfo = getMembershipRemainingDays(m.expiryDate);
+        const status = getMemberStatus(m);
+        const daysInfo = getMemberDaysInfo(m);
+        const membershipDetails = getMembershipDetails(m);
         const name = getName(m);
         const phone = getPhone(m);
         const slot = getSlot(m);
-        const planPrice = Number(m.planPrice || 0);
-        const discount = Number(m.discount || m.discountAmount || 0);
-        const netFee = Math.max(0, planPrice - discount);
 
         return (
           <div
@@ -50,60 +39,66 @@ export default function MemberGrid({
             className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5 hover:border-emerald-300 transition flex flex-col justify-between"
           >
             <div>
-              {/* Header: Avatar + Status */}
+              {/* Header: Avatar + StatusBadge */}
               <div className="flex items-center justify-between">
                 <Avatar member={m} size="md" />
-                <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-extrabold ${
-                    memberIsLeft
-                      ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                      : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                  }`}
-                >
-                  {memberIsLeft ? '🔴 Left' : '🟢 Active'}
-                </span>
+                <StatusBadge status={status} dueAmount={m.dueAmount} member={m} />
               </div>
 
               {/* Identity */}
               <div className="mt-3">
                 <h4 className="font-bold text-slate-900 text-sm leading-tight">{name}</h4>
-                <p className="text-xs text-slate-500 mt-0.5">{phone || 'No phone'}</p>
-                <div className="flex items-center gap-1.5 mt-2 text-[11px]">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-extrabold border border-indigo-100">
-                    {getSlotIcon(slot)}
-                    <span>{slot}</span>
-                  </span>
-                  <span className="text-slate-600 font-medium truncate flex items-center gap-1">
-                    <UserCheck className="w-3 h-3 text-slate-400" />
-                    <span>{m.trainerName && m.trainerName !== 'No Trainer' ? m.trainerName : 'General Floor'}</span>
-                  </span>
+                <p className="text-xs text-slate-400 mt-0.5">{phone || 'No phone'}</p>
+                <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-slate-500">
+                  <span className="bg-slate-100 px-2 py-0.5 rounded-md font-medium">{slot}</span>
+                  {m.trainerName && (
+                    <span className="font-semibold text-slate-600 truncate">
+                      Coach: {m.trainerName}
+                    </span>
+                  )}
                 </div>
               </div>
 
               {/* Plan & Validity Info */}
-              <div className="mt-3.5 space-y-1.5 pt-2 border-t border-slate-100">
-                <div className="flex items-center gap-1.5 text-xs flex-wrap">
-                  <span className="font-bold text-slate-900">{m.planName || 'Standard Plan'}</span>
-                  <span className="font-extrabold text-indigo-700">
-                    (₹{netFee.toLocaleString('en-IN')})
-                  </span>
-                  {discount > 0 && (
-                    <span className="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
-                      -₹{discount}
+              <div className="mt-3 space-y-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="text-xs font-semibold text-slate-800">{m.planName || 'Standard Plan'}</p>
+                  {membershipDetails.category === 'both' ? (
+                    <span className="px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-fuchsia-50 text-fuchsia-800 border border-fuchsia-200">
+                      Gym + PT
+                    </span>
+                  ) : membershipDetails.category === 'both_pt_ended' ? (
+                    <span className="px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      Gym Active (PT Ended)
+                    </span>
+                  ) : membershipDetails.category === 'pt' ? (
+                    <span className="px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200">
+                      1-on-1 PT
+                    </span>
+                  ) : membershipDetails.category === 'pt_ended' ? (
+                    <span className="px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-slate-100 text-slate-700 border border-slate-300">
+                      PT Ended
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-blue-50 text-blue-800 border border-blue-200">
+                      Gym Plan
                     </span>
                   )}
                 </div>
 
-                {m.expiryDate && (
-                  <div>
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold border ${remainingInfo.color}`}
-                      title={`Valid till ${formatDate(m.expiryDate)}`}
-                    >
-                      {remainingInfo.label}
-                    </span>
-                  </div>
+                {m.ptPlanName && (
+                  <p className={`text-[10px] font-bold px-2 py-0.5 rounded-md border truncate ${
+                    m.ptStatus === 'ended'
+                      ? 'text-slate-500 bg-slate-100 border-slate-200 line-through opacity-85'
+                      : 'text-purple-700 bg-purple-50 border-purple-200'
+                  }`}>
+                    {m.ptStatus === 'ended' ? '🛑 PT Ended: ' : '✨ PT: '} {m.ptPlanName} {m.ptPlanPrice && m.ptStatus !== 'ended' ? `(+₹${m.ptPlanPrice})` : ''}
+                  </p>
                 )}
+
+                <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${daysInfo.cls}`}>
+                  {daysInfo.text}
+                </span>
               </div>
             </div>
 

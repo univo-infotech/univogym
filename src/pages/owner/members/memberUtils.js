@@ -252,82 +252,16 @@ export function getMemberDaysInfo(member) {
 
   // Single Gym member
   if (gymDiff !== null) {
-    if (gymDiff < -2) return { text: `🔴 Overdue (${Math.abs(gymDiff)}d ago)`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
-    if (gymDiff < 0) return { text: `🟡 Expired (${Math.abs(gymDiff)}d Grace)`, cls: 'bg-amber-50 text-amber-900 border-amber-200 font-bold' };
-    if (gymDiff === 0) return { text: '⚠️ Ending Today', cls: 'bg-amber-50 text-amber-900 border-amber-200 font-bold' };
-    if (gymDiff <= 3) return { text: `⏳ In ${gymDiff} day${gymDiff > 1 ? 's' : ''}`, cls: 'bg-amber-50 text-amber-800 border-amber-200 font-bold' };
-    return { text: `Active (${gymDiff} days left)`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold' };
+    if (gymDiff < -2) return { text: `Renewal Due (${Math.abs(gymDiff)}d overdue)`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold animate-pulse' };
+    if (gymDiff <= 0) {
+      const daysAgo = Math.abs(gymDiff) === 0 ? 'Today' : `${Math.abs(gymDiff)}d ago`;
+      return { text: `Expired (${daysAgo})`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
+    }
+    if (gymDiff <= 3) return { text: `Ending Soon (${gymDiff}d left)`, cls: 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' };
+    return { text: `Active (${gymDiff} days left)`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
   }
 
   return { text: 'No Expiry Set', cls: 'bg-slate-100 text-slate-600 border-slate-200' };
-}
-
-/**
- * Direct matching implementation of studypoint's getMembershipRemainingDays
- */
-export function getMembershipRemainingDays(membershipEnd) {
-  if (!membershipEnd) return { diffDays: 0, isExpired: false, isEndingToday: false, label: '—', color: 'bg-slate-50 text-slate-500 border-slate-200' };
-  const end = toDate(membershipEnd);
-  if (!end || isNaN(end.getTime())) return { diffDays: 0, isExpired: false, isEndingToday: false, label: '—', color: 'bg-slate-50 text-slate-500 border-slate-200' };
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const target = new Date(end);
-  target.setHours(0, 0, 0, 0);
-
-  const diffMs = target.getTime() - today.getTime();
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays < -2) {
-    return {
-      diffDays,
-      isExpired: true,
-      isOverdue: true,
-      isEndingToday: false,
-      label: `🔴 Overdue (${Math.abs(diffDays)}d ago)`,
-      shortLabel: `${Math.abs(diffDays)}d Overdue`,
-      color: 'bg-rose-50 text-rose-700 border-rose-200 font-bold',
-    };
-  } else if (diffDays < 0) {
-    return {
-      diffDays,
-      isExpired: true,
-      isGrace: true,
-      isEndingToday: false,
-      label: `🟡 Expired (${Math.abs(diffDays)}d Grace)`,
-      shortLabel: `${Math.abs(diffDays)}d Grace`,
-      color: 'bg-amber-50 text-amber-900 border-amber-200 font-bold',
-    };
-  } else if (diffDays === 0) {
-    return {
-      diffDays: 0,
-      isExpired: false,
-      isEndingToday: true,
-      label: '⚠️ Ending Today',
-      shortLabel: 'Today',
-      color: 'bg-amber-50 text-amber-900 border-amber-200 font-bold',
-    };
-  } else if (diffDays <= 3) {
-    return {
-      diffDays,
-      isExpired: false,
-      isEndingToday: false,
-      isEndingSoon: true,
-      label: `⏳ In ${diffDays} day${diffDays > 1 ? 's' : ''}`,
-      shortLabel: `${diffDays}d left`,
-      color: 'bg-amber-50 text-amber-800 border-amber-200 font-bold',
-    };
-  } else {
-    return {
-      diffDays,
-      isExpired: false,
-      isEndingToday: false,
-      label: `Active (${diffDays} days left)`,
-      shortLabel: `${diffDays}d left`,
-      color: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold',
-    };
-  }
 }
 
 // ─── Membership Category Details ──────────────────────────────────────────────
