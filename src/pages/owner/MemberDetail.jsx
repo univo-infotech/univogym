@@ -26,7 +26,14 @@ import {
   Smartphone,
   Building2,
   Split,
-  Receipt
+  Receipt,
+  Key,
+  Lock,
+  Eye,
+  EyeOff,
+  Copy,
+  Check,
+  Edit3
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getMember, updateMember } from "../../firebase/members";
@@ -84,6 +91,68 @@ export default function MemberDetail() {
     commissionType: "percentage",
     commissionValue: "30",
   });
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(null);
+  const [isEditingPass, setIsEditingPass] = useState(false);
+  const [passInput, setPassInput] = useState("");
+  const [isSavingPass, setIsSavingPass] = useState(false);
+
+  const handleCopy = (text, key) => {
+    if (!text || text === "—" || text === "-") return;
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    toast.success(`${key} copied to clipboard!`);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const handleSavePassword = async () => {
+    if (!passInput.trim()) {
+      toast.error("Password cannot be empty");
+      return;
+    }
+    setIsSavingPass(true);
+    try {
+      await updateMember("univo_main", targetMemberId, {
+        loginPassword: passInput.trim(),
+        password: passInput.trim(),
+      });
+      setMember(prev => ({
+        ...prev,
+        loginPassword: passInput.trim(),
+        password: passInput.trim()
+      }));
+      invalidateCache("members");
+      toast.success("Member login password updated successfully!");
+      setIsEditingPass(false);
+    } catch (err) {
+      console.error("Error updating member password:", err);
+      toast.error("Failed to update password");
+    } finally {
+      setIsSavingPass(false);
+    }
+  };
+
+  const handleSendCredentialsWA = () => {
+    if (!member) return;
+    const rawPhone = (member.phone || "").replace(/\D/g, "");
+    if (!rawPhone) {
+      toast.error("Member phone number not available");
+      return;
+    }
+    const memPass = member.loginPassword || member.password || "Member@123";
+    const loginId = member.loginEmail || member.phone || "—";
+    const appUrl = `${window.location.origin}/#/login`;
+    const msg = `🏋️ *UNIVO GYM MEMBER PORTAL LOGIN*\n\n` +
+      `Hi *${member.name || member.fullName || "Member"}*,\n` +
+      `Aapke gym portal ke login credentials yeh hain:\n\n` +
+      `📱 *Login ID (Phone):* ${member.phone || "—"}\n` +
+      (member.loginEmail || member.email ? `📧 *Login Email:* ${member.loginEmail || member.email}\n` : "") +
+      `🔑 *Password:* ${memPass}\n` +
+      `🔗 *Login Link:* ${appUrl}\n\n` +
+      `Is link par login karke aap apna workout schedule, diet chart, attendance aur fees status track kar sakte hain!`;
+    openWhatsApp(rawPhone, msg);
+  };
 
   useEffect(() => {
     async function load() {
@@ -389,7 +458,21 @@ export default function MemberDetail() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+          <button
+            onClick={() => {
+              setActiveTab("overview");
+              setShowPassword(true);
+              setTimeout(() => {
+                const el = document.getElementById("credentials-card");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }, 50);
+            }}
+            className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-900 text-xs font-bold flex items-center justify-center gap-1.5 transition border border-indigo-200 shadow-2xs"
+            title="Member ke Login ID & Password dekhein"
+          >
+            <Key className="w-4 h-4 text-indigo-600" /> ID & Password
+          </button>
           <button
             onClick={() => {
               const num = (member.phone || "").replace(/\D/g, "");
@@ -442,6 +525,223 @@ export default function MemberDetail() {
       {/* Tab 1: Overview */}
       {activeTab === "overview" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Member Portal Login Credentials Dedicated Card */}
+          <div
+            id="credentials-card"
+            className="md:col-span-2 p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 border border-slate-800 text-white shadow-md relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-inner">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-bold text-white tracking-wide">
+                      Member Portal Login Credentials
+                    </h3>
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      Login Active
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Member is ID & Password se Portal (<span className="text-slate-300 font-mono">/#/login</span>) par login kar sakta hai.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action: Send to Member via WhatsApp */}
+              <button
+                type="button"
+                onClick={handleSendCredentialsWA}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-2 transition shadow-sm"
+                title="Member ko WhatsApp par login ID aur password share karein"
+              >
+                <MessageCircle className="w-4 h-4" /> Share on WhatsApp
+              </button>
+            </div>
+
+            {/* Credentials 3-Column Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+              {/* Login ID (Mobile) */}
+              <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1.5">
+                    <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+                      <Smartphone className="w-3.5 h-3.5 text-indigo-400" /> Primary Login (Phone)
+                    </span>
+                    <span className="text-[9px] uppercase font-bold text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded">
+                      Default ID
+                    </span>
+                  </div>
+                  <div className="font-mono font-bold text-base text-white tracking-wide truncate">
+                    {member.phone || "—"}
+                  </div>
+                </div>
+                {member.phone && member.phone !== "—" && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(member.phone, "Phone Number")}
+                    className="mt-3 text-xs font-semibold text-indigo-300 hover:text-white flex items-center gap-1.5 transition self-start"
+                  >
+                    {copiedKey === "Phone Number" ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" /> Copy Phone
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Login Email */}
+              <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1.5">
+                    <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+                      <Mail className="w-3.5 h-3.5 text-teal-400" /> Alternate ID (Email)
+                    </span>
+                  </div>
+                  <div
+                    className="font-mono font-bold text-sm text-white tracking-wide truncate"
+                    title={member.loginEmail || member.email || "Not set"}
+                  >
+                    {member.loginEmail || member.email || "Not set"}
+                  </div>
+                </div>
+                {(member.loginEmail || member.email) && member.email !== "—" && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(member.loginEmail || member.email, "Email")}
+                    className="mt-3 text-xs font-semibold text-teal-300 hover:text-white flex items-center gap-1.5 transition self-start"
+                  >
+                    {copiedKey === "Email" ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" /> Copy Email
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Portal Password */}
+              <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1.5">
+                    <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+                      <Lock className="w-3.5 h-3.5 text-emerald-400" /> Portal Password
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(p => !p)}
+                      className="text-xs text-slate-300 hover:text-white flex items-center gap-1 transition px-1.5 py-0.5 rounded bg-slate-700/60"
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? (
+                        <><EyeOff className="w-3 h-3" /> Hide</>
+                      ) : (
+                        <><Eye className="w-3 h-3" /> Show</>
+                      )}
+                    </button>
+                  </div>
+
+                  {!isEditingPass ? (
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="font-mono font-bold text-base text-emerald-400 tracking-wider">
+                        {showPassword ? (member.loginPassword || member.password || "Member@123") : "••••••••••••"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPassInput(member.loginPassword || member.password || "Member@123");
+                          setIsEditingPass(true);
+                        }}
+                        className="text-slate-400 hover:text-emerald-400 text-xs flex items-center gap-1 p-1 transition"
+                        title="Change / Reset Password"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={passInput}
+                        onChange={(e) => setPassInput(e.target.value)}
+                        placeholder="New password"
+                        className="w-full px-2.5 py-1 text-xs font-mono rounded-lg bg-slate-950 border border-slate-600 text-white focus:outline-none focus:border-emerald-500"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        disabled={isSavingPass}
+                        onClick={handleSavePassword}
+                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition disabled:opacity-50"
+                      >
+                        {isSavingPass ? "..." : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingPass(false)}
+                        className="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs rounded-lg transition"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {!isEditingPass && (
+                  <div className="mt-3 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(member.loginPassword || member.password || "Member@123", "Password")}
+                      className="text-xs font-semibold text-emerald-300 hover:text-white flex items-center gap-1.5 transition"
+                    >
+                      {copiedKey === "Password" ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" /> Copy Pass
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPassInput(member.loginPassword || member.password || "Member@123");
+                        setIsEditingPass(true);
+                      }}
+                      className="text-xs text-slate-400 hover:text-slate-200 transition underline underline-offset-2"
+                    >
+                      Edit Pass
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Hint footer */}
+            <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between text-[11px] text-slate-400 gap-2">
+              <span className="flex items-center gap-1.5">
+                💡 <span className="text-slate-300">Tip:</span> Member apne Mobile Number ya Email me se koi bhi ID daal kar password ke sath login kar sakta hai.
+              </span>
+              <span className="font-mono text-slate-400 text-[10px] bg-slate-800/80 px-2 py-0.5 rounded">
+                Default Password: Member@123
+              </span>
+            </div>
+          </div>
+
           <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-3">
             <h3 className="text-base font-bold text-slate-900">Personal Information</h3>
             <div className="space-y-2 text-xs text-slate-600">
@@ -453,33 +753,6 @@ export default function MemberDetail() {
               <p><span className="font-semibold text-slate-800">Joined Date: </span>{formatDate(member.createdAt)}</p>
               <p><span className="font-semibold text-slate-800">Plan Expiry: </span>{formatDate(member.expiryDate)}</p>
               {member.address && <p><span className="font-semibold text-slate-800">Address: </span>{member.address}</p>}
-              
-              {/* Member Portal Login Credentials (Only for PT Members) */}
-              {(member.isPTMember || member.hasPersonalCoach || member.ptPlanName || member.loginPassword) ? (
-                <div className="p-3 bg-indigo-50/90 rounded-2xl border border-indigo-200 mt-2 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-indigo-950 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" /> PT Member App Credentials:
-                    </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-200/80 text-indigo-900">
-                      Active PT Portal
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-700">
-                    <span className="font-semibold text-slate-900">User / Phone: </span>
-                    <span className="font-mono font-bold text-indigo-800">{member.loginEmail || member.phone || "—"}</span>
-                  </p>
-                  <p className="text-[11px] text-slate-700">
-                    <span className="font-semibold text-slate-900">Password: </span>
-                    <span className="font-mono font-bold text-teal-700">{member.loginPassword || member.password || "Member@123"}</span>
-                  </p>
-                </div>
-              ) : (
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 mt-2 text-xs text-slate-500 flex items-center justify-between">
-                  <span>General Member (No PT Login Assigned)</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">Non-PT</span>
-                </div>
-              )}
 
               {member.healthNotes && (
                 <p className="p-2 bg-amber-50 rounded-xl text-amber-900 border border-amber-200 mt-2">
