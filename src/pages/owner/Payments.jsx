@@ -339,10 +339,10 @@ export default function Payments() {
   const { gymId } = useAuth();
   const activeGymId = gymId || "univo_main";
 
-  const loadData = async () => {
+  const loadData = async (force = true) => {
     try {
-      const storedPayments = await getAllPayments(activeGymId);
-      const storedMembers = await getMembers(activeGymId);
+      const storedPayments = await getAllPayments(activeGymId, force);
+      const storedMembers = await getMembers(activeGymId, force);
       setPaymentsList(storedPayments || []);
       setMembersList(storedMembers || []);
     } catch (err) {
@@ -353,7 +353,7 @@ export default function Payments() {
   };
 
   useEffect(() => {
-    loadData();
+    loadData(true);
   }, [activeGymId]);
 
   // Map of memberId -> member object for checking real-time member status
@@ -646,6 +646,11 @@ export default function Payments() {
       });
 
     const allCombined = [...paymentsList, ...syntheticBills];
+    allCombined.sort((a, b) => {
+      const timeA = new Date(a.createdAt || a.date || 0).getTime() || 0;
+      const timeB = new Date(b.createdAt || b.date || 0).getTime() || 0;
+      return timeB - timeA;
+    });
 
     return allCombined.map((item) => {
       const days = getDaysRemaining(item.dueDate || item.validityEnd);

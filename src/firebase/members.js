@@ -471,6 +471,9 @@ export async function addMember(gymId, memberData) {
     console.warn("Local storage member cache note:", e);
   }
 
+  invalidateCache("members");
+  invalidateCache("payments");
+
   return memberId;
 }
 

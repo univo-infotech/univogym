@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import Modal from "../ui/Modal";
 import SignaturePad from "./SignaturePad";
 import PhotoCaptureInput from "./PhotoCaptureInput";
@@ -89,6 +90,7 @@ const FITNESS_GOALS = [
 ];
 
 export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans = null, trainers = null, existingMembers = [] }) {
+  const navigate = useNavigate();
   const { gymId } = useAuth();
   const GID = gymId || "univo_main";
   const fileInputRef = useRef(null);
@@ -496,9 +498,10 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     }
 
     if (onSuccess) onSuccess(newMember);
-    toast.success(`${newMember.fullName} registered successfully!`);
+    toast.success(`${newMember.fullName} registered successfully! Opening Fee section...`);
     setSaving(false);
     onClose();
+    navigate("/owner/payments");
 
     // Reset form
     setFormData({
