@@ -4125,7 +4125,7 @@ export default function Members() {
                             <>
                               <button
                                 onClick={() => {
-                                  setEditMemberTab?.('membership') || setEditMemberInitialTab('membership');
+                                  setEditMemberInitialTab('membership');
                                   setEditMember(m);
                                 }}
                                 className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs border border-purple-200 transition shadow-sm'
