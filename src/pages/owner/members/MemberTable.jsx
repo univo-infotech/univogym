@@ -301,16 +301,18 @@ export default function MemberTable({
 
                           {/* Dedicated PT Action Buttons */}
                           <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-purple-100">
-                            {/* Renew PT */}
-                            <button
-                              type="button"
-                              onClick={() => onPtRenew(m)}
-                              className="px-2 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
-                              title="Renew Personal Training Package"
-                            >
-                              <RotateCcw size={11} />
-                              <span>Renew PT</span>
-                            </button>
+                            {/* Renew PT (Only shown when ending soon, expired, or due) */}
+                            {(ptStatus === 'ending_soon' || ptStatus === 'expired' || ptStatus === 'due' || (ptDays !== null && ptDays <= 3)) && (
+                              <button
+                                type="button"
+                                onClick={() => onPtRenew(m)}
+                                className="px-2 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                                title="Renew Personal Training Package"
+                              >
+                                <RotateCcw size={11} />
+                                <span>Renew PT</span>
+                              </button>
+                            )}
 
                             {/* End PT (releases trainer while gym stays active) */}
                             <button
@@ -377,16 +379,28 @@ export default function MemberTable({
                   ========================================================= */}
                   <td className="px-5 py-4 align-top text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1 flex-wrap">
-                      {/* View & Print Official Fee Receipt */}
-                      <button
-                        type="button"
-                        onClick={() => onReceipt && onReceipt(m)}
-                        className="px-2 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
-                        title="View Official Fee Receipt & WhatsApp"
-                      >
-                        <Receipt size={13} className="text-indigo-600" />
-                        <span className="hidden sm:inline">Receipt</span>
-                      </button>
+                      {/* Collect Fee when unpaid/due, else Receipt when paid */}
+                      {gymDue > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => onCollect(m)}
+                          className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                          title="Collect Member Fee"
+                        >
+                          <IndianRupee size={13} />
+                          <span className="hidden sm:inline">Collect</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onReceipt && onReceipt(m)}
+                          className="px-2 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                          title="View Official Fee Receipt & WhatsApp"
+                        >
+                          <Receipt size={13} className="text-indigo-600" />
+                          <span className="hidden sm:inline">Receipt</span>
+                        </button>
+                      )}
 
                       {/* Profile 360 View */}
                       <button

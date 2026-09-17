@@ -178,10 +178,10 @@ export default function Members() {
         if (gStat === 'ending_soon' || pStat === 'ending_soon') endingSoonCount++;
         if (gStat === 'expired' || pStat === 'expired') expiredCount++;
 
-        const isDue = gStat === 'due' || pStat === 'due' || (dueAmt > 0 && hasPaidOnce);
+        const isDue = gStat === 'due' || pStat === 'due' || dueAmt > 0;
         if (isDue) {
           dueCount++;
-          if (gStat === 'due' || !isPtActive(m)) gymDueCount++;
+          if (gStat === 'due' || !isPtActive(m) || dueAmt > 0) gymDueCount++;
           if (pStat === 'due' || (isPtActive(m) && dueAmt > 0)) ptDueCount++;
         }
       }
@@ -216,7 +216,7 @@ export default function Members() {
     { key: 'all', label: `All (${members.length})` }
   ], [counts, members.length]);
 
-  // ΓöÇΓöÇΓöÇ Filtered Members List ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // ─── Filtered Members List ──────────────────────────────────────────
   const filteredMembers = useMemo(() => {
     const q = search.trim().toLowerCase();
 
@@ -231,7 +231,7 @@ export default function Members() {
       const inactive = isInactive(m);
       const gStat = getGymStatus(m);
       const pStat = getPtStatus(m);
-      const isDue = gStat === 'due' || pStat === 'due' || (Number(m.dueAmount || 0) > 0 && !!m.lastPaymentDate);
+      const isDue = gStat === 'due' || pStat === 'due' || Number(m.dueAmount || 0) > 0;
 
       // 2. Trainer Filter
       if (trainerFilter !== 'all') {

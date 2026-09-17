@@ -248,13 +248,15 @@ export default function MemberGrid({
                     </div>
 
                     <div className="flex items-center justify-end gap-1 pt-1 border-t border-purple-100/60">
-                      <button
-                        type="button"
-                        onClick={() => onPtRenew(m)}
-                        className="px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] inline-flex items-center gap-1 transition"
-                      >
-                        <RotateCcw size={10} /> Renew PT
-                      </button>
+                      {(ptStatus === 'ending_soon' || ptStatus === 'expired' || ptStatus === 'due' || (ptDays !== null && ptDays <= 3)) && (
+                        <button
+                          type="button"
+                          onClick={() => onPtRenew(m)}
+                          className="px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] inline-flex items-center gap-1 transition"
+                        >
+                          <RotateCcw size={10} /> Renew PT
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => onEnd(m)}
@@ -303,14 +305,25 @@ export default function MemberGrid({
 
             {/* Bottom Actions Bar */}
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-              <button
-                type="button"
-                onClick={() => onReceipt && onReceipt(m)}
-                className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-[11px] inline-flex items-center gap-1 transition"
-                title="View & Print Receipt"
-              >
-                <Receipt size={12} /> Receipt
-              </button>
+              {gymDue > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => onCollect(m)}
+                  className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                  title="Collect Member Fee"
+                >
+                  <IndianRupee size={12} /> Collect
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onReceipt && onReceipt(m)}
+                  className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-[11px] inline-flex items-center gap-1 transition"
+                  title="View & Print Receipt"
+                >
+                  <Receipt size={12} /> Receipt
+                </button>
+              )}
 
               <div className="flex items-center gap-1">
                 <button
