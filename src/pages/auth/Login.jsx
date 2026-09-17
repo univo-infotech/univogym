@@ -18,6 +18,8 @@ import {
 import { loginUser, getUserRole } from '../../firebase/auth';
 import { getTrainers } from '../../firebase/trainers';
 import { useAuth } from '../../contexts/AuthContext';
+import { signOut } from 'firebase/auth';
+import { auth } from '../../firebase/config';
 
 const BRAND_STATS = [
   { icon: Users,      label: 'Active Members',  value: '2,400+' },
@@ -65,16 +67,20 @@ export default function Login() {
       if (cleanEmail === 'univo@gmail.com' || selectedRole === 'owner') {
         try {
           const userCredential = await loginUser(cleanEmail, password);
+          localStorage.setItem('univo_active_role', 'owner');
           localStorage.removeItem('univo_trainer_session');
           localStorage.removeItem('univo_member_session');
+          localStorage.removeItem('univo_staff_session');
           if (setRole) setRole('owner');
           navigate('/owner/dashboard', { replace: true });
           return;
         } catch (authErr) {
           // Fallback if password matches default
           if (cleanEmail === 'univo@gmail.com' && (password === 'Univo@123' || password.length >= 6)) {
+            localStorage.setItem('univo_active_role', 'owner');
             localStorage.removeItem('univo_trainer_session');
             localStorage.removeItem('univo_member_session');
+            localStorage.removeItem('univo_staff_session');
             if (setRole) setRole('owner');
             navigate('/owner/dashboard', { replace: true });
             return;
@@ -101,13 +107,19 @@ export default function Login() {
               return;
             }
             
+            try {
+              await signOut(auth).catch(() => {});
+            } catch (e) {}
+
             const isOwner = matchedUser.role === 'owner' || matchedUser.role === 'co-owner' || (matchedUser.role || '').toLowerCase().includes('owner');
+            const targetRole = isOwner ? 'owner' : 'staff';
             
+            localStorage.setItem('univo_active_role', targetRole);
+            localStorage.setItem('univo_staff_session', JSON.stringify(matchedUser));
             localStorage.removeItem('univo_trainer_session');
             localStorage.removeItem('univo_member_session');
-            localStorage.setItem('univo_staff_session', JSON.stringify(matchedUser));
             
-            if (setRole) setRole(isOwner ? 'owner' : 'staff');
+            if (setRole) setRole(targetRole);
             if (setProfileId) setProfileId(matchedUser.profileId || matchedUser.uid);
             if (setUser) setUser(matchedUser);
             
@@ -137,8 +149,15 @@ export default function Login() {
         });
 
         if (matchedTrainer) {
-          localStorage.removeItem('univo_member_session');
+          try {
+            await signOut(auth).catch(() => {});
+          } catch (e) {}
+
+          localStorage.setItem('univo_active_role', 'trainer');
           localStorage.setItem('univo_trainer_session', JSON.stringify(matchedTrainer));
+          localStorage.removeItem('univo_member_session');
+          localStorage.removeItem('univo_staff_session');
+
           if (setRole) setRole('trainer');
           if (setProfileId) setProfileId(matchedTrainer.id);
           if (setUser) setUser({ uid: matchedTrainer.id, displayName: matchedTrainer.name, ...matchedTrainer });
@@ -174,22 +193,6 @@ export default function Login() {
         });
 
         if (matchedMember) {
-          // Check if this member has Personal Training (PT)
-          const hasPT =
-            matchedMember.isPTMember === true ||
-            matchedMember.hasPersonalCoach === true ||
-            Boolean(matchedMember.ptPlanName) ||
-            Boolean(matchedMember.ptPlanPrice) ||
-            Boolean(matchedMember.loginPassword);
-
-          if (!hasPT) {
-            setError(
-              "⚠️ Access Restricted: Member login portal sirf un members ke liye hai jinhone Personal Training (PT) li hai. General gym members ko login ki zaroorat nahi hai."
-            );
-            setLoading(false);
-            return;
-          }
-
           // Check Membership / PT Expiry status
           let isExpired = false;
           if (matchedMember.status === 'left' || matchedMember.status === 'expired' || matchedMember.active === false) {
@@ -203,17 +206,24 @@ export default function Login() {
 
           if (isExpired) {
             setError(
-              `⚠️ PT Session Expired: Aapka PT session / membership khatam ho chuka hai (${matchedMember.expiryDate ? new Date(matchedMember.expiryDate).toLocaleDateString('en-IN') : 'Expired'}). Login blocked hai. Gym owner se renew karwane ke baad aapka account wahi se turant shuru ho jayega.`
+              `⚠️ Membership Expired: Aapka account / membership expire ho chuka hai (${matchedMember.expiryDate ? new Date(matchedMember.expiryDate).toLocaleDateString('en-IN') : 'Expired'}). Gym owner se renew karwane ke baad aapka account wahi se shuru ho jayega.`
             );
             setLoading(false);
             return;
           }
 
-          localStorage.removeItem('univo_trainer_session');
+          try {
+            await signOut(auth).catch(() => {});
+          } catch (e) {}
+
+          localStorage.setItem('univo_active_role', 'member');
           localStorage.setItem('univo_member_session', JSON.stringify(matchedMember));
+          localStorage.removeItem('univo_trainer_session');
+          localStorage.removeItem('univo_staff_session');
+
           if (setRole) setRole('member');
           if (setProfileId) setProfileId(matchedMember.id);
-          if (setUser) setUser({ uid: matchedMember.id, displayName: matchedMember.name, ...matchedMember });
+          if (setUser) setUser({ uid: matchedMember.id, displayName: matchedMember.name || matchedMember.fullName || 'Athlete', ...matchedMember });
           navigate('/member/dashboard', { replace: true });
           return;
         }

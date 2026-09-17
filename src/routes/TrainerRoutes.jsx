@@ -13,7 +13,7 @@ export default function TrainerRoutes() {
   const { role } = useAuth();
   const hasTrainerSession = Boolean(localStorage.getItem("univo_trainer_session"));
 
-  if (!hasTrainerSession && role !== "owner") {
+  if (!hasTrainerSession && role !== "owner" && role !== "trainer") {
     return <Navigate to="/login" replace />;
   }
 

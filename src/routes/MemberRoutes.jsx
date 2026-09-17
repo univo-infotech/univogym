@@ -15,7 +15,7 @@ export default function MemberRoutes() {
   const { role } = useAuth();
   const hasMemberSession = Boolean(localStorage.getItem("univo_member_session"));
 
-  if (!hasMemberSession && role !== "owner") {
+  if (!hasMemberSession && role !== "owner" && role !== "member") {
     return <Navigate to="/login" replace />;
   }
 
