@@ -95,7 +95,14 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
   }, [gymId, notificationsOpen]);
 
   // Helper to check if member is PT
-  const isPtMember = (m) => !!m.isPt || !!m.ptPlanName || (m.trainerName && m.trainerName !== 'Unassigned' && m.trainerName !== 'General Floor Trainer (Included)' && m.trainerName !== 'No Trainer');
+  const isPtMember = (m) =>
+    (!!m.isPt ||
+      !!m.ptPlanName ||
+      (m.trainerName &&
+        m.trainerName !== 'Unassigned' &&
+        m.trainerName !== 'General Floor Trainer (Included)' &&
+        m.trainerName !== 'No Trainer')) &&
+    m.ptStatus !== 'ended';
 
   // Candidates for reminder
   const isPartial = (m) => Number(m.dueAmount || 0) > 0 && m.status !== 'left' && m.status !== 'ended';
@@ -105,13 +112,13 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
   const isActionable = (m) => m.status !== 'left' && m.status !== 'ended' && (isPartial(m) || isEndingSoon(m) || isExpired(m) || isOverdue(m));
 
   const totalActionCount = members.filter(isActionable).length;
-  const gymActionCount = members.filter((m) => isActionable(m) && !m.ptPlanName).length;
-  const ptActionCount = members.filter((m) => isActionable(m) && (!!m.ptPlanName || isPtMember(m))).length;
+  const gymActionCount = members.filter((m) => isActionable(m) && (!m.ptPlanName || m.ptStatus === 'ended')).length;
+  const ptActionCount = members.filter((m) => isActionable(m) && isPtMember(m)).length;
 
   const notificationList = members.filter((m) => {
     if (m.status === 'left' || m.status === 'ended') return false;
-    if (activeTab === 'gym') return !m.ptPlanName && isActionable(m);
-    if (activeTab === 'pt') return (!!m.ptPlanName || isPtMember(m)) && isActionable(m);
+    if (activeTab === 'gym') return (!m.ptPlanName || m.ptStatus === 'ended') && isActionable(m);
+    if (activeTab === 'pt') return isPtMember(m) && isActionable(m);
     if (activeTab === 'partial') return isPartial(m);
     if (activeTab === 'ending_soon') return isEndingSoon(m);
     if (activeTab === 'expired') return isExpired(m);

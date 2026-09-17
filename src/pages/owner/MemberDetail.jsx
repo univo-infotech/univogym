@@ -224,9 +224,13 @@ export default function MemberDetail() {
             <p className="text-xs text-emerald-700 font-semibold mt-1 flex items-center gap-1.5 flex-wrap">
               <span>Plan: {member.planName || 'Standard Plan'} {member.planPrice ? `(₹${Number(member.planPrice).toLocaleString('en-IN')})` : ''}</span>
               {member.ptPlanName && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 font-bold text-[11px] border border-indigo-200 shadow-2xs">
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[11px] border shadow-2xs ${
+                  member.ptStatus === 'ended'
+                    ? 'bg-slate-100 text-slate-600 border-slate-300'
+                    : 'bg-indigo-100 text-indigo-800 border-indigo-200'
+                }`}>
                   <Sparkles className="w-3 h-3 text-indigo-600" />
-                  PT Add-on: {member.ptPlanName} {member.ptPlanPrice ? `(+₹${Number(member.ptPlanPrice).toLocaleString('en-IN')})` : ''}
+                  {member.ptStatus === 'ended' ? `PT Add-on (Ended): ${member.ptPlanName}` : `PT Add-on: ${member.ptPlanName}`} {member.ptPlanPrice && member.ptStatus !== 'ended' ? `(+₹${Number(member.ptPlanPrice).toLocaleString('en-IN')})` : ''}
                 </span>
               )}
             </p>

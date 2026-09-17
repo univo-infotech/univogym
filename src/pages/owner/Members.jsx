@@ -85,7 +85,23 @@ function toDate(val) {
 
 function getMemberStatus(member) {
   if (member.status === 'left') return 'left';
-  if (member.status === 'ended' || member.status === 'pt_ended') return 'ended';
+  if (member.status === 'ended') return 'ended';
+
+  // If PT ended while gym membership is still valid / active:
+  if (member.status === 'pt_ended' || member.ptStatus === 'ended') {
+    if (member.status !== 'ended' && member.active !== false) {
+      const expiry = toDate(member.expiryDate);
+      if (!expiry) return 'active';
+      const now = new Date();
+      const diffDays = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+      if (diffDays < -2) return 'due';
+      if (diffDays <= 0) return 'expired';
+      if (diffDays <= 3) return 'ending_soon';
+      return 'active';
+    }
+    return 'ended';
+  }
+
   if (member.active === false) return 'inactive';
 
   const expiry = toDate(member.expiryDate);
@@ -113,6 +129,15 @@ function getMembershipEndingDetails(member) {
   const ptPlan = member.ptPlanName || (isPt ? '1-on-1 PT' : null);
 
   if (ptPlan && gymPlan) {
+    if (member.ptStatus === 'ended') {
+      return {
+        category: 'both_pt_ended',
+        badgeText: '🏋️ Gym Active (PT Ended)',
+        shortText: 'Gym Active (PT Ended)',
+        badgeCls: 'bg-emerald-50 text-emerald-800 border-emerald-300',
+        tagText: 'Gym Active • PT Completed'
+      };
+    }
     return {
       category: 'both',
       badgeText: '🏋️ Gym + ✨ PT',
@@ -122,6 +147,15 @@ function getMembershipEndingDetails(member) {
     };
   }
   if (ptPlan) {
+    if (member.ptStatus === 'ended') {
+      return {
+        category: 'pt_ended',
+        badgeText: '🛑 PT Ended',
+        shortText: 'PT Ended',
+        badgeCls: 'bg-purple-50 text-purple-800 border-purple-300',
+        tagText: '1-on-1 PT Ended'
+      };
+    }
     return {
       category: 'pt',
       badgeText: '✨ 1-on-1 PT Membership',
@@ -161,7 +195,10 @@ function getMemberDaysInfo(member) {
   if (diff <= 3) {
     return { text: `Ending Soon (${diff}d left)`, cls: 'bg-amber-100 text-amber-900 border-amber-300 font-bold animate-pulse' };
   }
-  return { text: `Active (${diff} days left)`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  return { 
+    text: member.ptStatus === 'ended' ? `Gym Active (${diff}d left)` : `Active (${diff} days left)`, 
+    cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+  };
 }
 
 function formatDate(val) {
@@ -195,6 +232,22 @@ function StatusBadge({ status, dueAmount, member }) {
         <span className="w-2 h-2 rounded-full bg-slate-500" />
         Left
       </span>
+    );
+  }
+
+  // If member has ended PT BUT gym membership is still active:
+  if (member?.ptStatus === 'ended' && member?.status !== 'ended' && member?.status !== 'left') {
+    return (
+      <div className="flex flex-col gap-1 items-start">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          Gym Active
+        </span>
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200">
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+          PT Ended
+        </span>
+      </div>
     );
   }
 
@@ -2835,7 +2888,14 @@ function LeftModal({ member, onClose, onSave }) {
 /**
  * Modal to mark a PT Member's package as Ended
  */
-function EndMembershipModal({ member, onClose, onSave }) {
+function EndMembershipModal({ member, gymId, onClose, onSave }) {
+  const isBoth = (() => {
+    const isPt = !!member.isPt || !!member.ptPlanName || (member.trainerName && member.trainerName !== 'Unassigned' && member.trainerName !== 'General Floor Trainer (Included)' && member.trainerName !== 'No Trainer');
+    const hasGymPlan = !!member.planName && member.planName !== 'PT Only' && member.planName !== '1-on-1 PT';
+    return isPt && hasGymPlan;
+  })();
+
+  const [endScope, setEndScope] = useState(isBoth ? 'pt_only' : 'all');
   const [reason, setReason] = useState('PT / 1-on-1 Training Package Completed');
   const [customReason, setCustomReason] = useState('');
   const [loading, setLoading] = useState(false);
@@ -2855,15 +2915,32 @@ function EndMembershipModal({ member, onClose, onSave }) {
     setLoading(true);
     try {
       const finalReason = reason === 'Other' ? (customReason || 'Other') : reason;
-      await updateMember(member.id, {
-        status: 'ended',
-        active: false,
-        endedAt: new Date().toISOString(),
-        endReason: finalReason
-      });
 
-      toast.success(`${member.name || member.fullName} PT membership ended`);
-      onSave(member.id, finalReason);
+      if (endScope === 'pt_only') {
+        await updateMember(gymId || 'univo_main', member.id, {
+          ptStatus: 'ended',
+          ptEndedAt: new Date().toISOString(),
+          ptEndReason: finalReason,
+          status: 'active',
+          active: true,
+          previousPtPlanName: member.ptPlanName || '1-on-1 PT'
+        });
+
+        toast.success(`PT package ended for ${member.name || member.fullName}. Gym membership remains ACTIVE! 🏋️`);
+        onSave(member.id, { ptOnly: true, reason: finalReason });
+      } else {
+        await updateMember(gymId || 'univo_main', member.id, {
+          status: 'ended',
+          ptStatus: 'ended',
+          active: false,
+          endedAt: new Date().toISOString(),
+          endReason: finalReason
+        });
+
+        toast.success(`${member.name || member.fullName} membership ended`);
+        onSave(member.id, { ptOnly: false, reason: finalReason });
+      }
+
       onClose();
     } catch (err) {
       console.error('Error ending PT membership:', err);
@@ -2881,15 +2958,74 @@ function EndMembershipModal({ member, onClose, onSave }) {
       maxWidth="max-w-md"
     >
       <form onSubmit={handleConfirm} className='space-y-4 text-slate-800'>
-        <div className='p-3.5 bg-purple-50 border border-purple-200 rounded-2xl flex items-start gap-2.5'>
-          <UserX className='w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5' />
-          <div className='text-xs'>
-            <p className='font-bold text-purple-950'>End PT Membership for {member.name || member.fullName}?</p>
-            <p className='text-purple-800/90 mt-0.5 leading-relaxed'>
-              Inka 1-on-1 Personal Training package complete / end ho gaya hai. Yeh member Active list se hat kar <strong>🛑 End</strong> filter tab me chala jayega.
+        {/* Scope Selector if member has both Gym & PT */}
+        {isBoth && (
+          <div className='p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2'>
+            <p className='text-xs font-bold text-slate-800'>
+              Kisko End Karna Chahte Hain?
             </p>
+            <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+              <button
+                type='button'
+                onClick={() => setEndScope('pt_only')}
+                className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                  endScope === 'pt_only'
+                    ? 'bg-purple-50/90 border-purple-400 ring-2 ring-purple-200 text-purple-950'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className='flex items-center gap-1.5 font-bold text-xs'>
+                  <Sparkles className='w-4 h-4 text-purple-600' />
+                  <span>✨ Sirf PT End Karein</span>
+                </div>
+                <p className='text-[11px] text-purple-800/80 mt-1 leading-snug'>
+                  Gym Membership <strong>Active</strong> rahegi ({member.planName || 'Gym'}). Member Active list me hi rahega.
+                </p>
+              </button>
+
+              <button
+                type='button'
+                onClick={() => setEndScope('all')}
+                className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                  endScope === 'all'
+                    ? 'bg-rose-50/90 border-rose-400 ring-2 ring-rose-200 text-rose-950'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className='flex items-center gap-1.5 font-bold text-xs'>
+                  <LogOut className='w-4 h-4 text-rose-600' />
+                  <span>🚪 Gym + PT Dono End</span>
+                </div>
+                <p className='text-[11px] text-rose-800/80 mt-1 leading-snug'>
+                  Gym aur PT dono end ho jayenge. Member End tab me chala jayega.
+                </p>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Informative Banner */}
+        {endScope === 'pt_only' ? (
+          <div className='p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-2.5'>
+            <CheckCircle className='w-4.5 h-4.5 text-emerald-600 flex-shrink-0 mt-0.5' />
+            <div className='text-xs'>
+              <p className='font-bold text-emerald-950'>Gym Membership Active Rahegi 🏋️</p>
+              <p className='text-emerald-800/90 mt-0.5 leading-relaxed'>
+                {member.name || member.fullName} ka sirf 1-on-1 PT package complete hoga. Inka <strong>{member.planName || 'Gym Plan'}</strong> active rahega aur workout continue rahega.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className='p-3.5 bg-purple-50 border border-purple-200 rounded-2xl flex items-start gap-2.5'>
+            <UserX className='w-4.5 h-4.5 text-purple-600 flex-shrink-0 mt-0.5' />
+            <div className='text-xs'>
+              <p className='font-bold text-purple-950'>End Full Membership for {member.name || member.fullName}?</p>
+              <p className='text-purple-800/90 mt-0.5 leading-relaxed'>
+                Yeh member Active list se hat kar <strong>🛑 End</strong> filter tab me chala jayega.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div>
           <label className='block text-xs font-bold text-slate-700 mb-1.5'>Reason for Ending PT</label>
@@ -2939,9 +3075,13 @@ function EndMembershipModal({ member, onClose, onSave }) {
           <button
             type='submit'
             disabled={loading}
-            className='flex-1 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold transition shadow-md disabled:opacity-50'
+            className={`flex-1 py-2.5 rounded-xl text-white text-xs font-bold transition shadow-md disabled:opacity-50 ${
+              endScope === 'pt_only'
+                ? 'bg-purple-700 hover:bg-purple-800'
+                : 'bg-rose-600 hover:bg-rose-700'
+            }`}
           >
-            {loading ? 'Ending...' : '🛑 Confirm End PT'}
+            {loading ? 'Processing...' : endScope === 'pt_only' ? '🛑 Confirm End PT (Keep Gym Active)' : '🛑 Confirm Complete End'}
           </button>
         </div>
       </form>
@@ -3255,14 +3395,57 @@ export default function Members() {
     );
   };
 
-  const handleEndSuccess = (memberId, reason) => {
+  const handleEndSuccess = (memberId, result) => {
+    const isPtOnly = typeof result === 'object' ? result.ptOnly : false;
+    const reason = typeof result === 'object' ? result.reason : result;
+
     setMembers((prev) =>
-      prev.map((m) =>
-        m.id === memberId
-          ? { ...m, status: 'ended', active: false, endReason: reason }
-          : m
-      )
+      prev.map((m) => {
+        if (m.id !== memberId) return m;
+        if (isPtOnly) {
+          return {
+            ...m,
+            ptStatus: 'ended',
+            ptEndedAt: new Date().toISOString(),
+            ptEndReason: reason,
+            status: 'active',
+            active: true,
+            previousPtPlanName: m.ptPlanName || '1-on-1 PT'
+          };
+        }
+        return {
+          ...m,
+          status: 'ended',
+          ptStatus: 'ended',
+          active: false,
+          endReason: reason,
+          endedAt: new Date().toISOString()
+        };
+      })
     );
+  };
+
+  const handleRestartPT = async (m) => {
+    try {
+      await updateMember(gymId || 'univo_main', m.id, {
+        ptStatus: 'active',
+        status: 'active',
+        active: true,
+        ptRestartedAt: new Date().toISOString()
+      });
+
+      setMembers((prev) =>
+        prev.map((item) =>
+          item.id === m.id
+            ? { ...item, ptStatus: 'active', status: 'active', active: true }
+            : item
+        )
+      );
+
+      toast.success(`${m.name || m.fullName} PT package reactivated!`);
+    } catch (err) {
+      toast.error('Failed to reactivate PT package');
+    }
   };
 
   const handleReactivate = async (m) => {
@@ -3273,17 +3456,18 @@ export default function Members() {
         ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         : m.expiryDate;
 
-      await updateMember(m.id, {
+      await updateMember(gymId || 'univo_main', m.id, {
         status: 'active',
         active: true,
         expiryDate: newExp,
+        ptStatus: m.ptStatus === 'ended' ? 'active' : m.ptStatus,
         reactivatedAt: new Date().toISOString()
       });
 
       setMembers((prev) =>
         prev.map((item) =>
           item.id === m.id
-            ? { ...item, status: 'active', active: true, expiryDate: newExp }
+            ? { ...item, status: 'active', active: true, expiryDate: newExp, ptStatus: m.ptStatus === 'ended' ? 'active' : m.ptStatus }
             : item
         )
       );
@@ -3370,24 +3554,25 @@ export default function Members() {
   const isPaid = (m) => Number(m.dueAmount || 0) <= 0 && !!m.lastPaymentDate;
   const isPartial = (m) => Number(m.dueAmount || 0) > 0 && !!m.lastPaymentDate;
   const isPtMember = (m) => !!m.isPt || !!m.ptPlanName || (m.trainerName && m.trainerName !== 'Unassigned' && m.trainerName !== 'General Floor Trainer (Included)' && m.trainerName !== 'No Trainer');
+  const isPtActive = (m) => isPtMember(m) && m.ptStatus !== 'ended';
   const isLeftMember = (m) => m.status === 'left';
-  const isEndedMember = (m) => m.status === 'ended' || m.status === 'pt_ended';
-  const isInactiveMember = (m) => isLeftMember(m) || isEndedMember(m);
+  const isFullyEndedMember = (m) => m.status === 'ended' || (m.status === 'pt_ended' && !m.planName && m.status !== 'active');
+  const isInactiveMember = (m) => isLeftMember(m) || isFullyEndedMember(m);
 
   const paidCount = members.filter((m) => isPaid(m) && !isInactiveMember(m)).length;
   const partialCount = members.filter((m) => isPartial(m) && !isInactiveMember(m)).length;
-  const ptCount = members.filter((m) => isPtMember(m) && !isInactiveMember(m)).length;
+  const ptCount = members.filter((m) => isPtActive(m) && !isInactiveMember(m)).length;
   const activeCount = members.filter((m) => getMemberStatus(m) === 'active' && !isInactiveMember(m)).length;
   const endingSoonCount = members.filter((m) => getMemberStatus(m) === 'ending_soon' && !isInactiveMember(m)).length;
   const expiredCount = members.filter((m) => getMemberStatus(m) === 'expired' && !isInactiveMember(m)).length;
   const dueCount = members.filter((m) => (getMemberStatus(m) === 'due' || getMemberStatus(m) === 'overdue') && !isInactiveMember(m)).length;
   const leftCount = members.filter((m) => isLeftMember(m)).length;
-  const endedCount = members.filter((m) => isEndedMember(m)).length;
+  const endedCount = members.filter((m) => isFullyEndedMember(m) || m.ptStatus === 'ended').length;
 
   // Due breakdown for Gym vs PT
   const dueMembersList = members.filter((m) => (getMemberStatus(m) === 'due' || getMemberStatus(m) === 'overdue') && !isInactiveMember(m));
-  const gymDueCount = dueMembersList.filter((m) => !m.ptPlanName).length;
-  const ptDueCount = dueMembersList.filter((m) => !!m.ptPlanName || isPtMember(m)).length;
+  const gymDueCount = dueMembersList.filter((m) => !m.ptPlanName || m.ptStatus === 'ended').length;
+  const ptDueCount = dueMembersList.filter((m) => isPtActive(m)).length;
 
   const totalRemindersDue = members.filter(
     (m) => !isInactiveMember(m) && (isPartial(m) || ['ending_soon', 'expired', 'due', 'overdue'].includes(getMemberStatus(m)))
@@ -3413,8 +3598,8 @@ export default function Members() {
       (m.phone || '').includes(q);
     const status = getMemberStatus(m);
     const isLeft = isLeftMember(m);
-    const isEnded = isEndedMember(m);
-    const isInactive = isLeft || isEnded;
+    const isEnded = isFullyEndedMember(m) || m.ptStatus === 'ended';
+    const isInactive = isInactiveMember(m);
     
     let matchTab = false;
     if (filterTab === 'all') {
@@ -3424,7 +3609,7 @@ export default function Members() {
     } else if (filterTab === 'ended') {
       matchTab = isEnded;
     } else if (filterTab === 'pt') {
-      matchTab = isPtMember(m) && !isInactive;
+      matchTab = isPtActive(m) && !isInactive;
     } else if (filterTab === 'paid') {
       matchTab = isPaid(m) && !isInactive;
     } else if (filterTab === 'partial') {
@@ -3434,9 +3619,9 @@ export default function Members() {
       if (!isDue) {
         matchTab = false;
       } else if (dueSubFilter === 'gym') {
-        matchTab = !m.ptPlanName;
+        matchTab = !m.ptPlanName || m.ptStatus === 'ended';
       } else if (dueSubFilter === 'pt') {
-        matchTab = !!m.ptPlanName || isPtMember(m);
+        matchTab = isPtActive(m);
       } else {
         matchTab = true;
       }
@@ -3723,9 +3908,17 @@ export default function Members() {
                               <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-fuchsia-50 text-fuchsia-800 border border-fuchsia-200'>
                                 🏋️ Gym + ✨ PT
                               </span>
+                            ) : membershipDetails.category === 'both_pt_ended' ? (
+                              <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200'>
+                                🏋️ Gym Active (PT Ended)
+                              </span>
                             ) : membershipDetails.category === 'pt' ? (
                               <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200'>
                                 ✨ 1-on-1 PT
+                              </span>
+                            ) : membershipDetails.category === 'pt_ended' ? (
+                              <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-slate-100 text-slate-700 border border-slate-300'>
+                                🛑 PT Ended
                               </span>
                             ) : (
                               <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-blue-50 text-blue-800 border border-blue-200'>
@@ -3734,8 +3927,12 @@ export default function Members() {
                             )}
                           </div>
                           {m.ptPlanName && (
-                            <div className='inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-bold text-[10px] border border-purple-200'>
-                              ✨ PT: {m.ptPlanName} {m.ptPlanPrice ? `(+₹${Number(m.ptPlanPrice).toLocaleString('en-IN')})` : ''}
+                            <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[10px] border ${
+                              m.ptStatus === 'ended'
+                                ? 'bg-slate-100 text-slate-500 border-slate-300 line-through opacity-85'
+                                : 'bg-purple-50 text-purple-700 border border-purple-200'
+                            }`}>
+                              {m.ptStatus === 'ended' ? '🛑 PT Ended: ' : '✨ PT: '} {m.ptPlanName} {m.ptPlanPrice && m.ptStatus !== 'ended' ? `(+₹${Number(m.ptPlanPrice).toLocaleString('en-IN')})` : ''}
                             </div>
                           )}
                           <div className='flex items-center gap-2 pt-0.5 flex-wrap'>
@@ -3863,7 +4060,7 @@ export default function Members() {
                               <RotateCcw className='w-3.5 h-3.5 text-emerald-600' />
                               <span>Return</span>
                             </button>
-                          ) : isEnded ? (
+                          ) : isFullyEndedMember(m) ? (
                             <button
                               onClick={() => handleReactivate(m)}
                               className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs border border-purple-200 transition shadow-sm'
@@ -3872,6 +4069,25 @@ export default function Members() {
                               <RotateCcw className='w-3.5 h-3.5 text-purple-600' />
                               <span>Restart PT</span>
                             </button>
+                          ) : m.ptStatus === 'ended' ? (
+                            <>
+                              <button
+                                onClick={() => setLeftMember(m)}
+                                className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs border border-rose-200 transition shadow-sm'
+                                title='Mark gym membership as left'
+                              >
+                                <LogOut className='w-3.5 h-3.5 text-rose-600' />
+                                <span>Left</span>
+                              </button>
+                              <button
+                                onClick={() => handleRestartPT(m)}
+                                className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs border border-purple-200 transition shadow-sm'
+                                title='Restart 1-on-1 PT package for this member'
+                              >
+                                <RotateCcw className='w-3.5 h-3.5 text-purple-600' />
+                                <span>Restart PT</span>
+                              </button>
+                            </>
                           ) : membershipDetails.category === 'both' ? (
                             <>
                               <button
@@ -3956,9 +4172,17 @@ export default function Members() {
                         <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-fuchsia-50 text-fuchsia-800 border border-fuchsia-200'>
                           Gym + PT
                         </span>
+                      ) : membershipDetails.category === 'both_pt_ended' ? (
+                        <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-emerald-50 text-emerald-800 border border-emerald-200'>
+                          Gym Active (PT Ended)
+                        </span>
                       ) : membershipDetails.category === 'pt' ? (
                         <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-purple-50 text-purple-800 border border-purple-200'>
                           1-on-1 PT
+                        </span>
+                      ) : membershipDetails.category === 'pt_ended' ? (
+                        <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-slate-100 text-slate-700 border border-slate-300'>
+                          PT Ended
                         </span>
                       ) : (
                         <span className='px-1.5 py-0.5 rounded text-[9.5px] font-extrabold bg-blue-50 text-blue-800 border border-blue-200'>
@@ -3967,8 +4191,12 @@ export default function Members() {
                       )}
                     </div>
                     {m.ptPlanName && (
-                      <p className='text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 truncate'>
-                        ✨ PT: {m.ptPlanName} (+₹{m.ptPlanPrice})
+                      <p className={`text-[10px] font-bold px-2 py-0.5 rounded-md border truncate ${
+                        m.ptStatus === 'ended'
+                          ? 'text-slate-500 bg-slate-100 border-slate-200 line-through opacity-85'
+                          : 'text-purple-700 bg-purple-50 border-purple-200'
+                      }`}>
+                        {m.ptStatus === 'ended' ? '🛑 PT Ended: ' : '✨ PT: '} {m.ptPlanName} {m.ptPlanPrice && m.ptStatus !== 'ended' ? `(+₹{m.ptPlanPrice})` : ''}
                       </p>
                     )}
                     <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${daysInfo.cls}`}>
@@ -4067,7 +4295,7 @@ export default function Members() {
                     >
                       Return
                     </button>
-                  ) : isEnded ? (
+                  ) : isFullyEndedMember(m) ? (
                     <button
                       onClick={() => handleReactivate(m)}
                       className='px-2.5 py-1 rounded-lg bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 transition'
@@ -4075,6 +4303,23 @@ export default function Members() {
                     >
                       Restart PT
                     </button>
+                  ) : m.ptStatus === 'ended' ? (
+                    <>
+                      <button
+                        onClick={() => setLeftMember(m)}
+                        className='px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold hover:bg-rose-100 transition'
+                        title='Mark gym member as left'
+                      >
+                        Left
+                      </button>
+                      <button
+                        onClick={() => handleRestartPT(m)}
+                        className='px-2.5 py-1 rounded-lg bg-purple-50 text-purple-800 border border-purple-200 text-xs font-bold hover:bg-purple-100 transition'
+                        title='Restart 1-on-1 PT package'
+                      >
+                        Restart PT
+                      </button>
+                    </>
                   ) : membershipDetails.category === 'both' ? (
                     <>
                       <button
@@ -4163,6 +4408,7 @@ export default function Members() {
       {endMember && (
         <EndMembershipModal
           member={endMember}
+          gymId={gymId}
           onClose={() => setEndMember(null)}
           onSave={handleEndSuccess}
         />
