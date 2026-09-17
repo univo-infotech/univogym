@@ -50,6 +50,7 @@ import ExtendModal from './members/modals/ExtendModal';
 import { LeftModal, EndMembershipModal, DeleteConfirmModal } from './members/modals/LifecycleModals';
 import InviteLinkModal from './members/modals/InviteLinkModal';
 import DirectAddMemberModal from '../../components/shared/DirectAddMemberModal';
+import ReceiptModal from './members/modals/ReceiptModal';
 
 export default function Members() {
   const navigate = useNavigate();
@@ -81,6 +82,8 @@ export default function Members() {
   const [leftMember, setLeftMember] = useState(null);
   const [endMember, setEndMember] = useState(null);
   const [deleteTargetMember, setDeleteTargetMember] = useState(null);
+  const [receiptPayment, setReceiptPayment] = useState(null);
+  const [receiptMember, setReceiptMember] = useState(null);
 
   // ─── Data Loading & Payment Reconciliation ──────────────────────────────────
   useEffect(() => {
@@ -288,20 +291,42 @@ export default function Members() {
   }, [members, search, filterTab, dueSubFilter, trainerFilter, slotFilter, expireFilter]);
 
   // ─── Modal Success Handlers ────────────────────────────────────────────────
-  const handleExtendSuccess = useCallback((memberId, newExpiryIso) => {
+  const handleExtendSuccess = useCallback((memberId, updatedFieldsOrExpiry, createdPayment) => {
+    const newFields = typeof updatedFieldsOrExpiry === 'object'
+      ? updatedFieldsOrExpiry
+      : { expiryDate: updatedFieldsOrExpiry, status: 'active', active: true };
+
     setMembers((prev) =>
       prev.map((m) =>
         m.id === memberId
-          ? { ...m, expiryDate: newExpiryIso, status: 'active', active: true }
+          ? { ...m, ...newFields }
           : m
       )
     );
+
+    if (createdPayment) {
+      setReceiptPayment(createdPayment);
+      setMembers((prev) => {
+        const found = prev.find((m) => m.id === memberId);
+        setReceiptMember(found || null);
+        return prev;
+      });
+    }
   }, []);
 
-  const handlePlanSuccess = useCallback((memberId, updatedFields) => {
+  const handlePlanSuccess = useCallback((memberId, updatedFields, createdPayment) => {
     setMembers((prev) =>
       prev.map((m) => (m.id === memberId ? { ...m, ...updatedFields } : m))
     );
+
+    if (createdPayment) {
+      setReceiptPayment(createdPayment);
+      setMembers((prev) => {
+        const found = prev.find((m) => m.id === memberId);
+        setReceiptMember(found || updatedFields);
+        return prev;
+      });
+    }
   }, []);
 
   const handleEditSuccess = useCallback((memberId, updatedFields) => {
@@ -784,6 +809,19 @@ export default function Members() {
         trainers={trainers}
         existingMembers={members}
       />
+
+      {/* Official Fee & Extension Receipt Modal */}
+      {receiptPayment && (
+        <ReceiptModal
+          isOpen={Boolean(receiptPayment)}
+          onClose={() => {
+            setReceiptPayment(null);
+            setReceiptMember(null);
+          }}
+          payment={receiptPayment}
+          member={receiptMember}
+        />
+      )}
     </div>
   );
 }

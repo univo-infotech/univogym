@@ -34,6 +34,7 @@ import { generatePaymentReceipt } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
 import { openWhatsApp, formatPhone } from "../../utils/whatsapp";
 import { useAuth } from "../../contexts/AuthContext";
+import ReceiptModal from "./members/modals/ReceiptModal";
 
 // Available plans for quick selection
 const PLANS_CATALOG = [
@@ -103,6 +104,8 @@ export default function Payments() {
   const [leftModalOpen, setLeftModalOpen] = useState(false);
   const [memberToLeft, setMemberToLeft] = useState(null);
   const [leftReason, setLeftReason] = useState("Stopped coming / Gym left");
+  const [receiptPayment, setReceiptPayment] = useState(null);
+  const [receiptMember, setReceiptMember] = useState(null);
 
   const settings = getGymSettings();
 
@@ -576,8 +579,9 @@ export default function Payments() {
 
     toast.success(`Fee collected successfully for ${memberName}!`);
 
-    // Download PDF Receipt
-    generatePaymentReceipt(newRecord, settings);
+    // Automatically open ReceiptModal for viewing, printing, and downloading
+    setReceiptPayment(newRecord);
+    setReceiptMember(selectedMember);
 
     // Send WhatsApp Bill
     if (sendWhatsApp && phone) {
@@ -1070,14 +1074,17 @@ export default function Payments() {
                     {/* Actions */}
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {/* Bill / PDF Button */}
+                        {/* Receipt Button */}
                         <button
-                          onClick={() => generatePaymentReceipt(item, settings)}
-                          className="px-2 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1 transition shadow-2xs"
-                          title="Download Tax Invoice / Bill PDF"
+                          onClick={() => {
+                            setReceiptPayment(item);
+                            setReceiptMember(membersMap[item.memberId] || membersMap[item.phone] || null);
+                          }}
+                          className="px-2 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                          title="View & Print Official Fee Receipt (रसीद देखें)"
                         >
-                          <Download className="w-3.5 h-3.5 text-indigo-600" />
-                          <span className="hidden sm:inline">Bill</span>
+                          <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+                          <span className="hidden sm:inline">Receipt</span>
                         </button>
 
                         {/* Collect Due Button if due pending */}
@@ -1767,6 +1774,19 @@ export default function Payments() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* Official Fee Receipt Modal */}
+      {receiptPayment && (
+        <ReceiptModal
+          isOpen={Boolean(receiptPayment)}
+          onClose={() => {
+            setReceiptPayment(null);
+            setReceiptMember(null);
+          }}
+          payment={receiptPayment}
+          member={receiptMember}
+        />
       )}
     </div>
   );
