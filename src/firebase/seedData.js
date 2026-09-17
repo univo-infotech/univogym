@@ -8,8 +8,9 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { signOut } from "firebase/auth";
-import { db, auth } from "./config";
-import { resetGymSettings } from "../utils/settings";
+import { db, auth } from "./config.js";
+import { resetGymSettings } from "../utils/settings.js";
+import { invalidateCache } from "../utils/dataCache.js";
 
 /**
  * 6-MONTH REALISTIC GYM SEED DATA
@@ -295,114 +296,54 @@ export async function load6MonthDummyData(gymId = "univo_main") {
     }
   }
 
-  // --- 2. MEMBERS (SPREAD OVER 6 MONTHS: March to September 2026) ---
+  // Helper to dynamically calculate dates relative to current local execution time
+  const now = new Date();
+  const getOffsetDate = (offsetDays) => {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offsetDays);
+    const yr = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const da = String(d.getDate()).padStart(2, "0");
+    return `${yr}-${mo}-${da}`;
+  };
+
+  // --- 2. MEMBERS: DYNAMIC REALISTIC DATA COVERING EVERY TEST CASE & SCENARIO ---
   const membersData = [
-    // Month 1 (March 2026)
+    // 1. DUAL ENDING SOON (Both Gym & PT Ending Soon in <= 3 Days) -> SHOWS BOTH "Gym Renew" AND "PT Renew" BUTTONS!
     {
       id: "mem_01",
-      name: "Vikas Malhotra",
+      name: "Vikas Malhotra (Both Ending Soon)",
       fullName: "Vikas Malhotra",
       phone: "+91 9811122334",
       email: "vikas.m@gmail.com",
       gender: "Male",
-      planId: "p5",
-      planName: "12 Months Annual Elite",
-      planPrice: 4999,
-      joinDate: "2026-03-05",
-      expiryDate: "2027-03-05",
+      planId: "p3",
+      planName: "3 Months Pro Transformation",
+      planPrice: 1499,
+      joinDate: getOffsetDate(-88),
+      expiryDate: getOffsetDate(2), // Gym expires in 2 days!
+      isPt: true,
+      hasPersonalCoach: true,
+      ptPlanId: "pt_1m",
+      ptPlanName: "1 Month 1-on-1 PT",
+      ptPlanPrice: 3500,
+      ptStartDate: getOffsetDate(-27),
+      ptEndDate: getOffsetDate(3), // PT expires in 3 days!
+      ptStatus: "active",
       trainerId: "tr_1",
       trainerName: "Coach Amit Sharma",
-      status: "active",
-      createdAt: "2026-03-05T10:00:00Z",
+      status: "ending_soon",
+      dueAmount: 0,
+      paidAmount: 4999,
+      lastPaymentDate: getOffsetDate(-27),
       preferredTime: "morning",
       address: "Sector 14, Urban Estate",
       photoURL: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80"
     },
+
+    // 2. PT ENDING SOON (Gym Active for 10 Months, PT Ending in 1 Day) -> SHOWS "PT Renew" BUTTON, GYM INTACT!
     {
       id: "mem_02",
-      name: "Pooja Verma",
-      fullName: "Pooja Verma",
-      phone: "+91 9822233445",
-      email: "pooja.v@gmail.com",
-      gender: "Female",
-      planId: "p3",
-      planName: "3 Months Pro Transformation",
-      planPrice: 1499,
-      joinDate: "2026-03-12",
-      expiryDate: "2026-06-12",
-      trainerId: "tr_2",
-      trainerName: "Coach Sneha Kapoor",
-      status: "expired",
-      createdAt: "2026-03-12T11:30:00Z",
-      preferredTime: "evening",
-      address: "Civil Lines, Near City Mall",
-      photoURL: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80"
-    },
-    // Month 2 (April 2026)
-    {
-      id: "mem_03",
-      name: "Rohit Bansal",
-      fullName: "Rohit Bansal",
-      phone: "+91 9833344556",
-      email: "rohit.b@gmail.com",
-      gender: "Male",
-      planId: "p4",
-      planName: "6 Months Fitness Pass",
-      planPrice: 2799,
-      joinDate: "2026-04-02",
-      expiryDate: "2026-10-02",
-      trainerId: "tr_3",
-      trainerName: "Coach Rohan Deshmukh",
-      status: "active",
-      createdAt: "2026-04-02T09:15:00Z",
-      preferredTime: "morning",
-      address: "Model Town, Street 4",
-      photoURL: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "mem_04",
-      name: "Sunita Choudhary",
-      fullName: "Sunita Choudhary",
-      phone: "+91 9844455667",
-      email: "sunita.c@gmail.com",
-      gender: "Female",
-      planId: "p1",
-      planName: "1 Month Standard",
-      planPrice: 599,
-      joinDate: "2026-04-18",
-      expiryDate: "2026-05-18",
-      trainerId: null,
-      trainerName: "Unassigned (General Floor)",
-      status: "expired",
-      createdAt: "2026-04-18T16:20:00Z",
-      preferredTime: "afternoon",
-      address: "Green Park Colony",
-      photoURL: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80"
-    },
-    // Month 3 (May 2026)
-    {
-      id: "mem_05",
-      name: "Gaurav Joshi",
-      fullName: "Gaurav Joshi",
-      phone: "+91 9855566778",
-      email: "gaurav.j@gmail.com",
-      gender: "Male",
-      planId: "p3",
-      planName: "3 Months Pro Transformation",
-      planPrice: 1499,
-      joinDate: "2026-05-10",
-      expiryDate: "2026-08-10",
-      trainerId: "tr_1",
-      trainerName: "Coach Amit Sharma",
-      status: "expired",
-      createdAt: "2026-05-10T14:00:00Z",
-      preferredTime: "evening",
-      address: "Ram Nagar, Block B",
-      photoURL: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "mem_06",
-      name: "Kavita Rao",
+      name: "Kavita Rao (PT Ending Soon)",
       fullName: "Kavita Rao",
       phone: "+91 9822334455",
       email: "kavita.rao@gmail.com",
@@ -410,122 +351,31 @@ export async function load6MonthDummyData(gymId = "univo_main") {
       planId: "p5",
       planName: "12 Months Annual Elite",
       planPrice: 4999,
-      joinDate: "2026-05-24",
-      expiryDate: "2027-05-24",
+      joinDate: getOffsetDate(-60),
+      expiryDate: getOffsetDate(305), // Safe till 10 months!
+      isPt: true,
+      hasPersonalCoach: true,
+      ptPlanId: "pt_1m",
+      ptPlanName: "1 Month 1-on-1 PT",
+      ptPlanPrice: 3500,
+      ptStartDate: getOffsetDate(-29),
+      ptEndDate: getOffsetDate(1), // PT Ending in 1 Day!
+      ptStatus: "active",
       trainerId: "tr_2",
       trainerName: "Coach Sneha Kapoor",
       status: "active",
-      createdAt: "2026-05-24T18:45:00Z",
+      dueAmount: 0,
+      paidAmount: 8499,
+      lastPaymentDate: getOffsetDate(-29),
       preferredTime: "night",
       address: "Shastri Nagar Main Rd",
       photoURL: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80"
     },
-    // Month 4 (June 2026)
+
+    // 3. GYM ENDING SOON (No PT, Gym Ending in 2 Days) -> SHOWS "Gym Renew" BUTTON!
     {
-      id: "mem_07",
-      name: "Deepak Meena",
-      fullName: "Deepak Meena",
-      phone: "+91 9866677889",
-      email: "deepak.m@gmail.com",
-      gender: "Male",
-      planId: "p4",
-      planName: "6 Months Fitness Pass",
-      planPrice: 2799,
-      joinDate: "2026-06-10",
-      expiryDate: "2026-12-10",
-      trainerId: "tr_3",
-      trainerName: "Coach Rohan Deshmukh",
-      status: "active",
-      createdAt: "2026-06-10T08:00:00Z",
-      preferredTime: "morning",
-      address: "Railway Colony, Qtr 12",
-      photoURL: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "mem_08",
-      name: "Anjali Saxena",
-      fullName: "Anjali Saxena",
-      phone: "+91 9877788990",
-      email: "anjali.s@gmail.com",
-      gender: "Female",
-      planId: "p2",
-      planName: "1 Month with Locker",
-      planPrice: 699,
-      joinDate: "2026-06-25",
-      expiryDate: "2026-07-25",
-      trainerId: null,
-      trainerName: "Unassigned (General Floor)",
-      status: "expired",
-      createdAt: "2026-06-25T11:00:00Z",
-      preferredTime: "evening",
-      address: "Adarsh Nagar, Lane 2",
-      photoURL: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&auto=format&fit=crop&q=80"
-    },
-    // Month 5 (July 2026)
-    {
-      id: "mem_09",
-      name: "Sunil Patel",
-      fullName: "Sunil Patel",
-      phone: "+91 9888899001",
-      email: "sunil.patel@gmail.com",
-      gender: "Male",
-      planId: "p1",
-      planName: "1 Month Standard",
-      planPrice: 599,
-      joinDate: "2026-07-15",
-      expiryDate: "2026-08-15",
-      trainerId: null,
-      trainerName: "Unassigned (General Floor)",
-      status: "expired",
-      createdAt: "2026-07-15T18:00:00Z",
-      preferredTime: "night",
-      address: "Industrial Area Phase 1",
-      photoURL: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=400&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "mem_10",
-      name: "Karan Johar",
-      fullName: "Karan Johar",
-      phone: "+91 9711003322",
-      email: "karan.j@gmail.com",
-      gender: "Male",
-      planId: "p3",
-      planName: "3 Months Pro Transformation",
-      planPrice: 1499,
-      joinDate: "2026-07-28",
-      expiryDate: "2026-09-28",
-      trainerId: "tr_1",
-      trainerName: "Coach Amit Sharma",
-      status: "expiring",
-      createdAt: "2026-07-28T07:30:00Z",
-      preferredTime: "morning",
-      address: "Officers Colony, Plot 9",
-      photoURL: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop&q=80"
-    },
-    // Month 6 (August & September 2026 - Current)
-    {
-      id: "mem_11",
-      name: "Ankit Verma",
-      fullName: "Ankit Verma",
-      phone: "+91 9899900112",
-      email: "ankit.v@gmail.com",
-      gender: "Male",
-      planId: "p3",
-      planName: "3 Months Pro Transformation",
-      planPrice: 1499,
-      joinDate: "2026-08-20",
-      expiryDate: "2026-11-20",
-      trainerId: "tr_3",
-      trainerName: "Coach Rohan Deshmukh",
-      status: "active",
-      createdAt: "2026-08-20T17:00:00Z",
-      preferredTime: "evening",
-      address: "Sardar Patel Marg",
-      photoURL: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=400&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "mem_12",
-      name: "Aman Gupta",
+      id: "mem_03",
+      name: "Aman Gupta (Gym Ending Soon)",
       fullName: "Aman Gupta",
       phone: "+91 9988776655",
       email: "aman.g@gmail.com",
@@ -533,39 +383,203 @@ export async function load6MonthDummyData(gymId = "univo_main") {
       planId: "p1",
       planName: "1 Month Standard",
       planPrice: 599,
-      joinDate: "2026-08-22",
-      expiryDate: "2026-09-22",
+      joinDate: getOffsetDate(-28),
+      expiryDate: getOffsetDate(2), // Gym Ending in 2 Days!
+      isPt: false,
       trainerId: null,
       trainerName: "Unassigned (General Floor)",
-      status: "expiring",
-      createdAt: "2026-08-22T08:00:00Z",
+      status: "ending_soon",
+      dueAmount: 0,
+      paidAmount: 599,
+      lastPaymentDate: getOffsetDate(-28),
       preferredTime: "morning",
       address: "Vikas Puri, Lane 8",
       photoURL: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80"
     },
+
+    // 4. GYM EXPIRED (1 Day ago, No PT) -> APPEARS IN "Expired" TAB WITH "Gym Renew" BUTTON!
     {
-      id: "mem_13",
-      name: "Lucky Kirar",
-      fullName: "Lucky Kirar",
-      phone: "+91 9343706358",
-      email: "lucky.k@gmail.com",
-      gender: "Male",
+      id: "mem_04",
+      name: "Sunita Choudhary (Gym Expired 1d)",
+      fullName: "Sunita Choudhary",
+      phone: "+91 9844455667",
+      email: "sunita.c@gmail.com",
+      gender: "Female",
       planId: "p1",
       planName: "1 Month Standard",
       planPrice: 599,
-      joinDate: "2026-09-01",
-      expiryDate: "2026-10-01",
+      joinDate: getOffsetDate(-31),
+      expiryDate: getOffsetDate(-1), // Expired 1 day ago!
+      isPt: false,
+      trainerId: null,
+      trainerName: "Unassigned (General Floor)",
+      status: "expired",
+      dueAmount: 0,
+      paidAmount: 599,
+      lastPaymentDate: getOffsetDate(-31),
+      preferredTime: "afternoon",
+      address: "Green Park Colony",
+      photoURL: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80"
+    },
+
+    // 5. PT EXPIRED (Gym active for 3+ months, PT expired 2 days ago) -> APPEARS IN "Expired" TAB WITH "PT Renew"!
+    {
+      id: "mem_05",
+      name: "Gaurav Joshi (PT Expired 2d)",
+      fullName: "Gaurav Joshi",
+      phone: "+91 9855566778",
+      email: "gaurav.j@gmail.com",
+      gender: "Male",
+      planId: "p4",
+      planName: "6 Months Fitness Pass",
+      planPrice: 2799,
+      joinDate: getOffsetDate(-75),
+      expiryDate: getOffsetDate(105), // Gym active!
+      isPt: true,
+      hasPersonalCoach: true,
+      ptPlanId: "pt_1m",
+      ptPlanName: "1 Month 1-on-1 PT",
+      ptPlanPrice: 3500,
+      ptStartDate: getOffsetDate(-32),
+      ptEndDate: getOffsetDate(-2), // PT expired 2 days ago!
+      ptStatus: "expired",
       trainerId: "tr_1",
       trainerName: "Coach Amit Sharma",
       status: "active",
-      createdAt: "2026-09-01T09:00:00Z",
+      dueAmount: 0,
+      paidAmount: 6299,
+      lastPaymentDate: getOffsetDate(-32),
+      preferredTime: "evening",
+      address: "Ram Nagar, Block B",
+      photoURL: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&auto=format&fit=crop&q=80"
+    },
+
+    // 6. GYM DUE (>2 Days Overdue, e.g. 6 Days Ago) -> APPEARS IN "Due (2d+ Overdue)" TAB WITH "Gym Renew"!
+    {
+      id: "mem_06",
+      name: "Pooja Verma (Gym Due 6d)",
+      fullName: "Pooja Verma",
+      phone: "+91 9822233445",
+      email: "pooja.v@gmail.com",
+      gender: "Female",
+      planId: "p3",
+      planName: "3 Months Pro Transformation",
+      planPrice: 1499,
+      joinDate: getOffsetDate(-96),
+      expiryDate: getOffsetDate(-6), // Due 6 days ago!
+      isPt: false,
+      trainerId: "tr_2",
+      trainerName: "Coach Sneha Kapoor",
+      status: "expired",
+      dueAmount: 0,
+      paidAmount: 1499,
+      lastPaymentDate: getOffsetDate(-96),
+      preferredTime: "evening",
+      address: "Civil Lines, Near City Mall",
+      photoURL: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80"
+    },
+
+    // 7. PT DUE (Gym Active, PT 8 Days Overdue) -> APPEARS IN "Due (2d+ Overdue)" TAB WITH "PT Renew"!
+    {
+      id: "mem_07",
+      name: "Rohit Bansal (PT Due 8d)",
+      fullName: "Rohit Bansal",
+      phone: "+91 9833344556",
+      email: "rohit.b@gmail.com",
+      gender: "Male",
+      planId: "p5",
+      planName: "12 Months Annual Elite",
+      planPrice: 4999,
+      joinDate: getOffsetDate(-100),
+      expiryDate: getOffsetDate(265), // Gym active!
+      isPt: true,
+      hasPersonalCoach: true,
+      ptPlanId: "pt_1m",
+      ptPlanName: "1 Month 1-on-1 PT",
+      ptPlanPrice: 3500,
+      ptStartDate: getOffsetDate(-38),
+      ptEndDate: getOffsetDate(-8), // PT overdue by 8 days!
+      ptStatus: "due",
+      trainerId: "tr_3",
+      trainerName: "Coach Rohan Deshmukh",
+      status: "active",
+      dueAmount: 0,
+      paidAmount: 8499,
+      lastPaymentDate: getOffsetDate(-38),
       preferredTime: "morning",
-      address: "Sector 9, Housing Board",
+      address: "Model Town, Street 4",
       photoURL: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80"
     },
+
+    // 8. BOTH GYM & PT DUE -> APPEARS IN "Due" TAB WITH BOTH "Gym Renew" AND "PT Renew" BUTTONS!
     {
-      id: "mem_14",
-      name: "Mohit Yadav",
+      id: "mem_08",
+      name: "Deepak Meena (Both Due)",
+      fullName: "Deepak Meena",
+      phone: "+91 9866677889",
+      email: "deepak.m@gmail.com",
+      gender: "Male",
+      planId: "p4",
+      planName: "6 Months Fitness Pass",
+      planPrice: 2799,
+      joinDate: getOffsetDate(-190),
+      expiryDate: getOffsetDate(-10), // Gym overdue 10 days!
+      isPt: true,
+      hasPersonalCoach: true,
+      ptPlanId: "pt_1m",
+      ptPlanName: "1 Month 1-on-1 PT",
+      ptPlanPrice: 3500,
+      ptStartDate: getOffsetDate(-42),
+      ptEndDate: getOffsetDate(-12), // PT overdue 12 days!
+      ptStatus: "due",
+      trainerId: "tr_3",
+      trainerName: "Coach Rohan Deshmukh",
+      status: "expired",
+      dueAmount: 0,
+      paidAmount: 6299,
+      lastPaymentDate: getOffsetDate(-190),
+      preferredTime: "morning",
+      address: "Railway Colony, Qtr 12",
+      photoURL: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80"
+    },
+
+    // 9. PT ENDED SAFELY (Gym Active for 4+ Months, PT Ended 10 Days Ago) -> GYM ACTIVE, PT ENDED!
+    {
+      id: "mem_09",
+      name: "Ankit Verma (PT Ended, Gym Safe)",
+      fullName: "Ankit Verma",
+      phone: "+91 9899900112",
+      email: "ankit.v@gmail.com",
+      gender: "Male",
+      planId: "p4",
+      planName: "6 Months Fitness Pass",
+      planPrice: 2799,
+      joinDate: getOffsetDate(-45),
+      expiryDate: getOffsetDate(135), // Gym fully active!
+      isPt: true,
+      hasPersonalCoach: true,
+      ptPlanId: "pt_1m",
+      ptPlanName: "1 Month 1-on-1 PT",
+      ptPlanPrice: 3500,
+      ptStartDate: getOffsetDate(-40),
+      ptEndDate: getOffsetDate(-10),
+      ptStatus: "ended",
+      ptEndedAt: getOffsetDate(-10),
+      trainerId: "tr_3",
+      trainerName: "Coach Rohan Deshmukh",
+      status: "active",
+      dueAmount: 0,
+      paidAmount: 6299,
+      lastPaymentDate: getOffsetDate(-45),
+      preferredTime: "evening",
+      address: "Sardar Patel Marg",
+      photoURL: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=400&auto=format&fit=crop&q=80"
+    },
+
+    // 10. PARTIAL PAYMENT (Gym Active, ₹700 Balance Due) -> SHOWS "Due: ₹700" COLLECTION BUTTON!
+    {
+      id: "mem_10",
+      name: "Mohit Yadav (Partial Due ₹700)",
       fullName: "Mohit Yadav",
       phone: "+91 8357897047",
       email: "mohit.y@gmail.com",
@@ -573,59 +587,49 @@ export async function load6MonthDummyData(gymId = "univo_main") {
       planId: "p3",
       planName: "3 Months Pro Transformation",
       planPrice: 1499,
-      joinDate: "2026-09-02",
-      expiryDate: "2026-12-02",
+      joinDate: getOffsetDate(-15),
+      expiryDate: getOffsetDate(75), // Gym active!
+      isPt: false,
       trainerId: "tr_2",
       trainerName: "Coach Sneha Kapoor",
       status: "active",
-      createdAt: "2026-09-02T10:30:00Z",
+      paidAmount: 799,
+      dueAmount: 700,
+      lastPaymentDate: getOffsetDate(-15),
       preferredTime: "afternoon",
       address: "Vijay Nagar, Scheme 54",
       photoURL: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=400&auto=format&fit=crop&q=80"
     },
+
+    // 11. ACTIVE MEMBER WITHOUT PT (Ready to test "+ PT" mid-month activation)
     {
-      id: "mem_15",
-      name: "Priya Sharma",
-      fullName: "Priya Sharma",
-      phone: "+91 9811223344",
-      email: "priya.s@gmail.com",
-      gender: "Female",
-      planId: "p4",
-      planName: "6 Months Fitness Pass",
-      planPrice: 2799,
-      joinDate: "2026-09-05",
-      expiryDate: "2027-03-05",
-      trainerId: "tr_2",
-      trainerName: "Coach Sneha Kapoor",
-      status: "active",
-      createdAt: "2026-09-05T14:15:00Z",
-      preferredTime: "morning",
-      address: "Saket Nagar, Near Park",
-      photoURL: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80"
-    },
-    {
-      id: "mem_16",
-      name: "Rahul Verma",
-      fullName: "Rahul Verma",
-      phone: "+91 9876543210",
-      email: "rahul.v@univogym.com",
+      id: "mem_11",
+      name: "Lucky Kirar (Active - Ready for + PT)",
+      fullName: "Lucky Kirar",
+      phone: "+91 9343706358",
+      email: "lucky.k@gmail.com",
       gender: "Male",
-      planId: "p5",
-      planName: "12 Months Annual Elite",
-      planPrice: 4999,
-      joinDate: "2026-09-08",
-      expiryDate: "2027-09-08",
-      trainerId: "tr_3",
-      trainerName: "Coach Rohan Deshmukh",
+      planId: "p1",
+      planName: "1 Month Standard",
+      planPrice: 599,
+      joinDate: getOffsetDate(-10),
+      expiryDate: getOffsetDate(20), // Gym active!
+      isPt: false,
+      trainerId: null,
+      trainerName: "Unassigned (General Floor)",
       status: "active",
-      createdAt: "2026-09-08T11:00:00Z",
-      preferredTime: "evening",
-      address: "Geeta Bhawan, Square 2",
-      photoURL: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80"
+      paidAmount: 599,
+      dueAmount: 0,
+      lastPaymentDate: getOffsetDate(-10),
+      preferredTime: "morning",
+      address: "Sector 9, Housing Board",
+      photoURL: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80"
     },
+
+    // 12. DUAL ACTIVE SUBSCRIPTION (Gym + PT both active and healthy)
     {
-      id: "mem_17",
-      name: "Ajay Prajapati",
+      id: "mem_12",
+      name: "Ajay Prajapati (Gym + PT Active)",
       fullName: "Ajay Prajapati",
       phone: "+91 9196302375",
       email: "ajay.p@univogym.com",
@@ -633,23 +637,139 @@ export async function load6MonthDummyData(gymId = "univo_main") {
       planId: "p3",
       planName: "3 Months Pro Transformation",
       planPrice: 1499,
-      joinDate: "2026-09-10",
-      expiryDate: "2026-12-10",
+      joinDate: getOffsetDate(-20),
+      expiryDate: getOffsetDate(70),
+      isPt: true,
+      hasPersonalCoach: true,
+      ptPlanId: "pt_2m",
+      ptPlanName: "2 Months Transformation PT",
+      ptPlanPrice: 6500,
+      ptStartDate: getOffsetDate(-15),
+      ptEndDate: getOffsetDate(45), // Both active!
+      ptStatus: "active",
       trainerId: "tr_1",
       trainerName: "Coach Amit Sharma",
       status: "active",
-      createdAt: "2026-09-10T16:00:00Z",
+      paidAmount: 7999,
+      dueAmount: 0,
+      lastPaymentDate: getOffsetDate(-15),
       preferredTime: "morning",
       address: "Old Palasia, Indore",
       photoURL: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80"
+    },
+
+    // 13. LEFT MEMBER (Status: left)
+    {
+      id: "mem_13",
+      name: "Karan Johar (Left Member)",
+      fullName: "Karan Johar",
+      phone: "+91 9711003322",
+      email: "karan.j@gmail.com",
+      gender: "Male",
+      planId: "p1",
+      planName: "1 Month Standard",
+      planPrice: 599,
+      joinDate: getOffsetDate(-60),
+      expiryDate: getOffsetDate(-30),
+      status: "left",
+      leftReason: "Relocated to another city for work",
+      leftDate: getOffsetDate(-30),
+      trainerId: null,
+      trainerName: "Unassigned",
+      paidAmount: 599,
+      dueAmount: 0,
+      lastPaymentDate: getOffsetDate(-60),
+      preferredTime: "morning",
+      address: "Officers Colony, Plot 9",
+      photoURL: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop&q=80"
+    },
+
+    // 14. ANNUAL ELITE VIP (1 Year Fully Active)
+    {
+      id: "mem_14",
+      name: "Rahul Verma (Annual Elite VIP)",
+      fullName: "Rahul Verma",
+      phone: "+91 9876543210",
+      email: "rahul.v@univogym.com",
+      gender: "Male",
+      planId: "p5",
+      planName: "12 Months Annual Elite",
+      planPrice: 4999,
+      joinDate: getOffsetDate(-30),
+      expiryDate: getOffsetDate(335),
+      isPt: false,
+      trainerId: "tr_3",
+      trainerName: "Coach Rohan Deshmukh",
+      status: "active",
+      paidAmount: 4999,
+      dueAmount: 0,
+      lastPaymentDate: getOffsetDate(-30),
+      preferredTime: "evening",
+      address: "Geeta Bhawan, Square 2",
+      photoURL: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80"
+    },
+
+    // 15. FEMALE ACTIVE MEMBER (Sneha's Batch)
+    {
+      id: "mem_15",
+      name: "Priya Sharma (Active Female Batch)",
+      fullName: "Priya Sharma",
+      phone: "+91 9811223344",
+      email: "priya.s@gmail.com",
+      gender: "Female",
+      planId: "p4",
+      planName: "6 Months Fitness Pass",
+      planPrice: 2799,
+      joinDate: getOffsetDate(-12),
+      expiryDate: getOffsetDate(168),
+      isPt: false,
+      trainerId: "tr_2",
+      trainerName: "Coach Sneha Kapoor",
+      status: "active",
+      paidAmount: 2799,
+      dueAmount: 0,
+      lastPaymentDate: getOffsetDate(-12),
+      preferredTime: "morning",
+      address: "Saket Nagar, Near Park",
+      photoURL: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80"
+    },
+
+    // 16. UPCOMING RENEWAL (Expiring in 7 Days)
+    {
+      id: "mem_16",
+      name: "Anjali Saxena (Expiring in 7d)",
+      fullName: "Anjali Saxena",
+      phone: "+91 9877788990",
+      email: "anjali.s@gmail.com",
+      gender: "Female",
+      planId: "p2",
+      planName: "1 Month with Locker",
+      planPrice: 699,
+      joinDate: getOffsetDate(-23),
+      expiryDate: getOffsetDate(7), // Expiring in 7 days!
+      isPt: false,
+      trainerId: null,
+      trainerName: "Unassigned (General Floor)",
+      status: "active",
+      paidAmount: 699,
+      dueAmount: 0,
+      lastPaymentDate: getOffsetDate(-23),
+      preferredTime: "evening",
+      address: "Adarsh Nagar, Lane 2",
+      photoURL: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&auto=format&fit=crop&q=80"
     }
   ];
 
-  // Save members to Firestore & local cache
+  // Save members to Firestore (both collections) & local cache
   for (const m of membersData) {
     try {
       const batch = writeBatch(db);
       batch.set(doc(db, "members", m.id), {
+        ...m,
+        gymId,
+        createdAt: serverTimestamp(),
+      });
+      batch.set(doc(db, "gyms", gymId, "members", m.id), {
         ...m,
         gymId,
         createdAt: serverTimestamp(),
@@ -661,34 +781,31 @@ export async function load6MonthDummyData(gymId = "univo_main") {
   }
   localStorage.setItem("univo_recent_members", JSON.stringify(membersData));
 
-  // --- 3. PAYMENTS & SUBSCRIPTIONS (6 MONTHS SPREAD) ---
+  // --- 3. PAYMENTS & SUBSCRIPTIONS (MATCHING ALL SCENARIOS & FINANCIAL TRANSACTIONS) ---
   const paymentsData = [
-    // March 2026
-    { id: "pay_01", memberId: "mem_01", memberName: "Vikas Malhotra", phone: "9811122334", planName: "12 Months Annual Elite", amount: 4999, paidAmount: 4999, dueAmount: 0, paymentMode: "online", date: "2026-03-05", createdAt: "2026-03-05T10:00:00Z", status: "paid" },
-    { id: "pay_02", memberId: "mem_02", memberName: "Pooja Verma", phone: "9822233445", planName: "3 Months Pro Transformation", amount: 1499, paidAmount: 1499, dueAmount: 0, paymentMode: "cash", date: "2026-03-12", createdAt: "2026-03-12T11:30:00Z", status: "paid" },
-    { id: "pay_03", memberId: "mem_01", memberName: "Vikas Malhotra", phone: "9811122334", planName: "PT Add-on (Coach Amit)", amount: 3000, paidAmount: 3000, dueAmount: 0, paymentMode: "online", date: "2026-03-15", createdAt: "2026-03-15T12:00:00Z", status: "paid" },
-    // April 2026
-    { id: "pay_04", memberId: "mem_03", memberName: "Rohit Bansal", phone: "9833344556", planName: "6 Months Fitness Pass", amount: 2799, paidAmount: 2799, dueAmount: 0, paymentMode: "online", date: "2026-04-02", createdAt: "2026-04-02T09:15:00Z", status: "paid" },
-    { id: "pay_05", memberId: "mem_04", memberName: "Sunita Choudhary", phone: "9844455667", planName: "1 Month Standard", amount: 599, paidAmount: 599, dueAmount: 0, paymentMode: "cash", date: "2026-04-18", createdAt: "2026-04-18T16:20:00Z", status: "paid" },
-    // May 2026
-    { id: "pay_06", memberId: "mem_05", memberName: "Gaurav Joshi", phone: "9855566778", planName: "3 Months Pro Transformation", amount: 1499, paidAmount: 1499, dueAmount: 0, paymentMode: "online", date: "2026-05-10", createdAt: "2026-05-10T14:00:00Z", status: "paid" },
-    { id: "pay_07", memberId: "mem_06", memberName: "Kavita Rao", phone: "9822334455", planName: "12 Months Annual Elite", amount: 4999, paidAmount: 4999, dueAmount: 0, paymentMode: "bank", date: "2026-05-24", createdAt: "2026-05-24T18:45:00Z", status: "paid" },
-    // June 2026
-    { id: "pay_08", memberId: "mem_07", memberName: "Deepak Meena", phone: "9866677889", planName: "6 Months Fitness Pass", amount: 2799, paidAmount: 2799, dueAmount: 0, paymentMode: "online", date: "2026-06-10", createdAt: "2026-06-10T08:00:00Z", status: "paid" },
-    { id: "pay_09", memberId: "mem_08", memberName: "Anjali Saxena", phone: "9877788990", planName: "1 Month with Locker", amount: 699, paidAmount: 699, dueAmount: 0, paymentMode: "cash", date: "2026-06-25", createdAt: "2026-06-25T11:00:00Z", status: "paid" },
-    // July 2026
-    { id: "pay_10", memberId: "mem_09", memberName: "Sunil Patel", phone: "9888899001", planName: "1 Month Standard", amount: 599, paidAmount: 599, dueAmount: 0, paymentMode: "online", date: "2026-07-15", createdAt: "2026-07-15T18:00:00Z", status: "paid" },
-    { id: "pay_11", memberId: "mem_10", memberName: "Karan Johar", phone: "9711003322", planName: "3 Months Pro Transformation", amount: 1499, paidAmount: 1499, dueAmount: 0, paymentMode: "cash", date: "2026-07-28", createdAt: "2026-07-28T07:30:00Z", status: "paid" },
-    // August 2026
-    { id: "pay_12", memberId: "mem_11", memberName: "Ankit Verma", phone: "9899900112", planName: "3 Months Pro Transformation", amount: 1499, paidAmount: 1499, dueAmount: 0, paymentMode: "online", date: "2026-08-20", createdAt: "2026-08-20T17:00:00Z", status: "paid" },
-    { id: "pay_13", memberId: "mem_12", memberName: "Aman Gupta", phone: "9988776655", planName: "1 Month Standard", amount: 599, paidAmount: 599, dueAmount: 0, paymentMode: "cash", date: "2026-08-22", createdAt: "2026-08-22T08:00:00Z", status: "paid" },
-    // September 2026 (Current Month Collection)
-    { id: "pay_14", memberId: "mem_13", memberName: "Lucky Kirar", phone: "9343706358", planName: "1 Month Standard", amount: 599, paidAmount: 599, dueAmount: 0, paymentMode: "online", date: "2026-09-01", createdAt: "2026-09-01T09:00:00Z", status: "paid" },
-    { id: "pay_15", memberId: "mem_14", memberName: "Mohit Yadav", phone: "8357897047", planName: "3 Months Pro Transformation", amount: 1499, paidAmount: 1499, dueAmount: 0, paymentMode: "cash", date: "2026-09-02", createdAt: "2026-09-02T10:30:00Z", status: "paid" },
-    { id: "pay_16", memberId: "mem_15", memberName: "Priya Sharma", phone: "9811223344", planName: "6 Months Fitness Pass", amount: 2799, paidAmount: 2799, dueAmount: 0, paymentMode: "online", date: "2026-09-05", createdAt: "2026-09-05T14:15:00Z", status: "paid" },
-    { id: "pay_17", memberId: "mem_16", memberName: "Rahul Verma", phone: "9876543210", planName: "12 Months Annual Elite", amount: 4999, paidAmount: 4999, dueAmount: 0, paymentMode: "online", date: "2026-09-08", createdAt: "2026-09-08T11:00:00Z", status: "paid" },
-    { id: "pay_18", memberId: "mem_17", memberName: "Ajay Prajapati", phone: "9196302375", planName: "3 Months Pro Transformation", amount: 1499, paidAmount: 1499, dueAmount: 0, paymentMode: "online", date: "2026-09-10", createdAt: "2026-09-10T16:00:00Z", status: "paid" },
-    { id: "pay_19", memberId: "mem_13", memberName: "Lucky Kirar", phone: "9343706358", planName: "Locker Room Add-on", amount: 300, paidAmount: 300, dueAmount: 0, paymentMode: "cash", date: "2026-09-12", createdAt: "2026-09-12T10:00:00Z", status: "paid" }
+    { id: "pay_01", memberId: "mem_01", memberName: "Vikas Malhotra", phone: "9811122334", planName: "3 Months Pro Transformation", amount: 1499, paidAmount: 1499, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-88), createdAt: new Date(Date.now() - 88*86400000).toISOString(), status: "paid" },
+    { id: "pay_02", memberId: "mem_01", memberName: "Vikas Malhotra", phone: "9811122334", planName: "Personal Training (PT) - 1 Month", amount: 3500, paidAmount: 3500, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-27), createdAt: new Date(Date.now() - 27*86400000).toISOString(), status: "paid" },
+    { id: "pay_03", memberId: "mem_02", memberName: "Kavita Rao", phone: "9822334455", planName: "12 Months Annual Elite", amount: 4999, paidAmount: 4999, dueAmount: 0, paymentMode: "bank", date: getOffsetDate(-60), createdAt: new Date(Date.now() - 60*86400000).toISOString(), status: "paid" },
+    { id: "pay_04", memberId: "mem_02", memberName: "Kavita Rao", phone: "9822334455", planName: "Personal Training (PT) - 1 Month", amount: 3500, paidAmount: 3500, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-29), createdAt: new Date(Date.now() - 29*86400000).toISOString(), status: "paid" },
+    { id: "pay_05", memberId: "mem_03", memberName: "Aman Gupta", phone: "9988776655", planName: "1 Month Standard", amount: 599, paidAmount: 599, dueAmount: 0, paymentMode: "cash", date: getOffsetDate(-28), createdAt: new Date(Date.now() - 28*86400000).toISOString(), status: "paid" },
+    { id: "pay_06", memberId: "mem_04", memberName: "Sunita Choudhary", phone: "9844455667", planName: "1 Month Standard", amount: 599, paidAmount: 599, dueAmount: 0, paymentMode: "cash", date: getOffsetDate(-31), createdAt: new Date(Date.now() - 31*86400000).toISOString(), status: "paid" },
+    { id: "pay_07", memberId: "mem_05", memberName: "Gaurav Joshi", phone: "9855566778", planName: "6 Months Fitness Pass", amount: 2799, paidAmount: 2799, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-75), createdAt: new Date(Date.now() - 75*86400000).toISOString(), status: "paid" },
+    { id: "pay_08", memberId: "mem_05", memberName: "Gaurav Joshi", phone: "9855566778", planName: "Personal Training (PT) - 1 Month", amount: 3500, paidAmount: 3500, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-32), createdAt: new Date(Date.now() - 32*86400000).toISOString(), status: "paid" },
+    { id: "pay_09", memberId: "mem_06", memberName: "Pooja Verma", phone: "9822233445", planName: "3 Months Pro Transformation", amount: 1499, paidAmount: 1499, dueAmount: 0, paymentMode: "cash", date: getOffsetDate(-96), createdAt: new Date(Date.now() - 96*86400000).toISOString(), status: "paid" },
+    { id: "pay_10", memberId: "mem_07", memberName: "Rohit Bansal", phone: "9833344556", planName: "12 Months Annual Elite", amount: 4999, paidAmount: 4999, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-100), createdAt: new Date(Date.now() - 100*86400000).toISOString(), status: "paid" },
+    { id: "pay_11", memberId: "mem_07", memberName: "Rohit Bansal", phone: "9833344556", planName: "Personal Training (PT) - 1 Month", amount: 3500, paidAmount: 3500, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-38), createdAt: new Date(Date.now() - 38*86400000).toISOString(), status: "paid" },
+    { id: "pay_12", memberId: "mem_08", memberName: "Deepak Meena", phone: "9866677889", planName: "6 Months Fitness Pass", amount: 2799, paidAmount: 2799, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-190), createdAt: new Date(Date.now() - 190*86400000).toISOString(), status: "paid" },
+    { id: "pay_13", memberId: "mem_09", memberName: "Ankit Verma", phone: "9899900112", planName: "6 Months Fitness Pass", amount: 2799, paidAmount: 2799, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-45), createdAt: new Date(Date.now() - 45*86400000).toISOString(), status: "paid" },
+    { id: "pay_14", memberId: "mem_09", memberName: "Ankit Verma", phone: "9899900112", planName: "Personal Training (PT) - 1 Month", amount: 3500, paidAmount: 3500, dueAmount: 0, paymentMode: "cash", date: getOffsetDate(-40), createdAt: new Date(Date.now() - 40*86400000).toISOString(), status: "paid" },
+    { id: "pay_15", memberId: "mem_10", memberName: "Mohit Yadav", phone: "8357897047", planName: "3 Months Pro Transformation", amount: 1499, paidAmount: 799, dueAmount: 700, paymentMode: "cash", date: getOffsetDate(-15), createdAt: new Date(Date.now() - 15*86400000).toISOString(), status: "partial" },
+    { id: "pay_16", memberId: "mem_11", memberName: "Lucky Kirar", phone: "9343706358", planName: "1 Month Standard", amount: 599, paidAmount: 599, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-10), createdAt: new Date(Date.now() - 10*86400000).toISOString(), status: "paid" },
+    { id: "pay_17", memberId: "mem_12", memberName: "Ajay Prajapati", phone: "9196302375", planName: "3 Months Pro Transformation", amount: 1499, paidAmount: 1499, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-20), createdAt: new Date(Date.now() - 20*86400000).toISOString(), status: "paid" },
+    { id: "pay_18", memberId: "mem_12", memberName: "Ajay Prajapati", phone: "9196302375", planName: "2 Months Transformation PT", amount: 6500, paidAmount: 6500, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-15), createdAt: new Date(Date.now() - 15*86400000).toISOString(), status: "paid" },
+    { id: "pay_19", memberId: "mem_14", memberName: "Rahul Verma", phone: "9876543210", planName: "12 Months Annual Elite", amount: 4999, paidAmount: 4999, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-30), createdAt: new Date(Date.now() - 30*86400000).toISOString(), status: "paid" },
+    { id: "pay_20", memberId: "mem_15", memberName: "Priya Sharma", phone: "9811223344", planName: "6 Months Fitness Pass", amount: 2799, paidAmount: 2799, dueAmount: 0, paymentMode: "online", date: getOffsetDate(-12), createdAt: new Date(Date.now() - 12*86400000).toISOString(), status: "paid" },
+    { id: "pay_21", memberId: "mem_16", memberName: "Anjali Saxena", phone: "9877788990", planName: "1 Month with Locker", amount: 699, paidAmount: 699, dueAmount: 0, paymentMode: "cash", date: getOffsetDate(-23), createdAt: new Date(Date.now() - 23*86400000).toISOString(), status: "paid" },
+    // Today's fresh collection entry so Today Revenue widget is active
+    { id: "pay_22", memberId: "mem_11", memberName: "Lucky Kirar", phone: "9343706358", planName: "Locker Room Add-on", amount: 300, paidAmount: 300, dueAmount: 0, paymentMode: "online", date: getOffsetDate(0), createdAt: new Date().toISOString(), status: "paid" }
   ];
 
   for (const p of paymentsData) {
@@ -699,11 +816,21 @@ export async function load6MonthDummyData(gymId = "univo_main") {
         gymId,
         createdAt: serverTimestamp(),
       });
+      batch.set(doc(db, "gyms", gymId, "payments", p.id), {
+        ...p,
+        gymId,
+        createdAt: serverTimestamp(),
+      });
       await batch.commit();
     } catch (e) {
       console.warn("Payment write note:", e);
     }
   }
+
+  try {
+    invalidateCache("members");
+    invalidateCache("payments");
+  } catch (e) {}
 
   // --- 4. EXPENSES (6 MONTHS SPREAD: Rent, Electricity, Supplies, Maintenance) ---
   const expensesData = [
