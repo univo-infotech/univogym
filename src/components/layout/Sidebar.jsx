@@ -36,6 +36,7 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
   const ownerLinks = [
     { id: "dashboard", to: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "members", to: "/owner/members", label: "Members", icon: Users },
+    { id: "payments", to: "/owner/payments", label: "Fee Collection & Payments", icon: Receipt },
     { id: "trainers", to: "/owner/trainers", label: "Trainers", icon: Dumbbell },
     { id: "staff", to: "/owner/staff", label: "Staff", icon: UserCheck },
     { id: "memberships", to: "/owner/memberships", label: "Memberships & Plans", icon: CreditCard },

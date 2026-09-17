@@ -39,23 +39,12 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { addMember } from "../../firebase/members";
-import { addPayment } from "../../firebase/payments";
 import { getTrainers } from "../../firebase/trainers";
 import { getPlans, getActivePlans } from "../../firebase/plans";
 import { getServices, DEFAULT_SERVICES } from "../../firebase/services";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
 import { calculateBmi, parseHeightToMeters } from "../../utils/bmi";
-
-function toIndianDate(isoOrDate) {
-  if (!isoOrDate) return "";
-  const d = new Date(isoOrDate);
-  if (isNaN(d.getTime())) return String(isoOrDate);
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-  return `${day}/${month}/${year}`;
-}
 
 const WORKOUT_SLOTS = [
   { id: "morning", label: "Morning", time: "6:00 AM - 9:00 AM", icon: Sun },
@@ -210,10 +199,6 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     signatureType: "draw",
     typedSignature: "",
     joiningDate: new Date().toISOString().split("T")[0],
-    // Fee Collection & Bill Tracking
-    paymentStatus: "pending", // "pending" (Collect Later in Fee Section) | "paid" | "partial"
-    paymentMode: "cash",
-    paidNowAmount: "",
   });
 
   const [saving, setSaving] = useState(false);
@@ -345,27 +330,6 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       }
     }
 
-    const totalPayableFee = basePrice + ptPrice + servicesTotalPrice;
-    let finalPaid = 0;
-    let finalDue = totalPayableFee;
-    let finalStatus = "pending";
-    let finalMode = formData.paymentMode || "cash";
-
-    if (formData.paymentStatus === "paid") {
-      finalPaid = totalPayableFee;
-      finalDue = 0;
-      finalStatus = "paid";
-    } else if (formData.paymentStatus === "partial") {
-      finalPaid = Math.min(totalPayableFee, Math.max(0, Number(formData.paidNowAmount || 0)));
-      finalDue = Math.max(0, totalPayableFee - finalPaid);
-      finalStatus = finalDue === 0 ? "paid" : "partial";
-    } else {
-      finalPaid = 0;
-      finalDue = totalPayableFee;
-      finalStatus = "pending";
-      finalMode = "due";
-    }
-
     const newMember = {
       id: "m_" + Date.now(),
       name: formData.fullName.trim(),
@@ -397,11 +361,9 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
         billingType: s.billingType || "Per Month"
       })),
       servicesTotalPrice,
-      totalAmount: totalPayableFee,
-      dueAmount: finalDue,
-      paidAmount: finalPaid,
-      paymentMode: finalMode,
-      paymentStatus: finalStatus,
+      totalAmount: basePrice + ptPrice + servicesTotalPrice,
+      dueAmount: basePrice + ptPrice + servicesTotalPrice,
+      paidAmount: 0,
       trainerName: formData.trainerName,
       trainerId: selectedTrainerObj?.id || "",
       hasPersonalCoach: isPersonalTrainer,
@@ -453,48 +415,6 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       console.warn("Direct member recorded in offline state:", err);
     }
 
-    // Automatically generate initial admission bill in Fee Collection / Payments
-    try {
-      const planDisplayName = [
-        currentBasePlan?.name || selectedPlan?.name || "Membership Plan",
-        formData.ptPlanName ? `PT (${formData.ptPlanName})` : "",
-        selectedServices.length > 0 ? `${selectedServices.length} Services (${selectedServices.map(s => s.name).join(", ")})` : ""
-      ].filter(Boolean).join(" + ");
-
-      const admissionBill = {
-        id: "bill_" + Date.now(),
-        memberId: newMember.id || "m_" + Date.now(),
-        memberName: newMember.fullName,
-        phone: newMember.phone,
-        slot: newMember.preferredTime || "General Floor",
-        batch: "Direct Registration • Admission",
-        planName: planDisplayName,
-        planPrice: totalPayableFee,
-        basePlanPrice: basePrice,
-        ptPlanName: formData.ptPlanName || "",
-        ptPlanPrice: ptPrice,
-        services: selectedServices.map(s => ({ name: s.name, price: Number(s.price || 0) })),
-        servicesPrice: servicesTotalPrice,
-        discount: 0,
-        amount: totalPayableFee,
-        paidAmount: finalPaid,
-        dueAmount: finalDue,
-        paymentMode: finalMode,
-        paymentType: finalDue === 0 ? "full" : "partial",
-        validityStart: toIndianDate(formData.joiningDate),
-        validityEnd: toIndianDate(expiry),
-        dueDate: toIndianDate(expiry),
-        date: toIndianDate(formData.joiningDate),
-        status: finalStatus,
-        remarks: `Admission Fee & Plan Activation: ${planDisplayName}`,
-        createdAt: new Date().toISOString(),
-      };
-
-      await addPayment(GID, admissionBill);
-    } catch (billErr) {
-      console.warn("DirectAddMemberModal auto-bill generation notice:", billErr);
-    }
-
     if (onSuccess) onSuccess(newMember);
     toast.success(`${newMember.fullName} registered successfully!`);
     setSaving(false);
@@ -531,9 +451,6 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       signatureType: "draw",
       typedSignature: "",
       joiningDate: new Date().toISOString().split("T")[0],
-      paymentStatus: "pending",
-      paymentMode: "cash",
-      paidNowAmount: "",
     });
   };
 
@@ -1621,119 +1538,6 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Admission Fee Payment & Collection Status */}
-          <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <div>
-                <h5 className="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-1.5">
-                  <IndianRupee className="w-4 h-4 text-emerald-600" />
-                  Admission Fee Collection (एडमिशन फीस कलेक्शन)
-                </h5>
-                <p className="text-[11px] text-slate-500">
-                  Select payment status. A bill entry will be instantly created in the Fee Collection section.
-                </p>
-              </div>
-              <span className="text-xs font-black text-indigo-700 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 self-start sm:self-auto">
-                Payable: ₹{totalPayableFee.toLocaleString("en-IN")}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, paymentStatus: "pending" })}
-                className={`p-2.5 rounded-xl border text-left transition flex items-start gap-2.5 cursor-pointer ${
-                  formData.paymentStatus === "pending"
-                    ? "bg-amber-50 border-amber-400 text-amber-900 shadow-2xs"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <div className={`w-4 h-4 rounded-full border mt-0.5 shrink-0 flex items-center justify-center ${formData.paymentStatus === "pending" ? "border-amber-600 bg-amber-600" : "border-slate-300"}`}>
-                  {formData.paymentStatus === "pending" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                </div>
-                <div>
-                  <span className="font-bold text-xs block">Collect Later (Due)</span>
-                  <span className="text-[10px] text-slate-500 block leading-tight">
-                    Fee bill created with ₹{totalPayableFee} due
-                  </span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, paymentStatus: "paid" })}
-                className={`p-2.5 rounded-xl border text-left transition flex items-start gap-2.5 cursor-pointer ${
-                  formData.paymentStatus === "paid"
-                    ? "bg-emerald-50 border-emerald-400 text-emerald-900 shadow-2xs"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <div className={`w-4 h-4 rounded-full border mt-0.5 shrink-0 flex items-center justify-center ${formData.paymentStatus === "paid" ? "border-emerald-600 bg-emerald-600" : "border-slate-300"}`}>
-                  {formData.paymentStatus === "paid" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                </div>
-                <div>
-                  <span className="font-bold text-xs block">Paid Full Now</span>
-                  <span className="text-[10px] text-slate-500 block leading-tight">
-                    ₹{totalPayableFee} received at admission
-                  </span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, paymentStatus: "partial" })}
-                className={`p-2.5 rounded-xl border text-left transition flex items-start gap-2.5 cursor-pointer ${
-                  formData.paymentStatus === "partial"
-                    ? "bg-blue-50 border-blue-400 text-blue-900 shadow-2xs"
-                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <div className={`w-4 h-4 rounded-full border mt-0.5 shrink-0 flex items-center justify-center ${formData.paymentStatus === "partial" ? "border-blue-600 bg-blue-600" : "border-slate-300"}`}>
-                  {formData.paymentStatus === "partial" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                </div>
-                <div>
-                  <span className="font-bold text-xs block">Partial Payment</span>
-                  <span className="text-[10px] text-slate-500 block leading-tight">
-                    Deposit now + remaining due in Fee section
-                  </span>
-                </div>
-              </button>
-            </div>
-
-            {/* Payment Mode & Amount if Paid or Partial */}
-            {formData.paymentStatus !== "pending" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-indigo-200/60">
-                {formData.paymentStatus === "partial" && (
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Amount Paid Now (₹) *</label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 1000"
-                      value={formData.paidNowAmount}
-                      onChange={(e) => setFormData({ ...formData, paidNowAmount: e.target.value })}
-                      className="w-full bg-white border border-indigo-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500"
-                    />
-                    <span className="text-[10px] text-slate-500 mt-0.5 block">
-                      Remaining Due: ₹{Math.max(0, totalPayableFee - Number(formData.paidNowAmount || 0))}
-                    </span>
-                  </div>
-                )}
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">Payment Mode *</label>
-                  <select
-                    value={formData.paymentMode}
-                    onChange={(e) => setFormData({ ...formData, paymentMode: e.target.value })}
-                    className="w-full bg-white border border-indigo-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="cash">Cash (नकद)</option>
-                    <option value="online">Online / UPI / QR</option>
-                    <option value="bank">Bank Transfer / Card</option>
-                  </select>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Live Order Fee Summary & Breakdown Banner */}
