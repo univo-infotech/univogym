@@ -1080,7 +1080,7 @@ export default function Stock() {
                           )}
                         </div>
                         <p className="text-[10px] text-slate-400 mt-0.5">
-                          Cost: Rs. {Number(item.purchaseCost).toLocaleString("en-IN")} â€¢ Profit:{" "}
+                          Cost: ₹{Number(item.purchaseCost).toLocaleString("en-IN")} • Profit:{" "}
                           <span className="text-emerald-600 font-bold">
                             +Rs. {profitPerUnit.toLocaleString("en-IN")}
                           </span>
@@ -1289,7 +1289,7 @@ export default function Stock() {
 
                       {eq.weightSpecs && (
                         <p className="text-xs font-semibold text-slate-600 mt-1 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                          âš™ï¸ {eq.weightSpecs}
+                          ⚙️  {eq.weightSpecs}
                         </p>
                       )}
 
@@ -1506,7 +1506,7 @@ export default function Stock() {
                         </div>
                         <div>
                           <h4 className="text-sm font-black text-amber-950">
-                            Trainer Referral Commission Payouts (रेफरल कमीशन सारांश)
+                            Trainer Referral Commission Payouts
                           </h4>
                           <p className="text-xs text-amber-800">
                             Gym Owner dwara supplement reference ke adhar par trainers ko diya gaya commission
@@ -1742,7 +1742,7 @@ export default function Stock() {
       <Modal
         isOpen={supModalOpen}
         onClose={() => setSupModalOpen(false)}
-        title={editingSup ? "âœï¸ Edit Supplement Product" : "ðŸ›ï¸ Add New Supplement to Gym Store"}
+        title={editingSup ? "Edit Supplement Product" : "Add New Supplement to Gym Store"}
       >
         <form onSubmit={handleSaveSupplement} className="space-y-4 text-slate-800">
           {/* Photo Capture / Upload */}
@@ -1903,7 +1903,7 @@ export default function Stock() {
       <Modal
         isOpen={sellModalOpen}
         onClose={() => setSellModalOpen(false)}
-        title="âš¡ Point of Sale: Quick Supplement Sell"
+        title="Point of Sale: Quick Supplement Sell"
       >
         {selectedProductForSale && (
           <form onSubmit={handleConfirmSale} className="space-y-4 text-slate-800">
@@ -2064,7 +2064,7 @@ export default function Stock() {
                   <div className="flex-1">
                     <span className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
                       <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                      Send Bill directly on WhatsApp (व्हाट्सएप पर पक्का बिल भेजें)
+                      Send Bill directly on WhatsApp
                     </span>
                     <p className="text-[11px] text-emerald-800">
                       Customer ke WhatsApp par itemized bill aur online receipt link turant jayega.
@@ -2215,7 +2215,7 @@ export default function Stock() {
       <Modal
         isOpen={eqModalOpen}
         onClose={() => setEqModalOpen(false)}
-        title={editingEq ? "âœï¸ Edit Machine Specifications" : "ðŸ‹ï¸ Add Equipment to Gym Fleet"}
+        title={editingEq ? "Edit Machine Specifications" : "Add Equipment to Gym Fleet"}
       >
         <form onSubmit={handleSaveEquipment} className="space-y-4 text-slate-800">
           {/* Photo Capture / Upload */}
@@ -2387,7 +2387,7 @@ export default function Stock() {
       <Modal
         isOpen={serviceModalOpen}
         onClose={() => setServiceModalOpen(false)}
-        title="ðŸ”§ Log Machine Maintenance & Repair"
+        title="Log Machine Maintenance & Repair"
       >
         {selectedEqForService && (
           <form onSubmit={handleSaveRepairLog} className="space-y-4 text-slate-800">
@@ -2395,7 +2395,7 @@ export default function Stock() {
               <span className="font-bold text-teal-900">Logging service for:</span>
               <h4 className="text-sm font-black text-teal-950 mt-0.5">{selectedEqForService.name}</h4>
               <p className="text-teal-700">
-                Brand: {selectedEqForService.brand} â€¢ Type: {selectedEqForService.type}
+                Brand: {selectedEqForService.brand} • Type: {selectedEqForService.type}
               </p>
             </div>
 
@@ -2512,7 +2512,7 @@ export default function Stock() {
       <Modal
         isOpen={serviceHistoryModalOpen}
         onClose={() => setServiceHistoryModalOpen(false)}
-        title="ðŸ“œ Machine Maintenance & Service History"
+        title="Machine Maintenance & Service History"
       >
         {selectedEqForHistory && (
           <div className="space-y-4 text-slate-800">

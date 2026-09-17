@@ -394,7 +394,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-400" />
             <span className="font-extrabold tracking-wide uppercase text-[11px] text-emerald-300">
-              Live Financial P&L Summary (कमीशन व खर्चे हटने के बाद वास्तविक लाभ)
+              Live Financial P&L Summary (Net Profit After Commission & Expenses)
             </span>
           </div>
           <span className="text-[11px] text-slate-300">

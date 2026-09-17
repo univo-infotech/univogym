@@ -65,7 +65,7 @@ export default function Expenses() {
     title: "",
     category: "Rent",
     type: "monthly", // "monthly" | "onetime"
-    monthlyPaymentType: "advance", // "advance" (महीने के शुरू में / अग्रिम) | "postpaid" (महीने के बाद / बिल आने पर)
+    monthlyPaymentType: "advance", // "advance" (Start of month / Advance) | "postpaid" (End of month / Postpaid)
     amount: "",
     date: todayIso,
     dayOfMonth: new Date().getDate(),
@@ -778,7 +778,7 @@ export default function Expenses() {
               <div className="pt-3 border-t border-slate-200/80 space-y-3">
                 <div>
                   <label className="text-xs font-black text-slate-800 uppercase tracking-wider block mb-1.5">
-                    Monthly Payment Timing / भुगतान का समय *
+                    Monthly Payment Timing *
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -793,10 +793,10 @@ export default function Expenses() {
                       <div>
                         <div className="flex items-center gap-1.5">
                           <Zap className={`w-4 h-4 ${form.monthlyPaymentType === "advance" ? "text-amber-600" : "text-slate-400"}`} />
-                          <span className="text-xs font-black text-slate-900">⚡ Advance (अग्रिम)</span>
+                          <span className="text-xs font-black text-slate-900">⚡ Advance</span>
                         </div>
                         <p className="text-[11px] font-bold text-amber-700 mt-0.5">
-                          महीने के शुरू में (Rent, Salary)
+                          Start of month (Rent, Salary)
                         </p>
                       </div>
                       <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">
@@ -816,10 +816,10 @@ export default function Expenses() {
                       <div>
                         <div className="flex items-center gap-1.5">
                           <Clock className={`w-4 h-4 ${form.monthlyPaymentType === "postpaid" ? "text-blue-600" : "text-slate-400"}`} />
-                          <span className="text-xs font-black text-slate-900">🗓️ Postpaid (बिल आने पर)</span>
+                          <span className="text-xs font-black text-slate-900">🗓️ Postpaid</span>
                         </div>
                         <p className="text-[11px] font-bold text-blue-700 mt-0.5">
-                          महीने के बाद (Bijli, Paani)
+                          End of month (Electricity, Water)
                         </p>
                       </div>
                       <p className="text-[10px] text-slate-500 mt-1.5 leading-snug">

@@ -8,7 +8,9 @@ import {
   Share2,
   AlertTriangle,
   X,
-  Filter
+  Filter,
+  Dumbbell,
+  Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -88,7 +90,7 @@ export default function Members() {
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [receiptMember, setReceiptMember] = useState(null);
 
-  // ΓöÇΓöÇΓöÇ Data Loading & Payment Reconciliation ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --- Data Loading & Payment Reconciliation ---
   useEffect(() => {
     let isMounted = true;
     async function loadData() {
@@ -146,7 +148,7 @@ export default function Members() {
     return () => { isMounted = false; };
   }, [gymId]);
 
-  // ΓöÇΓöÇΓöÇ Memoized KPI Counts ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --- Memoized KPI Counts ---
   const counts = useMemo(() => {
     let paidCount = 0;
     let partialCount = 0;
@@ -294,7 +296,7 @@ export default function Members() {
     });
   }, [members, search, filterTab, dueSubFilter, trainerFilter, slotFilter, expireFilter]);
 
-  // ΓöÇΓöÇΓöÇ Modal Success Handlers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --- Modal Success Handlers ---
   const handleExtendSuccess = useCallback((memberId, updatedFieldsOrExpiry, createdPayment) => {
     const newFields = typeof updatedFieldsOrExpiry === 'object'
       ? updatedFieldsOrExpiry
@@ -442,7 +444,7 @@ export default function Members() {
     setMembers((prev) => prev.filter((m) => m.id !== memberId));
   }, []);
 
-  // ΓöÇΓöÇΓöÇ Unified Action Handlers passed to Table / Grid ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // --- Unified Action Handlers passed to Table / Grid ---
   const actionHandlers = useMemo(() => ({
     onView: (m) => navigate(`/owner/members/${m.id}`),
     onExtend: (m) => setExtendMember(m),
@@ -482,7 +484,7 @@ export default function Members() {
 
   return (
     <div className="space-y-6">
-      {/* ΓöÇΓöÇΓöÇ Header & Top Actions ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+      {/* --- Header & Top Actions */} --- */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
@@ -514,14 +516,14 @@ export default function Members() {
         </div>
       </div>
 
-      {/* ΓöÇΓöÇΓöÇ 7 KPI Metric Cards Row ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+      {/* --- 7 KPI Metric Cards Row */} --- */}
       <MemberKpiBar
         {...counts}
         activeTab={filterTab}
         onSelectTab={(tabKey) => setFilterTab(tabKey)}
       />
 
-      {/* ΓöÇΓöÇΓöÇ Systematic Filter & Search Bar ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+      {/* --- Systematic Filter & Search Bar */} --- */}
       {/* ─── Systematic Filter & Search Bar (Exact Screenshot Match) ────────── */}
       <div className="p-3 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
         {/* Row 1: Primary View Tabs + Search Input + Table/Grid Switcher */}
@@ -755,7 +757,7 @@ export default function Members() {
         </div>
       </div>
 
-      {/* ΓöÇΓöÇΓöÇ Due Category Sub-Filter (Gym vs PT Due) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+      {/* --- Due Category Sub-Filter (Gym vs PT Due) */} --- */}
       {filterTab === 'due' && (
         <div className="p-3 rounded-2xl bg-red-50/90 border border-red-200/90 flex flex-wrap items-center justify-between gap-2.5 text-xs">
           <div className="flex items-center gap-2">
@@ -780,29 +782,31 @@ export default function Members() {
             </button>
             <button
               onClick={() => setDueSubFilter('gym')}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition inline-flex items-center gap-1.5 ${
                 dueSubFilter === 'gym'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
               }`}
             >
-              ≡ƒÅï∩╕Å Gym Due ({counts.gymDueCount})
+              <Dumbbell className="w-3.5 h-3.5" />
+              <span>Gym Due ({counts.gymDueCount})</span>
             </button>
             <button
               onClick={() => setDueSubFilter('pt')}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition inline-flex items-center gap-1.5 ${
                 dueSubFilter === 'pt'
                   ? 'bg-purple-600 text-white shadow-xs'
                   : 'bg-white text-slate-700 hover:bg-purple-50 border border-slate-200'
               }`}
             >
-              Γ£¿ PT Due ({counts.ptDueCount})
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>PT Due ({counts.ptDueCount})</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* ΓöÇΓöÇΓöÇ Directory Body: Table or Grid ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+      {/* --- Directory Body: Table or Grid */} --- */}
       {view === 'table' ? (
         <MemberTable
           members={filteredMembers}
@@ -815,7 +819,7 @@ export default function Members() {
         />
       )}
 
-      {/* ΓöÇΓöÇΓöÇ Modals ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
+      {/* --- Modals */} --- */}
 
       {/* Extend Membership Modal */}
       {extendMember && (

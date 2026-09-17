@@ -421,7 +421,7 @@ export default function TrainerDashboard() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
           <div>
             <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-              <ShoppingBag className="w-5 h-5 text-amber-600" /> Supplement Referral Commission (सप्लीमेंट रेफरल कमाई)
+              <ShoppingBag className="w-5 h-5 text-amber-600" /> Supplement Referral Commission
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               Aapke recommendation par gym store se khareede gaye supplements par gym owner dwara diya gaya commission.
@@ -518,7 +518,7 @@ export default function TrainerDashboard() {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-              <Users className="w-5 h-5 text-teal-600" /> Assigned Athletes & Training Timelines (कब तक ट्रेनिंग देनी है)
+              <Users className="w-5 h-5 text-teal-600" /> Assigned Athletes & Training Timelines
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               Monitor PT expiration dates, workout time slots, weight check-ins and diet charts.

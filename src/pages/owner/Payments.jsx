@@ -998,7 +998,7 @@ export default function Payments() {
                           </span>
                         ) : item.discount > 0 ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                            <Tag className="w-2.5 h-2.5" /> -₹{item.discount} छूट
+                            <Tag className="w-2.5 h-2.5" /> -₹{item.discount} Off
                           </span>
                         ) : (
                           <span className="text-[10px] text-emerald-600 font-bold">Full Paid</span>
@@ -1081,7 +1081,7 @@ export default function Payments() {
                             setReceiptMember(membersMap[item.memberId] || membersMap[item.phone] || null);
                           }}
                           className="px-2 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1 transition shadow-2xs cursor-pointer"
-                          title="View & Print Official Fee Receipt (रसीद देखें)"
+                          title="View & Print Official Fee Receipt"
                         >
                           <Receipt className="w-3.5 h-3.5 text-indigo-600" />
                           <span className="hidden sm:inline">Receipt</span>
@@ -1419,7 +1419,7 @@ export default function Payments() {
 
               <div>
                 <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide block mb-1">
-                  Amount Paying Now (₹ जमा राशि)
+                  Amount Paying Now (₹)
                 </label>
                 <input
                   type="number"
@@ -1444,7 +1444,7 @@ export default function Payments() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1">
-                    SELECT MEMBERSHIP PLAN (प्लान चुनें) *
+                    SELECT MEMBERSHIP PLAN *
                   </label>
                   <select
                     value={selectedPlanId}
@@ -1462,7 +1462,7 @@ export default function Payments() {
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1 flex items-center gap-1">
                     <Tag className="w-3.5 h-3.5 text-emerald-600" />
-                    DISCOUNT (छूट ₹)
+                    DISCOUNT (₹)
                   </label>
                   <input
                     type="number"
@@ -1482,7 +1482,7 @@ export default function Payments() {
                     Validity Period ({currentPlan.durationMonths} Month):
                   </span>
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-200/70 text-emerald-900 font-extrabold text-[11px]">
-                    {toIndianDate(validityStart)} से {validityEnd}
+                    {toIndianDate(validityStart)} to {validityEnd}
                   </span>
                 </div>
 
@@ -1536,7 +1536,7 @@ export default function Payments() {
               {/* Payment Type Selection (Full vs Partial) */}
               <div>
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1.5">
-                  PAYMENT TYPE (भुगतान प्रकार)
+                  PAYMENT TYPE
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
@@ -1548,7 +1548,7 @@ export default function Payments() {
                         : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                     }`}
                   >
-                    ● Full Payment (पूरा ₹{calculatedTotal})
+                    ● Full Payment (₹{calculatedTotal})
                   </button>
 
                   <button
@@ -1563,7 +1563,7 @@ export default function Payments() {
                         : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                     }`}
                   >
-                    ● Partial / Installment (किस्त)
+                    ● Partial / Installment
                   </button>
                 </div>
 
@@ -1589,7 +1589,7 @@ export default function Payments() {
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">REMAINING DUE (बाकी)</p>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">REMAINING DUE</p>
                     <p className={`text-sm font-black mt-0.5 ${remainingDue > 0 ? "text-rose-600" : "text-slate-700"}`}>
                       ₹{remainingDue}
                     </p>
@@ -1602,7 +1602,7 @@ export default function Payments() {
           {/* Payment Mode (Cash, UPI / QR, Bank, Split) */}
           <div>
             <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1.5">
-              PAYMENT MODE (भुगतान माध्यम) *
+              PAYMENT MODE *
             </label>
             <div className="grid grid-cols-4 gap-2">
               {[
@@ -1722,7 +1722,7 @@ export default function Payments() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-2">
-                Reason for Leaving (छोड़ने का कारण)
+                Reason for Leaving
               </label>
               <div className="space-y-2">
                 {[

@@ -736,7 +736,7 @@ export default function TrainerProfile() {
               <div>
                 <div className="flex items-center gap-2">
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-emerald-600" /> Trainer PT Packages (व्यक्तिगत प्रशिक्षण पैकेज)
+                    <Sparkles className="w-4 h-4 text-emerald-600" /> Trainer PT Packages
                   </h4>
                   <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-300 font-extrabold text-[10px] flex items-center gap-1">
                     <Lock className="w-3 h-3 text-slate-500" /> Fixed by Owner

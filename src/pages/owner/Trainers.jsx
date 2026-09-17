@@ -1246,7 +1246,7 @@ export default function Trainers() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
                 <div>
                   <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
-                    <HandCoins className="w-4 h-4 text-indigo-600" /> Gym Owner & Trainer PT Commission Deal (कमीशन समझौता)
+                    <HandCoins className="w-4 h-4 text-indigo-600" /> Gym Owner & Trainer PT Commission Deal
                   </h4>
                   <p className="text-[11px] text-slate-600 mt-0.5">
                     PT membership sale hone par Trainer dwara Gym Owner ko diya jane wala share:
@@ -1357,7 +1357,7 @@ export default function Trainers() {
               <div className="flex items-center justify-between mb-2.5">
                 <div>
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-emerald-600" /> Trainer PT Packages (व्यक्तिगत प्रशिक्षण पैकेज)
+                    <Sparkles className="w-4 h-4 text-emerald-600" /> Trainer PT Packages
                   </h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     Define custom membership & PT pricing packages specific to this trainer.
@@ -1397,7 +1397,7 @@ export default function Trainers() {
                     {/* Quick Duration Presets */}
                     <div>
                       <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1 mb-1.5">
-                        <Clock className="w-3 h-3 text-emerald-600" /> Quick Duration Presets (तुरंत पैकेज चुनें):
+                        <Clock className="w-3 h-3 text-emerald-600" /> Quick Duration Presets:
                       </label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                         {[
@@ -2335,7 +2335,7 @@ export default function Trainers() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
               <div>
                 <h4 className="text-xs font-black text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
-                  <HandCoins className="w-4 h-4 text-indigo-600" /> Gym Owner & Trainer PT Commission Deal (कमीशन समझौता)
+                  <HandCoins className="w-4 h-4 text-indigo-600" /> Gym Owner & Trainer PT Commission Deal
                 </h4>
                 <p className="text-[11px] text-slate-600 mt-0.5">
                   PT membership sale hone par Trainer dwara Gym Owner ko diya jane wala share:
@@ -2446,7 +2446,7 @@ export default function Trainers() {
             <div className="flex items-center justify-between mb-2.5">
               <div>
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-emerald-600" /> Trainer PT Packages (व्यक्तिगत प्रशिक्षण पैकेज)
+                  <Sparkles className="w-4 h-4 text-emerald-600" /> Trainer PT Packages
                 </h4>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   Customize fees and training packages specific to {editForm.name || "this trainer"}.
@@ -2486,7 +2486,7 @@ export default function Trainers() {
                   {/* Quick Duration Presets */}
                   <div>
                     <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1 mb-1.5">
-                      <Clock className="w-3 h-3 text-emerald-600" /> Quick Duration Presets (तुरंत पैकेज चुनें):
+                      <Clock className="w-3 h-3 text-emerald-600" /> Quick Duration Presets:
                     </label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                       {[

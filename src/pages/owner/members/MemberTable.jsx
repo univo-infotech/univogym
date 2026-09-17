@@ -69,7 +69,7 @@ export default function MemberTable({
             <th className="px-5 py-3.5 w-1/4 min-w-[260px] bg-emerald-50/30">
               <span className="flex items-center gap-1.5 text-emerald-800">
                 <Dumbbell className="w-3.5 h-3.5 text-emerald-600" />
-                <span>GYM MEMBERSHIP (जिम)</span>
+                <span>GYM MEMBERSHIP</span>
               </span>
             </th>
             <th className="px-5 py-3.5 w-1/4 min-w-[260px] bg-purple-50/30">
@@ -97,14 +97,14 @@ export default function MemberTable({
               const joinDate = formatDate(m.createdAt || m.joiningDate || m.joinDate);
               const isMemberLeft = isLeft(m);
 
-              // ΓöÇΓöÇΓöÇ 1. GYM MEMBERSHIP DETAILS & STATUS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+              // --- 1. GYM MEMBERSHIP DETAILS & STATUS ---
               const gymDays = getDaysRemaining(m.expiryDate);
               const gymDue = Number(m.dueAmount || 0);
               const gymStatus = getGymStatus(m);
               const gymPlanPrice = Number(m.planPrice || m.totalAmount || 2500);
               const gymPlanName = m.planName || 'Standard Gym Plan';
 
-              // ΓöÇΓöÇΓöÇ 2. PT MEMBERSHIP DETAILS & STATUS ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+              // --- 2. PT MEMBERSHIP DETAILS & STATUS ---
               const memberHasPt = hasPt(m);
               const isPtEnded = m.ptStatus === 'ended';
               const ptEndDate = m.ptEndDate || m.ptExpiryDate || (m.isPt ? m.expiryDate : null);

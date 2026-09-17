@@ -455,7 +455,7 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
             {/* Kab tak training deni hai Timeline Pill */}
             <div className="p-3 bg-slate-800/90 border border-slate-700 rounded-xl flex flex-col sm:items-end justify-center shrink-0">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-emerald-400" /> Training Timeline (कब तक ट्रेनिंग देनी है)
+                <Calendar className="w-3 h-3 text-emerald-400" /> Training Timeline
               </span>
               <p className="text-xs font-bold text-white mt-0.5">
                 {startDate} <span className="text-slate-400">to</span> <span className="text-emerald-400">{endDate}</span>
@@ -733,7 +733,7 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Quick Diet Presets (आसान डाइट टेम्प्लेट)
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Quick Diet Presets
                 </span>
                 <span className="text-[10px] text-slate-500">Click to instantly populate meals</span>
               </div>
@@ -832,13 +832,13 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
             {/* Meal-by-Meal Schedule Inputs */}
             <div className="space-y-3.5">
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <Apple className="w-4 h-4 text-emerald-600" /> Daily Meal Schedule (दिनभर का डाइट चार्ट)
+                <Apple className="w-4 h-4 text-emerald-600" /> Daily Meal Schedule
               </h4>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div className="p-3 bg-white border border-slate-200 rounded-2xl space-y-1">
                   <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-                    🍳 Meal 1: Breakfast (नाश्ता)
+                    🍳 Meal 1: Breakfast
                   </label>
                   <textarea
                     rows={2}
@@ -864,7 +864,7 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
 
                 <div className="p-3 bg-white border border-slate-200 rounded-2xl space-y-1">
                   <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-                    🍛 Meal 3: Lunch (दोपहर का खाना)
+                    🍛 Meal 3: Lunch
                   </label>
                   <textarea
                     rows={2}
@@ -903,7 +903,7 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
 
                 <div className="p-3 bg-white border border-slate-200 rounded-2xl space-y-1">
                   <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-                    🍲 Meal 6: Dinner (रात का खाना)
+                    🍲 Meal 6: Dinner
                   </label>
                   <textarea
                     rows={2}
@@ -951,7 +951,7 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
                 onClick={handleSendDietOnWhatsApp}
                 className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center justify-center gap-2 hover:bg-emerald-100 transition shadow-xs"
               >
-                <MessageCircle className="w-4 h-4 text-emerald-600" /> Send Diet Chart on WhatsApp (व्हाट्सएप भेजें)
+                <MessageCircle className="w-4 h-4 text-emerald-600" /> Send Diet Chart on WhatsApp
               </button>
 
               <button
@@ -960,7 +960,7 @@ _Push hard in every set, focus on form and progressive overload! See you at the 
                 onClick={handleSaveDiet}
                 className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition disabled:opacity-50"
               >
-                <Save className="w-4 h-4" /> {saving ? "Saving Diet..." : "Save Diet Plan (डाइट सेव करें)"}
+                <Save className="w-4 h-4" /> {saving ? "Saving Diet..." : "Save Diet Plan"}
               </button>
             </div>
           </div>

@@ -445,7 +445,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
               </div>
               <div>
                 <p className="font-bold text-xs text-emerald-950">
-                  {member.status === 'left' ? 'Member Rejoining (वापसी पर नई मेंबरशिप)' : 'New Membership Rejoin (नई मेंबरशिप शुरू करें)'}
+                  {member.status === 'left' ? 'Member Rejoining' : 'New Membership Rejoin'}
                 </p>
                 <p className="text-[11px] text-emerald-800 font-medium">
                   {member.name || member.fullName} gym me wapas shuru kar rahe hain. Naya plan chunein aur fee collect karke fresh validity start karein.
@@ -468,7 +468,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
                 ⚡
               </div>
               <div>
-                <p className="font-bold text-xs text-emerald-950">Membership Renewal (मेंबरशिप रिन्यू)</p>
+                <p className="font-bold text-xs text-emerald-950">Membership Renewal</p>
                 <p className="text-[11px] text-emerald-800 font-medium">
                   {memberStatus === 'ending_soon'
                     ? `Current plan ending soon on ${formatDate(member.expiryDate)}. New plan validity will start immediately from ${formatDate(validityStart)}.`
@@ -492,7 +492,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
                 ⚠️
               </div>
               <div>
-                <p className="font-bold text-xs text-amber-950">Pending Balance Due (पिछली बाकी फीस)</p>
+                <p className="font-bold text-xs text-amber-950">Pending Balance Due</p>
                 <p className="text-[11px] text-amber-800 font-medium">
                   Outstanding balance of <b className="text-amber-950 font-extrabold">₹{existingDueAmount}</b> for current plan ({member.planName || "Active Plan"}).
                 </p>
@@ -554,7 +554,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
               <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
-              SELECT MEMBERSHIP PLAN (प्लान चुनें) *
+              SELECT MEMBERSHIP PLAN *
             </label>
             <div className="relative">
               <select
@@ -575,7 +575,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
               <Tag className="w-3.5 h-3.5 text-emerald-600" />
-              SPECIAL DISCOUNT (छूट ₹)
+              SPECIAL DISCOUNT (₹)
             </label>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xs">₹</span>
@@ -689,7 +689,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-teal-600" />
               <span className="font-extrabold text-teal-950 text-xs">
-                Add-on Gym Services & Facilities (अतिरिक्त सेवाएं)
+                Add-on Gym Services & Facilities
               </span>
             </div>
             {selectedServices.length > 0 ? (
@@ -757,7 +757,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] font-extrabold text-emerald-950 uppercase tracking-wider block mb-1">
-                Validity Start Date (शुरू दिनांक) *
+                Validity Start Date *
               </label>
               <input
                 type="date"
@@ -769,7 +769,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
 
             <div>
               <label className="text-[10px] font-extrabold text-emerald-950 uppercase tracking-wider block mb-1">
-                Validity End / Due Date (समाप्ति / अगली फीस) *
+                Validity End / Due Date *
               </label>
               <input
                 type="text"
@@ -816,7 +816,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
         {/* Payment Type Selection (Full vs Partial) */}
         <div className="space-y-2">
           <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block">
-            PAYMENT TYPE (भुगतान प्रकार)
+            PAYMENT TYPE
           </label>
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -829,7 +829,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
               }`}
             >
               <CheckCircle className={`w-4 h-4 ${paymentType === "full" ? "text-white" : "text-slate-400"}`} />
-              Full Payment (पूरा ₹{calculatedTotal})
+              Full Payment (₹{calculatedTotal})
             </button>
 
             <button
@@ -845,7 +845,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
               }`}
             >
               <Split className={`w-4 h-4 ${paymentType === "partial" ? "text-white" : "text-slate-400"}`} />
-              Partial / Installment (किस्त)
+              Partial / Installment
             </button>
           </div>
 
@@ -853,7 +853,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
           {paymentType === "partial" && (
             <div className="p-3 bg-amber-500/10 border border-amber-300 rounded-xl space-y-1.5 animate-in fade-in duration-150">
               <label className="text-[11px] font-black text-amber-950 uppercase block">
-                Amount Paying Now (आज कितना जमा कर रहे हैं) *
+                Amount Paying Now *
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-amber-700">₹</span>
@@ -882,7 +882,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
 
             <div className={`p-2.5 rounded-xl border text-center transition ${remainingDue > 0 ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200"}`}>
               <p className={`text-[10px] font-bold uppercase tracking-wider ${remainingDue > 0 ? "text-rose-700" : "text-slate-500"}`}>
-                REMAINING DUE (बाकी)
+                REMAINING DUE
               </p>
               <p className={`text-sm font-black mt-0.5 ${remainingDue > 0 ? "text-rose-600" : "text-slate-700"}`}>
                 ₹{remainingDue}
@@ -894,7 +894,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
         {/* Payment Mode (Cash, UPI / QR, Bank, Split) */}
         <div className="space-y-1.5">
           <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block">
-            PAYMENT MODE (भुगतान माध्यम) *
+            PAYMENT MODE *
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[

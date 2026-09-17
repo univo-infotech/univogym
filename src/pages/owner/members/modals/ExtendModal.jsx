@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, CalendarPlus, Sparkles, IndianRupee, CheckCircle2, Split } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Modal from '../../../../components/ui/Modal';
@@ -144,7 +144,7 @@ export default function ExtendModal({ member, onClose, onSave, gymId }) {
 
       // 3. WhatsApp notification
       if (sendWhatsApp && phone) {
-        const msg = `≡ƒôà *Gym Membership Extended - ${settings.gymName || 'UNIVO GYM'}*\n\nHello *${memberName}*,\nYour gym membership has been extended by *+${extraDays} Days*!\n\n≡ƒùô∩╕Å *New Expiry Date:* ${newExpiryFormatted}\n≡ƒÆ░ *Extension Fee:* Γé╣${totalFee} ${isPayLater ? '(Pay Later)' : `(Paid via ${paymentMode.toUpperCase()})`}\n\nKeep up the fitness momentum! Stay active and fit! ≡ƒÆ¬≡ƒÅï∩╕Å`;
+        const msg = `📅 *Gym Membership Extended - ${settings.gymName || 'UNIVO GYM'}*\n\nHello *${memberName}*,\nYour gym membership has been extended by *+${extraDays} Days*!\n\n🗓️ *New Expiry Date:* ${newExpiryFormatted}\n💰 *Extension Fee:* ₹${totalFee} ${isPayLater ? '(Pay Later)' : `(Paid via ${paymentMode.toUpperCase()})`}\n\nKeep up the fitness momentum! Stay active and fit! 💪🏋️`;
         openWhatsApp(phone, msg);
       }
 
@@ -163,7 +163,7 @@ export default function ExtendModal({ member, onClose, onSave, gymId }) {
     <Modal
       isOpen={true}
       onClose={onClose}
-      title="Extend Membership Validity (αñªαñ┐αñ¿ αñåαñùαÑç αñ¼αÑ¥αñ╛αñÅαñé)"
+      title="Extend Membership Validity"
       maxWidth="max-w-md"
     >
       <form onSubmit={handleConfirm} className="space-y-4 text-slate-800 text-xs">
@@ -172,7 +172,7 @@ export default function ExtendModal({ member, onClose, onSave, gymId }) {
           <div>
             <p className="font-extrabold text-slate-900 text-sm">{member.name || member.fullName}</p>
             <p className="text-xs text-slate-500 mt-0.5">
-              ≡ƒô₧ {member.phone} ΓÇó {member.planName || 'General Plan'}
+              📞 {member.phone} • {member.planName || 'General Plan'}
             </p>
           </div>
           <div className="text-right">
@@ -186,7 +186,7 @@ export default function ExtendModal({ member, onClose, onSave, gymId }) {
         {/* Quick Days Selector Pills */}
         <div>
           <label className="block font-bold text-slate-700 mb-1.5 flex items-center justify-between">
-            <span>Select Extra Days to Add (αñàαññαñ┐αñ░αñ┐αñòαÑìαññ αñªαñ┐αñ¿ αñÜαÑüαñ¿αÑçαñé)</span>
+            <span>Select Extra Days to Add</span>
             <span className="text-emerald-700 font-extrabold text-[11px]">Popular: +10 Days</span>
           </label>
           <div className="grid grid-cols-4 gap-1.5">
@@ -236,7 +236,7 @@ export default function ExtendModal({ member, onClose, onSave, gymId }) {
         <div className="border-t border-slate-100 pt-3 space-y-3">
           <div className="flex items-center justify-between">
             <label className="font-bold text-slate-700">
-              Extension Fee (αñ½αÑÇαñ╕ αñ░αñ╛αñ╢αñ┐)
+              Extension Fee
             </label>
             <label className="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer select-none">
               <input
@@ -249,12 +249,12 @@ export default function ExtendModal({ member, onClose, onSave, gymId }) {
                 }}
                 className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
               />
-              <span>Free Extension (Γé╣0 αñ¿αñ┐αñ╢αÑüαñ▓αÑìαñò)</span>
+              <span>Free Extension (₹0)</span>
             </label>
           </div>
 
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">Γé╣</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
             <input
               type="number"
               min="0"
@@ -296,7 +296,7 @@ export default function ExtendModal({ member, onClose, onSave, gymId }) {
               {paymentMode === 'split' && (
                 <div className="grid grid-cols-2 gap-2 mt-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 mb-1">Cash Amount (Γé╣)</label>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1">Cash Amount (₹)</label>
                     <input
                       type="number"
                       placeholder="Cash"
@@ -306,7 +306,7 @@ export default function ExtendModal({ member, onClose, onSave, gymId }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-600 mb-1">Online Amount (Γé╣)</label>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1">Online Amount (₹)</label>
                     <input
                       type="number"
                       placeholder="UPI/Online"
