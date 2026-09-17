@@ -4,6 +4,7 @@ import {
   getDocs,
   getDoc,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   query,
@@ -14,13 +15,50 @@ import {
 import { db } from "./config";
 import { getCachedData, setCachedData, invalidateCache } from "../utils/dataCache";
 
+/**
+ * Helper to get local trainers cache
+ */
+export function getLocalTrainers() {
+  try {
+    const raw = localStorage.getItem("univo_recent_trainers");
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Helper to save local trainers cache
+ */
+export function saveLocalTrainer(trainer) {
+  try {
+    const list = getLocalTrainers();
+    const filtered = list.filter((t) => t.id !== trainer.id && (t.phone && trainer.phone ? t.phone !== trainer.phone : true));
+    localStorage.setItem("univo_recent_trainers", JSON.stringify([trainer, ...filtered].slice(0, 100)));
+  } catch (e) {
+    console.warn("Could not save to local trainers cache:", e);
+  }
+}
+
+/**
+ * Helper to remove from local trainers cache
+ */
+export function removeLocalTrainer(trainerId) {
+  try {
+    const list = getLocalTrainers().filter((t) => t.id !== trainerId);
+    localStorage.setItem("univo_recent_trainers", JSON.stringify(list));
+  } catch (e) {
+    console.warn("Could not remove from local trainers cache:", e);
+  }
+}
+
 export async function getTrainers(gymId, forceRefresh = false) {
   const targetGymId = gymId || "univo_main";
   const cacheKey = `trainers_${targetGymId}`;
 
   if (!forceRefresh) {
     const cached = getCachedData(cacheKey);
-    if (cached && cached.isFresh) {
+    if (cached && cached.isFresh && Array.isArray(cached.data) && cached.data.length > 0) {
       return cached.data;
     }
   }
@@ -55,19 +93,41 @@ export async function getTrainers(gymId, forceRefresh = false) {
     console.warn("Sub-collection trainers fetch error:", e2);
   }
 
+  // 3. Merge with locally persisted trainers (guarantees newly added trainer is NEVER lost)
+  try {
+    const local = getLocalTrainers();
+    if (Array.isArray(local) && local.length > 0) {
+      for (const lt of local) {
+        if (!seenIds.has(lt.id)) {
+          seenIds.add(lt.id);
+          list.unshift(lt);
+        } else {
+          const idx = list.findIndex((x) => x.id === lt.id);
+          if (idx >= 0) list[idx] = { ...list[idx], ...lt };
+        }
+      }
+    }
+  } catch (lErr) {
+    console.warn("Local trainer merge notice:", lErr);
+  }
+
   setCachedData(cacheKey, list);
   return list;
 }
 
 export async function getTrainer(gymId, trainerId) {
   if (!trainerId) return null;
-  // 1. Check top-level
+  // 1. Check local cache first for instant lookup
+  const local = getLocalTrainers().find((t) => t.id === trainerId);
+  if (local) return local;
+
+  // 2. Check top-level
   try {
     const snap1 = await getDoc(doc(db, "trainers", trainerId));
     if (snap1.exists()) return { id: snap1.id, ...snap1.data() };
   } catch (e) {}
 
-  // 2. Check sub-collection
+  // 3. Check sub-collection
   try {
     const snap2 = await getDoc(doc(db, "gyms", gymId || "univo_main", "trainers", trainerId));
     if (snap2.exists()) return { id: snap2.id, ...snap2.data() };
@@ -78,69 +138,129 @@ export async function getTrainer(gymId, trainerId) {
 
 export async function addTrainer(gymId, data) {
   const GID = gymId || "univo_main";
+  const nowIso = new Date().toISOString();
+  const docId = data.id || `tr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
   const payload = {
     ...data,
-    memberCount: 0,
-    rating: 5,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    id: docId,
+    gymId: GID,
+    memberCount: data.memberCount || 0,
+    rating: data.rating || 5,
+    createdAt: nowIso,
+    updatedAt: nowIso,
   };
 
-  // Add to top-level trainers
-  let docId = "";
-  try {
-    const ref1 = collection(db, "trainers");
-    const res1 = await addDoc(ref1, payload);
-    docId = res1.id;
-  } catch (e) {}
+  // 1. Immediately save to local storage & invalidate cache so all sections see it with 0ms lag
+  saveLocalTrainer(payload);
+  invalidateCache("trainers");
 
-  // Also sync to sub-collection
+  // 2. Add to top-level trainers collection
   try {
-    if (docId) {
-      await updateDoc(doc(db, "gyms", GID, "trainers", docId), payload).catch(() => {});
-    } else {
-      const ref2 = collection(db, "gyms", GID, "trainers");
-      const res2 = await addDoc(ref2, payload);
-      docId = res2.id;
+    await setDoc(doc(db, "trainers", docId), {
+      ...payload,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (e1) {
+    console.warn("Error saving to top-level trainers collection:", e1);
+  }
+
+  // 3. Add to gym sub-collection
+  try {
+    await setDoc(doc(db, "gyms", GID, "trainers", docId), {
+      ...payload,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (e2) {
+    console.warn("Error saving to gym sub-collection:", e2);
+  }
+
+  // 4. Create user account document in users collection so trainer can log in
+  if (data.email || data.loginEmail) {
+    try {
+      const email = data.email || data.loginEmail;
+      const password = data.password || data.loginPassword || "Coach@123";
+      await setDoc(doc(db, "users", docId), {
+        email,
+        password,
+        role: "trainer",
+        gymId: GID,
+        name: data.name || data.fullName,
+        profileId: docId,
+        status: "active",
+        createdAt: nowIso
+      }, { merge: true });
+    } catch (uErr) {
+      console.warn("Could not create user auth document for trainer:", uErr);
     }
-  } catch (e2) {}
+  }
 
   return docId;
 }
 
 export async function updateTrainer(gymId, trainerId, data) {
   const GID = gymId || "univo_main";
-  const payload = { ...data, updatedAt: serverTimestamp() };
+  const nowIso = new Date().toISOString();
+  const payload = { ...data, updatedAt: nowIso };
 
-  // Update top-level trainers
+  // 1. Update local cache immediately
+  const localList = getLocalTrainers();
+  const updatedLocal = localList.map((t) => (t.id === trainerId ? { ...t, ...payload } : t));
+  localStorage.setItem("univo_recent_trainers", JSON.stringify(updatedLocal));
+  invalidateCache("trainers");
+
+  // 2. Update top-level trainers
   try {
-    await updateDoc(doc(db, "trainers", trainerId), payload);
-  } catch (e) {
-    try {
-      const { setDoc } = await import("firebase/firestore");
-      await setDoc(doc(db, "trainers", trainerId), payload, { merge: true });
-    } catch (e2) {}
+    await setDoc(doc(db, "trainers", trainerId), {
+      ...payload,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (e1) {
+    console.warn("Error updating top-level trainer:", e1);
   }
 
-  // Update sub-collection
+  // 3. Update sub-collection
   try {
-    await updateDoc(doc(db, "gyms", GID, "trainers", trainerId), payload);
-  } catch (e3) {
+    await setDoc(doc(db, "gyms", GID, "trainers", trainerId), {
+      ...payload,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (e2) {
+    console.warn("Error updating gym sub-collection trainer:", e2);
+  }
+
+  // 4. If password or email updated, sync users doc
+  if (data.email || data.password) {
     try {
-      const { setDoc } = await import("firebase/firestore");
-      await setDoc(doc(db, "gyms", GID, "trainers", trainerId), payload, { merge: true });
-    } catch (e4) {}
+      await setDoc(doc(db, "users", trainerId), {
+        ...(data.email ? { email: data.email } : {}),
+        ...(data.password ? { password: data.password } : {}),
+        ...(data.name ? { name: data.name } : {}),
+        updatedAt: nowIso
+      }, { merge: true });
+    } catch (uErr) {}
   }
 }
 
 export async function deleteTrainer(gymId, trainerId) {
   const GID = gymId || "univo_main";
+
+  // 1. Remove from local cache immediately
+  removeLocalTrainer(trainerId);
+  invalidateCache("trainers");
+
+  // 2. Delete from Firestore
   try {
     await deleteDoc(doc(db, "trainers", trainerId));
-  } catch (e) {}
+  } catch (e1) {}
   try {
     await deleteDoc(doc(db, "gyms", GID, "trainers", trainerId));
   } catch (e2) {}
+  try {
+    await deleteDoc(doc(db, "users", trainerId));
+  } catch (e3) {}
 }
 
 export async function getTrainerMembers(gymId, trainerId, trainerName = "") {

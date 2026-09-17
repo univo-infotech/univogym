@@ -37,16 +37,23 @@ import {
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
-import { getTrainers, addTrainer, updateTrainer, deleteTrainer } from "../../firebase/trainers";
+import { getTrainers, addTrainer, updateTrainer, deleteTrainer, getLocalTrainers } from "../../firebase/trainers";
 import { getMembers } from "../../firebase/members";
 import { getStaff } from "../../firebase/staff";
 import { addExpense, getExpenses, updateExpense } from "../../firebase/expenses";
 import { useAuth } from "../../contexts/AuthContext";
+import { invalidateCache } from "../../utils/dataCache";
 import toast from "react-hot-toast";
 
 export default function Trainers() {
   const { gymId } = useAuth();
-  const [trainers, setTrainers] = useState([]);
+  const [trainers, setTrainers] = useState(() => {
+    try {
+      const local = getLocalTrainers();
+      if (Array.isArray(local) && local.length > 0) return local;
+    } catch (e) {}
+    return [];
+  });
   const [staffList, setStaffList] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -546,14 +553,17 @@ export default function Trainers() {
   };
 
   useEffect(() => {
+    let isMounted = true;
     async function load() {
       try {
+        const targetGymId = gymId || "univo_main";
         const [t, m, st] = await Promise.all([
-          getTrainers(gymId || "univo_main"),
-          getMembers(gymId || "univo_main"),
-          getStaff(gymId || "univo_main").catch(() => [])
+          getTrainers(targetGymId),
+          getMembers(targetGymId).catch(() => []),
+          getStaff(targetGymId).catch(() => [])
         ]);
 
+        if (!isMounted) return;
         setStaffList(st || []);
 
         const allMembers = m || [];
@@ -579,10 +589,10 @@ export default function Trainers() {
         setTrainers(enrichedTrainers);
       } catch (e) {
         console.warn("Could not load trainers/members:", e);
-        setTrainers([]);
       }
     }
-    if (gymId) load();
+    load();
+    return () => { isMounted = false; };
   }, [gymId]);
 
   const handleDelete = async (id) => {
@@ -686,7 +696,8 @@ export default function Trainers() {
         }
       }
 
-      setTrainers([{ ...newT, id: trainerId }, ...trainers]);
+      invalidateCache("trainers");
+      setTrainers((prev) => [{ ...newT, id: trainerId, membersCount: 0, assignedMembers: [] }, ...prev.filter(t => t.id !== trainerId)]);
       toast.success(
         salaryNum > 0
           ? `Trainer created! Monthly salary ₹${salaryNum.toLocaleString("en-IN")} schedule added to Gym Expenses.`
