@@ -550,7 +550,7 @@ export default function Payments() {
     }
 
     try {
-      await addPayment("univo_main", newRecord);
+      await addPayment(activeGymId, newRecord);
 
       // Auto-reactivate member upon renewal / fee collection
       const targetMemberId = selectedMember?.id || selectedMember?.memberId;
@@ -568,7 +568,7 @@ export default function Payments() {
             updatePayload.ptEndDate = validityEnd;
           }
         }
-        await updateMember("univo_main", targetMemberId, updatePayload);
+        await updateMember(activeGymId, targetMemberId, updatePayload);
       }
     } catch (e) {
       console.warn("Offline record stored:", e);
@@ -600,7 +600,54 @@ export default function Payments() {
    * 6. Paid: dueAmount === 0 and days > 3 (active and paid)
    */
   const classifiedItems = useMemo(() => {
-    return paymentsList.map((item) => {
+    // 1. Collect IDs and phones of members who already have recorded bills
+    const recordedMemberKeys = new Set();
+    paymentsList.forEach((p) => {
+      if (p.memberId) recordedMemberKeys.add(String(p.memberId));
+      if (p.phone) recordedMemberKeys.add(String(p.phone));
+    });
+
+    // 2. Synthesize initial bills for any member who does not have an explicit bill yet
+    const syntheticBills = (membersList || [])
+      .filter((m) => {
+        const idMatch = m.id && recordedMemberKeys.has(String(m.id));
+        const phoneMatch = m.phone && recordedMemberKeys.has(String(m.phone));
+        return !idMatch && !phoneMatch;
+      })
+      .map((m) => {
+        const planPrice = Number(m.totalAmount || m.planPrice || 2500);
+        const paid = Number(m.paidAmount || 0);
+        const due = m.dueAmount !== undefined ? Number(m.dueAmount) : Math.max(0, planPrice - paid);
+        const joinFormatted = m.joinDate ? toIndianDate(m.joinDate) : toIndianDate(m.createdAt || new Date());
+        const expiryFormatted = m.expiryDate ? toIndianDate(m.expiryDate) : toIndianDate(new Date());
+
+        return {
+          id: "bill_member_" + (m.id || Date.now()),
+          memberId: m.id || "",
+          memberName: m.fullName || m.name || "Member",
+          phone: m.phone || "",
+          slot: m.preferredTime || m.slot || "General Floor",
+          batch: "Direct Registration",
+          planName: m.planName || m.plan || "Membership Plan",
+          validityStart: joinFormatted,
+          validityEnd: expiryFormatted,
+          dueDate: expiryFormatted,
+          planPrice: planPrice,
+          discount: 0,
+          amount: planPrice,
+          paidAmount: paid,
+          dueAmount: due,
+          paymentMode: paid > 0 ? "cash" : "pending",
+          paymentType: due > 0 ? "partial" : "full",
+          date: joinFormatted,
+          status: due > 0 ? (paid > 0 ? "partial" : "pending") : "paid",
+          isSynthesized: true,
+        };
+      });
+
+    const allCombined = [...paymentsList, ...syntheticBills];
+
+    return allCombined.map((item) => {
       const days = getDaysRemaining(item.dueDate || item.validityEnd);
       const isMemberLeft =
         item.status === "left" ||
@@ -639,7 +686,7 @@ export default function Payments() {
 
       return { ...item, computedDays: days, dynamicStatus, isLeft: isMemberLeft };
     });
-  }, [paymentsList, membersMap]);
+  }, [paymentsList, membersMap, membersList]);
 
   // Tab counts
   const counts = useMemo(() => {
@@ -1098,11 +1145,11 @@ export default function Payments() {
                           </button>
                         )}
 
-                        {/* Renew Fee Button */}
-                        {!isLeft && (
+                        {/* Renew Fee Button - ONLY visible for ending_soon, expired, overdue, or due/pending */}
+                        {!isLeft && (item.dynamicStatus === "ending_soon" || item.dynamicStatus === "expired" || item.dynamicStatus === "overdue" || item.dynamicStatus === "partial" || Number(item.dueAmount) > 0 || item.status === "pending") && (
                           <button
                             onClick={() => handleOpenCollectModal(item, "renew")}
-                            className="px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-2xs"
+                            className="px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-2xs cursor-pointer"
                             title="Renew Membership"
                           >
                             Renew
@@ -1297,10 +1344,10 @@ export default function Payments() {
                         Collect Due
                       </button>
                     )}
-                    {!isLeft && (
+                    {!isLeft && (item.dynamicStatus === "ending_soon" || item.dynamicStatus === "expired" || item.dynamicStatus === "overdue" || item.dynamicStatus === "partial" || Number(item.dueAmount) > 0 || item.status === "pending") && (
                       <button
                         onClick={() => handleOpenCollectModal(item, "renew")}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition"
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition cursor-pointer"
                       >
                         Renew
                       </button>
