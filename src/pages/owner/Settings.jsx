@@ -37,7 +37,7 @@ import { load6MonthDummyData, clearAllGymData } from "../../firebase/seedData";
 import { useAuth } from "../../contexts/AuthContext";
 
 export default function Settings() {
-  const { gymId: authGymId } = useAuth();
+  const { gymId: authGymId, logoutUser } = useAuth();
   const gymId = authGymId || "univo_main";
   const [settings, setSettings] = useState(getGymSettings());
   const [signatureMode, setSignatureMode] = useState("draw"); // "draw" or "upload"
@@ -146,40 +146,23 @@ export default function Settings() {
     setDataLoading(true);
     setDeleteConfirmOpen(false);
     try {
-      toast.loading("Deleting all gym data and clearing database collections...", { id: "data_action" });
+      toast.loading("Full Clean: Wiping all database collections, resetting settings & logging out everywhere...", { id: "data_action" });
       const res = await clearAllGymData(gymId || "univo_main");
 
-      // Clear local storage caches directly
-      try {
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.startsWith("univo_") && key !== "univo_gym_settings") {
-            keysToRemove.push(key);
-          }
-        }
-        keysToRemove.push(
-          "univo_recent_members",
-          "univo_recent_payments",
-          "univo_invite_tokens",
-          "univo_recent_self_registered_members"
-        );
-        Array.from(new Set(keysToRemove)).forEach((k) => localStorage.removeItem(k));
-      } catch (storageErr) {
-        console.warn("Storage clear notice:", storageErr);
+      if (logoutUser) {
+        await logoutUser();
       }
 
       toast.success(
-        `All gym data cleared successfully (${res?.deletedCount || 0} records deleted). Database is now completely clean!`,
+        `Full Clean Complete (${res?.deletedCount || 0} records deleted)! Members, trainers, sections & settings completely reset. Logging out...`,
         { id: "data_action", duration: 4000 }
       );
       setTimeout(() => {
-        window.location.reload();
+        window.location.href = "/login";
       }, 1200);
     } catch (err) {
       console.error("Delete all data error:", err);
       toast.error("Failed to delete all data: " + err.message, { id: "data_action" });
-    } finally {
       setDataLoading(false);
     }
   };
@@ -767,26 +750,35 @@ export default function Settings() {
                 </span>
               </div>
               <h4 className="text-sm font-extrabold text-slate-900">
-                Delete All Gym Data
+                Full Clean & Factory Reset (Delete All Data)
               </h4>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Database ke sabhi members, payments, bills, supplements, equipment aur local cache ko completely wipe kar dega:
+                Gym ka pura data, sabhi sections, trainers, members, logins aur settings ko complete clean slate kar dega:
               </p>
-              <ul className="text-[11px] text-slate-600 space-y-1 pt-1 font-medium">
-                <li className="flex items-center gap-1.5 text-rose-900">
+              <ul className="text-[11px] text-slate-600 space-y-1.5 pt-1 font-medium">
+                <li className="flex items-center gap-1.5 text-rose-900 font-bold">
                   <Trash2 className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                  Sabhi Members & Registrations delete ho jayenge
+                  All Members, Personal Training & Registrations wiped
                 </li>
-                <li className="flex items-center gap-1.5 text-rose-900">
+                <li className="flex items-center gap-1.5 text-rose-900 font-bold">
                   <Trash2 className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                  All Payments, Subscriptions & Bills clear honge
+                  All Trainers & Staff accounts wiped & logged out
                 </li>
-                <li className="flex items-center gap-1.5 text-rose-900">
+                <li className="flex items-center gap-1.5 text-rose-900 font-bold">
                   <Trash2 className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                  Expenses, Stock, Visits aur Logs reset honge
+                  All Payments, Subscriptions, Expenses & POS Sales cleared
                 </li>
-                <li className="flex items-center gap-1.5 text-slate-500 italic">
-                  Gym profile details & login credentials safe rahenge.
+                <li className="flex items-center gap-1.5 text-rose-900 font-bold">
+                  <Trash2 className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  Stock, Visits, Attendance, Transformations & Complaints cleared
+                </li>
+                <li className="flex items-center gap-1.5 text-rose-900 font-bold">
+                  <Trash2 className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  Gym Settings, Logo, Signature & Customizations reset to default
+                </li>
+                <li className="flex items-center gap-1.5 text-rose-900 font-bold">
+                  <Trash2 className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  All active sessions forced to logout across all devices
                 </li>
               </ul>
             </div>
@@ -798,7 +790,7 @@ export default function Settings() {
               className="w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-2 transition disabled:opacity-50"
             >
               <Trash2 className="w-4 h-4" />
-              🗑️ Delete All Data (Clean Slate)
+              🗑️ Full Clean & Reset (Delete All)
             </button>
           </div>
         </div>
@@ -843,15 +835,21 @@ export default function Settings() {
       <Modal
         isOpen={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
-        title="⚠️ Delete All Gym Data Confirmation"
+        title="⚠️ Full Clean & Delete All Data Confirmation"
       >
         <div className="space-y-4 text-slate-800">
           <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5 text-xs text-rose-950">
             <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <div className="space-y-1 leading-relaxed">
-              <p className="font-extrabold text-rose-900">WARNING: This action cannot be undone!</p>
+            <div className="space-y-1.5 leading-relaxed">
+              <p className="font-extrabold text-rose-900 text-sm">WARNING: This will permanently wipe all gym data!</p>
               <p>
-                Kya aap waqai database ke sabhi members, payments, expenses, equipment aur sales record delete karna chahte hain?
+                Kya aap waqai pura gym database clean karna chahte hain?
+              </p>
+              <p className="text-[11px] text-rose-800 bg-rose-100/70 p-2 rounded-xl border border-rose-200">
+                • Sabhi <strong>Members</strong>, <strong>Trainers</strong>, aur <strong>Staff</strong> delete ho jayenge.<br />
+                • Sabhi <strong>Payments</strong>, <strong>Expenses</strong>, aur <strong>Stock/Sales</strong> wipe ho jayenge.<br />
+                • <strong>Gym Settings, Logo & Signature</strong> default reset honge.<br />
+                • Kisi bhi member ya trainer ki open ID hogi toh wo <strong>turant logout</strong> ho jayegi.
               </p>
             </div>
           </div>
@@ -871,7 +869,7 @@ export default function Settings() {
               className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5"
             >
               {dataLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-              Yes, Delete All Data
+              Yes, Clean Everything & Logout
             </button>
           </div>
         </div>

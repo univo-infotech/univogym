@@ -48,3 +48,15 @@ export function saveGymSettings(settings) {
     return false;
   }
 }
+
+export function resetGymSettings() {
+  try {
+    localStorage.setItem("univo_gym_settings", JSON.stringify(DEFAULT_SETTINGS));
+    return DEFAULT_SETTINGS;
+  } catch (e) {
+    console.error(e);
+    return DEFAULT_SETTINGS;
+  }
+}
+
+export { DEFAULT_SETTINGS };

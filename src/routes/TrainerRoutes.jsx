@@ -7,7 +7,16 @@ import TrainerProfile from "../pages/trainer/Profile";
 import TrainerAttendance from "../pages/trainer/Attendance";
 import TrainerReports from "../pages/trainer/Reports";
 
+import { useAuth } from "../contexts/AuthContext";
+
 export default function TrainerRoutes() {
+  const { role } = useAuth();
+  const hasTrainerSession = Boolean(localStorage.getItem("univo_trainer_session"));
+
+  if (!hasTrainerSession && role !== "owner") {
+    return <Navigate to="/login" replace />;
+  }
+
   return (
     <Layout role="trainer">
       <Routes>

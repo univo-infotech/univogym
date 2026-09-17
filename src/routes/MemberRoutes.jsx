@@ -9,7 +9,16 @@ import MemberPayments from "../pages/member/Payments";
 import MemberStore from "../pages/member/Store";
 import TrainerComplain from "../pages/member/TrainerComplain";
 
+import { useAuth } from "../contexts/AuthContext";
+
 export default function MemberRoutes() {
+  const { role } = useAuth();
+  const hasMemberSession = Boolean(localStorage.getItem("univo_member_session"));
+
+  if (!hasMemberSession && role !== "owner") {
+    return <Navigate to="/login" replace />;
+  }
+
   return (
     <Layout role="member">
       <Routes>

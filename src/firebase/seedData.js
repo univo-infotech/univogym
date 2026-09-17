@@ -4,9 +4,12 @@ import {
   getDocs,
   writeBatch,
   deleteDoc,
+  setDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { db } from "./config";
+import { signOut } from "firebase/auth";
+import { db, auth } from "./config";
+import { resetGymSettings } from "../utils/settings";
 
 /**
  * 6-MONTH REALISTIC GYM SEED DATA
@@ -15,42 +18,41 @@ import { db } from "./config";
  */
 
 export async function clearAllGymData(gymId = "univo_main") {
-  // 1. Clear all local storage caches related to gym data
-  try {
-    const keysToKeep = new Set(["univo_gym_settings", "firebase:authUser:"]);
-    const keysToRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith("univo_") && !keysToKeep.has(key)) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.push(
-      "univo_recent_members",
-      "univo_recent_payments",
-      "univo_invite_tokens",
-      "univo_recent_self_registered_members",
-      "univo_cached_plans",
-      "univo_cached_trainers"
-    );
-    Array.from(new Set(keysToRemove)).forEach((k) => localStorage.removeItem(k));
-    localStorage.setItem("univo_data_cleared", "true");
-  } catch (e) {
-    console.warn("Local storage clear notice:", e);
-  }
+  const targetGymIds = Array.from(new Set([gymId, "univo_main", "default"].filter(Boolean)));
+  let totalDeleted = 0;
 
-  // 2. Identify all targets to wipe (top-level collections + all gym IDs)
-  const targetGymIds = Array.from(new Set([gymId, "univo_main"].filter(Boolean)));
+  // 1. Identify all top-level & gym-scoped collections to wipe completely
   const collectionsToClear = [
+    // Top-level collections
     "members",
+    "trainers",
+    "staff",
     "payments",
+    "expenses",
+    "stock",
+    "equipment",
+    "supplements",
+    "supplement_sales",
+    "plans",
+    "services",
+    "visits",
+    "attendance",
+    "complaints",
+    "workoutPlans",
+    "beforeAfter",
+    "notifications",
+    "roles",
+    "chats",
+    "messages",
     "inviteTokens",
-    "attendance"
+    "users"
   ];
 
   for (const gId of targetGymIds) {
     collectionsToClear.push(
       `gyms/${gId}/members`,
+      `gyms/${gId}/trainers`,
+      `gyms/${gId}/staff`,
       `gyms/${gId}/payments`,
       `gyms/${gId}/expenses`,
       `gyms/${gId}/supplements`,
@@ -58,21 +60,45 @@ export async function clearAllGymData(gymId = "univo_main") {
       `gyms/${gId}/equipment`,
       `gyms/${gId}/stock`,
       `gyms/${gId}/visits`,
-      `gyms/${gId}/trainers`,
-      `gyms/${gId}/staff`,
       `gyms/${gId}/plans`,
       `gyms/${gId}/services`,
       `gyms/${gId}/workoutPlans`,
       `gyms/${gId}/beforeAfter`,
       `gyms/${gId}/notifications`,
       `gyms/${gId}/roles`,
-      `gyms/${gId}/attendance`
+      `gyms/${gId}/attendance`,
+      `gyms/${gId}/complaints`,
+      `gyms/${gId}/chats`,
+      `gyms/${gId}/messages`,
+      `gyms/${gId}/chatRooms`,
+      `gyms/${gId}/inviteTokens`,
+      `gyms/${gId}/settings`
     );
   }
 
+  // 2. Wipe subcollections for staff (leaves, payroll, salaryHistory) & chatRooms
+  for (const gId of targetGymIds) {
+    try {
+      const staffSnap = await getDocs(collection(db, `gyms/${gId}/staff`));
+      staffSnap.docs.forEach((d) => {
+        collectionsToClear.push(
+          `gyms/${gId}/staff/${d.id}/leaves`,
+          `gyms/${gId}/staff/${d.id}/payroll`,
+          `gyms/${gId}/staff/${d.id}/salaryHistory`
+        );
+      });
+    } catch (e) {}
+
+    try {
+      const chatSnap = await getDocs(collection(db, `gyms/${gId}/chatRooms`));
+      chatSnap.docs.forEach((d) => {
+        collectionsToClear.push(`gyms/${gId}/chatRooms/${d.id}/messages`);
+      });
+    } catch (e) {}
+  }
+
   // 3. Clear Firestore collections in chunks of 400 (never exceeding Firestore 500 batch limit)
-  let totalDeleted = 0;
-  for (const colPath of collectionsToClear) {
+  for (const colPath of Array.from(new Set(collectionsToClear))) {
     try {
       const snap = await getDocs(collection(db, colPath));
       if (!snap.empty) {
@@ -89,6 +115,53 @@ export async function clearAllGymData(gymId = "univo_main") {
       console.warn(`Could not clear collection ${colPath}:`, err.message);
     }
   }
+
+  // 4. Record global reset signal in Firestore for real-time cross-device forced logout
+  const nowTs = Date.now();
+  try {
+    await setDoc(doc(db, "system", "app_status"), {
+      lastResetAt: nowTs,
+      isReset: true,
+      resetAtIso: new Date().toISOString()
+    });
+  } catch (e) {
+    console.warn("Could not set system/app_status:", e);
+  }
+
+  for (const gId of targetGymIds) {
+    try {
+      await setDoc(doc(db, "gyms", gId, "system", "app_status"), {
+        lastResetAt: nowTs,
+        isReset: true,
+        resetAtIso: new Date().toISOString()
+      });
+    } catch (e) {}
+  }
+
+  // 5. Broadcast forced logout across all open browser tabs
+  try {
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      const channel = new BroadcastChannel("univo_session_channel");
+      channel.postMessage({ type: "FORCE_LOGOUT", timestamp: nowTs });
+      channel.close();
+    }
+  } catch (e) {}
+
+  // 6. Complete wipe of LocalStorage & SessionStorage + Reset Gym Settings to pristine default
+  try {
+    localStorage.clear();
+    sessionStorage.clear();
+    resetGymSettings();
+    localStorage.setItem("univo_force_logout", String(nowTs));
+    localStorage.setItem("univo_last_reset_seen", String(nowTs));
+  } catch (e) {
+    console.warn("Storage wipe notice:", e);
+  }
+
+  // 7. Sign out Firebase Auth so owner/all users are completely logged out
+  try {
+    await signOut(auth);
+  } catch (e) {}
 
   return { success: true, deletedCount: totalDeleted };
 }
