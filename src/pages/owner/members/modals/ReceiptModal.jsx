@@ -11,13 +11,15 @@ import {
   Phone,
   Clock,
   Dumbbell,
+  Sparkles,
+  Layers,
   X
 } from 'lucide-react';
 import Modal from '../../../../components/ui/Modal';
 import { getGymSettings } from '../../../../utils/settings';
 import { generatePaymentReceipt } from '../../../../utils/pdf';
 import { openWhatsApp } from '../../../../utils/whatsapp';
-import { formatDate, toIndianDate } from '../memberUtils';
+import { formatDate, toIndianDate, hasPt } from '../memberUtils';
 
 export default function ReceiptModal({ isOpen, onClose, payment, member }) {
   const receiptPrintRef = useRef(null);
@@ -43,11 +45,113 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
     ? `${payment.validityStart} to ${payment.validityEnd}`
     : (payment.validity || (member?.expiryDate ? `Till ${formatDate(member.expiryDate)}` : 'Active Validity'));
 
-  const totalAmount = Number(payment.amount || payment.planPrice || 0);
-  const paidAmount = Number(payment.paidAmount ?? (payment.amount || 0));
-  const dueAmount = Number(payment.dueAmount || 0);
+  // --- Financial Amounts ---
+  const totalPlanPrice = Number(payment.amount || payment.planPrice || member?.totalAmount || 0);
+  const paidAmount = Number(payment.paidAmount ?? (payment.amount || member?.paidAmount || 0));
+  const dueAmount = Number(payment.dueAmount ?? member?.dueAmount ?? 0);
   const discountAmount = Number(payment.discount || payment.discountAmount || 0);
   const isPartial = payment.status === 'partial' || dueAmount > 0;
+
+  // --- Itemized Breakdown: Base Gym, PT, Services ---
+  let ptPlanName = payment.ptPlanName || member?.ptPlanName;
+  let ptPrice = Number(payment.ptPlanPrice || payment.ptFee || member?.ptPlanPrice || 0);
+
+  // Fallback: If ptPrice is 0 and planName contains "+ PT", extract details
+  if (ptPrice === 0 && payment.planName && payment.planName.includes('+ PT')) {
+    const ptMatch = payment.planName.match(/\+\s*PT\s*\((.*?)\)/i);
+    if (ptMatch && ptMatch[1]) {
+      ptPlanName = ptPlanName || ptMatch[1].trim();
+      const ptCatalog = {
+        '1 Month 1-on-1 PT': 4500,
+        '3 Months Transformation PT': 12000,
+        '6 Months Elite PT': 21000,
+        'Annual Pro VIP PT': 36000
+      };
+      if (ptCatalog[ptPlanName]) {
+        ptPrice = ptCatalog[ptPlanName];
+      }
+    }
+  }
+
+  let servicesPrice = Number(payment.servicesPrice || payment.servicesTotalPrice || 0);
+  const selectedServices = Array.isArray(payment.selectedServices) ? payment.selectedServices : [];
+  if (servicesPrice === 0 && selectedServices.length > 0) {
+    servicesPrice = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+  }
+
+  // Base plan price fallback
+  let basePrice = Number(payment.planPrice || member?.planPrice || 0);
+  if (basePrice === 0 && payment.planName) {
+    const basePlanPart = payment.planName.split('+')[0].trim();
+    const baseCatalog = {
+      '1-Month Basic': 2500,
+      '3-Month Pro': 6500,
+      '6-Month Transformation': 11000,
+      'Annual Elite Plan': 18000
+    };
+    if (baseCatalog[basePlanPart]) {
+      basePrice = baseCatalog[basePlanPart];
+    }
+  }
+
+  const finalBasePrice = basePrice > 0
+    ? basePrice
+    : (ptPrice > 0 || servicesPrice > 0 ? Math.max(0, totalPlanPrice - ptPrice - servicesPrice) : totalPlanPrice);
+
+  const baseTitle = payment.planName
+    ? payment.planName.split('+')[0].trim()
+    : (member?.planName || 'Gym Membership Base Fee');
+
+  // Build itemized list of particulars
+  const items = [];
+
+  // 1. Base Membership Item
+  items.push({
+    id: 'base_plan',
+    icon: Dumbbell,
+    desc: `Base Membership: ${baseTitle}`,
+    period: validityText,
+    amount: finalBasePrice
+  });
+
+  // 2. Personal Training (PT) Item
+  if (ptPrice > 0 || ptPlanName || hasPt(member)) {
+    const ptAmount = ptPrice > 0 ? ptPrice : Math.max(0, totalPlanPrice - finalBasePrice - servicesPrice);
+    if (ptAmount > 0 || ptPlanName) {
+      items.push({
+        id: 'pt_package',
+        icon: Sparkles,
+        desc: `Personal Training (PT)${ptPlanName ? ` - ${ptPlanName}` : ''}`,
+        period: (payment.validityStart && payment.validityEnd)
+          ? `${payment.validityStart} to ${payment.validityEnd}`
+          : (member?.ptEndDate ? `Till ${formatDate(member?.ptEndDate)}` : validityText),
+        amount: ptAmount
+      });
+    }
+  }
+
+  // 3. Add-on Services Items
+  if (selectedServices.length > 0) {
+    selectedServices.forEach((s, idx) => {
+      items.push({
+        id: `service_${idx}`,
+        icon: Layers,
+        desc: `Add-on Service: ${s.name}${s.billingType ? ` (${s.billingType})` : ''}`,
+        period: validityText,
+        amount: Number(s.price || 0)
+      });
+    });
+  } else if (servicesPrice > 0 || (payment.planName && payment.planName.includes('Services ('))) {
+    const sMatch = payment.planName ? payment.planName.match(/\+\s*Services\s*\((.*?)\)/i) : null;
+    const sName = sMatch && sMatch[1] ? sMatch[1].trim() : 'Add-on Gym Services';
+    items.push({
+      id: 'service_bundle',
+      icon: Layers,
+      desc: `Add-on Service: ${sName}`,
+      period: validityText,
+      amount: servicesPrice
+    });
+  }
 
   const modeLabel = payment.paymentMode === 'split'
     ? `SPLIT (Cash: ₹${payment.cashAmount || 0} + Online: ₹${payment.onlineAmount || 0})`
@@ -69,13 +173,18 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
         validityStart: payment.validityStart,
         validityEnd: payment.validityEnd,
         planName: planTitle,
-        amount: totalAmount,
+        planPrice: finalBasePrice,
+        ptPlanPrice: ptPrice,
+        ptPlanName: ptPlanName,
+        servicesPrice,
+        amount: totalPlanPrice,
         paidAmount,
         dueAmount,
         discount: discountAmount,
         paymentMode: payment.paymentMode || payment.mode || 'cash',
         cashAmount: payment.cashAmount,
         onlineAmount: payment.onlineAmount,
+        selectedServices: payment.selectedServices,
         remarks: payment.remarks || payment.notes,
       }, settings);
     } catch (e) {
@@ -86,7 +195,7 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
 
   const handleWhatsApp = () => {
     if (!memberPhone || memberPhone === '—') return;
-    const msg = `🧾 *Official Gym Fee Receipt - ${gymName}*\n\nHello *${memberName}*,\nThank you for your payment! Here are your membership billing details:\n\n📋 *Receipt No:* ${receiptNo}\n🗓️ *Date:* ${payDate}\n💪 *Plan:* ${planTitle}\n📅 *Validity:* ${validityText}\n💰 *Total Fee:* ₹${totalAmount.toLocaleString('en-IN')}\n✅ *Amount Paid:* ₹${paidAmount.toLocaleString('en-IN')} (${modeLabel})\n${dueAmount > 0 ? `⚠️ *Remaining Due:* ₹${dueAmount.toLocaleString('en-IN')}\n` : '✨ *Status:* FULLY CLEARED & PAID\n'}\nThank you for choosing ${gymName}! Stay fit, stay strong! 💪🏋️`;
+    const msg = `🧾 *Official Gym Fee Receipt - ${gymName}*\n\nHello *${memberName}*,\nThank you for your payment! Here are your membership billing details:\n\n📋 *Receipt No:* ${receiptNo}\n🗓️ *Date:* ${payDate}\n🏋️ *Base Plan:* ${baseTitle} (₹${finalBasePrice.toLocaleString('en-IN')})\n${ptPrice > 0 ? `✨ *Personal Training (PT):* ${ptPlanName || '1-on-1 PT'} (+₹${ptPrice.toLocaleString('en-IN')})\n` : ''}${servicesPrice > 0 ? `🛠️ *Add-on Services:* +₹${servicesPrice.toLocaleString('en-IN')}\n` : ''}📅 *Validity:* ${validityText}\n💰 *Total Package Fee:* ₹${totalPlanPrice.toLocaleString('en-IN')}\n✅ *Amount Paid:* ₹${paidAmount.toLocaleString('en-IN')} (${modeLabel})\n${dueAmount > 0 ? `⚠️ *Remaining Due:* ₹${dueAmount.toLocaleString('en-IN')}\n` : '✨ *Status:* FULLY CLEARED & PAID\n'}\nThank you for choosing ${gymName}! Stay fit, stay strong! 💪🏋️`;
     openWhatsApp(memberPhone, msg);
   };
 
@@ -186,7 +295,7 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
             </div>
           </div>
 
-          {/* Particulars Table */}
+          {/* Particulars Table (Itemized breakdown) */}
           <div className="rounded-xl border border-slate-200 overflow-hidden mb-4">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100/90 text-slate-700 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
@@ -197,22 +306,32 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-800">
-                <tr>
-                  <td className="px-4 py-3 font-semibold">
-                    {planTitle}
-                    {payment.notes && (
-                      <p className="text-[10px] text-slate-400 font-normal mt-0.5">
-                        Note: {payment.notes}
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600 font-medium whitespace-nowrap">
-                    {validityText}
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold text-slate-900">
-                    ₹{totalAmount.toLocaleString('en-IN')}
-                  </td>
-                </tr>
+                {items.map((item) => {
+                  const ItemIcon = item.icon || Dumbbell;
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/60 transition">
+                      <td className="px-4 py-3 font-semibold text-slate-900">
+                        <div className="flex items-center gap-2">
+                          <ItemIcon className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>{item.desc}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 font-medium whitespace-nowrap">
+                        {item.period}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-slate-900">
+                        ₹{Number(item.amount).toLocaleString('en-IN')}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {payment.notes && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-2 text-[10px] text-slate-400 font-normal bg-slate-50/40">
+                      Note: {payment.notes}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -235,21 +354,33 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
               </p>
             </div>
 
-            {/* Financial Totals Calculation Box */}
+            {/* Financial Totals Calculation Box (Itemized Summary matching PDF) */}
             <div className="space-y-1.5 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
               <div className="flex justify-between text-slate-600">
                 <span>Plan Base Fee:</span>
-                <span className="font-semibold">₹{totalAmount.toLocaleString('en-IN')}</span>
+                <span className="font-semibold">₹{finalBasePrice.toLocaleString('en-IN')}</span>
               </div>
+              {ptPrice > 0 && (
+                <div className="flex justify-between text-purple-700 font-semibold">
+                  <span>Personal Training (PT):</span>
+                  <span>+₹{ptPrice.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              {servicesPrice > 0 && (
+                <div className="flex justify-between text-indigo-700 font-semibold">
+                  <span>Add-on Services:</span>
+                  <span>+₹{servicesPrice.toLocaleString('en-IN')}</span>
+                </div>
+              )}
               {discountAmount > 0 && (
                 <div className="flex justify-between text-emerald-700 font-semibold">
                   <span>Special Discount:</span>
                   <span>-₹{discountAmount.toLocaleString('en-IN')}</span>
                 </div>
               )}
-              <div className="flex justify-between text-slate-900 font-extrabold pt-1 border-t border-slate-200">
-                <span>Total Payable:</span>
-                <span>₹{(totalAmount - discountAmount).toLocaleString('en-IN')}</span>
+              <div className="flex justify-between text-slate-900 font-extrabold pt-1 border-t border-slate-200 text-xs">
+                <span>Total Package Bill:</span>
+                <span>₹{totalPlanPrice.toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between text-emerald-700 font-black text-sm bg-emerald-100/60 p-1.5 rounded-lg">
                 <span>Amount Paid:</span>
@@ -257,7 +388,7 @@ export default function ReceiptModal({ isOpen, onClose, payment, member }) {
               </div>
               {dueAmount > 0 && (
                 <div className="flex justify-between text-rose-700 font-bold bg-rose-50 p-1.5 rounded-lg border border-rose-200">
-                  <span>Remaining Due:</span>
+                  <span>Pending Balance Due:</span>
                   <span>₹{dueAmount.toLocaleString('en-IN')}</span>
                 </div>
               )}
