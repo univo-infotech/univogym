@@ -39,6 +39,7 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
     { id: "trainers", to: "/owner/trainers", label: "Trainers", icon: Dumbbell },
     { id: "staff", to: "/owner/staff", label: "Staff", icon: UserCheck },
     { id: "memberships", to: "/owner/memberships", label: "Memberships & Plans", icon: CreditCard },
+    { id: "payments", to: "/owner/payments", label: "Fee Collection & Payments", icon: Receipt },
     { id: "services", to: "/owner/services", label: "Services", icon: Star },
     { id: "stock", to: "/owner/stock", label: "Stock & Equipment", icon: Package },
     { id: "expenses", to: "/owner/expenses", label: "Expenses & Utility", icon: DollarSign },

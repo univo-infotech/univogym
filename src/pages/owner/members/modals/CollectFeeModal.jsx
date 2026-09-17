@@ -347,6 +347,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
     };
 
     try {
+      const isPTNow = isTrainerSelected && Number(selectedPtPrice) > 0;
       // 1. Update Member in Firestore & UI
       const updatedFields = {
         ...(hasPartialPaymentDue ? {} : { 
@@ -354,10 +355,18 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
           planPrice: currentPlan.price,
           trainerName: selectedTrainerName,
           trainerId: selectedTrainerObj?.id || member.trainerId || '',
-          hasPersonalCoach: isTrainerSelected && Number(selectedPtPrice) > 0,
-          ptPlanId: selectedPtPlanId,
-          ptPlanName: selectedPtPlanName,
-          ptPlanPrice: Number(selectedPtPrice || 0),
+          hasPersonalCoach: isPTNow,
+          isPt: isPTNow || Boolean(member.isPt),
+          isPTMember: isPTNow || Boolean(member.isPTMember),
+          ...(isPTNow ? {
+            ptStatus: "active",
+            ptPlanId: selectedPtPlanId,
+            ptPlanName: selectedPtPlanName,
+            ptPlanPrice: Number(selectedPtPrice || 0),
+            loginEmail: member.loginEmail || member.email || phone,
+            loginPassword: member.loginPassword || member.password || "Member@123",
+            password: member.password || member.loginPassword || "Member@123",
+          } : {}),
           selectedServices: selectedServices.map((s) => ({
             id: s.id,
             name: s.name,

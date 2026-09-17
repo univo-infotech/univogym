@@ -18,7 +18,7 @@ import { getTrainers } from '../../firebase/trainers';
 import { getPlans } from '../../firebase/plans';
 import { getAllPayments } from '../../firebase/payments';
 import { useAuth } from '../../contexts/AuthContext';
-import { getSessionCachedData } from '../../utils/dataCache';
+import { getSessionCachedData, setCachedData } from '../../utils/dataCache';
 
 // Member utilities (Single Source of Truth)
 import {
@@ -54,11 +54,12 @@ import DirectAddMemberModal from '../../components/shared/DirectAddMemberModal';
 export default function Members() {
   const navigate = useNavigate();
   const { gymId } = useAuth();
+  const targetGymId = gymId || 'univo_main';
 
   // Data state with session cache initialization
-  const [members, setMembers] = useState(() => getSessionCachedData('members_' + gymId) || []);
-  const [trainers, setTrainers] = useState(() => getSessionCachedData('trainers_' + gymId) || []);
-  const [plans, setPlans] = useState(() => getSessionCachedData('plans_' + gymId) || []);
+  const [members, setMembers] = useState(() => getSessionCachedData('members_' + targetGymId) || []);
+  const [trainers, setTrainers] = useState(() => getSessionCachedData('trainers_' + targetGymId) || []);
+  const [plans, setPlans] = useState(() => getSessionCachedData('plans_' + targetGymId) || []);
   const [loading, setLoading] = useState(false);
 
   // View, search, and tab state
@@ -120,6 +121,9 @@ export default function Members() {
         setMembers(reconciledMembers);
         setTrainers(trainersData || []);
         setPlans(plansData || []);
+        setCachedData('members_' + targetGymId, reconciledMembers);
+        setCachedData('trainers_' + targetGymId, trainersData || []);
+        setCachedData('plans_' + targetGymId, plansData || []);
       } catch (err) {
         console.error('Failed to load members data:', err);
         toast.error('Failed to load member data');

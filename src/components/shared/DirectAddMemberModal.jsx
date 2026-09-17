@@ -389,6 +389,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       trainerName: formData.trainerName,
       trainerId: selectedTrainerObj?.id || "",
       hasPersonalCoach: isPersonalTrainer,
+      isPt: isPersonalTrainer,
       isPTMember: isPersonalTrainer,
       // Portal Access Credentials - ONLY created when member opts for PT
       loginEmail: isPersonalTrainer

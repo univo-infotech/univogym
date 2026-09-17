@@ -42,6 +42,7 @@ export default function OwnerRoutes() {
         <Route path="dashboard" element={<PermissionRoute moduleId="dashboard"><OwnerDashboard /></PermissionRoute>} />
         <Route path="members" element={<PermissionRoute moduleId="members"><Members /></PermissionRoute>} />
         <Route path="members/:memberId" element={<PermissionRoute moduleId="members"><MemberDetail /></PermissionRoute>} />
+        <Route path="payments" element={<PermissionRoute moduleId="payments"><Payments /></PermissionRoute>} />
         <Route path="trainers" element={<PermissionRoute moduleId="trainers"><Trainers /></PermissionRoute>} />
         <Route path="trainers/:trainerId" element={<PermissionRoute moduleId="trainers"><TrainerDetail /></PermissionRoute>} />
         <Route path="staff" element={<PermissionRoute moduleId="staff"><Staff /></PermissionRoute>} />
