@@ -8,7 +8,7 @@ import { getGymSettings } from '../../../../utils/settings';
 import { openWhatsApp, generatePtAddonReceiptMessage } from '../../../../utils/whatsapp';
 import Modal from '../../../../components/ui/Modal';
 import { invalidateCache } from '../../../../utils/dataCache';
-import { toDate, formatDate, getName, getPhone, hasPt } from '../memberUtils';
+import { toDate, formatDate, getName, getPhone, hasPt, toIndianDate } from '../memberUtils';
 
 export default function AddPtPackageModal({ member, gymId, onClose, onSave, trainers = [], plans = [] }) {
   const settings = getGymSettings();
@@ -123,20 +123,6 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
 
   const activeDurationDays = isCustomDays ? (Number(customDays) || 30) : Number(durationDays || 30);
   const remainingDue = Math.max(0, (Number(totalFee) || 0) - (Number(payingNow) || 0));
-
-  const toIndianDate = (dateStr) => {
-    if (!dateStr) return "";
-    if (dateStr.includes("/")) return dateStr;
-    const parts = dateStr.split("-");
-    if (parts.length === 3) {
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-    const d = new Date(dateStr);
-    if (!isNaN(d.getTime())) {
-      return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
-    }
-    return dateStr;
-  };
 
   const handleActivatePT = async (withWhatsApp = true) => {
     const feeNum = Number(totalFee) || 0;

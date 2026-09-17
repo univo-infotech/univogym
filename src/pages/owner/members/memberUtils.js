@@ -36,17 +36,37 @@ export function fmtCountdown(sec) {
   return `${m}:${s}`;
 }
 
-/** Format Indian date string DD/MM/YYYY from YYYY-MM-DD. */
-export function toIndianDate(dateStr) {
-  if (!dateStr) return '';
-  if (dateStr.includes('/')) return dateStr;
-  const parts = dateStr.split('-');
-  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  const d = new Date(dateStr);
+/** Format Indian date string DD/MM/YYYY from Date, Timestamp, or String. */
+export function toIndianDate(val) {
+  if (!val) return '';
+  // 1. Handle Date object
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    return `${String(val.getDate()).padStart(2, '0')}/${String(val.getMonth() + 1).padStart(2, '0')}/${val.getFullYear()}`;
+  }
+  // 2. Handle Firestore Timestamp or object
+  if (typeof val === 'object') {
+    if (typeof val.toDate === 'function') {
+      const d = val.toDate();
+      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    }
+    if (val.seconds) {
+      const d = new Date(val.seconds * 1000);
+      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+    }
+  }
+  // 3. Handle string
+  const str = String(val).trim();
+  if (!str) return '';
+  if (str.includes('/')) return str;
+  if (str.includes('-')) {
+    const parts = str.split('T')[0].split('-');
+    if (parts.length === 3) return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
+  }
+  const d = new Date(str);
   if (!isNaN(d.getTime())) {
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   }
-  return dateStr;
+  return str;
 }
 
 // ─── Field Normalizers (handle inconsistent field names in one place) ─────────

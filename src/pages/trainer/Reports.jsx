@@ -46,8 +46,20 @@ import toast from "react-hot-toast";
 
 function normalizeDate(dStr) {
   if (!dStr) return "";
-  if (dStr.includes("/")) {
-    const parts = dStr.split("/");
+  if (typeof dStr === "object") {
+    if (dStr.toDate && typeof dStr.toDate === "function") {
+      return dStr.toDate().toISOString().split("T")[0];
+    }
+    if (dStr.seconds) {
+      return new Date(dStr.seconds * 1000).toISOString().split("T")[0];
+    }
+    if (dStr instanceof Date && !isNaN(dStr.getTime())) {
+      return dStr.toISOString().split("T")[0];
+    }
+  }
+  const s = String(dStr).trim();
+  if (s.includes("/")) {
+    const parts = s.split("/");
     if (parts.length === 3) {
       const day = parts[0].padStart(2, "0");
       const month = parts[1].padStart(2, "0");
@@ -55,7 +67,7 @@ function normalizeDate(dStr) {
       return `${year}-${month}-${day}`;
     }
   }
-  return dStr.slice(0, 10);
+  return s.slice(0, 10);
 }
 
 export default function TrainerReports() {

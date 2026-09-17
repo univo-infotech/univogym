@@ -45,6 +45,7 @@ import { getGymSettings } from "../../utils/settings";
 import { openWhatsApp, generatePtAddonReceiptMessage } from "../../utils/whatsapp";
 import { invalidateCache } from "../../utils/dataCache";
 import { calculateBmi, parseHeightToMeters } from "../../utils/bmi";
+import { toIndianDate } from "./members/memberUtils";
 import Modal from "../../components/ui/Modal";
 import { collection, getDocs, query } from "firebase/firestore";
 import { db } from "../../firebase/config";
@@ -336,11 +337,6 @@ export default function MemberDetail() {
     const computedEndDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
     const billId = "bill_pt_" + Date.now();
-    const toIndianDate = (dateStr) => {
-      if (!dateStr) return "";
-      const p = dateStr.split("-");
-      return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : dateStr;
-    };
 
     const newPaymentRecord = {
       id: billId,

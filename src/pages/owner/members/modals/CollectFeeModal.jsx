@@ -302,9 +302,12 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
     let newExpiryIso;
     if (hasPartialPaymentDue && member.expiryDate) {
       newExpiryIso = member.expiryDate;
-    } else if (validityEnd && validityEnd.includes("/")) {
+    } else if (validityEnd && typeof validityEnd === "string" && validityEnd.includes("/")) {
       const [d, m, y] = validityEnd.split("/");
       newExpiryIso = new Date(`${y}-${m}-${d}T23:59:59.000Z`).toISOString();
+    } else if (validityEnd) {
+      const d = new Date(validityEnd);
+      newExpiryIso = !isNaN(d.getTime()) ? d.toISOString() : new Date(Date.now() + currentPlan.durationDays * 24 * 60 * 60 * 1000).toISOString();
     } else {
       newExpiryIso = new Date(Date.now() + currentPlan.durationDays * 24 * 60 * 60 * 1000).toISOString();
     }
