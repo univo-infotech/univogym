@@ -20,13 +20,23 @@ import {
   ShieldCheck,
   Scale,
   Sparkles,
-  Sun
+  Sun,
+  UserCheck,
+  Banknote,
+  Smartphone,
+  Building2,
+  Split,
+  Receipt
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getMember, updateMember } from "../../firebase/members";
 import { getMemberPayments, addPayment } from "../../firebase/payments";
+import { getTrainers } from "../../firebase/trainers";
+import { getPlans } from "../../firebase/plans";
 import { generatePaymentReceipt } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
+import { openWhatsApp, generatePtAddonReceiptMessage } from "../../utils/whatsapp";
+import { invalidateCache } from "../../utils/dataCache";
 import Modal from "../../components/ui/Modal";
 import { collection, getDocs, query } from "firebase/firestore";
 import { db } from "../../firebase/config";
@@ -47,7 +57,10 @@ export default function MemberDetail() {
   const [member, setMember] = useState(null);
   const [payments, setPayments] = useState([]);
   const [transformations, setTransformations] = useState([]);
+  const [trainers, setTrainers] = useState([]);
+  const [plans, setPlans] = useState([]);
   const [payModalOpen, setPayModalOpen] = useState(false);
+  const [ptModalOpen, setPtModalOpen] = useState(false);
   const [settings] = useState(getGymSettings());
 
   const [payForm, setPayForm] = useState({
@@ -56,6 +69,20 @@ export default function MemberDetail() {
     dueAmount: "0",
     paymentMode: "online",
     date: new Date().toISOString().split("T")[0],
+  });
+
+  const [ptForm, setPtForm] = useState({
+    trainerId: "",
+    packageName: "1 Month 1-on-1 PT",
+    startDate: new Date().toISOString().split("T")[0],
+    durationDays: 30,
+    totalFee: "3500",
+    payingNow: "3500",
+    paymentMode: "online",
+    referenceId: "",
+    hasCommission: false,
+    commissionType: "percentage",
+    commissionValue: "30",
   });
 
   useEffect(() => {
@@ -91,6 +118,25 @@ export default function MemberDetail() {
             waiverSignedDate: new Date().toISOString()
           };
           setMember(fallbackMem);
+        }
+
+        // Load trainers
+        try {
+          const tList = await getTrainers("univo_main");
+          if (tList && tList.length > 0) {
+            setTrainers(tList);
+            setPtForm(prev => ({ ...prev, trainerId: tList[0].id }));
+          }
+        } catch (tErr) {
+          console.warn("Notice loading trainers:", tErr);
+        }
+
+        // Load plans
+        try {
+          const pList = await getPlans("univo_main");
+          if (pList) setPlans(pList);
+        } catch (pErr) {
+          console.warn("Notice loading plans:", pErr);
         }
 
         // Load payments
@@ -183,6 +229,112 @@ export default function MemberDetail() {
     toast.success("Payment recorded & membership reactivated!");
   };
 
+  const handleActivatePT = async (withWhatsApp = true) => {
+    const feeNum = Number(ptForm.totalFee) || 0;
+    const paidNum = Number(ptForm.payingNow) || 0;
+    const remainingDue = Math.max(0, feeNum - paidNum);
+
+    if (feeNum <= 0) {
+      toast.error("Please enter a valid PT package fee");
+      return;
+    }
+
+    const selTrainer = trainers.find(t => t.id === ptForm.trainerId) || trainers[0];
+    const trainerName = selTrainer ? (selTrainer.name || selTrainer.fullName) : (member.trainerName || "Assigned Coach");
+
+    // Calculate PT end date
+    const parts = ptForm.startDate.split("-").map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    d.setDate(d.getDate() + Number(ptForm.durationDays || 30));
+    const computedEndDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+    const billId = "bill_pt_" + Date.now();
+    const toIndianDate = (dateStr) => {
+      if (!dateStr) return "";
+      const p = dateStr.split("-");
+      return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : dateStr;
+    };
+
+    const newPaymentRecord = {
+      id: billId,
+      memberId: targetMemberId,
+      memberName: member.name || member.fullName,
+      phone: member.phone || "",
+      planName: `Personal Training (PT) - ${ptForm.packageName}`,
+      planType: "PT",
+      trainerId: selTrainer?.id || "",
+      trainerName,
+      amount: feeNum,
+      paidAmount: paidNum,
+      dueAmount: remainingDue,
+      paymentMode: ptForm.paymentMode,
+      reference: ptForm.referenceId || "",
+      validityStart: toIndianDate(ptForm.startDate),
+      validityEnd: toIndianDate(computedEndDate),
+      dueDate: toIndianDate(computedEndDate),
+      date: toIndianDate(new Date().toISOString().split("T")[0]),
+      status: remainingDue > 0 ? "partial" : "paid",
+      remarks: `Mid-month 1-on-1 PT package (${ptForm.durationDays} Days) with Coach ${trainerName}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      await addPayment("univo_main", newPaymentRecord);
+
+      const updatedFields = {
+        isPt: true,
+        hasPersonalCoach: true,
+        ptStatus: "active",
+        trainerId: selTrainer?.id || "",
+        trainerName,
+        ptPlanName: ptForm.packageName,
+        ptPlanPrice: feeNum,
+        ptStartDate: ptForm.startDate,
+        ptEndDate: computedEndDate,
+        ptDurationDays: Number(ptForm.durationDays || 30),
+        ptCommissionType: ptForm.hasCommission ? ptForm.commissionType : null,
+        ptCommissionValue: ptForm.hasCommission ? Number(ptForm.commissionValue || 0) : 0,
+        dueAmount: Number(member.dueAmount || 0) + remainingDue,
+        paidAmount: Number(member.paidAmount || 0) + paidNum,
+        lastPaymentDate: new Date().toISOString(),
+      };
+
+      await updateMember("univo_main", targetMemberId, updatedFields);
+      invalidateCache("payments");
+      invalidateCache("members");
+
+      setMember(prev => ({ ...prev, ...updatedFields }));
+      setPayments(prev => [newPaymentRecord, ...prev]);
+
+      toast.success(`PT Package activated for ${member.name || member.fullName}! Transaction recorded.`);
+
+      const receiptLink = `${window.location.origin}/#/receipt/${billId}`;
+      if (withWhatsApp && member.phone) {
+        const msg = generatePtAddonReceiptMessage({
+          memberName: member.name || member.fullName,
+          gymName: settings.gymName,
+          ptPlanName: ptForm.packageName,
+          trainerName,
+          startDate: toIndianDate(ptForm.startDate),
+          expiryDate: toIndianDate(computedEndDate),
+          durationDays: ptForm.durationDays,
+          amount: feeNum,
+          paidAmount: paidNum,
+          dueAmount: remainingDue,
+          paymentMode: ptForm.paymentMode,
+          billId,
+          receiptLink,
+        });
+        openWhatsApp(member.phone, msg);
+      }
+
+      setPtModalOpen(false);
+    } catch (err) {
+      console.error("Error activating PT package:", err);
+      toast.error("Failed to activate PT package");
+    }
+  };
+
   const initials = (member.name || member.fullName || "?")
     .split(" ")
     .map(w => w[0])
@@ -247,6 +399,15 @@ export default function MemberDetail() {
           >
             <MessageCircle className="w-4 h-4" /> WhatsApp Chat
           </button>
+          {member.ptStatus !== 'active' && (
+            <button
+              onClick={() => setPtModalOpen(true)}
+              className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+              title="Bich month me 1-on-1 PT package aur coach add karein"
+            >
+              <Sparkles className="w-4 h-4 text-purple-200" /> + Add PT Package
+            </button>
+          )}
           <button
             onClick={() => setPayModalOpen(true)}
             className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-sm"
@@ -618,6 +779,172 @@ export default function MemberDetail() {
             Save Payment & Generate Receipt
           </button>
         </form>
+      </Modal>
+
+      {/* Add Mid-Month PT Package Modal */}
+      <Modal isOpen={ptModalOpen} onClose={() => setPtModalOpen(false)} title={`✨ Add PT Package & Bill — ${member.name || member.fullName}`} maxWidth="max-w-xl">
+        <div className="space-y-4 text-slate-800 text-xs">
+          {/* Reassurance Banner */}
+          <div className="p-3 rounded-2xl bg-purple-50 border border-purple-200 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl">🏋️</span>
+              <div>
+                <p className="font-extrabold text-xs text-purple-950">1-on-1 Personal Training Add-on</p>
+                <p className="text-[11px] text-purple-800 font-medium">
+                  Current gym plan ({member.planName}) valid till {formatDate(member.expiryDate)} remains active. PT package starts from selected date.
+                </p>
+              </div>
+            </div>
+            <span className="px-2 py-1 rounded-md bg-purple-600 text-white font-extrabold text-[10px]">
+              Mid-Month PT
+            </span>
+          </div>
+
+          {/* Coach Selector */}
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">
+              Select Personal Coach / Trainer *
+            </label>
+            <select
+              value={ptForm.trainerId}
+              onChange={(e) => setPtForm({ ...ptForm, trainerId: e.target.value })}
+              className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 font-bold text-xs text-slate-900"
+            >
+              {trainers.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name || t.fullName} {t.specialization ? `(${t.specialization})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Package Preset & Name */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">PT Package Name</label>
+              <input
+                type="text"
+                value={ptForm.packageName}
+                onChange={(e) => setPtForm({ ...ptForm, packageName: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 font-bold text-xs"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">PT Start Date (Date of Taking PT)</label>
+              <input
+                type="date"
+                value={ptForm.startDate}
+                onChange={(e) => setPtForm({ ...ptForm, startDate: e.target.value })}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 font-bold text-xs"
+              />
+            </div>
+          </div>
+
+          {/* Duration Chips */}
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">Duration (Days)</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {[15, 30, 60, 90, 180, 365].map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setPtForm({ ...ptForm, durationDays: d })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                    Number(ptForm.durationDays) === d
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {d >= 30 ? `${d / 30} Month(s)` : `${d} Days`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Billing & Transaction */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="font-bold text-slate-700 block text-[11px] mb-1">Total PT Fee (₹)</label>
+                <input
+                  type="number"
+                  value={ptForm.totalFee}
+                  onChange={(e) => setPtForm({ ...ptForm, totalFee: e.target.value, payingNow: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-300 font-black text-xs"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block text-[11px] mb-1">Paying Now (₹)</label>
+                <input
+                  type="number"
+                  value={ptForm.payingNow}
+                  onChange={(e) => setPtForm({ ...ptForm, payingNow: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-lg bg-white border border-emerald-300 font-black text-xs text-emerald-900"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block text-[11px] mb-1">Remaining Due (₹)</label>
+                <div className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-200 font-black text-xs text-slate-700 flex items-center justify-between">
+                  <span>₹{Math.max(0, (Number(ptForm.totalFee) || 0) - (Number(ptForm.payingNow) || 0))}</span>
+                  {(Number(ptForm.totalFee) || 0) > (Number(ptForm.payingNow) || 0) && (
+                    <span className="text-[9px] px-1 rounded bg-amber-100 text-amber-900 font-bold">DUE</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div>
+                <label className="font-bold text-slate-700 block text-[11px] mb-1">Payment Mode</label>
+                <select
+                  value={ptForm.paymentMode}
+                  onChange={(e) => setPtForm({ ...ptForm, paymentMode: e.target.value })}
+                  className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-300 font-bold text-xs"
+                >
+                  <option value="online">Online UPI</option>
+                  <option value="cash">Cash</option>
+                  <option value="bank">Bank Transfer</option>
+                </select>
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block text-[11px] mb-1">UPI Ref / UTR (Optional)</label>
+                <input
+                  type="text"
+                  value={ptForm.referenceId}
+                  onChange={(e) => setPtForm({ ...ptForm, referenceId: e.target.value })}
+                  placeholder="e.g. 6271829..."
+                  className="w-full px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setPtModalOpen(false)}
+              className="px-3 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => handleActivatePT(false)}
+              className="px-3.5 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs shadow-sm hover:bg-black transition"
+            >
+              Record ₹{ptForm.payingNow} Only
+            </button>
+            <button
+              type="button"
+              onClick={() => handleActivatePT(true)}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-700 text-white font-extrabold text-xs shadow-md hover:from-purple-700 hover:to-indigo-800 transition flex items-center gap-1.5"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-300" />
+              Activate & WhatsApp Bill (₹{ptForm.payingNow})
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

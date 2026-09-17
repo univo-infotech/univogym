@@ -131,6 +131,8 @@ export async function addPayment(gymIdOrPayment, maybePayment) {
   const assignedId = paymentRecord.id || "bill_" + Date.now();
   paymentRecord.id = assignedId;
   saveLocalPayment(paymentRecord);
+  invalidateCache("payments");
+  invalidateCache("members");
 
   try {
     const ref = await addDoc(collection(db, "payments"), {

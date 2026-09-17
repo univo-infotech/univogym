@@ -91,3 +91,44 @@ export function generateSupplementSaleReceiptMessage({
   msg += `Stay fit, healthy and keep crushing your fitness goals! 🔥💪\n— *${gym}*`;
   return msg;
 }
+
+export function generatePtAddonReceiptMessage({
+  memberName = "Athlete",
+  gymName = "",
+  ptPlanName = "1-on-1 PT Package",
+  trainerName = "Personal Trainer",
+  startDate = "",
+  expiryDate = "",
+  durationDays = 30,
+  amount = 0,
+  paidAmount = 0,
+  dueAmount = 0,
+  paymentMode = "Cash",
+  billId = "",
+  receiptLink = ""
+}) {
+  const settings = getGymSettings();
+  const gym = gymName || settings.gymName || "UNIVO GYM MANAGEMENT";
+  const dateStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+  let msg = `🧾 *OFFICIAL PERSONAL TRAINING (PT) BILL & RECEIPT*\n*${gym}*\n\n`;
+  msg += `Dear *${memberName}*,\nCongratulations on starting your dedicated 1-on-1 Personal Training Transformation with *Coach ${trainerName}*! Here are your official package & billing details:\n\n`;
+  msg += `🏋️ *Personal Coach:* Coach ${trainerName}\n`;
+  msg += `📋 *PT Package:* ${ptPlanName}\n`;
+  if (startDate) msg += `📅 *PT Start Date:* ${startDate}\n`;
+  if (expiryDate) msg += `🎯 *PT Valid Till:* ${expiryDate} (${durationDays} Days)\n`;
+  msg += `💰 *Total Package Fee:* ₹${Number(amount).toLocaleString("en-IN")}\n`;
+  msg += `✅ *Amount Paid:* ₹${Number(paidAmount).toLocaleString("en-IN")} (${paymentMode.toUpperCase()})\n`;
+  if (Number(dueAmount) > 0) {
+    msg += `⚠️ *Balance Due:* ₹${Number(dueAmount).toLocaleString("en-IN")}\n`;
+  } else {
+    msg += `✨ *Payment Status:* VERIFIED & PAID IN FULL\n`;
+  }
+  if (billId) msg += `🔖 *Bill / Invoice No:* #${billId}\n`;
+  msg += `📅 *Receipt Date:* ${dateStr}\n\n`;
+  if (receiptLink) {
+    msg += `📄 *View & Download Digital Bill Online:*\n${receiptLink}\n\n`;
+  }
+  msg += `Gym floor access remains active as per your membership. Stay dedicated and crush your fitness goals! 🔥💪\n— *${gym}*`;
+  return msg;
+}
