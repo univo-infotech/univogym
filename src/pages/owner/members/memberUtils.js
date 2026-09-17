@@ -189,7 +189,7 @@ export function isPaid(m) {
 
 /** Does member have a partial payment due? */
 export function isPartial(m) {
-  return Number(m?.dueAmount || 0) > 0 && !!m?.lastPaymentDate;
+  return Number(m?.dueAmount || 0) > 0 && (!!m?.lastPaymentDate || Number(m?.paidAmount || 0) > 0 || m?.paymentStatus === 'partial' || m?.status === 'partial');
 }
 
 /** Is member marked as Left? */

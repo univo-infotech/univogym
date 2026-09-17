@@ -27,7 +27,8 @@ import {
   isLeft,
   hasPt,
   getGymStatus,
-  getPtStatus
+  getPtStatus,
+  isPartial
 } from './memberUtils';
 
 export default function MemberGrid({
@@ -296,7 +297,26 @@ export default function MemberGrid({
 
             {/* Bottom Actions Bar */}
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-              {gymDue > 0 ? (
+              {isPartial(m) ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onCollect(m)}
+                    className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
+                    title={`Collect Remaining Due: ₹${gymDue.toLocaleString('en-IN')}`}
+                  >
+                    <IndianRupee size={12} /> Due
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onReceipt && onReceipt(m)}
+                    className="p-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold inline-flex items-center transition"
+                    title="View Receipt"
+                  >
+                    <Receipt size={12} />
+                  </button>
+                </div>
+              ) : gymDue > 0 ? (
                 <button
                   type="button"
                   onClick={() => onCollect(m)}

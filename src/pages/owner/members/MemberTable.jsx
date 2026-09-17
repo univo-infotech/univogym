@@ -31,6 +31,7 @@ import {
   hasPt,
   getGymStatus,
   getPtStatus,
+  isPartial,
   toIndianDate
 } from './memberUtils';
 
@@ -100,6 +101,7 @@ export default function MemberTable({
               // --- 1. GYM MEMBERSHIP DETAILS & STATUS ---
               const gymDays = getDaysRemaining(m.expiryDate);
               const gymDue = Number(m.dueAmount || 0);
+              const isPartialMember = isPartial(m);
               const gymStatus = getGymStatus(m);
               const gymPlanPrice = Number(m.planPrice || m.totalAmount || 2500);
               const gymPlanName = m.planName || 'Standard Gym Plan';
@@ -367,8 +369,28 @@ export default function MemberTable({
                   ========================================================= */}
                   <td className="px-5 py-4 align-top text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1 flex-wrap">
-                      {/* Collect Fee when unpaid/due, else Receipt when paid */}
-                      {gymDue > 0 ? (
+                      {/* Billing Action: Collect (Start/Unpaid), Due (Partial), Receipt (Fully Paid) */}
+                      {isPartialMember ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => onCollect(m)}
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
+                            title={`Collect Remaining Due: ₹${gymDue.toLocaleString('en-IN')}`}
+                          >
+                            <IndianRupee size={13} />
+                            <span className="hidden sm:inline">Due</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onReceipt && onReceipt(m)}
+                            className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs inline-flex items-center transition shadow-xs cursor-pointer"
+                            title="View Official Fee Receipt & WhatsApp"
+                          >
+                            <Receipt size={13} className="text-indigo-600" />
+                          </button>
+                        </div>
+                      ) : gymDue > 0 ? (
                         <button
                           type="button"
                           onClick={() => onCollect(m)}
