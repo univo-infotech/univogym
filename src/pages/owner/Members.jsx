@@ -20,15 +20,6 @@ import { getAllPayments } from '../../firebase/payments';
 import { useAuth } from '../../contexts/AuthContext';
 import { getSessionCachedData } from '../../utils/dataCache';
 
-// WhatsApp helpers
-import {
-  openWhatsApp,
-  generateRenewalReminderMessage,
-  generatePtRenewalReminderMessage,
-  generatePartialDueReminderMessage,
-  generateOverdueReminderMessage
-} from '../../utils/whatsapp';
-
 // Member utilities (Single Source of Truth)
 import {
   toDate,
@@ -385,47 +376,6 @@ export default function Members() {
     setMembers((prev) => prev.filter((m) => m.id !== memberId));
   }, []);
 
-  // ─── WhatsApp Reminder Action ───────────────────────────────────────────────
-  const handleSendIndividualReminder = useCallback((m) => {
-    const rawNum = (m.phone || '').replace(/\D/g, '');
-    const name = getName(m);
-    if (!rawNum) {
-      toast.error(`No valid phone number for ${name}`);
-      return;
-    }
-
-    const stat = getMemberStatus(m);
-    let message = '';
-    const expiry = toDate(m.expiryDate);
-    const diff = expiry ? Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24)) : 0;
-    const daysOverdue = Math.abs(diff);
-
-    const planTitle = m.ptPlanName
-      ? `${m.planName || 'Gym'} + 1-on-1 PT (${m.ptPlanName})`
-      : (m.planName || 'Gym Plan');
-
-    const totalPlanAmount = (Number(m.planPrice || 0) + Number(m.ptPlanPrice || 0)) || '2,500';
-
-    if (Number(m.dueAmount || 0) > 0 && !!m.lastPaymentDate) {
-      message = generatePartialDueReminderMessage(name, m.dueAmount, planTitle);
-    } else if (hasPt(m) && (!m.planName || m.ptPlanName)) {
-      message = generatePtRenewalReminderMessage(
-        name,
-        m.ptPlanName || '1-on-1 PT Plan',
-        m.trainerName || 'Assigned Coach',
-        formatDate(m.expiryDate),
-        totalPlanAmount
-      );
-    } else if (stat === 'due' || stat === 'overdue') {
-      message = generateOverdueReminderMessage(name, planTitle, daysOverdue, totalPlanAmount);
-    } else {
-      message = generateRenewalReminderMessage(name, planTitle, formatDate(m.expiryDate), totalPlanAmount);
-    }
-
-    openWhatsApp(rawNum, message);
-    toast.success(`WhatsApp reminder opened for ${name}`);
-  }, []);
-
   // ─── Unified Action Handlers passed to Table / Grid ────────────────────────
   const actionHandlers = useMemo(() => ({
     onView: (m) => navigate(`/owner/members/${m.id}`),
@@ -439,9 +389,8 @@ export default function Members() {
     onAddPt: (m) => setPtAddonMember(m),
     onRestartPt: handleRestartPT,
     onReturn: handleReactivate,
-    onDelete: (m) => setDeleteTargetMember(m),
-    onWhatsApp: handleSendIndividualReminder
-  }), [navigate, handleRestartPT, handleReactivate, handleSendIndividualReminder]);
+    onDelete: (m) => setDeleteTargetMember(m)
+  }), [navigate, handleRestartPT, handleReactivate]);
 
   return (
     <div className="space-y-6">

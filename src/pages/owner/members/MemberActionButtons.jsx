@@ -9,8 +9,7 @@ import {
   Edit,
   LogOut,
   UserX,
-  Trash2,
-  MessageCircle
+  Trash2
 } from 'lucide-react';
 import {
   getGymStatus,
@@ -39,8 +38,7 @@ export default function MemberActionButtons({
   onAddPt,
   onRestartPt,
   onReturn,
-  onDelete,
-  onWhatsApp
+  onDelete
 }) {
   const gStatus = getGymStatus(member);
   const pStatus = getPtStatus(member);
@@ -184,19 +182,7 @@ export default function MemberActionButtons({
         </button>
       )}
 
-      {/* 5. WhatsApp Reminder Button */}
-      {onWhatsApp && (
-        <button
-          onClick={() => onWhatsApp(member)}
-          className={`inline-flex items-center gap-1 rounded-lg bg-green-50 hover:bg-green-100 text-green-700 font-bold border border-green-200 transition shadow-xs ${btnBase}`}
-          title="Send WhatsApp Reminder"
-        >
-          <MessageCircle className="w-3.5 h-3.5 text-green-600" />
-          <span className={isGrid ? 'inline' : 'hidden xl:inline'}>WA</span>
-        </button>
-      )}
-
-      {/* 6. Lifecycle Actions (Left / Return / End / Restart PT / +PT) */}
+      {/* 5. Lifecycle Actions (Left / Return / End / +PT) */}
       {isLeftMember ? (
         onGymRenew && (
           <button
