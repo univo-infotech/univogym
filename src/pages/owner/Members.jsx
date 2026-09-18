@@ -312,10 +312,11 @@ export default function Members() {
     );
 
     if (createdPayment) {
+      setPayments((prev) => [createdPayment, ...(prev || [])]);
       setReceiptPayment(createdPayment);
       setMembers((prev) => {
         const found = prev.find((m) => m.id === memberId);
-        setReceiptMember(found || null);
+        setReceiptMember(found ? { ...found, ...newFields } : { id: memberId, ...newFields });
         return prev;
       });
     }
@@ -327,10 +328,11 @@ export default function Members() {
     );
 
     if (createdPayment) {
+      setPayments((prev) => [createdPayment, ...(prev || [])]);
       setReceiptPayment(createdPayment);
       setMembers((prev) => {
         const found = prev.find((m) => m.id === memberId);
-        setReceiptMember(found || updatedFields);
+        setReceiptMember(found ? { ...found, ...updatedFields } : { id: memberId, ...updatedFields });
         return prev;
       });
     }

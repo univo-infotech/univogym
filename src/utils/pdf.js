@@ -46,10 +46,26 @@ export function generatePaymentReceipt(payment, customSettings = null) {
     (payment.planName && payment.planName.toLowerCase().startsWith("personal training") && !payment.planName.includes("+"))
   );
 
+  const isExtensionBill = Boolean(
+    payment.isExtension ||
+    (payment.planName && payment.planName.includes("Extended"))
+  );
+
+  const isDueBill = Boolean(
+    payment.isDueSettlement ||
+    (payment.planName && payment.planName.includes("Due Balance Settlement"))
+  );
+
+  let docTitle = "OFFICIAL MEMBERSHIP RECEIPT & TAX INVOICE";
+  if (isPtBill) docTitle = "OFFICIAL PERSONAL TRAINING (PT) TAX INVOICE";
+  else if (isExtensionBill) docTitle = "OFFICIAL MEMBERSHIP EXTENSION TAX INVOICE";
+  else if (isDueBill) docTitle = "OFFICIAL DUE BALANCE SETTLEMENT RECEIPT";
+  else if (payment.isRenewal || payment.planName?.includes("Renewal")) docTitle = "OFFICIAL MEMBERSHIP RENEWAL TAX INVOICE";
+
   doc.setTextColor(30, 41, 59);
   doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
-  doc.text(isPtBill ? "OFFICIAL PERSONAL TRAINING (PT) TAX INVOICE" : "OFFICIAL MEMBERSHIP RECEIPT & TAX INVOICE", 105, 38, { align: "center" });
+  doc.text(docTitle, 105, 38, { align: "center" });
 
   // 3. Receipt Meta box
   doc.setDrawColor(226, 232, 240);
@@ -117,18 +133,31 @@ export function generatePaymentReceipt(payment, customSettings = null) {
   const ptPrice = Number(payment.ptPlanPrice || payment.ptFee || 0);
   const servicesPrice = Number(payment.servicesPrice || payment.servicesTotalPrice || 0);
 
-  // 1) Base Plan or Dedicated PT Item
+  // 1) Base Plan or Dedicated PT/Extension/Due Item
   if (isPtBill) {
     items.push({
       desc: `Personal Training (PT) - ${payment.ptPlanName || payment.planName?.replace(/^Personal Training \(PT\) - /i, '') || "1-on-1 PT"}${payment.trainerName ? ` (Coach: ${payment.trainerName})` : ""}`,
       period: validityText,
       amount: totalPlanPrice
     });
+  } else if (isExtensionBill) {
+    items.push({
+      desc: `Validity Extension - ${payment.planName || "Membership Extension"}`,
+      period: validityText,
+      amount: totalPlanPrice
+    });
+  } else if (isDueBill) {
+    items.push({
+      desc: `Due Balance Settlement - ${payment.planName?.replace('Due Balance Settlement - ', '') || "Gym Membership"}`,
+      period: validityText,
+      amount: totalPlanPrice
+    });
   } else {
-    const baseTitle = payment.planName ? payment.planName.split("+")[0].trim() : "Gym Membership Base Fee";
+    const isRen = payment.isRenewal || payment.planName?.includes('Renewal');
+    const baseTitle = payment.planName ? payment.planName.split("+")[0].replace('Gym Membership Renewal - ', '').trim() : "Gym Membership Base Fee";
     const finalBasePrice = basePrice > 0 ? basePrice : Math.max(0, totalPlanPrice - ptPrice - servicesPrice);
     items.push({
-      desc: `Base Membership: ${baseTitle}`,
+      desc: `${isRen ? 'Gym Renewal: ' : 'Base Membership: '}${baseTitle}`,
       period: validityText,
       amount: finalBasePrice
     });
@@ -190,8 +219,16 @@ export function generatePaymentReceipt(payment, customSettings = null) {
     doc.text("PT Package Fee:", 120, summaryY);
     doc.text(`Rs. ${totalPlanPrice.toLocaleString("en-IN")}`, 172, summaryY);
     summaryY += 5;
+  } else if (isExtensionBill) {
+    doc.text("Extension Fee:", 120, summaryY);
+    doc.text(`Rs. ${totalPlanPrice.toLocaleString("en-IN")}`, 172, summaryY);
+    summaryY += 5;
+  } else if (isDueBill) {
+    doc.text("Settled Due Amount:", 120, summaryY);
+    doc.text(`Rs. ${totalPlanPrice.toLocaleString("en-IN")}`, 172, summaryY);
+    summaryY += 5;
   } else {
-    doc.text("Plan Base Fee:", 120, summaryY);
+    doc.text(payment.isRenewal || payment.planName?.includes('Renewal') ? "Renewal Base Fee:" : "Plan Base Fee:", 120, summaryY);
     doc.text(`Rs. ${finalBasePrice.toLocaleString("en-IN")}`, 172, summaryY);
     summaryY += 5;
 

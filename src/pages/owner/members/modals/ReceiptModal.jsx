@@ -13,6 +13,7 @@ import {
   Dumbbell,
   Sparkles,
   Layers,
+  RotateCcw,
   X
 } from 'lucide-react';
 import Modal from '../../../../components/ui/Modal';
@@ -65,12 +66,27 @@ export default function ReceiptModal({
   const receiptNo = currentPayment.receiptNo || currentPayment.receiptNumber || currentPayment.id || `REC-${Date.now().toString().slice(-6)}`;
   const payDate = currentPayment.date || (currentPayment.createdAt ? formatDate(currentPayment.createdAt) : toIndianDate(new Date()));
 
-  // Identify whether this payment is a standalone Personal Training (PT) bill
+  // Bill Classification
   const isPtBill = Boolean(
     currentPayment.isPtOnly ||
     currentPayment.planType === 'PT' ||
     (Number(currentPayment.ptPlanPrice || 0) > 0 && Number(currentPayment.planPrice || 0) === 0) ||
     (currentPayment.planName && currentPayment.planName.toLowerCase().startsWith('personal training') && !currentPayment.planName.includes('+'))
+  );
+
+  const isExtensionBill = Boolean(
+    currentPayment.isExtension ||
+    (currentPayment.planName && currentPayment.planName.includes('Extended'))
+  );
+
+  const isDueBill = Boolean(
+    currentPayment.isDueSettlement ||
+    (currentPayment.planName && currentPayment.planName.includes('Due Balance Settlement'))
+  );
+
+  const isRenewalBill = Boolean(
+    currentPayment.isRenewal ||
+    (currentPayment.planName && currentPayment.planName.includes('Renewal'))
   );
 
   const coachName = currentPayment.trainerName || member?.trainerName || '';
@@ -80,18 +96,17 @@ export default function ReceiptModal({
     ? `${currentPayment.validityStart} to ${currentPayment.validityEnd}`
     : (currentPayment.validity || (member?.expiryDate ? `Till ${formatDate(member.expiryDate)}` : 'Active Validity'));
 
-  // --- Financial Amounts ---
+  // Financial Amounts
   const totalPlanPrice = Number(currentPayment.amount || currentPayment.planPrice || member?.totalAmount || 0);
   const paidAmount = Number(currentPayment.paidAmount ?? (currentPayment.amount || member?.paidAmount || 0));
   const dueAmount = Number(currentPayment.dueAmount ?? member?.dueAmount ?? 0);
   const discountAmount = Number(currentPayment.discount || currentPayment.discountAmount || 0);
   const isPartial = currentPayment.status === 'partial' || dueAmount > 0;
 
-  // --- Itemized Breakdown: Base Gym, PT, Services ---
+  // Itemized Breakdown: Base Gym, PT, Services
   let ptPlanName = currentPayment.ptPlanName || member?.ptPlanName;
   let ptPrice = Number(currentPayment.ptPlanPrice || currentPayment.ptFee || (isPtBill ? totalPlanPrice : (member?.ptPlanPrice || 0)));
 
-  // Fallback: If ptPrice is 0 and planName contains "+ PT", extract details
   if (ptPrice === 0 && currentPayment.planName && currentPayment.planName.includes('+ PT')) {
     const ptMatch = currentPayment.planName.match(/\+\s*PT\s*\((.*?)\)/i);
     if (ptMatch && ptMatch[1]) {
@@ -114,10 +129,10 @@ export default function ReceiptModal({
     servicesPrice = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
   }
 
-  // Base plan price fallback
-  let basePrice = Number(currentPayment.planPrice || (isPtBill ? 0 : (member?.planPrice || 0)));
-  if (basePrice === 0 && currentPayment.planName && !isPtBill) {
-    const basePlanPart = currentPayment.planName.split('+')[0].trim();
+  // Base plan price
+  let basePrice = Number(currentPayment.planPrice || ((isPtBill || isExtensionBill || isDueBill) ? 0 : (member?.planPrice || 0)));
+  if (basePrice === 0 && currentPayment.planName && !isPtBill && !isExtensionBill && !isDueBill) {
+    const basePlanPart = currentPayment.planName.split('+')[0].replace('Gym Membership Renewal - ', '').trim();
     const baseCatalog = {
       '1-Month Basic': 2500,
       '3-Month Pro': 6500,
@@ -129,21 +144,20 @@ export default function ReceiptModal({
     }
   }
 
-  const finalBasePrice = isPtBill
+  const finalBasePrice = (isPtBill || isExtensionBill || isDueBill)
     ? 0
     : (basePrice > 0
         ? basePrice
         : (ptPrice > 0 || servicesPrice > 0 ? Math.max(0, totalPlanPrice - ptPrice - servicesPrice) : totalPlanPrice));
 
   const baseTitle = currentPayment.planName
-    ? currentPayment.planName.split('+')[0].trim()
+    ? currentPayment.planName.split('+')[0].replace('Gym Membership Renewal - ', '').trim()
     : (member?.planName || 'Gym Membership Base Fee');
 
   // Build itemized list of particulars
   const items = [];
 
   if (isPtBill) {
-    // Dedicated PT Bill Particulars
     items.push({
       id: 'pt_package',
       icon: Sparkles,
@@ -151,17 +165,32 @@ export default function ReceiptModal({
       period: validityText,
       amount: totalPlanPrice
     });
+  } else if (isExtensionBill) {
+    items.push({
+      id: 'extension_item',
+      icon: Calendar,
+      desc: `Validity Extension - ${currentPayment.planName || 'Membership Extended'}`,
+      period: validityText,
+      amount: totalPlanPrice
+    });
+  } else if (isDueBill) {
+    items.push({
+      id: 'due_item',
+      icon: CreditCard,
+      desc: `Due Balance Settlement - ${currentPayment.planName?.replace('Due Balance Settlement - ', '') || member?.planName || 'Gym Membership'}`,
+      period: validityText,
+      amount: totalPlanPrice
+    });
   } else {
-    // 1. Base Membership Item
+    // Standard Gym Admission or Renewal
     items.push({
       id: 'base_plan',
-      icon: Dumbbell,
-      desc: `Base Membership: ${baseTitle}`,
+      icon: isRenewalBill ? RotateCcw : Dumbbell,
+      desc: `${isRenewalBill ? 'Gym Renewal' : 'Base Membership'}: ${baseTitle}`,
       period: validityText,
       amount: finalBasePrice
     });
 
-    // 2. Personal Training (PT) Item (if bundled with gym plan)
     if (ptPrice > 0 || ptPlanName || hasPt(member)) {
       const ptAmount = ptPrice > 0 ? ptPrice : Math.max(0, totalPlanPrice - finalBasePrice - servicesPrice);
       if (ptAmount > 0 || ptPlanName) {
@@ -178,7 +207,7 @@ export default function ReceiptModal({
     }
   }
 
-  // 3. Add-on Services Items
+  // Add-on Services Items
   if (selectedServices.length > 0) {
     selectedServices.forEach((s, idx) => {
       items.push({
@@ -221,11 +250,14 @@ export default function ReceiptModal({
         validityStart: currentPayment.validityStart,
         validityEnd: currentPayment.validityEnd,
         planName: planTitle,
-        planPrice: finalBasePrice,
+        planPrice: (isPtBill || isExtensionBill || isDueBill) ? 0 : finalBasePrice,
         ptPlanPrice: isPtBill ? totalPlanPrice : ptPrice,
         ptPlanName: currentPayment.ptPlanName || ptPlanName,
         trainerName: coachName,
         isPtOnly: isPtBill,
+        isExtension: isExtensionBill,
+        isDueSettlement: isDueBill,
+        isRenewal: isRenewalBill,
         planType: isPtBill ? 'PT' : (currentPayment.planType || 'Gym'),
         servicesPrice,
         amount: totalPlanPrice,
@@ -246,32 +278,100 @@ export default function ReceiptModal({
 
   const handleWhatsApp = () => {
     if (!memberPhone || memberPhone === '—') return;
-    const msg = isPtBill
-      ? `🧾 *Official Personal Training (PT) Receipt - ${gymName}*\n\nHello *${memberName}*,\nThank you for enrolling in Personal Training! Here are your PT billing details:\n\n📋 *Receipt No:* ${receiptNo}\n🗓️ *Date:* ${payDate}\n✨ *PT Package:* ${currentPayment.ptPlanName || ptPlanName || planTitle}\n🏋️ *Personal Coach:* ${coachName || 'Assigned Coach'}\n📅 *PT Validity:* ${validityText}\n💰 *PT Package Fee:* ₹${totalPlanPrice.toLocaleString('en-IN')}\n✅ *Amount Paid:* ₹${paidAmount.toLocaleString('en-IN')} (${modeLabel})\n${dueAmount > 0 ? `⚠️ *Remaining Due:* ₹${dueAmount.toLocaleString('en-IN')}\n` : '✨ *Status:* FULLY CLEARED & PAID\n'}\nThank you for choosing ${gymName}! Stay fit, stay strong! 💪🏋️`
-      : `🧾 *Official Gym Fee Receipt - ${gymName}*\n\nHello *${memberName}*,\nThank you for your payment! Here are your membership billing details:\n\n📋 *Receipt No:* ${receiptNo}\n🗓️ *Date:* ${payDate}\n🏋️ *Base Plan:* ${baseTitle} (₹${finalBasePrice.toLocaleString('en-IN')})\n${ptPrice > 0 ? `✨ *Personal Training (PT):* ${ptPlanName || '1-on-1 PT'} (+₹${ptPrice.toLocaleString('en-IN')})\n` : ''}${servicesPrice > 0 ? `🛠️ *Add-on Services:* +₹${servicesPrice.toLocaleString('en-IN')}\n` : ''}📅 *Validity:* ${validityText}\n💰 *Total Package Fee:* ₹${totalPlanPrice.toLocaleString('en-IN')}\n✅ *Amount Paid:* ₹${paidAmount.toLocaleString('en-IN')} (${modeLabel})\n${dueAmount > 0 ? `⚠️ *Remaining Due:* ₹${dueAmount.toLocaleString('en-IN')}\n` : '✨ *Status:* FULLY CLEARED & PAID\n'}\nThank you for choosing ${gymName}! Stay fit, stay strong! 💪🏋️`;
+    let msg = '';
+    if (isPtBill) {
+      msg = `🧾 *Official Personal Training (PT) Receipt - ${gymName}*\n\nHello *${memberName}*,\nThank you for enrolling in Personal Training! Here are your PT billing details:\n\n📋 *Receipt No:* ${receiptNo}\n🗓️ *Date:* ${payDate}\n✨ *PT Package:* ${currentPayment.ptPlanName || ptPlanName || planTitle}\n🏋️ *Personal Coach:* ${coachName || 'Assigned Coach'}\n📅 *PT Validity:* ${validityText}\n💰 *PT Package Fee:* ₹${totalPlanPrice.toLocaleString('en-IN')}\n✅ *Amount Paid:* ₹${paidAmount.toLocaleString('en-IN')} (${modeLabel})\n${dueAmount > 0 ? `⚠️ *Remaining Due:* ₹${dueAmount.toLocaleString('en-IN')}\n` : '✨ *Status:* FULLY CLEARED & PAID\n'}\nThank you for choosing ${gymName}! Stay fit, stay strong! 💪🏋️`;
+    } else if (isExtensionBill) {
+      msg = `🧾 *Official Membership Extension Receipt - ${gymName}*\n\nHello *${memberName}*,\nYour gym membership has been extended! Here are your extension billing details:\n\n📋 *Receipt No:* ${receiptNo}\n🗓️ *Date:* ${payDate}\n📅 *New Extended Validity:* ${validityText}\n💰 *Extension Fee:* ₹${totalPlanPrice.toLocaleString('en-IN')}\n✅ *Amount Paid:* ₹${paidAmount.toLocaleString('en-IN')} (${modeLabel})\n${dueAmount > 0 ? `⚠️ *Remaining Due:* ₹${dueAmount.toLocaleString('en-IN')}\n` : '✨ *Status:* FULLY CLEARED & PAID\n'}\nThank you for training with ${gymName}! 💪`;
+    } else if (isDueBill) {
+      msg = `🧾 *Official Due Payment Receipt - ${gymName}*\n\nHello *${memberName}*,\nThank you for clearing your pending dues! Here are your payment details:\n\n📋 *Receipt No:* ${receiptNo}\n🗓️ *Date:* ${payDate}\n💳 *Particulars:* Due Balance Settlement\n💰 *Amount Settled:* ₹${paidAmount.toLocaleString('en-IN')} (${modeLabel})\n${dueAmount > 0 ? `⚠️ *Remaining Balance:* ₹${dueAmount.toLocaleString('en-IN')}\n` : '✨ *Status:* ALL DUES FULLY CLEARED\n'}\nThank you for choosing ${gymName}! 💪`;
+    } else {
+      msg = `🧾 *Official Gym Fee Receipt - ${gymName}*\n\nHello *${memberName}*,\nThank you for your payment! Here are your membership billing details:\n\n📋 *Receipt No:* ${receiptNo}\n🗓️ *Date:* ${payDate}\n🏋️ *Plan:* ${isRenewalBill ? 'Gym Renewal: ' : ''}${baseTitle} (₹${finalBasePrice.toLocaleString('en-IN')})\n${ptPrice > 0 ? `✨ *Personal Training (PT):* ${ptPlanName || '1-on-1 PT'} (+₹${ptPrice.toLocaleString('en-IN')})\n` : ''}${servicesPrice > 0 ? `🛠️ *Add-on Services:* +₹${servicesPrice.toLocaleString('en-IN')}\n` : ''}📅 *Validity:* ${validityText}\n💰 *Total Package Fee:* ₹${totalPlanPrice.toLocaleString('en-IN')}\n✅ *Amount Paid:* ₹${paidAmount.toLocaleString('en-IN')} (${modeLabel})\n${dueAmount > 0 ? `⚠️ *Remaining Due:* ₹${dueAmount.toLocaleString('en-IN')}\n` : '✨ *Status:* FULLY CLEARED & PAID\n'}\nThank you for choosing ${gymName}! Stay fit, stay strong! 💪🏋️`;
+    }
     openWhatsApp(memberPhone, msg);
   };
+
+  // Header Title & Badge
+  let badgeText = 'Tax Invoice';
+  let badgeClasses = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+  let headerBorder = 'border-emerald-500/80';
+  let headerIconBg = 'bg-gradient-to-br from-emerald-600 to-teal-500';
+  let HeaderIcon = Dumbbell;
+
+  if (isPtBill) {
+    badgeText = 'PT Invoice';
+    badgeClasses = 'bg-purple-50 text-purple-800 border-purple-200';
+    headerBorder = 'border-purple-500/80';
+    headerIconBg = 'bg-gradient-to-br from-purple-600 to-indigo-600';
+    HeaderIcon = Sparkles;
+  } else if (isExtensionBill) {
+    badgeText = 'Extension Invoice';
+    badgeClasses = 'bg-teal-50 text-teal-800 border-teal-200';
+    headerBorder = 'border-teal-500/80';
+    headerIconBg = 'bg-gradient-to-br from-teal-600 to-emerald-500';
+    HeaderIcon = Calendar;
+  } else if (isDueBill) {
+    badgeText = 'Due Settlement';
+    badgeClasses = 'bg-amber-50 text-amber-900 border-amber-200';
+    headerBorder = 'border-amber-500/80';
+    headerIconBg = 'bg-gradient-to-br from-amber-500 to-orange-500';
+    HeaderIcon = CreditCard;
+  } else if (isRenewalBill) {
+    badgeText = 'Renewal Invoice';
+    badgeClasses = 'bg-blue-50 text-blue-800 border-blue-200';
+    headerBorder = 'border-blue-500/80';
+    headerIconBg = 'bg-gradient-to-br from-blue-600 to-indigo-600';
+    HeaderIcon = RotateCcw;
+  }
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isPtBill ? 'Personal Training (PT) Fee Receipt' : 'Official Fee Receipt'}
+      title={isPtBill ? 'Personal Training (PT) Fee Receipt' : (isExtensionBill ? 'Membership Extension Receipt' : (isDueBill ? 'Due Balance Receipt' : 'Official Fee Receipt'))}
       maxWidth="max-w-2xl"
     >
       <div className="space-y-4">
-        {/* Bill Switcher (Shown if member has multiple bills, e.g. Gym bill & PT bill) */}
+        {/* Bill Switcher (Shown if member has multiple bills) */}
         {memberPayments.length > 1 && (
           <div className="flex items-center gap-2 p-2 bg-slate-100/90 rounded-xl overflow-x-auto text-xs border border-slate-200">
-            <span className="text-[11px] font-bold text-slate-500 shrink-0">Member Bills:</span>
+            <span className="text-[11px] font-bold text-slate-500 shrink-0">Member Bills ({memberPayments.length}):</span>
             {memberPayments.map((p, idx) => {
-              const isThisPt = Boolean(
+              const thisIsPt = Boolean(
                 p.isPtOnly || p.planType === 'PT' || (p.planName && p.planName.toLowerCase().startsWith('personal training'))
               );
+              const thisIsExt = Boolean(p.isExtension || (p.planName && p.planName.includes('Extended')));
+              const thisIsDue = Boolean(p.isDueSettlement || (p.planName && p.planName.includes('Due Balance Settlement')));
+              const thisIsRen = Boolean(p.isRenewal || (p.planName && p.planName.includes('Renewal')));
+
               const isSelected = p.id === currentPayment.id;
-              const title = isThisPt
-                ? (p.ptPlanName || 'PT Package')
-                : (p.planName ? p.planName.split('+')[0].trim() : 'Gym Membership');
+
+              let typeLabel = 'Gym Bill';
+              let badgeColor = isSelected ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white text-emerald-800 border-emerald-200';
+              let IconComp = Dumbbell;
+
+              if (thisIsPt) {
+                typeLabel = 'PT Bill';
+                badgeColor = isSelected ? 'bg-purple-600 text-white shadow-xs' : 'bg-white text-purple-800 border-purple-200';
+                IconComp = Sparkles;
+              } else if (thisIsExt) {
+                typeLabel = 'Extension';
+                badgeColor = isSelected ? 'bg-teal-600 text-white shadow-xs' : 'bg-white text-teal-800 border-teal-200';
+                IconComp = Calendar;
+              } else if (thisIsDue) {
+                typeLabel = 'Due Settlement';
+                badgeColor = isSelected ? 'bg-amber-600 text-white shadow-xs' : 'bg-white text-amber-800 border-amber-200';
+                IconComp = CreditCard;
+              } else if (thisIsRen) {
+                typeLabel = 'Renewal';
+                badgeColor = isSelected ? 'bg-blue-600 text-white shadow-xs' : 'bg-white text-blue-800 border-blue-200';
+                IconComp = RotateCcw;
+              }
+
+              const shortTitle = thisIsPt
+                ? (p.ptPlanName || '1-on-1 PT')
+                : (p.planName ? p.planName.split('+')[0].replace('Gym Membership Renewal - ', '').replace('Due Balance Settlement - ', '').trim() : 'Membership');
+
               return (
                 <button
                   key={p.id || idx}
@@ -280,14 +380,10 @@ export default function ReceiptModal({
                     setSelectedPayment(p);
                     if (onSelectPayment) onSelectPayment(p);
                   }}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                    isSelected
-                      ? (isThisPt ? 'bg-purple-600 text-white shadow-xs' : 'bg-emerald-600 text-white shadow-xs')
-                      : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
-                  }`}
+                  className={`px-2.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer border ${badgeColor}`}
                 >
-                  {isThisPt ? <Sparkles className="w-3.5 h-3.5" /> : <Dumbbell className="w-3.5 h-3.5" />}
-                  <span>{isThisPt ? 'PT Bill' : 'Gym Bill'} - {title} (₹{Number(p.paidAmount || p.amount || 0).toLocaleString('en-IN')})</span>
+                  <IconComp className="w-3.5 h-3.5" />
+                  <span>{typeLabel}: {shortTitle} (₹{Number(p.paidAmount || p.amount || 0).toLocaleString('en-IN')})</span>
                 </button>
               );
             })}
@@ -301,20 +397,20 @@ export default function ReceiptModal({
           className="bg-white p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-sm text-slate-800 font-sans"
         >
           {/* Header Banner */}
-          <div className={`border-b-2 ${isPtBill ? 'border-purple-500/80' : 'border-emerald-500/80'} pb-4 mb-4 flex items-start justify-between gap-4`}>
+          <div className={`border-b-2 ${headerBorder} pb-4 mb-4 flex items-start justify-between gap-4`}>
             <div className="flex items-center gap-3">
               {gymLogo ? (
                 <img src={gymLogo} alt={gymName} className="w-14 h-14 object-contain rounded-xl border border-slate-200" />
               ) : (
-                <div className={`w-13 h-13 rounded-xl ${isPtBill ? 'bg-gradient-to-br from-purple-600 to-indigo-600' : 'bg-gradient-to-br from-emerald-600 to-teal-500'} text-white flex items-center justify-center font-black text-xl shadow-xs`}>
-                  {isPtBill ? <Sparkles className="w-7 h-7" /> : <Dumbbell className="w-7 h-7" />}
+                <div className={`w-13 h-13 rounded-xl ${headerIconBg} text-white flex items-center justify-center font-black text-xl shadow-xs`}>
+                  <HeaderIcon className="w-7 h-7" />
                 </div>
               )}
               <div>
                 <h2 className="font-black text-slate-900 text-xl tracking-tight uppercase leading-tight">
                   {gymName}
                 </h2>
-                <p className={`text-xs ${isPtBill ? 'text-purple-700' : 'text-emerald-700'} font-bold mt-0.5`}>
+                <p className="text-xs text-emerald-700 font-bold mt-0.5">
                   {gymTagline}
                 </p>
                 <p className="text-[11px] text-slate-500 mt-0.5">
@@ -324,12 +420,8 @@ export default function ReceiptModal({
             </div>
 
             <div className="text-right shrink-0">
-              <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider border ${
-                isPtBill
-                  ? 'bg-purple-50 text-purple-800 border-purple-200'
-                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              }`}>
-                {isPtBill ? 'PT Invoice' : 'Tax Invoice'}
+              <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-black uppercase tracking-wider border ${badgeClasses}`}>
+                {badgeText}
               </span>
               <p className="text-[11px] text-slate-500 font-semibold mt-1">
                 Receipt: <span className="font-extrabold text-slate-900">{receiptNo}</span>
@@ -461,21 +553,31 @@ export default function ReceiptModal({
               </p>
             </div>
 
-            {/* Financial Totals Calculation Box (Itemized Summary matching PDF) */}
+            {/* Financial Totals Calculation Box */}
             <div className="space-y-1.5 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
               {isPtBill ? (
                 <div className="flex justify-between text-purple-900 font-bold">
                   <span>PT Package Fee:</span>
                   <span className="font-extrabold text-purple-950">₹{totalPlanPrice.toLocaleString('en-IN')}</span>
                 </div>
+              ) : isExtensionBill ? (
+                <div className="flex justify-between text-teal-900 font-bold">
+                  <span>Extension Fee:</span>
+                  <span className="font-extrabold text-teal-950">₹{totalPlanPrice.toLocaleString('en-IN')}</span>
+                </div>
+              ) : isDueBill ? (
+                <div className="flex justify-between text-amber-900 font-bold">
+                  <span>Settled Due Balance:</span>
+                  <span className="font-extrabold text-amber-950">₹{totalPlanPrice.toLocaleString('en-IN')}</span>
+                </div>
               ) : (
                 <div className="flex justify-between text-slate-600">
-                  <span>Plan Base Fee:</span>
+                  <span>{isRenewalBill ? 'Renewal Base Fee:' : 'Plan Base Fee:'}</span>
                   <span className="font-semibold">₹{finalBasePrice.toLocaleString('en-IN')}</span>
                 </div>
               )}
 
-              {!isPtBill && ptPrice > 0 && (
+              {!isPtBill && !isExtensionBill && !isDueBill && ptPrice > 0 && (
                 <div className="flex justify-between text-purple-700 font-semibold">
                   <span>Personal Training (PT):</span>
                   <span>+₹{ptPrice.toLocaleString('en-IN')}</span>

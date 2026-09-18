@@ -312,8 +312,23 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
       newExpiryIso = new Date(Date.now() + currentPlan.durationDays * 24 * 60 * 60 * 1000).toISOString();
     }
 
+    const isInitialAdmission = !member.lastPaymentDate && Number(member.paidAmount || 0) === 0;
+    const isRenewal = !isInitialAdmission && !hasPartialPaymentDue;
+    const receiptNum = hasPartialPaymentDue
+      ? `REC-DUE-${Date.now().toString().slice(-6)}`
+      : (isRenewal ? `REC-REN-${Date.now().toString().slice(-6)}` : `REC-${Date.now().toString().slice(-6)}`);
+
+    let billPlanName = `${currentPlan.name}${selectedPtPlanName ? ` + PT (${selectedPtPlanName})` : ''}${servicesTotal > 0 ? ` + Services (${selectedServices.map((s) => s.name).join(', ')})` : ''}`;
+    if (hasPartialPaymentDue) {
+      billPlanName = `Due Balance Settlement - ${member.planName || currentPlan.name}`;
+    } else if (isRenewal) {
+      billPlanName = `Gym Membership Renewal - ${currentPlan.name}${selectedPtPlanName ? ` + PT (${selectedPtPlanName})` : ''}${servicesTotal > 0 ? ` + Services (${selectedServices.map((s) => s.name).join(', ')})` : ''}`;
+    }
+
     const newPaymentRecord = {
       id: "bill_" + Date.now(),
+      receiptNo: receiptNum,
+      receiptNumber: receiptNum,
       memberId: member.id,
       memberName,
       phone,
@@ -327,13 +342,13 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
         billingType: s.billingType || "Per Month",
       })),
       servicesTotalPrice: servicesTotal,
-      planName: hasPartialPaymentDue 
-        ? `${member.planName || currentPlan.name}${selectedPtPlanName ? ` + PT (${selectedPtPlanName})` : ''}${servicesTotal > 0 ? ` + Services (${selectedServices.map((s) => s.name).join(', ')})` : ''} (Due Balance Settlement)` 
-        : `${currentPlan.name}${selectedPtPlanName ? ` + PT (${selectedPtPlanName})` : ''}${servicesTotal > 0 ? ` + Services (${selectedServices.map((s) => s.name).join(', ')})` : ''}`,
+      planName: billPlanName,
+      isRenewal,
+      isDueSettlement: hasPartialPaymentDue,
       validityStart: toIndianDate(validityStart),
       validityEnd: hasPartialPaymentDue && member.expiryDate ? toIndianDate(member.expiryDate) : validityEnd,
       dueDate: validityEnd,
-      planPrice: currentPlan.price,
+      planPrice: hasPartialPaymentDue ? 0 : currentPlan.price,
       ptPlanPrice: Number(selectedPtPrice || 0),
       servicesPrice: Number(servicesTotal || 0),
       discount: Number(discountAmount || 0),
@@ -344,9 +359,10 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
       cashAmount: Number(cashAmount || 0),
       onlineAmount: Number(onlineAmount || 0),
       paymentType,
-      remarks: remarks || (paymentMode === "split" ? `Cash: ₹${cashAmount}, Online: ₹${onlineAmount}` : (hasPartialPaymentDue ? "Balance Due Payment" : "")),
+      remarks: remarks || (paymentMode === "split" ? `Cash: ₹${cashAmount}, Online: ₹${onlineAmount}` : (hasPartialPaymentDue ? "Balance Due Payment" : (isRenewal ? "Membership Plan Renewal" : "Membership Admission Fee"))),
       date: toIndianDate(new Date()),
       status: remainingDue > 0 ? "partial" : "paid",
+      createdAt: new Date().toISOString()
     };
 
     try {
@@ -401,8 +417,8 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
 
       toast.success(`Fee collected successfully for ${memberName}!`);
 
-      // 3. Update parent list
-      onSave(member.id, updatedFields);
+      // 3. Update parent list and trigger receipt
+      onSave(member.id, updatedFields, newPaymentRecord);
 
       // 4. Online Receipt Web Link (Member can click link anytime to view & download official receipt)
       const receiptLink = `${window.location.origin}/#/receipt/${newPaymentRecord.id}`;
