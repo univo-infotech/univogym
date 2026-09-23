@@ -86,6 +86,7 @@ export default function MemberGrid({
         const isPtEnded = m.ptStatus === 'ended';
         const ptEndDate = m.ptEndDate || m.ptExpiryDate || (m.isPt ? m.expiryDate : null);
         const ptDays = ptEndDate ? getDaysRemaining(ptEndDate) : null;
+        const ptStatus = getPtStatus(m);
         const trainerName = m.trainerName && !['Unassigned', 'General Floor Trainer (Included)', 'No Trainer'].includes(m.trainerName)
           ? m.trainerName
           : null;
