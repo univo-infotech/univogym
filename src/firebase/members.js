@@ -348,18 +348,48 @@ export async function updateMember(arg1, arg2, arg3) {
     // Ignore
   }
 
-  // Update in active member session if matches
+  // Update or invalidate active member session
+  const isDeactivated = Boolean(
+    data.ptStatus === 'ended' ||
+    data.status === 'left' ||
+    data.status === 'ended' ||
+    data.memberPortalAccess === false ||
+    data.active === false
+  );
+
   try {
     const sessionStr = localStorage.getItem("univo_member_session");
     if (sessionStr) {
       const sess = JSON.parse(sessionStr);
       if (sess.id === memberId) {
-        localStorage.setItem("univo_member_session", JSON.stringify({ ...sess, ...data }));
+        if (isDeactivated) {
+          localStorage.removeItem("univo_member_session");
+          if (localStorage.getItem("univo_active_role") === "member") {
+            localStorage.removeItem("univo_active_role");
+          }
+        } else {
+          localStorage.setItem("univo_member_session", JSON.stringify({ ...sess, ...data }));
+        }
       }
     }
   } catch (e) {
     // Ignore
   }
+
+  // If member PT ended or deactivated, broadcast cross-tab/cross-device force logout
+  if (isDeactivated) {
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        const channel = new BroadcastChannel("univo_session_channel");
+        channel.postMessage({ type: "FORCE_LOGOUT", memberId, reason: "pt_ended" });
+        channel.close();
+      }
+      localStorage.setItem("univo_force_logout", `${memberId}_${Date.now()}`);
+    } catch (e) {}
+  }
+
+  invalidateCache("members");
+  invalidateCache("trainers");
 }
 
 /**

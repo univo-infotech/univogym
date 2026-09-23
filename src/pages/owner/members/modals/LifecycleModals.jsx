@@ -5,7 +5,31 @@ import { updateMember, deleteMember } from '../../../../firebase/members';
 import Modal from '../../../../components/ui/Modal';
 import { getName, hasPt } from '../memberUtils';
 
-export function LeftModal({ member, onClose, onSave }) {
+function broadcastForceLogout(memberId) {
+  try {
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      const channel = new BroadcastChannel("univo_session_channel");
+      channel.postMessage({ type: "FORCE_LOGOUT", memberId, reason: "pt_ended" });
+      channel.close();
+    }
+    localStorage.setItem("univo_force_logout", `${memberId}_${Date.now()}`);
+  } catch (e) {}
+
+  try {
+    const sessStr = localStorage.getItem("univo_member_session");
+    if (sessStr) {
+      const sess = JSON.parse(sessStr);
+      if (sess.id === memberId) {
+        localStorage.removeItem("univo_member_session");
+        if (localStorage.getItem("univo_active_role") === "member") {
+          localStorage.removeItem("univo_active_role");
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+export function LeftModal({ member, gymId, onClose, onSave }) {
   const [reason, setReason] = useState('Stopped coming / Gym left');
   const [customReason, setCustomReason] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,15 +49,29 @@ export function LeftModal({ member, onClose, onSave }) {
     setLoading(true);
     try {
       const finalReason = reason === 'Other' ? (customReason || 'Other') : reason;
-      await updateMember(member.id, {
+      const updatedFields = {
         status: 'left',
         active: false,
         leftAt: new Date().toISOString(),
-        leftReason: finalReason
-      });
+        leftReason: finalReason,
+        previousTrainerId: member.trainerId || null,
+        previousTrainerName: member.trainerName || member.personalTrainer || null,
+        previousPtSlot: member.ptSlot || member.preferredTime || member.slot || null,
+        trainerId: '',
+        trainerName: 'Unassigned (Left Gym)',
+        personalTrainer: 'Unassigned (Left Gym)',
+        ptSlot: null,
+        preferredTime: null,
+        ptShift: null,
+        memberPortalAccess: false,
+        ...(hasPt(member) ? { ptStatus: 'ended', ptEndedAt: new Date().toISOString(), ptEndReason: `Gym Left: ${finalReason}` } : {})
+      };
 
-      toast.success(`${getName(member)} marked as Left`);
-      onSave(member.id, finalReason);
+      await updateMember(gymId || 'univo_main', member.id, updatedFields);
+      broadcastForceLogout(member.id);
+
+      toast.success(`${getName(member)} marked as Left. Coach shift freed & Member portal logged out!`);
+      onSave(member.id, finalReason, updatedFields);
       onClose();
     } catch (err) {
       console.error('Error marking member as left:', err);
@@ -148,28 +186,55 @@ export function EndMembershipModal({ member, gymId, onClose, onSave }) {
       const finalReason = reason === 'Other' ? (customReason || 'Other') : reason;
 
       if (endScope === 'pt_only') {
-        await updateMember(gymId || 'univo_main', member.id, {
+        const updatedFields = {
           ptStatus: 'ended',
           ptEndedAt: new Date().toISOString(),
           ptEndReason: finalReason,
           status: 'active',
           active: true,
-          previousPtPlanName: member.ptPlanName || '1-on-1 PT'
-        });
+          previousPtPlanName: member.ptPlanName || '1-on-1 PT',
+          previousTrainerId: member.trainerId || null,
+          previousTrainerName: member.trainerName || member.personalTrainer || null,
+          previousPtSlot: member.ptSlot || member.preferredTime || member.slot || null,
+          trainerId: '',
+          trainerName: 'Unassigned (No PT)',
+          personalTrainer: 'Unassigned (No PT)',
+          ptSlot: null,
+          preferredTime: null,
+          ptShift: null,
+          memberPortalAccess: false,
+        };
 
-        toast.success(`PT package ended for ${getName(member)}. Gym membership remains ACTIVE! 🏋️`);
-        onSave(member.id, { ptOnly: true, reason: finalReason });
+        await updateMember(gymId || 'univo_main', member.id, updatedFields);
+        broadcastForceLogout(member.id);
+
+        toast.success(`PT package ended for ${getName(member)}. Coach shift freed & Member portal logged out! Gym stays ACTIVE 🏋️`);
+        onSave(member.id, { ptOnly: true, reason: finalReason, updatedFields });
       } else {
-        await updateMember(gymId || 'univo_main', member.id, {
+        const updatedFields = {
           status: 'ended',
           ptStatus: 'ended',
           active: false,
           endedAt: new Date().toISOString(),
-          endReason: finalReason
-        });
+          endReason: finalReason,
+          previousPtPlanName: member.ptPlanName || '1-on-1 PT',
+          previousTrainerId: member.trainerId || null,
+          previousTrainerName: member.trainerName || member.personalTrainer || null,
+          previousPtSlot: member.ptSlot || member.preferredTime || member.slot || null,
+          trainerId: '',
+          trainerName: 'Unassigned (No PT)',
+          personalTrainer: 'Unassigned (No PT)',
+          ptSlot: null,
+          preferredTime: null,
+          ptShift: null,
+          memberPortalAccess: false,
+        };
 
-        toast.success(`${getName(member)} membership ended`);
-        onSave(member.id, { ptOnly: false, reason: finalReason });
+        await updateMember(gymId || 'univo_main', member.id, updatedFields);
+        broadcastForceLogout(member.id);
+
+        toast.success(`${getName(member)} membership ended. Coach freed & portal access logged out`);
+        onSave(member.id, { ptOnly: false, reason: finalReason, updatedFields });
       }
 
       onClose();

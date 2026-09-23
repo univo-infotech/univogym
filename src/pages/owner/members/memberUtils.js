@@ -98,7 +98,14 @@ export function getAadhaar(m) {
 
 // --- --- PT Detection ---
 
-const NON_PT_TRAINERS = ['Unassigned', 'General Floor Trainer (Included)', 'No Trainer', 'Unassigned (General Floor)'];
+const NON_PT_TRAINERS = [
+  'Unassigned',
+  'General Floor Trainer (Included)',
+  'No Trainer',
+  'Unassigned (General Floor)',
+  'Unassigned (No PT)',
+  'Unassigned (Left Gym)'
+];
 
 /** Check if member has/had a PT package. */
 export function hasPt(m) {
@@ -110,7 +117,7 @@ export function hasPt(m) {
 
 /** Check if member's PT is currently active (not ended). */
 export function isPtActive(m) {
-  return hasPt(m) && m.ptStatus !== 'ended';
+  return hasPt(m) && m.ptStatus !== 'ended' && m.status !== 'left' && m.status !== 'ended';
 }
 
 // --- --- Status Computation ---
@@ -137,6 +144,7 @@ export function getGymStatus(member) {
 export function getPtStatus(member) {
   if (!hasPt(member)) return null;
   if (member.ptStatus === 'ended') return 'ended';
+  if (member.status === 'left' || member.status === 'ended') return 'ended';
 
   const ptDate = member.ptEndDate || member.ptExpiryDate;
   const diff = ptDate

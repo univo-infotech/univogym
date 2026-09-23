@@ -77,17 +77,8 @@ export default function MyMembers() {
         if (tData) setTrainerInfo(tData);
 
         const tId = tData?.id || profileId || "i5sXkR1c7jIkPb89US2x";
-        const tName = tData?.name || user?.displayName || "Boggey man";
-        let data = await getTrainerMembers(GID, tId, tName);
-
-        // If no members matched this specific trainer, but gym has PT members, show them
-        if (data.length === 0) {
-          try {
-            const allGymMembers = await getTrainerMembers(GID, "", "");
-            const ptOnly = allGymMembers.filter((m) => m.ptPlanName || m.ptPlanPrice || m.trainerId);
-            if (ptOnly.length > 0) data = ptOnly;
-          } catch (e) {}
-        }
+        const tName = tData?.name || user?.displayName || "";
+        const data = (tId || tName) ? await getTrainerMembers(GID, tId, tName) : [];
 
         setMembers(data);
       } catch (err) {

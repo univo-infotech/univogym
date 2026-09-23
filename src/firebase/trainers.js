@@ -306,6 +306,16 @@ export async function getTrainerMembers(gymId, trainerId, trainerName = "") {
     const targetName = (trainerName || "").trim().toLowerCase();
 
     return allMembers.filter((m) => {
+      // 1. Exclude members whose PT is ended, or who left/ended gym membership
+      if (
+        m.ptStatus === "ended" ||
+        m.status === "left" ||
+        m.status === "ended" ||
+        m.active === false
+      ) {
+        return false;
+      }
+
       const mTrainerId = (m.trainerId || m.coachId || "").trim();
       const mTrainerName = (
         m.personalTrainer ||
@@ -314,6 +324,19 @@ export async function getTrainerMembers(gymId, trainerId, trainerName = "") {
         m.assignedTrainer ||
         ""
       ).trim().toLowerCase();
+
+      // Exclude unassigned placeholders
+      const NON_PT = [
+        "unassigned",
+        "unassigned (no pt)",
+        "unassigned (left gym)",
+        "no trainer",
+        "general floor trainer (included)",
+        "unassigned (general floor)"
+      ];
+      if (NON_PT.includes(mTrainerName)) {
+        return false;
+      }
 
       // Check ID match
       if (targetTId && mTrainerId && mTrainerId === targetTId) return true;

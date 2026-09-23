@@ -193,31 +193,58 @@ export default function Login() {
         });
 
         if (matchedMember) {
-          // Check if member has Personal Training (PT) membership
-          const NON_PT_TRAINERS = ['Unassigned', 'General Floor Trainer (Included)', 'No Trainer', 'Unassigned (General Floor)'];
+          // 1. If PT package is ended, member is marked as left, ended, or portal access revoked
+          if (
+            matchedMember.ptStatus === 'ended' ||
+            matchedMember.status === 'left' ||
+            matchedMember.status === 'ended' ||
+            matchedMember.memberPortalAccess === false
+          ) {
+            setError(
+              '❌ Access Revoked: Aapka Personal Training (PT) package end ho chuka hai ya Gym se disconnect ho chuka hai. ID aur Password access band kar diya gaya hai. Kripya Gym Management se sampark karein.'
+            );
+            setLoading(false);
+            return;
+          }
+
+          // 2. Check if member has active Personal Training (PT) membership
+          const NON_PT_TRAINERS = [
+            'Unassigned',
+            'General Floor Trainer (Included)',
+            'No Trainer',
+            'Unassigned (General Floor)',
+            'Unassigned (No PT)',
+            'Unassigned (Left Gym)'
+          ];
           const isPtMember = Boolean(
-            matchedMember.isPt ||
+            (matchedMember.isPt ||
             matchedMember.isPTMember ||
             matchedMember.hasPersonalCoach ||
             matchedMember.ptPlanName ||
             matchedMember.ptPlanPrice ||
             matchedMember.planType === 'PT' ||
             (matchedMember.trainerName && !NON_PT_TRAINERS.includes(matchedMember.trainerName)) ||
-            (matchedMember.planName && matchedMember.planName.toLowerCase().includes('pt'))
+            (matchedMember.planName && matchedMember.planName.toLowerCase().includes('pt'))) &&
+            matchedMember.ptStatus !== 'ended'
           );
 
           if (!isPtMember) {
             setError(
-              '⚠️ Access Restricted: Member login portal sirf un members ke liye hai jinhone Personal Training (PT) li hai. General gym members ke liye app login enabled nahi hai.'
+              '⚠️ Access Restricted: Member login portal sirf un active members ke liye hai jinhone Personal Training (PT) li hai. General gym members ke liye app login enabled nahi hai.'
             );
             setLoading(false);
             return;
           }
 
-          // Check Membership / PT Expiry status
+          // 3. Check Membership / PT Expiry status
           let isExpired = false;
-          if (matchedMember.status === 'left' || matchedMember.status === 'expired' || matchedMember.active === false) {
+          if (matchedMember.status === 'expired' || matchedMember.active === false) {
             isExpired = true;
+          } else if (matchedMember.ptEndDate) {
+            const expTime = new Date(matchedMember.ptEndDate).getTime();
+            if (!isNaN(expTime) && expTime < Date.now()) {
+              isExpired = true;
+            }
           } else if (matchedMember.expiryDate) {
             const expTime = new Date(matchedMember.expiryDate).getTime();
             if (!isNaN(expTime) && expTime < Date.now()) {
@@ -227,7 +254,7 @@ export default function Login() {
 
           if (isExpired) {
             setError(
-              `⚠️ Membership Expired: Aapka account / membership expire ho chuka hai (${matchedMember.expiryDate ? new Date(matchedMember.expiryDate).toLocaleDateString('en-IN') : 'Expired'}). Gym owner se renew karwane ke baad aapka account wahi se shuru ho jayega.`
+              `⚠️ Membership Expired: Aapka account / membership expire ho chuka hai. Gym owner se renew karwane ke baad aapka account wahi se shuru ho jayega.`
             );
             setLoading(false);
             return;

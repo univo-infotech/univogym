@@ -360,11 +360,24 @@ export default function Members() {
     }
   }, []);
 
-  const handleLeftSuccess = useCallback((memberId, reason) => {
+  const handleLeftSuccess = useCallback((memberId, reason, updatedFields) => {
     setMembers((prev) =>
       prev.map((m) =>
         m.id === memberId
-          ? { ...m, status: 'left', active: false, leftReason: reason }
+          ? {
+              ...m,
+              ...(updatedFields || {}),
+              status: 'left',
+              active: false,
+              leftReason: reason,
+              trainerName: 'Unassigned (Left Gym)',
+              trainerId: '',
+              ptSlot: null,
+              preferredTime: null,
+              ptShift: null,
+              memberPortalAccess: false,
+              ...(hasPt(m) ? { ptStatus: 'ended' } : {})
+            }
           : m
       )
     );
@@ -373,6 +386,7 @@ export default function Members() {
   const handleEndSuccess = useCallback((memberId, result) => {
     const isPtOnly = typeof result === 'object' ? result.ptOnly : false;
     const reason = typeof result === 'object' ? result.reason : result;
+    const updatedFields = typeof result === 'object' ? result.updatedFields : null;
 
     setMembers((prev) =>
       prev.map((m) => {
@@ -380,21 +394,35 @@ export default function Members() {
         if (isPtOnly) {
           return {
             ...m,
+            ...(updatedFields || {}),
             ptStatus: 'ended',
             ptEndedAt: new Date().toISOString(),
             ptEndReason: reason,
             status: 'active',
             active: true,
-            previousPtPlanName: m.ptPlanName || '1-on-1 PT'
+            previousPtPlanName: m.ptPlanName || '1-on-1 PT',
+            trainerName: 'Unassigned (No PT)',
+            trainerId: '',
+            ptSlot: null,
+            preferredTime: null,
+            ptShift: null,
+            memberPortalAccess: false,
           };
         }
         return {
           ...m,
+          ...(updatedFields || {}),
           status: 'ended',
           ptStatus: 'ended',
           active: false,
           endReason: reason,
-          endedAt: new Date().toISOString()
+          endedAt: new Date().toISOString(),
+          trainerName: 'Unassigned (No PT)',
+          trainerId: '',
+          ptSlot: null,
+          preferredTime: null,
+          ptShift: null,
+          memberPortalAccess: false,
         };
       })
     );
@@ -932,6 +960,7 @@ export default function Members() {
       {leftMember && (
         <LeftModal
           member={leftMember}
+          gymId={gymId}
           onClose={() => setLeftMember(null)}
           onSave={handleLeftSuccess}
         />
