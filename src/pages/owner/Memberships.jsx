@@ -216,57 +216,6 @@ const DEFAULT_PLANS = [
     ],
     isActive: true,
     memberCount: 31
-  },
-  {
-    id: "pt_p1",
-    name: "1-Month Dedicated 1-on-1 PT",
-    category: "Personal Training (1-on-1 PT)",
-    duration: 30,
-    price: 4500,
-    originalPrice: 6000,
-    admissionFee: 0,
-    color: "rose",
-    tag: "1-on-1 Coach",
-    isPtOnly: true,
-    ptSessions: 24,
-    accessTiming: "All Day Unlimited (6:00 AM - 10:00 PM)",
-    freezeDays: "7 Days Free Freeze",
-    ptOption: "Dedicated Personal Trainer Included",
-    features: [
-      "24 Dedicated 1-on-1 Personal Training Sessions",
-      "Daily Form & Posture Correction",
-      "Custom Macro & Calorie Diet Plan",
-      "Weekly Body Composition & Fat Tracking",
-      "WhatsApp Direct Access with Coach"
-    ],
-    isActive: true,
-    memberCount: 18
-  },
-  {
-    id: "pt_p2",
-    name: "3-Month Elite Transformation PT",
-    category: "Personal Training (1-on-1 PT)",
-    duration: 90,
-    price: 11500,
-    originalPrice: 16000,
-    admissionFee: 0,
-    color: "purple",
-    tag: "VIP Result",
-    isPtOnly: true,
-    ptSessions: 72,
-    accessTiming: "All Day Unlimited (6:00 AM - 10:00 PM)",
-    freezeDays: "15 Days Free Freeze",
-    ptOption: "Dedicated Personal Trainer Included",
-    features: [
-      "72 Dedicated 1-on-1 Personal Training Sessions",
-      "100% Guaranteed Transformation Roadmap",
-      "Advanced Diet, Nutrition & Supplement Stack",
-      "Bi-Weekly InBody Body Composition Audits",
-      "Priority Slot Reservation with Top Coach",
-      "Complimentary Gym Shaker & Towel"
-    ],
-    isActive: true,
-    memberCount: 26
   }
 ];
 
@@ -337,7 +286,11 @@ export default function Memberships() {
       }
 
       if (plansData && plansData.length > 0) {
-        setPlans(plansData);
+        // Exclude any PT packages from Membership page - pure gym packages only
+        const gymPlansOnly = plansData.filter(
+          p => !p.isPtOnly && p.planType !== "pt" && p.category !== "Personal Training (1-on-1 PT)" && !p.ptSessions
+        );
+        setPlans(gymPlansOnly.length > 0 ? gymPlansOnly : DEFAULT_PLANS);
       } else {
         // Seed default plans if empty
         setPlans(DEFAULT_PLANS);
@@ -573,16 +526,16 @@ export default function Memberships() {
   // --- Filtered and Sorted Plans ---------------------------------
   const filteredPlans = useMemo(() => {
     return plans.filter(p => {
+      // Exclude any PT packages - Membership section is for pure Gym Membership Plans
+      if (p.isPtOnly || p.planType === "pt" || p.category === "Personal Training (1-on-1 PT)" || p.ptSessions > 0) {
+        return false;
+      }
+
       // Search term
       const matchesSearch =
         p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.features || []).some(f => f.toLowerCase().includes(searchTerm.toLowerCase()));
-
-      // Membership Type Tab Filter (All | Regular Gym | 1-on-1 PT)
-      const isPlanPt = p.isPtOnly || p.planType === "pt" || p.category === "Personal Training (1-on-1 PT)" || p.ptSessions > 0;
-      if (membershipTypeTab === "regular" && isPlanPt) return false;
-      if (membershipTypeTab === "pt" && !isPlanPt) return false;
 
       // Duration filter
       let matchesDuration = true;
@@ -590,7 +543,6 @@ export default function Memberships() {
       else if (selectedDurationFilter === "quarterly") matchesDuration = p.duration > 45 && p.duration <= 100;
       else if (selectedDurationFilter === "half_yearly") matchesDuration = p.duration > 100 && p.duration <= 200;
       else if (selectedDurationFilter === "annual") matchesDuration = p.duration > 200;
-      else if (selectedDurationFilter === "pt") matchesDuration = isPlanPt;
 
       // Status filter
       let matchesStatus = true;
@@ -610,18 +562,19 @@ export default function Memberships() {
 
   // --- Statistics ------------------------------------------------
   const stats = useMemo(() => {
-    const totalPlans = plans.length;
-    const activePlans = plans.filter(p => p.isActive !== false).length;
+    const gymOnly = plans.filter(p => !p.isPtOnly && p.planType !== "pt" && p.category !== "Personal Training (1-on-1 PT)" && !p.ptSessions);
+    const totalPlans = gymOnly.length;
+    const activePlans = gymOnly.filter(p => p.isActive !== false).length;
     const avgPrice =
       activePlans > 0
         ? Math.round(
-            plans
+            gymOnly
               .filter(p => p.isActive !== false)
               .reduce((acc, curr) => acc + Number(curr.price || 0), 0) / activePlans
           )
         : 0;
 
-    const mostPopular = [...plans].sort(
+    const mostPopular = [...gymOnly].sort(
       (a, b) => (b.memberCount || 0) - (a.memberCount || 0)
     )[0];
 
@@ -650,16 +603,9 @@ export default function Memberships() {
 
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           <Button
-            icon={<Dumbbell className="w-4 h-4 text-purple-200" />}
-            onClick={() => handleOpenCreate("pt")}
-            className="bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white font-bold shadow-md hover:shadow-purple-500/20 transition duration-200 text-xs py-2.5 px-3.5"
-          >
-            + New 1-on-1 PT Plan
-          </Button>
-          <Button
             icon={<Plus className="w-4 h-4" />}
             onClick={() => handleOpenCreate("regular")}
-            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md hover:shadow-emerald-500/20 transition duration-200 text-xs py-2.5 px-3.5"
+            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md hover:shadow-emerald-500/20 transition duration-200 text-xs py-2.5 px-4"
           >
             + New Gym Package
           </Button>
@@ -728,51 +674,6 @@ export default function Memberships() {
       </div>
 
       {/* ============================================================
-          MEMBERSHIP TYPE SEGMENT SWITCHER & CONTROLS
-      ============================================================ */}
-      {/* Top Segment Switcher */}
-      <div className="flex rounded-2xl bg-white p-1.5 border border-slate-200/90 shadow-xs max-w-xl">
-        <button
-          type="button"
-          onClick={() => setMembershipTypeTab("all")}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-            membershipTypeTab === "all"
-              ? "bg-slate-900 text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-          }`}
-        >
-          <Tag className="w-3.5 h-3.5" />
-          <span>All Tiers ({plans.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMembershipTypeTab("regular")}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-            membershipTypeTab === "regular"
-              ? "bg-emerald-600 text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-          }`}
-        >
-          <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
-          <span>General Gym Plans ({plans.filter(p => !p.isPtOnly && p.planType !== "pt" && p.category !== "Personal Training (1-on-1 PT)").length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMembershipTypeTab("pt")}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-            membershipTypeTab === "pt"
-              ? "bg-purple-600 text-white shadow-sm"
-              : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-          }`}
-        >
-          <Dumbbell className="w-3.5 h-3.5 text-purple-300" />
-          <span>1-on-1 PT Packages ({plans.filter(p => p.isPtOnly || p.planType === "pt" || p.category === "Personal Training (1-on-1 PT)").length})</span>
-        </button>
-      </div>
-
-      {/* ============================================================
           FILTER & CONTROLS BAR
       ============================================================ */}
       <div className="p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3">
@@ -824,8 +725,7 @@ export default function Memberships() {
             { id: "monthly", label: "Monthly (30 Days)" },
             { id: "quarterly", label: "3 Months (Quarterly)" },
             { id: "half_yearly", label: "6 Months (Half-Yearly)" },
-            { id: "annual", label: "Annual (1 Year)" },
-            { id: "pt", label: "Personal Training / VIP" }
+            { id: "annual", label: "Annual (1 Year)" }
           ].map((tab) => (
             <button
               key={tab.id}
