@@ -498,8 +498,8 @@ export default function Members() {
     onDelete: (m) => setDeleteTargetMember(m),
     onAddPt: (m) => setPtAddonMember(m),
     onRestartPt: handleRestartPT,
-    onReturn: handleReactivate,
-    onReactivate: handleReactivate,
+    onReturn: (m) => setPlanMember(m),
+    onReactivate: (m) => setPlanMember(m),
     onReceipt: (m, typeOrPayment) => {
       const memberPayments = (payments || []).filter(
         (p) => (p.memberId === m.id || (m.phone && p.phone === m.phone))

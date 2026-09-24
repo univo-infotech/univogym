@@ -445,6 +445,8 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
       title={
         hasPartialPaymentDue
           ? `Collect Remaining Due — ${getName(member)}`
+          : (member.status === 'left' || member.status === 'ended')
+          ? `🎉 Rejoin Gym & Membership Plan — ${getName(member)}`
           : isRenewing
           ? `⚡ Renew Membership & Plan — ${getName(member)}`
           : `Collect Admission & Plan Fee — ${getName(member)}`
