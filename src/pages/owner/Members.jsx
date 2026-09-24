@@ -495,6 +495,7 @@ export default function Members() {
     onEdit: (m) => setEditMember(m),
     onLeft: (m) => setLeftMember(m),
     onEnd: (m) => setEndMember(m),
+    onDelete: (m) => setDeleteTargetMember(m),
     onAddPt: (m) => setPtAddonMember(m),
     onRestartPt: handleRestartPT,
     onReturn: handleReactivate,
@@ -992,6 +993,7 @@ export default function Members() {
       {deleteTargetMember && (
         <DeleteConfirmModal
           member={deleteTargetMember}
+          gymId={gymId}
           onClose={() => setDeleteTargetMember(null)}
           onConfirm={handleDeleteSuccess}
         />

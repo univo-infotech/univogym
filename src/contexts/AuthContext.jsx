@@ -191,7 +191,7 @@ export function AuthProvider({ children }) {
     setPermissions([]);
   };
 
-  // Realtime multi-tab & cross-device forced logout listener
+  // Realtime multi-tab & cross-device forced logout listener (applies ONLY to members)
   useEffect(() => {
     let channel = null;
     try {
@@ -199,9 +199,20 @@ export function AuthProvider({ children }) {
         channel = new BroadcastChannel("univo_session_channel");
         channel.onmessage = (event) => {
           if (event.data?.type === "FORCE_LOGOUT") {
-            logoutUser();
-            if (window.location.hash !== "#/login") {
-              window.location.hash = "#/login";
+            const currentRole = role || localStorage.getItem("univo_active_role");
+            // Never log out owner, admin, trainer, or staff
+            if (currentRole === "owner" || currentRole === "admin" || currentRole === "trainer" || currentRole === "staff") {
+              return;
+            }
+
+            const targetMemberId = event.data?.memberId;
+            const sessStr = localStorage.getItem("univo_member_session");
+            const sessObj = sessStr ? JSON.parse(sessStr) : null;
+            if (!targetMemberId || profileId === targetMemberId || sessObj?.id === targetMemberId) {
+              logoutUser();
+              if (window.location.hash !== "#/login") {
+                window.location.hash = "#/login";
+              }
             }
           }
         };
@@ -210,9 +221,20 @@ export function AuthProvider({ children }) {
 
     const handleStorageChange = (e) => {
       if (e.key === "univo_force_logout") {
-        logoutUser();
-        if (window.location.hash !== "#/login") {
-          window.location.hash = "#/login";
+        const currentRole = role || localStorage.getItem("univo_active_role");
+        if (currentRole === "owner" || currentRole === "admin" || currentRole === "trainer" || currentRole === "staff") {
+          return;
+        }
+
+        const val = e.newValue || localStorage.getItem("univo_force_logout") || "";
+        const targetMemberId = val.split("_")[0];
+        const sessStr = localStorage.getItem("univo_member_session");
+        const sessObj = sessStr ? JSON.parse(sessStr) : null;
+        if (!targetMemberId || profileId === targetMemberId || sessObj?.id === targetMemberId) {
+          logoutUser();
+          if (window.location.hash !== "#/login") {
+            window.location.hash = "#/login";
+          }
         }
       }
     };
@@ -222,7 +244,7 @@ export function AuthProvider({ children }) {
       if (channel) channel.close();
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, []);
+  }, [role, profileId]);
 
   return (
     <AuthContext.Provider value={{ user, setUser, role, setRole, gymId, setGymId, profileId, setProfileId, permissions, loading, logoutUser }}>

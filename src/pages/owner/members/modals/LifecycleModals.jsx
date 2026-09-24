@@ -383,14 +383,14 @@ export function EndMembershipModal({ member, gymId, onClose, onSave }) {
   );
 }
 
-export function DeleteConfirmModal({ member, onClose, onConfirm }) {
+export function DeleteConfirmModal({ member, gymId, onClose, onConfirm }) {
   const [loading, setLoading] = useState(false);
 
   const handleDelete = async () => {
     setLoading(true);
     try {
-      await deleteMember(member.id);
-      toast.success('Member removed permanently');
+      await deleteMember(gymId || 'univo_main', member.id);
+      toast.success(`${getName(member)} permanently deleted`);
       onConfirm(member.id);
       onClose();
     } catch (err) {

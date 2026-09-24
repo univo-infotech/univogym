@@ -507,11 +507,24 @@ export async function addMember(gymId, memberData) {
 /**
  * Delete a member document and clear from local cache.
  */
-export async function deleteMember(memberId) {
+export async function deleteMember(gymIdOrMemberId, maybeMemberId) {
+  let targetGymId = "univo_main";
+  let memberId = gymIdOrMemberId;
+  if (maybeMemberId) {
+    targetGymId = gymIdOrMemberId || "univo_main";
+    memberId = maybeMemberId;
+  }
+
   try {
     await deleteDoc(doc(db, "members", memberId));
   } catch (err) {
-    console.warn("deleteMember firestore error:", err);
+    console.warn("deleteMember direct collection error:", err);
+  }
+
+  try {
+    await deleteDoc(doc(db, `gyms/${targetGymId}/members`, memberId));
+  } catch (err) {
+    // Ignore fallback
   }
 
   try {
@@ -521,6 +534,12 @@ export async function deleteMember(memberId) {
   } catch (e) {
     // Ignore
   }
+
+  invalidateCache("members");
+  try {
+    localStorage.removeItem(`members_${targetGymId}`);
+    localStorage.removeItem("members_univo_main");
+  } catch (e) {}
 }
 
 
