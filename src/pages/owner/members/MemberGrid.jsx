@@ -68,7 +68,7 @@ export default function MemberGrid({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {members.map((m) => {
+      {members.map((m, idx) => {
         const name = getName(m);
         const phone = getPhone(m);
         const slot = getSlot(m);
@@ -115,9 +115,14 @@ export default function MemberGrid({
                   </div>
                 </div>
 
-                <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-100 shrink-0">
-                  {getSlotIcon(slot)}
-                  <span className="truncate max-w-[90px]">{slot}</span>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-100">
+                    {getSlotIcon(slot)}
+                    <span className="truncate max-w-[90px]">{slot}</span>
+                  </div>
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-mono font-bold text-[9px] bg-slate-100 text-slate-700 border border-slate-200" title="Machine Biometric ID">
+                    🖐️ #{m.biometricId || m.machineId || `10${idx + 1}`}
+                  </span>
                 </div>
               </div>
 

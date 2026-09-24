@@ -91,7 +91,7 @@ export default function MemberTable({
               </td>
             </tr>
           ) : (
-            members.map((m) => {
+            members.map((m, idx) => {
               const name = getName(m);
               const phone = getPhone(m);
               const slot = getSlot(m);
@@ -139,9 +139,14 @@ export default function MemberTable({
                         <p className="text-[11px] text-slate-500 flex items-center gap-1">
                           <span>{phone || 'No phone'}</span>
                         </p>
-                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-100">
-                          {getSlotIcon(slot)}
-                          <span className="truncate max-w-[140px]">{slot}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-100">
+                            {getSlotIcon(slot)}
+                            <span className="truncate max-w-[130px]">{slot}</span>
+                          </div>
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-mono font-bold text-[9px] bg-slate-100 text-slate-700 border border-slate-200" title="Machine Biometric ID">
+                            🖐️ #{m.biometricId || m.machineId || `10${idx + 1}`}
+                          </span>
                         </div>
                         <p className="text-[10px] text-slate-400">
                           Joined: {joinDate}

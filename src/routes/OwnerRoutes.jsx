@@ -21,6 +21,7 @@ import Settings from "../pages/owner/Settings";
 import RolesPermissions from "../pages/owner/RolesPermissions";
 import BeforeAfter from "../pages/trainer/BeforeAfter";
 import OwnerComplaints from "../pages/owner/Complaints";
+import Attendance from "../pages/owner/Attendance";
 import { usePermissions } from "../hooks/usePermissions";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -42,6 +43,7 @@ export default function OwnerRoutes() {
         <Route path="dashboard" element={<PermissionRoute moduleId="dashboard"><OwnerDashboard /></PermissionRoute>} />
         <Route path="members" element={<PermissionRoute moduleId="members"><Members /></PermissionRoute>} />
         <Route path="members/:memberId" element={<PermissionRoute moduleId="members"><MemberDetail /></PermissionRoute>} />
+        <Route path="attendance" element={<Attendance />} />
         <Route path="payments" element={<PermissionRoute moduleId="payments"><Payments /></PermissionRoute>} />
         <Route path="trainers" element={<PermissionRoute moduleId="trainers"><Trainers /></PermissionRoute>} />
         <Route path="trainers/:trainerId" element={<PermissionRoute moduleId="trainers"><TrainerDetail /></PermissionRoute>} />

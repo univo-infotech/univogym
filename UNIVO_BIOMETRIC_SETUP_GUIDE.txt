@@ -1,0 +1,177 @@
+================================================================================
+          UNIVO GYM MANAGEMENT - BIOMETRIC ATTENDANCE & ACCESS CONTROL
+                     COMPLETE A TO Z MASTER SETUP GUIDE
+================================================================================
+
+Yeh guide aapko kisi bhi gym me Univo Gym Management software ke saath biometric
+machine (Secureye, ZKTeco, Realtime, e-SSL) connect karne aur members ki
+automatic attendance aur fee-locking setup karne ka poora process samjhati hai.
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS:
+1. OVERVIEW & ARCHITECTURE (System Kaise Kaam Karta Hai)
+2. STEP 1: MACHINE KO NETWORK / WI-FI SE CONNECT KARNA
+3. STEP 2: UNIVO GYM SOFTWARE ME NAYA MEMBER ADD KARNA
+4. STEP 3: MACHINE PAR MEMBER KA FINGERPRINT REGISTER KARNA
+5. STEP 4: SOFTWARE AUR MACHINE KO LINK (PAIR) KARNA
+6. STEP 5: ROZ KA WORKOUT, LIVE PUNCH & AUTOMATIC SECURITY CHECK
+7. SPECIAL SCENARIOS (Fees Expire, Door Lock, Internet Issue, Multi-Gate)
+8. TOP RECOMMENDED MACHINES FOR GYMS
+--------------------------------------------------------------------------------
+
+================================================================================
+1. OVERVIEW & ARCHITECTURE (System Kaise Kaam Karta Hai)
+================================================================================
+
+Univo Gym ka Biometric System 100% automated hai:
+1. Member gate par machine ke sensor par ungli (fingerprint) lagata hai.
+2. Machine punch signal software ko bhejti hai.
+3. Univo Gym 0.1 second ke andar 4 security checks karta hai:
+   - Kya member ka plan valid hai? (Expiry date check)
+   - Kya fees baaki (Due balance) toh nahi hai?
+   - Kya member account 'Left' ya terminated toh nahi hai?
+   - Kya gym owner ne member ko manually gate lock toh nahi kiya?
+4. Faisla (Decision):
+   - Sab kuch OK hai  -> 🟢 ACCESS GRANTED! (Attendance lag gayi, streak badh gayi, gate open)
+   - Fees pending hai -> 🛑 ACCESS DENIED! (Gate lock rehta hai, buzzer bajta hai)
+
+================================================================================
+2. STEP 1: MACHINE KO NETWORK / WI-FI SE CONNECT KARNA (Sirf Ek Baar Karna Hai)
+================================================================================
+
+1. Machine ko power adapter se ON karein aur peeche LAN cable lagayein ya Wi-Fi connect karein.
+2. Machine par "M/OK" button 2-3 second daba kar Main Menu kholein.
+3. "SetComm" (ya Comm.) -> "Ethernet" (ya Wi-Fi) me jayein:
+   - "1. DHCP" ko "Yes" (ON) karein.
+   - Neeche "OK" dabakar Save karein.
+   - Router machine ko automatic IP de dega (Jaise: 192.168.1.9).
+4. Phir "SetComm" -> "Server Set" me jayein:
+   - "1. DNS": "No" (Local testing ke liye) ya "Yes" (Jab online domain ho).
+   - "2. Server IP": Computer ki IP (Jaise: 192.168.1.5).
+   - "3. SerPortNo": 7005 (Secureye standard port).
+   - "OK" dabakar Save kar dein.
+5. Result: Machine router aur computer ke saath 100% connect ho gayi!
+
+================================================================================
+3. STEP 2: UNIVO GYM SOFTWARE ME NAYA MEMBER ADD KARNA
+================================================================================
+
+Gym me naya ladka admission lene aaya (Misaal ke taur par: "Aman Verma"):
+
+1. Browser me Univo Gym kholein:
+   URL: http://localhost:5173/owner/members
+2. Upar "➕ Add Member" button par click karein.
+3. Form me details bharein:
+   - Full Name: Aman Verma
+   - Phone Number: 9876543210
+   - Workout Slot: Morning 06:00 AM - 07:30 AM
+   - Membership Plan: 3 Months Gold Plan (₹3,000)
+   - Payment Status: Paid / Partial / Due
+4. "Save Member" par click karein.
+5. Result: Aman Verma software me save ho gaya aur status "Active" ho gaya!
+
+================================================================================
+4. STEP 3: MACHINE PAR AMAN KA FINGERPRINT REGISTER KARNA
+================================================================================
+
+Ab Aman ko biometric machine ke paas le jayein:
+
+1. Machine par "M/OK" button dabakar Menu kholein.
+2. Screen par "Register" par jakar "OK" dabayein.
+3. "1. New Reg." select karein aur "OK" dabayein.
+4. Screen par details daalein:
+   - User ID: Ek simple number choose karein (Jaise: 101).
+   - Type: Fingerprint select karein.
+5. Aman se kahein ki sensor par apni ungli ko 3 baar lagaye.
+6. Machine bolegi: "Thank You / Enrolled Successfully".
+7. "ESC" dabakar home screen par aa jayein.
+8. Result: Machine ki memory me Aman ka thumb User ID #101 par save ho gaya!
+
+================================================================================
+5. STEP 4: SOFTWARE AUR MACHINE KO LINK (PAIR) KARNA
+================================================================================
+
+Ab Univo Gym software ko batana hai ki Machine ka User #101 Aman Verma hai:
+
+1. Univo Gym dashboard me jayein:
+   URL: http://localhost:5173/owner/attendance
+2. Upar "Member Biometric IDs & Lock" tab par click karein.
+3. List me "Aman Verma" ke naam ke aage "🖐️ Enroll Thumb" button dabayein.
+4. Modal box khulega:
+   - Machine Biometric ID: Wahi number daal dein jo machine me daala tha: 101
+   - Biometric Type: Fingerprint
+5. "Save Enrollment" dabayein!
+6. Result: Aman Verma ke card par green badge aa jayega: "🖐️ #101".
+   Ab software aur machine 100% link ho chuke hain!
+
+================================================================================
+6. STEP 5: ROZ KA WORKOUT, LIVE PUNCH & AUTOMATIC SECURITY CHECK
+================================================================================
+
+Agle din jab Aman subah gym aayega:
+
+1. Aman gate par machine ke sensor par ungli lagayega.
+2. Machine bolegi: "Verified! Thank You".
+3. Machine se signal direct Univo Gym software me aayega:
+   - Security Check 1: Kya plan valid hai? -> Haan (3 mahine baki hain).
+   - Security Check 2: Kya fees paid hai? -> Haan (Due = 0).
+   - Security Check 3: Kya gate locked hai? -> Nahi (Access open hai).
+4. Final Result:
+   - Univo Gym ke "Live Gate Feed" screen par green card flash hoga:
+     "🟢 ACCESS GRANTED - Welcome Aman Verma!"
+   - Aman ki daily attendance "Present" mark ho jayegi.
+   - Aman ka workout streak count +1 badh jayega.
+   - Turnstile / Door lock open ho jayega!
+
+================================================================================
+7. SPECIAL SCENARIOS (Gym Ke Real-World Sawaal Aur Unka Hal)
+================================================================================
+
+Q1. Member ki fees khatam ho gayi, kya mujhe machine se uska thumb delete karna padega?
+Ans: KABHI NAHI! Machine me kuch delete nahi karna padta. Software automatic usko
+     "ACCESS DENIED" kar dega. Machine buzzer bajayegi aur gate open nahi hoga.
+
+Q2. Member ne fees de di, gate wapas kab khulega?
+Ans: Jaise hi aap software me "Collect Fee / Renew Plan" karoge, agle hi second
+     uska gate automatic UNLOCK ho jayega!
+
+Q3. Agar kisi member ne gym me jhagda kiya ya use temporary ban karna ho?
+Ans: Software me "Member Biometric IDs" tab me jakar uske aage "🔒 Lock Gate"
+     daba dein. Uska gate access turant band ho jayega. Jab problem solve ho jaye,
+     "🔓 Unlock Gate" daba dein.
+
+Q4. Agar gym me internet chala jaye toh?
+Ans: Biometric machine ke paas apni internal storage hoti hai (1,00,000 punches).
+     Jaise hi internet wapas aayega, saare punches automatic sync ho jayenge.
+     Ya fir bina internet ke bhi USB Pen Drive laga kar "U-Flash -> Download GLog"
+     karke software me 1 click me upload kar sakte hain.
+
+Q5. Agar gym me 2 gates hain (Entry Gate aur Exit Gate)?
+Ans: Dono machines ko software me register kiya ja sakta hai (Hardware Setup tab).
+     Member kisi bhi gate par punch karega, software track karega:
+     "Aman Verma - Entry at Main Gate (06:00 AM)"
+     "Aman Verma - Exit at Gate 2 (07:30 AM)".
+
+================================================================================
+8. TOP RECOMMENDED MACHINES FOR GYMS (Market Guide)
+================================================================================
+
+1. Realtime Biometrics (T502 / RS20 / RS50) [₹3,500 - ₹5,000]:
+   - Best for SaaS: Direct Cloud Webhook API built-in.
+   - Gym me computer ON rakhne ki zaroorat nahi hoti.
+
+2. e-SSL / ZKTeco (K30 Pro / MB20) [₹4,500 - ₹7,500]:
+   - Best for Magnetic Glass Door / Turnstile Gate Lock.
+   - Inbuilt battery backup (light jaane par bhi 4 ghante chalti hai).
+
+3. Realtime / ZKTeco Face Recognition (T52F Face) [₹6,000 - ₹9,000]:
+   - Gym ke liye best: Paseena (sweat) aur chalk powder se thumb scan me
+     dikkat nahi hoti. 0.3 second me contactless face entry!
+
+4. Secureye S-B8CB [₹2,500 - ₹3,500]:
+   - Budget-friendly entry-level machine. Supports TCP/IP and USB flash drive.
+
+================================================================================
+             DOCUMENT CREATED FOR UNIVO GYM MANAGEMENT SYSTEM
+                        ALL RIGHTS RESERVED © 2026
+================================================================================
