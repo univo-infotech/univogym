@@ -488,10 +488,12 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
               const fullText = `${s.label} (${s.time})`;
               const isSelected = selectedSlot === fullText || selectedSlot === s.label;
               const Icon = s.icon || Sun;
+              const maxSlotLimit = Number(selectedTrainerObj?.maxPtPerSlot || 2);
 
               // Find how many athletes are booked with THIS trainer in this slot
               const bookedAthletes = trainerSlotOccupancy[fullText] || trainerSlotOccupancy[s.label] || trainerSlotOccupancy[s.time] || [];
               const bookedCount = bookedAthletes.length;
+              const isFull = bookedCount >= maxSlotLimit;
 
               return (
                 <button
@@ -516,12 +518,12 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
                         className={`hidden md:inline-flex text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shrink-0 ${
                           bookedCount === 0
                             ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                            : bookedCount === 1
+                            : !isFull
                             ? "bg-amber-100 text-amber-900 border border-amber-300"
                             : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
                         }`}
                       >
-                        {bookedCount === 0 ? "🟢 FREE" : bookedCount === 1 ? "🟡 1 BOOKED" : `🔴 ${bookedCount} BUSY`}
+                        {bookedCount === 0 ? `🟢 FREE (0/${maxSlotLimit})` : !isFull ? `🟡 ${bookedCount}/${maxSlotLimit}` : `🔴 ${bookedCount}/${maxSlotLimit} FULL`}
                       </span>
                     </div>
 
@@ -531,12 +533,12 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
                         className={`inline-flex text-[8.5px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-tight ${
                           bookedCount === 0
                             ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                            : bookedCount === 1
+                            : !isFull
                             ? "bg-amber-100 text-amber-900 border border-amber-300"
                             : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
                         }`}
                       >
-                        {bookedCount === 0 ? "🟢 FREE" : bookedCount === 1 ? "🟡 1 BOOKED" : `🔴 ${bookedCount} BUSY`}
+                        {bookedCount === 0 ? `🟢 FREE (0/${maxSlotLimit})` : !isFull ? `🟡 ${bookedCount}/${maxSlotLimit}` : `🔴 ${bookedCount}/${maxSlotLimit} FULL`}
                       </span>
                     </div>
 
@@ -556,26 +558,28 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
 
           {/* Overbooking Alert Warning */}
           {(() => {
+            const maxSlotLimit = Number(selectedTrainerObj?.maxPtPerSlot || 2);
             const curBooked = trainerSlotOccupancy[selectedSlot] || 
               trainerSlotOccupancy[selectedSlot?.split(' ')[0]] || [];
-            if (curBooked.length >= 2) {
+            const coachCleanName = (trainerName || '').startsWith('Coach') ? trainerName : `Coach ${trainerName}`;
+            if (curBooked.length >= maxSlotLimit) {
               return (
                 <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-900 animate-in fade-in duration-200">
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <div className="text-[11px] leading-tight">
-                    <strong className="font-extrabold text-rose-800">Trainer Slot Overbooked! </strong>
-                    Coach <strong>{trainerName}</strong> ke paas is slot (<strong>{selectedSlot}</strong>) mein pehle se <strong>{curBooked.length} athletes</strong> training le rahe hain ({curBooked.join(", ")}). Trainer ek waqt mein zyada members par dhyan nahi de payega. Agar sambhav ho toh doosra free slot chunein.
+                    <strong className="font-extrabold text-rose-800">Trainer Shift Capacity Full ({curBooked.length}/{maxSlotLimit}): </strong>
+                    <strong>{coachCleanName}</strong> already has <strong>{curBooked.length} active athletes</strong> scheduled in this slot (<strong>{selectedSlot}</strong>) ({curBooked.join(", ")}). Maximum allowed is {maxSlotLimit} PT per shift. Consider selecting an alternate available time slot.
                   </div>
                 </div>
               );
             }
-            if (curBooked.length === 1) {
+            if (curBooked.length > 0) {
               return (
                 <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2 text-amber-900 animate-in fade-in duration-200">
                   <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div className="text-[11px] leading-tight">
                     <strong className="font-bold text-amber-800">Slot Occupancy Note: </strong>
-                    Coach <strong>{trainerName}</strong> ke paas is slot mein pehle se 1 athlete (<strong>{curBooked[0]}</strong>) booked hai.
+                    <strong>{coachCleanName}</strong> is already coaching 1 athlete (<strong>{curBooked[0]}</strong>) in this slot.
                   </div>
                 </div>
               );

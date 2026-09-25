@@ -25,20 +25,15 @@ export async function getSupplements(gymId) {
     const colRef = collection(db, `gyms/${targetGymId}/supplements`);
     const snap = await getDocs(colRef);
     if (!snap.empty) {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      try {
-        localStorage.setItem(`univo_supplements_${targetGymId}`, JSON.stringify(list));
-      } catch (e) {}
-      return list;
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+    const snapTop = await getDocs(collection(db, "supplements"));
+    if (!snapTop.empty) {
+      return snapTop.docs.map(d => ({ id: d.id, ...d.data() }));
     }
   } catch (err) {
-    console.warn("getSupplements firestore error, falling back to local storage:", err);
+    console.warn("getSupplements Firestore error:", err);
   }
-
-  try {
-    const local = localStorage.getItem(`univo_supplements_${targetGymId}`);
-    if (local) return JSON.parse(local);
-  } catch (e) {}
   return [];
 }
 
@@ -54,15 +49,10 @@ export async function addSupplement(gymId, data) {
   try {
     const docRef = doc(db, `gyms/${targetGymId}/supplements`, supId);
     await setDoc(docRef, clean, { merge: true });
+    await setDoc(doc(db, "supplements", supId), clean, { merge: true });
   } catch (err) {
-    console.warn("addSupplement offline save fallback:", err);
+    console.warn("addSupplement Firestore save error:", err);
   }
-
-  try {
-    const local = localStorage.getItem(`univo_supplements_${targetGymId}`);
-    const list = local ? JSON.parse(local) : [];
-    localStorage.setItem(`univo_supplements_${targetGymId}`, JSON.stringify([clean, ...list.filter(x => x.id !== supId)]));
-  } catch (e) {}
 
   return clean;
 }
@@ -73,18 +63,10 @@ export async function updateSupplement(gymId, id, data) {
   try {
     const docRef = doc(db, `gyms/${targetGymId}/supplements`, id);
     await setDoc(docRef, clean, { merge: true });
+    await setDoc(doc(db, "supplements", id), clean, { merge: true });
   } catch (err) {
-    console.warn("updateSupplement offline save fallback:", err);
+    console.warn("updateSupplement Firestore update error:", err);
   }
-
-  try {
-    const local = localStorage.getItem(`univo_supplements_${targetGymId}`);
-    if (local) {
-      const list = JSON.parse(local);
-      const updated = list.map(item => item.id === id ? { ...item, ...clean } : item);
-      localStorage.setItem(`univo_supplements_${targetGymId}`, JSON.stringify(updated));
-    }
-  } catch (e) {}
 
   return { id, ...clean };
 }
@@ -94,17 +76,10 @@ export async function deleteSupplement(gymId, id) {
   try {
     const docRef = doc(db, `gyms/${targetGymId}/supplements`, id);
     await deleteDoc(docRef);
+    await deleteDoc(doc(db, "supplements", id));
   } catch (err) {
-    console.warn("deleteSupplement offline fallback:", err);
+    console.warn("deleteSupplement Firestore delete error:", err);
   }
-
-  try {
-    const local = localStorage.getItem(`univo_supplements_${targetGymId}`);
-    if (local) {
-      const list = JSON.parse(local).filter(item => item.id !== id);
-      localStorage.setItem(`univo_supplements_${targetGymId}`, JSON.stringify(list));
-    }
-  } catch (e) {}
 
   return true;
 }
@@ -124,11 +99,12 @@ export async function sellSupplement(gymId, supplementId, saleData) {
   try {
     const salesColRef = collection(db, `gyms/${targetGymId}/supplement_sales`);
     await addDoc(salesColRef, cleanData);
+    await addDoc(collection(db, "supplement_sales"), cleanData);
   } catch (err) {
-    console.warn("Firestore save sale fallback to local cache:", err);
+    console.warn("Firestore save sale error:", err);
   }
 
-  // 2. Decrement current stock using setDoc with merge: true (never crashes if doc is missing)
+  // 2. Decrement current stock using setDoc with merge: true
   const currentStock = Number(saleData.currentStock || 0);
   const qtySold = Number(saleData.quantitySold || 1);
   const newStock = Math.max(0, currentStock - qtySold);
@@ -137,68 +113,40 @@ export async function sellSupplement(gymId, supplementId, saleData) {
     try {
       const docRef = doc(db, `gyms/${targetGymId}/supplements`, supplementId);
       await setDoc(docRef, { quantity: newStock, inStock: newStock > 0 }, { merge: true });
+      await setDoc(doc(db, "supplements", supplementId), { quantity: newStock, inStock: newStock > 0 }, { merge: true });
     } catch (err) {
-      console.warn("Firestore update stock fallback:", err);
+      console.warn("Firestore update stock error:", err);
     }
-
-    // Also update local storage supplements
-    try {
-      const local = localStorage.getItem(`univo_supplements_${targetGymId}`);
-      if (local) {
-        const list = JSON.parse(local);
-        const updated = list.map(item =>
-          item.id === supplementId ? { ...item, quantity: newStock, inStock: newStock > 0 } : item
-        );
-        localStorage.setItem(`univo_supplements_${targetGymId}`, JSON.stringify(updated));
-      }
-    } catch (e) {}
   }
 
-  // 3. Save sale locally in cache and localStorage
-  try {
-    const cacheKey = `supplements_sales_${targetGymId}`;
-    const cached = getCachedData(cacheKey)?.data || [];
-    setCachedData(cacheKey, [cleanData, ...cached]);
-
-    const localSales = localStorage.getItem(`univo_sales_${targetGymId}`);
-    const list = localSales ? JSON.parse(localSales) : [];
-    localStorage.setItem(`univo_sales_${targetGymId}`, JSON.stringify([cleanData, ...list]));
-  } catch (e) {}
-
+  invalidateCache("supplements");
   return { success: true, id: saleId, newStock };
 }
 
 export async function getSupplementSales(gymId, forceRefresh = false) {
   const targetGymId = gymId || "univo_main";
-  const cacheKey = `supplements_sales_${targetGymId}`;
 
   let serverList = [];
   try {
     const colRef = collection(db, `gyms/${targetGymId}/supplement_sales`);
     const snap = await getDocs(colRef);
     serverList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (serverList.length === 0) {
+      const snapTop = await getDocs(collection(db, "supplement_sales"));
+      serverList = snapTop.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
   } catch (e) {
     console.warn("getSupplementSales error:", e);
   }
 
-  let localList = [];
-  try {
-    const raw = localStorage.getItem(`univo_sales_${targetGymId}`);
-    if (raw) localList = JSON.parse(raw);
-  } catch (e) {}
-
   const map = new Map();
   serverList.forEach(s => map.set(s.id, s));
-  localList.forEach(s => {
-    if (!map.has(s.id)) map.set(s.id, s);
-  });
 
-  const merged = Array.from(map.values()).sort(
+  const list = Array.from(map.values()).sort(
     (a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0)
   );
 
-  setCachedData(cacheKey, merged);
-  return merged;
+  return list;
 }
 
 

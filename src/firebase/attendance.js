@@ -16,74 +16,72 @@ import {
 import { db } from "./config";
 import { getMembers, updateMember } from "./members";
 
-const LOCAL_PUNCHES_KEY = "univo_biometric_punches";
-const LOCAL_DEVICES_KEY = "univo_biometric_devices";
-
-// Helper to get local cache
-function getLocalPunches() {
-  try {
-    const raw = localStorage.getItem(LOCAL_PUNCHES_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    return [];
+const DEFAULT_DEVICES = [
+  {
+    id: "dev_main_entrance",
+    name: "Main Gym Entrance Gate",
+    brand: "ZKTeco / e-SSL (ADMS / Cloud Push)",
+    model: "K90 / e990 / uFace Series",
+    connectionType: "WiFi / LAN Cloud Push",
+    serialNumber: "ZK90-UNIVO-88921",
+    ipAddress: "192.168.1.120",
+    port: "4370",
+    cloudServerUrl: typeof window !== "undefined" ? `${window.location.origin}/api/biometric/adms` : "/api/biometric/adms",
+    gymSecretKey: "UNIVO_BIO_9921_MAIN",
+    status: "connected",
+    lastPing: new Date().toISOString(),
+    location: "Front Turnstile Door",
+    totalPunchesToday: 0
+  },
+  {
+    id: "dev_floor_scanner",
+    name: "Cardio & Weight Floor Scanner",
+    brand: "Realtime Biometrics (HTTP Webhook / JSON)",
+    model: "T52 / C101 Pro",
+    connectionType: "Direct WiFi",
+    serialNumber: "RT-T52-77102",
+    ipAddress: "192.168.1.125",
+    port: "8080",
+    cloudServerUrl: typeof window !== "undefined" ? `${window.location.origin}/api/biometric/realtime` : "/api/biometric/realtime",
+    gymSecretKey: "UNIVO_BIO_77102_RT",
+    status: "connected",
+    lastPing: new Date().toISOString(),
+    location: "Workout Floor Entry",
+    totalPunchesToday: 0
   }
-}
+];
 
-function saveLocalPunch(punch) {
+let inMemoryDevices = [...DEFAULT_DEVICES];
+
+/**
+ * Fetch biometric hardware devices from Firebase Firestore
+ */
+export async function getBiometricDevices(gymId = "univo_main") {
+  const targetGymId = gymId || "univo_main";
   try {
-    const list = getLocalPunches();
-    const updated = [punch, ...list.filter(p => p.id !== punch.id)].slice(0, 200);
-    localStorage.setItem(LOCAL_PUNCHES_KEY, JSON.stringify(updated));
-  } catch (e) {}
-}
-
-export function getLocalDevices() {
-  try {
-    const raw = localStorage.getItem(LOCAL_DEVICES_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {}
-
-  // Default universal devices configuration
-  return [
-    {
-      id: "dev_main_entrance",
-      name: "Main Gym Entrance Gate",
-      brand: "ZKTeco / e-SSL (ADMS / Cloud Push)",
-      model: "K90 / e990 / uFace Series",
-      connectionType: "WiFi / LAN Cloud Push",
-      serialNumber: "ZK90-UNIVO-88921",
-      ipAddress: "192.168.1.120",
-      port: "4370",
-      cloudServerUrl: `${window.location.origin}/api/biometric/adms`,
-      gymSecretKey: "UNIVO_BIO_9921_MAIN",
-      status: "connected",
-      lastPing: new Date().toISOString(),
-      location: "Front Turnstile Door",
-      totalPunchesToday: 0
-    },
-    {
-      id: "dev_floor_scanner",
-      name: "Cardio & Weight Floor Scanner",
-      brand: "Realtime Biometrics (HTTP Webhook / JSON)",
-      model: "T52 / C101 Pro",
-      connectionType: "Direct WiFi",
-      serialNumber: "RT-T52-77102",
-      ipAddress: "192.168.1.125",
-      port: "8080",
-      cloudServerUrl: `${window.location.origin}/api/biometric/realtime`,
-      gymSecretKey: "UNIVO_BIO_77102_RT",
-      status: "connected",
-      lastPing: new Date().toISOString(),
-      location: "Workout Floor Entry",
-      totalPunchesToday: 0
+    const snap = await getDocs(collection(db, "gyms", targetGymId, "biometric_devices"));
+    if (!snap.empty) {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      inMemoryDevices = list;
+      return list;
     }
-  ];
+    const snapTop = await getDocs(query(collection(db, "biometric_devices"), where("gymId", "==", targetGymId)));
+    if (!snapTop.empty) {
+      const list = snapTop.docs.map(d => ({ id: d.id, ...d.data() }));
+      inMemoryDevices = list;
+      return list;
+    }
+  } catch (err) {
+    console.warn("getBiometricDevices Firestore note:", err);
+  }
+  return inMemoryDevices;
 }
 
-export function saveLocalDevices(devices) {
-  try {
-    localStorage.setItem(LOCAL_DEVICES_KEY, JSON.stringify(devices));
-  } catch (e) {}
+/**
+ * Synchronous getter returning current in-memory devices configuration
+ */
+export function getLocalDevices() {
+  return inMemoryDevices;
 }
 
 /**
@@ -168,7 +166,19 @@ export async function logBiometricPunch(gymId, punchInput) {
       photoUrl: null
     };
 
-    saveLocalPunch(unknownPunch);
+    try {
+      addDoc(collection(db, "gyms", targetGymId, "biometric_punches"), {
+        ...unknownPunch,
+        gymId: targetGymId,
+        createdAt: serverTimestamp()
+      }).catch(() => {});
+      addDoc(collection(db, "biometric_punches"), {
+        ...unknownPunch,
+        gymId: targetGymId,
+        createdAt: serverTimestamp()
+      }).catch(() => {});
+    } catch (e) {}
+
     return { success: false, status: "denied", reason: unknownPunch.reason, punch: unknownPunch };
   }
 
@@ -226,10 +236,7 @@ export async function logBiometricPunch(gymId, punchInput) {
     photoUrl: matchedMember.photoURL || matchedMember.photoUrl || null
   };
 
-  // 1. Save Punch in local cache
-  saveLocalPunch(punchRecord);
-
-  // 2. If access granted, record actual attendance
+  // 1. If access granted, record actual attendance
   if (accessStatus === "granted") {
     try {
       await markMemberAttendance(matchedMember.id, targetGymId, now);
@@ -244,14 +251,20 @@ export async function logBiometricPunch(gymId, punchInput) {
     }
   }
 
-  // 3. Persist punch in Firestore
+  // 2. Persist punch directly in Firestore
   try {
+    await addDoc(collection(db, "gyms", targetGymId, "biometric_punches"), {
+      ...punchRecord,
+      gymId: targetGymId,
+      createdAt: serverTimestamp()
+    });
     await addDoc(collection(db, "biometric_punches"), {
       ...punchRecord,
+      gymId: targetGymId,
       createdAt: serverTimestamp()
     });
   } catch (fsErr) {
-    // Local persistence handles offline resilience
+    console.warn("Firestore punch save notice:", fsErr);
   }
 
   return {
@@ -264,60 +277,70 @@ export async function logBiometricPunch(gymId, punchInput) {
 }
 
 /**
- * Fetch recent biometric punches for real-time live monitoring.
+ * Fetch recent biometric punches directly from Firebase Firestore
  */
 export async function getBiometricPunches(gymId, limitCount = 50) {
   const targetGymId = gymId || "univo_main";
   let punches = [];
 
   try {
-    const q = query(
-      collection(db, "biometric_punches"),
+    const qNested = query(
+      collection(db, "gyms", targetGymId, "biometric_punches"),
       orderBy("createdAt", "desc"),
       limit(limitCount)
     );
-    const snap = await getDocs(q);
-    punches = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const snapNested = await getDocs(qNested);
+    if (!snapNested.empty) {
+      punches = snapNested.docs.map(d => ({ id: d.id, ...d.data() }));
+    } else {
+      const qTop = query(
+        collection(db, "biometric_punches"),
+        where("gymId", "==", targetGymId),
+        limit(limitCount)
+      );
+      const snapTop = await getDocs(qTop);
+      punches = snapTop.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
   } catch (e) {
-    // Fallback to local punches
+    try {
+      const snapFallback = await getDocs(collection(db, "gyms", targetGymId, "biometric_punches"));
+      punches = snapFallback.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (e2) {}
   }
 
-  const local = getLocalPunches();
-  const seenIds = new Set(punches.map(p => p.id));
-  local.forEach(lp => {
-    if (!seenIds.has(lp.id)) {
-      seenIds.add(lp.id);
-      punches.push(lp);
-    }
-  });
-
-  punches.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+  punches.sort((a, b) => new Date(b.timestamp || b.createdAt || 0) - new Date(a.timestamp || a.createdAt || 0));
   return punches.slice(0, limitCount);
 }
 
 /**
- * Save Biometric device setting.
+ * Save Biometric device setting to Firebase Firestore
  */
 export async function saveBiometricDevice(gymId, deviceData) {
-  const devices = getLocalDevices();
-  const existingIdx = devices.findIndex(d => d.id === deviceData.id);
-  let updated;
+  const targetGymId = gymId || "univo_main";
+  const existingIdx = inMemoryDevices.findIndex(d => d.id === deviceData.id);
   if (existingIdx >= 0) {
-    updated = devices.map(d => d.id === deviceData.id ? { ...d, ...deviceData } : d);
+    inMemoryDevices = inMemoryDevices.map(d => d.id === deviceData.id ? { ...d, ...deviceData } : d);
   } else {
-    updated = [deviceData, ...devices];
+    inMemoryDevices = [deviceData, ...inMemoryDevices];
   }
-  saveLocalDevices(updated);
 
   try {
-    await setDoc(doc(db, "biometric_devices", deviceData.id), {
+    await setDoc(doc(db, "gyms", targetGymId, "biometric_devices", deviceData.id), {
       ...deviceData,
-      gymId: gymId || "univo_main",
+      gymId: targetGymId,
       updatedAt: serverTimestamp()
     }, { merge: true });
-  } catch (e) {}
 
-  return updated;
+    await setDoc(doc(db, "biometric_devices", deviceData.id), {
+      ...deviceData,
+      gymId: targetGymId,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (e) {
+    console.warn("saveBiometricDevice Firestore notice:", e);
+  }
+
+  return inMemoryDevices;
 }
 
 /**

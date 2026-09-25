@@ -31,7 +31,7 @@ import {
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import toast from "react-hot-toast";
-import { getGymSettings, saveGymSettings } from "../../utils/settings";
+import { getGymSettings, saveGymSettings, fetchGymSettings } from "../../utils/settings";
 import SignaturePad from "../../components/shared/SignaturePad";
 import { load6MonthDummyData, clearAllGymData } from "../../firebase/seedData";
 import { useAuth } from "../../contexts/AuthContext";
@@ -40,6 +40,7 @@ export default function Settings() {
   const { gymId: authGymId, logoutUser } = useAuth();
   const gymId = authGymId || "univo_main";
   const [settings, setSettings] = useState(getGymSettings());
+  const [saving, setSaving] = useState(false);
   const [signatureMode, setSignatureMode] = useState("draw"); // "draw" or "upload"
   const logoInputRef = useRef(null);
   const signatureInputRef = useRef(null);
@@ -50,13 +51,22 @@ export default function Settings() {
   const [loadConfirmOpen, setLoadConfirmOpen] = useState(false);
 
   useEffect(() => {
-    setSettings(getGymSettings());
-  }, []);
+    fetchGymSettings(gymId).then((data) => {
+      if (data) setSettings(data);
+    });
+  }, [gymId]);
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    saveGymSettings(settings);
-    toast.success("Gym settings, official logo & signature saved successfully!");
+    setSaving(true);
+    try {
+      await saveGymSettings(settings, gymId);
+      toast.success("Gym settings, official logo & signature saved to Firebase!");
+    } catch (err) {
+      toast.error("Failed to save settings: " + (err.message || "Unknown error"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Logo upload handler

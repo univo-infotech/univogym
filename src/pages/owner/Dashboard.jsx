@@ -290,19 +290,18 @@ export default function Dashboard() {
       toast.error("Enter WhatsApp phone number first!");
       return;
     }
-    const selTrainer = trainersList.find((t) => t.id === selectedTrainerId);
     const link = await generateInviteToken("univo_main", {
       memberName: inviteName.trim(),
       phone: invitePhone.trim(),
-      isPT,
-      trainerId: isPT ? selectedTrainerId : "",
-      trainerName: isPT ? (selTrainer?.name || "") : "",
-      loginEmail: isPT ? (loginEmail.trim() || invitePhone.trim()) : "",
-      loginPassword: isPT ? (loginPassword.trim() || "Member@123") : "",
+      isPT: false,
+      trainerId: "",
+      trainerName: "",
+      loginEmail: "",
+      loginPassword: "",
     });
     setGeneratedLink(link);
     setLinkCountdown(600);
-    toast.success(isPT ? "PT 10-Minute Link & Credentials Ready!" : "10-Minute Invite Link & QR Code Generated!");
+    toast.success("10-Minute Invite Link & QR Code Generated!");
   };
 
   const handleSendReminder = (m) => {
@@ -607,78 +606,9 @@ export default function Dashboard() {
               type="text"
               placeholder="e.g. 9876543210"
               value={invitePhone}
-              onChange={(e) => {
-                setInvitePhone(e.target.value);
-                if (!loginEmail) setLoginEmail(e.target.value);
-              }}
+              onChange={(e) => setInvitePhone(e.target.value)}
               className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
             />
-          </div>
-
-          {/* PT Membership & Credentials Configuration */}
-          <div className="p-3.5 rounded-2xl bg-indigo-50/80 border border-indigo-200/90 space-y-2.5">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isPT}
-                onChange={(e) => setIsPT(e.target.checked)}
-                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
-              />
-              <span className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-indigo-600" />
-                Is this link for a Personal Training (PT) Member?
-              </span>
-            </label>
-
-            {isPT && (
-              <div className="space-y-2.5 pt-2 border-t border-indigo-200/70">
-                <p className="text-[11px] text-indigo-900 leading-tight">
-                  PT member ke liye Portal Login ID aur Password set karein jisse wo apne coach se live chat, diet aur workout le sake:
-                </p>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Assign Personal Trainer / Coach
-                  </label>
-                  <select
-                    value={selectedTrainerId}
-                    onChange={(e) => setSelectedTrainerId(e.target.value)}
-                    className="w-full bg-white border border-indigo-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500"
-                  >
-                    {trainersList.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name} ({t.specialization || 'Fitness Coach'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                      Member Login ID / Phone
-                    </label>
-                    <input
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      placeholder={invitePhone || '9876543210'}
-                      className="w-full bg-white border border-indigo-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                      Portal Login Password
-                    </label>
-                    <input
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      placeholder="Member@123"
-                      className="w-full bg-white border border-indigo-300 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-emerald-800 focus:outline-none focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {!generatedLink ? (
@@ -686,7 +616,7 @@ export default function Dashboard() {
               onClick={handleGenerateLink}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-md transition"
             >
-              {isPT ? "⚡ Generate PT Link, QR & Credentials" : "Generate Link & QR Code"}
+              Generate Link & QR Code
             </button>
           ) : (
             <div className="space-y-3.5 pt-2">
@@ -736,18 +666,9 @@ export default function Dashboard() {
                       onClick={() => {
                         const rawNum = invitePhone.replace(/\D/g, "");
                         const waPhone = rawNum.length === 10 ? `91${rawNum}` : rawNum;
-                        const selTrainer = trainersList.find((t) => t.id === selectedTrainerId);
-
-                        let extraPtMsg = "";
-                        if (isPT) {
-                          const userLogin = loginEmail.trim() || invitePhone.trim();
-                          const passLogin = loginPassword.trim() || "Member@123";
-                          const coachName = selTrainer?.name ? `Coach ${selTrainer.name}` : "Personal Trainer";
-                          extraPtMsg = `\n\n🔑 *Your PT Member App Login Credentials:*\n• Login ID / User: *${userLogin}*\n• Password: *${passLogin}*\n• Dedicated Coach: *${coachName}*\n_Use these credentials to log into your portal to chat with your coach & view customized meal & workout plans!_`;
-                        }
 
                         const msg = encodeURIComponent(
-                          `💪 *Welcome to ${settings.gymName || 'UNIVO GYM'}!*\n\nHi ${inviteName || 'Athlete'},\nPlease complete your gym registration form, choose your membership plan & trainer, and sign your liability waiver using this direct link:\n\n🔗 ${generatedLink}${extraPtMsg}\n\n⚠️ *Important:* This secure registration link expires in 10 minutes.`
+                          `💪 *Welcome to ${settings.gymName || 'UNIVO GYM'}!*\n\nHi ${inviteName || 'Athlete'},\nPlease complete your gym registration form, choose your membership plan & trainer, and sign your liability waiver using this direct link:\n\n🔗 ${generatedLink}\n\n⚠️ *Important:* This secure registration link expires in 10 minutes.`
                         );
                         window.open(`https://wa.me/${waPhone}?text=${msg}`, "_blank");
                       }}

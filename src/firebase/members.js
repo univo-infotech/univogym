@@ -56,23 +56,6 @@ export async function getMembers(gymId, forceRefresh = false) {
     }
   }
 
-  // Merge with locally cached members (persisted across self-registration and offline sessions)
-  try {
-    const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-    if (Array.isArray(cached) && cached.length > 0) {
-      const existingIds = new Set(membersList.map((m) => m.id));
-      const existingPhones = new Set(membersList.map((m) => (m.phone || "").replace(/\D/g, "")).filter(Boolean));
-      for (const item of cached) {
-        const itemPhone = (item.phone || "").replace(/\D/g, "");
-        if (!existingIds.has(item.id) && (!itemPhone || !existingPhones.has(itemPhone))) {
-          membersList.unshift(item);
-        }
-      }
-    }
-  } catch (cacheErr) {
-    console.warn("Local member cache read notice:", cacheErr);
-  }
-
   // Sort descending by creation date
   membersList.sort((a, b) => {
     const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || a.registeredAt || 0).getTime();
@@ -215,15 +198,6 @@ export async function getMember(gymIdOrMemberId, optionalMemberId) {
     // Ignore
   }
 
-  // Check local cache
-  try {
-    const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-    const found = cached.find((m) => m.id === memberId || (m.phone && m.phone === memberId));
-    if (found) return found;
-  } catch (e) {
-    // Ignore
-  }
-
   // Check DEMO_MEMBERS fallback
   const demoFound = DEMO_MEMBERS.find((m) => m.id === memberId || m.name?.toLowerCase() === memberId.toLowerCase());
   if (demoFound) return demoFound;
@@ -269,22 +243,17 @@ export async function generateInviteToken(gymId, opts = {}) {
       expiresAt,
     });
     token = ref.id;
+    // Also save in gyms subcollection for consistency
+    try {
+      await setDoc(doc(db, "gyms", effectiveGymId, "inviteTokens", token), {
+        ...tokenDocData,
+        createdAt: serverTimestamp(),
+        expiresAt,
+      });
+    } catch (subErr) {}
   } catch (err) {
-    console.warn("Firestore invite token fallback to local token:", err);
+    console.warn("Firestore invite token save error:", err);
     token = "inv_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
-  }
-
-  // Save to local tokens cache for seamless instant access
-  try {
-    const localTokens = JSON.parse(localStorage.getItem("univo_invite_tokens") || "{}");
-    localTokens[token] = {
-      ...tokenDocData,
-      createdAt: new Date().toISOString(),
-      expiresAt: Date.now() + 10 * 60 * 1000,
-    };
-    localStorage.setItem("univo_invite_tokens", JSON.stringify(localTokens));
-  } catch (e) {
-    console.warn("Local tokens write notice:", e);
   }
 
   // Web route with hash for HashRouter compatibility
@@ -330,22 +299,6 @@ export async function updateMember(arg1, arg2, arg3) {
     } catch (qErr) {
       console.warn("updateDoc query fallback error:", qErr);
     }
-  }
-
-  // Update in local cache as well
-  try {
-    const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-    const rawTargetPhone = (data?.phone || "").replace(/\D/g, "");
-    const idx = cached.findIndex((m) => 
-      m.id === memberId || 
-      (rawTargetPhone && (m.phone || "").replace(/\D/g, "") === rawTargetPhone)
-    );
-    if (idx !== -1) {
-      cached[idx] = { ...cached[idx], ...data, updatedAt: new Date().toISOString() };
-      localStorage.setItem("univo_recent_members", JSON.stringify(cached));
-    }
-  } catch (e) {
-    // Ignore
   }
 
   // Update or invalidate active member session
@@ -414,20 +367,20 @@ export async function validateInviteToken(gymId, token) {
     console.warn("Firestore validateInviteToken notice:", err);
   }
 
-  // Check local token cache
+  // Fallback: check nested gym subcollection gyms/{gymId}/inviteTokens/{token}
   try {
-    const localTokens = JSON.parse(localStorage.getItem("univo_invite_tokens") || "{}");
-    const tData = localTokens[token];
-    if (tData) {
-      if (tData.used) return { valid: false, reason: "used" };
-      if (tData.expiresAt && Date.now() > tData.expiresAt) {
+    const subSnap = await getDoc(doc(db, "gyms", gymId || "univo_main", "inviteTokens", token));
+    if (subSnap.exists()) {
+      const data = subSnap.data();
+      if (data.used) return { valid: false, reason: "used" };
+      const now = Date.now();
+      const expiresAt = data.expiresAt?.toMillis ? data.expiresAt.toMillis() : data.expiresAt;
+      if (expiresAt && now > expiresAt) {
         return { valid: false, reason: "expired" };
       }
-      return { valid: true, data: tData };
+      return { valid: true, data };
     }
-  } catch (e) {
-    // Ignore
-  }
+  } catch (subErr) {}
 
   // Fallback: If valid formatted token string is present, allow registration to proceed
   if (token && token.length >= 8 && token !== "invalid" && token !== "null") {
@@ -438,7 +391,7 @@ export async function validateInviteToken(gymId, token) {
 }
 
 /**
- * Mark token as used.
+ * Mark token as used in Firestore
  */
 export async function markTokenUsed(gymId, token) {
   try {
@@ -446,23 +399,18 @@ export async function markTokenUsed(gymId, token) {
       used: true,
       usedAt: serverTimestamp(),
     });
-  } catch (err) {
-    console.warn("markTokenUsed firestore note:", err);
-  }
+  } catch (err) {}
 
   try {
-    const localTokens = JSON.parse(localStorage.getItem("univo_invite_tokens") || "{}");
-    if (localTokens[token]) {
-      localTokens[token].used = true;
-      localStorage.setItem("univo_invite_tokens", JSON.stringify(localTokens));
-    }
-  } catch (e) {
-    // Ignore
-  }
+    await updateDoc(doc(db, "gyms", gymId || "univo_main", "inviteTokens", token), {
+      used: true,
+      usedAt: serverTimestamp(),
+    });
+  } catch (err) {}
 }
 
 /**
- * Add a new member to Firestore and local cache.
+ * Add a new member directly to Firestore.
  */
 export async function addMember(gymId, memberData) {
   const effectiveGymId = gymId || "univo_main";
@@ -486,26 +434,24 @@ export async function addMember(gymId, memberData) {
     memberId = ref.id;
     payload.id = ref.id;
   } catch (err) {
-    console.warn("Firestore addDoc error, saving locally:", err);
+    console.warn("Firestore addDoc error, saving with generated id:", err);
     payload.id = memberId;
   }
 
-  // Save to local cache so owner and dashboards reflect it instantly
   try {
-    const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-    cached.unshift({ ...payload, id: memberId });
-    // Keep last 100 entries
-    if (cached.length > 100) cached.length = 100;
-    localStorage.setItem("univo_recent_members", JSON.stringify(cached));
-  } catch (e) {
-    console.warn("Local storage member cache note:", e);
-  }
+    await setDoc(doc(db, "gyms", effectiveGymId, "members", memberId), {
+      ...payload,
+      id: memberId,
+      createdAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (subErr) {}
 
+  invalidateCache("members");
   return memberId;
 }
 
 /**
- * Delete a member document and clear from local cache.
+ * Delete a member document directly from Firestore.
  */
 export async function deleteMember(gymIdOrMemberId, maybeMemberId) {
   let targetGymId = "univo_main";
@@ -523,23 +469,9 @@ export async function deleteMember(gymIdOrMemberId, maybeMemberId) {
 
   try {
     await deleteDoc(doc(db, `gyms/${targetGymId}/members`, memberId));
-  } catch (err) {
-    // Ignore fallback
-  }
-
-  try {
-    const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-    const updated = cached.filter((m) => m.id !== memberId);
-    localStorage.setItem("univo_recent_members", JSON.stringify(updated));
-  } catch (e) {
-    // Ignore
-  }
+  } catch (err) {}
 
   invalidateCache("members");
-  try {
-    localStorage.removeItem(`members_${targetGymId}`);
-    localStorage.removeItem("members_univo_main");
-  } catch (e) {}
 }
 
 

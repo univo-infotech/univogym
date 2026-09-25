@@ -90,3 +90,43 @@ export async function deleteService(gymId, serviceId) {
   const ref = doc(db, "gyms", gymId, "services", serviceId);
   await deleteDoc(ref);
 }
+
+/**
+ * Checks whether a gym service is included in a membership package for free
+ */
+export function isServiceIncludedInPlan(service, plan) {
+  if (!service || !plan) return false;
+  const srvName = (service.name || "").trim().toLowerCase();
+  const srvId = service.id;
+
+  // 1. Direct ID or Name check in plan.includedServices
+  if (Array.isArray(plan.includedServices)) {
+    if (plan.includedServices.includes(srvId) || plan.includedServices.includes(service.name)) {
+      return true;
+    }
+    if (plan.includedServices.some((s) => typeof s === "string" && s.trim().toLowerCase() === srvName)) {
+      return true;
+    }
+  }
+
+  // 2. Check in plan.features (array of perk / service strings)
+  if (Array.isArray(plan.features)) {
+    return plan.features.some((feat) => {
+      if (typeof feat !== "string") return false;
+      const f = feat.trim().toLowerCase();
+      // Exact match
+      if (f === srvName) return true;
+      // Key phrase matching e.g. "Steam & Sauna" in "Steam & Sauna Bath" or vice versa
+      if (srvName.includes(f) || f.includes(srvName)) return true;
+      // Common keywords for services (steam, sauna, locker, diet, laundry, bath, nutrition)
+      if (srvName.includes("steam") && f.includes("steam")) return true;
+      if (srvName.includes("sauna") && f.includes("sauna")) return true;
+      if (srvName.includes("locker") && f.includes("locker")) return true;
+      if (srvName.includes("diet") && (f.includes("diet") || f.includes("nutrition"))) return true;
+      if (srvName.includes("laundry") && f.includes("laundry")) return true;
+      return false;
+    });
+  }
+
+  return false;
+}

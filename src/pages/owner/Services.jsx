@@ -65,11 +65,6 @@ const ICON_MAP = {
 
 // Category Config with stylish color badges
 const CATEGORIES = {
-  "Personal Training": {
-    color: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    badge: "border-emerald-500",
-    icon: "dumbbell"
-  },
   "Recovery & Spa": {
     color: "bg-blue-50 text-blue-700 border-blue-200",
     badge: "border-blue-500",
@@ -97,10 +92,27 @@ const CATEGORIES = {
   }
 };
 
+const PRESET_SERVICE_CATEGORIES = [
+  "Recovery & Spa",
+  "Nutrition & Diet",
+  "Group Fitness",
+  "Locker & Amenities",
+  "Health Assessment"
+];
+
+const PRESET_SERVICE_TAGS = [
+  "High Demand",
+  "Bestseller",
+  "Relaxing",
+  "Certified",
+  "Fun & Cardio",
+  "Free Perk",
+  "Convenience",
+  "None"
+];
+
 // Preset benefits for 1-click selection
 const PRESET_BENEFITS = [
-  "Custom Workout Routine & Technique Coaching",
-  "Daily Form Correction & Injury Prevention",
   "Weekly Body Weight & Macro Diet Audits",
   "Dedicated Digital Locker with Master Keycard",
   "Hot Steam & Sauna Muscle Relaxation Session",
@@ -112,30 +124,6 @@ const PRESET_BENEFITS = [
 
 // Default Services if database is new
 const DEFAULT_SERVICES = [
-  {
-    id: "s1",
-    name: "Personal Training (1-on-1 PT)",
-    category: "Personal Training",
-    icon: "dumbbell",
-    tag: "High Demand",
-    isFree: false,
-    price: 4000,
-    originalPrice: 5500,
-    billingType: "Per Month",
-    timing: "Flexible (6:00 AM - 10:00 PM)",
-    duration: "60 mins / session",
-    capacity: "1-on-1 Dedicated Coach",
-    instructor: "Certified Senior PT Coach",
-    desc: "Individualized goal-driven coaching, daily posture correction, progressive overload tracking & relentless accountability.",
-    benefits: [
-      "Customized Hypertrophy / Fat Loss Program",
-      "Daily Form & Lifting Posture Monitoring",
-      "Weekly Body Composition & Weight Audits",
-      "Direct WhatsApp Chat Support with Trainer"
-    ],
-    isActive: true,
-    subscriberCount: 38
-  },
   {
     id: "s2",
     name: "Diet & Nutrition Counseling",
@@ -300,6 +288,25 @@ export default function Services() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [modalTab, setModalTab] = useState("basic"); // "basic" | "schedule" | "benefits"
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [isCustomTag, setIsCustomTag] = useState(false);
+
+  // Dynamic category and tag lists merging presets and any custom created items
+  const allCategories = useMemo(() => {
+    const set = new Set(PRESET_SERVICE_CATEGORIES);
+    (services || []).forEach(s => {
+      if (s.category && s.category.trim()) set.add(s.category.trim());
+    });
+    return Array.from(set);
+  }, [services]);
+
+  const allTags = useMemo(() => {
+    const set = new Set(PRESET_SERVICE_TAGS);
+    (services || []).forEach(s => {
+      if (s.tag && s.tag.trim()) set.add(s.tag.trim());
+    });
+    return Array.from(set);
+  }, [services]);
 
   // Delete Confirmation Modal
   const [deleteModal, setDeleteModal] = useState(null);
@@ -307,22 +314,22 @@ export default function Services() {
   // Form State
   const initialForm = {
     name: "",
-    category: "Personal Training",
-    icon: "dumbbell",
+    category: "Recovery & Spa",
+    icon: "bath",
     tag: "Bestseller",
     isFree: false,
-    price: 1500,
-    originalPrice: 2000,
+    price: 300,
+    originalPrice: 500,
     billingType: "Per Month",
     timing: "All Day Unlimited (6:00 AM - 10:00 PM)",
-    duration: "60 mins / session",
-    capacity: "1-on-1 Individual",
-    instructor: "Certified Senior Trainer",
+    duration: "45 mins / session",
+    capacity: "Individual Access",
+    instructor: "Attendant On Floor",
     desc: "",
     benefits: [
-      "Dedicated 1-on-1 Guidance & Supervision",
-      "Weekly Goal Progress Audit",
-      "Personalized Routine Recommendation"
+      "Hot Steam & Sauna Muscle Relaxation Session",
+      "Post-Workout Hydration & Electrolytes Support",
+      "Free Monthly Progress & InBody Audit Report"
     ],
     customBenefitInput: "",
     isActive: true
@@ -334,8 +341,13 @@ export default function Services() {
     setLoading(true);
     try {
       const data = await getServices(currentGymId);
-      if (data && data.length > 0) {
-        setServices(data);
+      const nonPtServices = (data || []).filter(
+        s => s.category !== "Personal Training" && 
+             !s.name?.toLowerCase().includes("personal training") &&
+             !s.name?.toLowerCase().includes("1-on-1 pt")
+      );
+      if (nonPtServices.length > 0) {
+        setServices(nonPtServices);
       } else {
         setServices(DEFAULT_SERVICES);
       }
@@ -355,6 +367,8 @@ export default function Services() {
   const handleOpenCreate = () => {
     setEditingId(null);
     setForm(initialForm);
+    setIsCustomCategory(false);
+    setIsCustomTag(false);
     setModalTab("basic");
     setModalOpen(true);
   };
@@ -362,10 +376,12 @@ export default function Services() {
   // Open Edit Modal
   const handleOpenEdit = (s) => {
     setEditingId(s.id);
+    setIsCustomCategory(Boolean(s.category && !PRESET_SERVICE_CATEGORIES.includes(s.category)));
+    setIsCustomTag(Boolean(s.tag && !PRESET_SERVICE_TAGS.includes(s.tag)));
     setForm({
       name: s.name || "",
-      category: s.category || "Personal Training",
-      icon: s.icon || "dumbbell",
+      category: s.category || "Recovery & Spa",
+      icon: s.icon || "bath",
       tag: s.tag || "Bestseller",
       isFree: s.isFree || false,
       price: s.price || 0,
@@ -564,16 +580,7 @@ export default function Services() {
     });
   }, [services, searchTerm, selectedCategory, billingFilter, statusFilter, sortBy]);
 
-  // Statistics
-  const stats = useMemo(() => {
-    const total = services.length;
-    const active = services.filter(s => s.isActive !== false).length;
-    const paid = services.filter(s => !s.isFree).length;
-    const free = services.filter(s => s.isFree).length;
-    const popularCategory = "Personal Training & Spa";
 
-    return { total, active, paid, free, popularCategory };
-  }, [services]);
 
   return (
     <div className="space-y-6">
@@ -582,16 +589,11 @@ export default function Services() {
       ============================================================ */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              Gym Services & Facility Add-ons
-            </h1>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-              {stats.active} Active
-            </span>
-          </div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+            Gym Services & Facility Add-ons
+          </h1>
           <p className="text-slate-500 text-xs mt-1">
-            Manage 1-on-1 personal coaching, steam sauna, physiotherapy, lockers, diet plans and class batches
+            Manage steam sauna, physiotherapy, private lockers, diet consultation, and class batches
           </p>
         </div>
 
@@ -604,62 +606,7 @@ export default function Services() {
         </Button>
       </div>
 
-      {/* ============================================================
-          STAT CARDS ROW
-      ============================================================ */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Total Services */}
-        <div className="p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Services</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <Sparkles className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-slate-900">{stats.total}</p>
-          <p className="text-[11px] text-emerald-600 font-semibold">
-            {stats.active} active for enrollment
-          </p>
-        </div>
 
-        {/* Paid Premium Add-ons */}
-        <div className="p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Premium Add-ons</span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <Coins className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-slate-900">{stats.paid}</p>
-          <p className="text-[11px] text-indigo-600 font-semibold">
-            Revenue-generating services
-          </p>
-        </div>
-
-        {/* Included Complimentary Perks */}
-        <div className="p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Included Perks</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Gift className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-slate-900">{stats.free}</p>
-          <p className="text-[11px] text-amber-700 font-semibold">Free with membership</p>
-        </div>
-
-        {/* High Engagement Category */}
-        <div className="p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Top Facilities</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-              <Trophy className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-lg font-black text-slate-900 truncate">PT & Recovery</p>
-          <p className="text-[11px] text-purple-600 font-semibold">Highest athlete inquiries</p>
-        </div>
-      </div>
 
       {/* ============================================================
           FILTER & SEARCH CONTROLS BAR
@@ -717,12 +664,7 @@ export default function Services() {
         <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
           {[
             { id: "all", label: "All Categories" },
-            { id: "Personal Training", label: "Personal Training (PT)" },
-            { id: "Recovery & Spa", label: "Recovery & Spa" },
-            { id: "Nutrition & Diet", label: "Diet & Nutrition" },
-            { id: "Group Fitness", label: "Group Classes" },
-            { id: "Locker & Amenities", label: "Lockers & Storage" },
-            { id: "Health Assessment", label: "Diagnostic Audits" }
+            ...allCategories.map(cat => ({ id: cat, label: cat }))
           ].map((tab) => (
             <button
               key={tab.id}
@@ -790,7 +732,7 @@ export default function Services() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredServices.map((s) => {
             const IconComponent = ICON_MAP[s.icon] || Dumbbell;
-            const catConfig = CATEGORIES[s.category] || CATEGORIES["Personal Training"];
+            const catConfig = CATEGORIES[s.category] || CATEGORIES["Recovery & Spa"] || { color: "bg-slate-100 text-slate-700 border-slate-200", badge: "border-slate-500", icon: "bath" };
             const discount =
               !s.isFree && s.originalPrice > s.price
                 ? Math.round(((s.originalPrice - s.price) / s.originalPrice) * 100)
@@ -931,45 +873,24 @@ export default function Services() {
                 </div>
 
                 {/* Card Footer Actions */}
-                <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => handleShareWhatsApp(s)}
-                    className="p-2 rounded-xl bg-white border border-slate-200 text-emerald-600 hover:bg-emerald-50 text-xs font-bold transition flex items-center gap-1 shadow-2xs"
-                    title="Share on WhatsApp"
+                    onClick={() => handleOpenEdit(s)}
+                    className="px-3.5 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-emerald-600 text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    title="Edit Service"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span className="text-[11px]">Share</span>
+                    <Edit3 className="w-3.5 h-3.5" /> Edit
                   </button>
 
-                  <div className="flex items-center gap-1 ml-auto">
-                    <button
-                      type="button"
-                      onClick={() => handleDuplicate(s)}
-                      className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-white border border-transparent hover:border-slate-200 transition"
-                      title="Duplicate Facility"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEdit(s)}
-                      className="px-3 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-emerald-600 text-xs font-bold transition flex items-center gap-1 shadow-xs"
-                      title="Edit Service"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" /> Edit
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDeleteModal(s)}
-                      className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                      title="Delete Service"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteModal(s)}
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                    title="Delete Service"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             );
@@ -1035,37 +956,104 @@ export default function Services() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Category Selection / Custom Input */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Category</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="Personal Training">Personal Training</option>
-                    <option value="Recovery & Spa">Recovery & Spa</option>
-                    <option value="Nutrition & Diet">Nutrition & Diet</option>
-                    <option value="Group Fitness">Group Fitness</option>
-                    <option value="Locker & Amenities">Locker & Amenities</option>
-                    <option value="Health Assessment">Health Assessment</option>
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">Category</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isCustomCategory) {
+                          setIsCustomCategory(true);
+                          setForm({ ...form, category: "" });
+                        } else {
+                          setIsCustomCategory(false);
+                          setForm({ ...form, category: PRESET_SERVICE_CATEGORIES[0] });
+                        }
+                      }}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline"
+                    >
+                      {isCustomCategory ? "← Select List" : "+ Custom"}
+                    </button>
+                  </div>
+                  {isCustomCategory ? (
+                    <input
+                      type="text"
+                      placeholder="Type custom category name..."
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      className="w-full bg-slate-50 border-2 border-emerald-400 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                      autoFocus
+                    />
+                  ) : (
+                    <select
+                      value={form.category}
+                      onChange={(e) => {
+                        if (e.target.value === "__custom__") {
+                          setIsCustomCategory(true);
+                          setForm({ ...form, category: "" });
+                        } else {
+                          setForm({ ...form, category: e.target.value });
+                        }
+                      }}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500"
+                    >
+                      {allCategories.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                      <option value="__custom__">✨ + Type Custom Category...</option>
+                    </select>
+                  )}
                 </div>
 
+                {/* Highlight Badge Tag Selection / Custom Input */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Highlight Badge Tag</label>
-                  <select
-                    value={form.tag}
-                    onChange={(e) => setForm({ ...form, tag: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="High Demand">High Demand</option>
-                    <option value="Bestseller">Bestseller</option>
-                    <option value="Relaxing">Relaxing</option>
-                    <option value="Certified">Certified</option>
-                    <option value="Fun & Cardio">Fun & Cardio</option>
-                    <option value="Free Perk">Free Perk</option>
-                    <option value="Convenience">Convenience</option>
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">Highlight Badge Tag</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isCustomTag) {
+                          setIsCustomTag(true);
+                          setForm({ ...form, tag: "" });
+                        } else {
+                          setIsCustomTag(false);
+                          setForm({ ...form, tag: PRESET_SERVICE_TAGS[0] });
+                        }
+                      }}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline"
+                    >
+                      {isCustomTag ? "← Select List" : "+ Custom"}
+                    </button>
+                  </div>
+                  {isCustomTag ? (
+                    <input
+                      type="text"
+                      placeholder="Type custom badge (e.g. Hot Deal, New)..."
+                      value={form.tag}
+                      onChange={(e) => setForm({ ...form, tag: e.target.value })}
+                      className="w-full bg-slate-50 border-2 border-emerald-400 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
+                      autoFocus
+                    />
+                  ) : (
+                    <select
+                      value={form.tag}
+                      onChange={(e) => {
+                        if (e.target.value === "__custom__") {
+                          setIsCustomTag(true);
+                          setForm({ ...form, tag: "" });
+                        } else {
+                          setForm({ ...form, tag: e.target.value === "None" ? "" : e.target.value });
+                        }
+                      }}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500"
+                    >
+                      {allTags.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                      <option value="__custom__">✨ + Type Custom Badge...</option>
+                    </select>
+                  )}
                 </div>
               </div>
 

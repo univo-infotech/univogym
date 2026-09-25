@@ -779,7 +779,6 @@ export async function load6MonthDummyData(gymId = "univo_main") {
       console.warn("Member write note:", e);
     }
   }
-  localStorage.setItem("univo_recent_members", JSON.stringify(membersData));
 
   // --- 3. PAYMENTS & SUBSCRIPTIONS (MATCHING ALL SCENARIOS & FINANCIAL TRANSACTIONS) ---
   const paymentsData = [

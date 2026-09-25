@@ -84,6 +84,8 @@ export default function Trainers() {
     // PT Commission Deal (Percentage or Fixed amount given by trainer to owner per membership sale)
     commissionType: "percentage", // "percentage" or "fixed"
     commissionValue: 30, // e.g. 30% or ₹1500
+    // Shift / Time Slot PT Capacity (Max PT Members per Shift/Slot)
+    maxPtPerSlot: 2,
     ptPlans: [
       {
         id: 1,
@@ -127,6 +129,7 @@ export default function Trainers() {
     certUrl: "",
     commissionType: "percentage",
     commissionValue: 30,
+    maxPtPerSlot: 2,
     ptPlans: [],
     transformations: [
       { id: 1, beforeImg: "", afterImg: "", description: "" }
@@ -317,6 +320,7 @@ export default function Trainers() {
       certUrl: trainer.certUrl || "",
       commissionType: trainer.commissionType || "percentage",
       commissionValue: trainer.commissionValue !== undefined ? trainer.commissionValue : 30,
+      maxPtPerSlot: trainer.maxPtPerSlot !== undefined ? trainer.maxPtPerSlot : 2,
       ptPlans: Array.isArray(trainer.ptPlans) && trainer.ptPlans.length > 0
         ? trainer.ptPlans.map((p, idx) => ({
             id: p.id || idx + 1,
@@ -478,6 +482,7 @@ export default function Trainers() {
         certUrl: editForm.certUrl || "",
         commissionType: editForm.commissionType || "percentage",
         commissionValue: Number(editForm.commissionValue) || 0,
+        maxPtPerSlot: Math.max(1, Number(editForm.maxPtPerSlot) || 2),
         ptPlans: (editForm.ptPlans || [])
           .filter((p) => p.name && p.price)
           .map((p) => ({ ...p, price: Number(p.price) })),
@@ -659,6 +664,7 @@ export default function Trainers() {
         certUrl: form.certUrl || "",
         commissionType: form.commissionType || "percentage",
         commissionValue: Number(form.commissionValue) || 0,
+        maxPtPerSlot: Math.max(1, Number(form.maxPtPerSlot) || 2),
         ptPlans: (form.ptPlans || [])
           .filter((p) => p.name && p.price)
           .map((p) => ({ ...p, price: Number(p.price) })),
@@ -924,6 +930,16 @@ export default function Trainers() {
                   {t.commissionType === "fixed"
                     ? `Flat ₹${Number(t.commissionValue || 0).toLocaleString("en-IN")} Gym Cut`
                     : `${t.commissionValue !== undefined ? t.commissionValue : 30}% Gym / ${100 - (t.commissionValue !== undefined ? t.commissionValue : 30)}% Trainer`}
+                </span>
+              </div>
+
+              {/* Max Shift Capacity Pill */}
+              <div className="mt-1.5 px-3 py-1.5 rounded-xl bg-amber-50/70 border border-amber-200/70 flex items-center justify-between text-[11px]">
+                <span className="font-bold text-amber-900 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" /> Shift Capacity:
+                </span>
+                <span className="font-black text-amber-800">
+                  Max {t.maxPtPerSlot || 2} PT / Shift
                 </span>
               </div>
 
@@ -1350,6 +1366,69 @@ export default function Trainers() {
                   })()}
                 </div>
               </div>
+            </div>
+
+            {/* Shift / Time Slot PT Capacity (Max PT Members per Shift/Slot) */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 border-2 border-amber-200/90 shadow-2xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-amber-100 pb-2">
+                <div>
+                  <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-amber-600" /> Max PT Clients Per Shift / Time Slot
+                  </h4>
+                  <p className="text-[11px] text-slate-600 mt-0.5">
+                    Trainer ek shift (Morning, Afternoon, Evening, Night) me maximum kitne members ko PT de sakta hai:
+                  </p>
+                </div>
+                <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 shrink-0 self-start sm:self-auto">
+                  Capacity Limit
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  { label: "1 Member", val: 1, desc: "Strict 1-on-1" },
+                  { label: "2 Members", val: 2, desc: "Standard (Recommended)" },
+                  { label: "3 Members", val: 3, desc: "Semi-Private" },
+                  { label: "4 Members", val: 4, desc: "Group PT" },
+                ].map((preset) => {
+                  const isSelected = Number(form.maxPtPerSlot || 2) === preset.val;
+                  return (
+                    <button
+                      key={preset.val}
+                      type="button"
+                      onClick={() => setForm(prev => ({ ...prev, maxPtPerSlot: preset.val }))}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition text-left cursor-pointer ${
+                        isSelected
+                          ? "bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/30"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/50"
+                      }`}
+                    >
+                      <div>{preset.label}</div>
+                      <div className={`text-[9px] font-normal ${isSelected ? "text-amber-100" : "text-slate-400"}`}>
+                        {preset.desc}
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {/* Custom Input */}
+                <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5 ml-auto">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Custom:</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={form.maxPtPerSlot || 2}
+                    onChange={(e) => setForm(prev => ({ ...prev, maxPtPerSlot: Math.max(1, Number(e.target.value) || 1) }))}
+                    className="w-14 text-xs font-black text-amber-950 focus:outline-none text-center bg-amber-50 rounded-lg py-1 border border-amber-200"
+                  />
+                  <span className="text-[10px] font-bold text-slate-500">PT / Shift</span>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-slate-500 italic bg-amber-50/50 p-2 rounded-xl border border-amber-100">
+                💡 Jaise hi kisi shift me is trainer ke <strong>{form.maxPtPerSlot || 2} members</strong> book ho jayenge, add member modal me wo slot automatic <strong>🔴 Busy / Full</strong> dikhayega taaki overbooking na ho.
+              </p>
             </div>
 
             {/* Trainer PT Membership Packages (Custom Packages per Trainer) */}
@@ -1845,6 +1924,20 @@ export default function Trainers() {
                   </>
                 )}
               </p>
+            </div>
+
+            {/* Shift PT Capacity Badge in View Modal */}
+            <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-2xl flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-600" />
+                <div>
+                  <p className="text-xs font-bold text-amber-950">Shift PT Capacity Limit</p>
+                  <p className="text-[10px] text-amber-800">Maximum PT members allowed in a single workout shift</p>
+                </div>
+              </div>
+              <span className="text-xs font-black px-3 py-1 rounded-xl bg-amber-600 text-white shadow-2xs">
+                {viewTrainerModal.maxPtPerSlot || 2} Athletes / Shift
+              </span>
             </div>
 
             {/* Assigned PT Athletes / Members Card */}
@@ -2439,6 +2532,69 @@ export default function Trainers() {
                 })()}
               </div>
             </div>
+          </div>
+
+          {/* Shift / Time Slot PT Capacity (Max PT Members per Shift/Slot) (Edit) */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 border-2 border-amber-200/90 shadow-2xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-amber-100 pb-2">
+              <div>
+                <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-amber-600" /> Max PT Clients Per Shift / Time Slot
+                </h4>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  Trainer ek shift (Morning, Afternoon, Evening, Night) me maximum kitne members ko PT de sakta hai:
+                </p>
+              </div>
+              <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 shrink-0 self-start sm:self-auto">
+                Capacity Limit
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { label: "1 Member", val: 1, desc: "Strict 1-on-1" },
+                { label: "2 Members", val: 2, desc: "Standard (Recommended)" },
+                { label: "3 Members", val: 3, desc: "Semi-Private" },
+                { label: "4 Members", val: 4, desc: "Group PT" },
+              ].map((preset) => {
+                const isSelected = Number(editForm.maxPtPerSlot || 2) === preset.val;
+                return (
+                  <button
+                    key={preset.val}
+                    type="button"
+                    onClick={() => setEditForm(prev => ({ ...prev, maxPtPerSlot: preset.val }))}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition text-left cursor-pointer ${
+                      isSelected
+                        ? "bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/30"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/50"
+                    }`}
+                  >
+                    <div>{preset.label}</div>
+                    <div className={`text-[9px] font-normal ${isSelected ? "text-amber-100" : "text-slate-400"}`}>
+                      {preset.desc}
+                    </div>
+                  </button>
+                );
+              })}
+
+              {/* Custom Input */}
+              <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5 ml-auto">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Custom:</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={editForm.maxPtPerSlot || 2}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, maxPtPerSlot: Math.max(1, Number(e.target.value) || 1) }))}
+                  className="w-14 text-xs font-black text-amber-950 focus:outline-none text-center bg-amber-50 rounded-lg py-1 border border-amber-200"
+                />
+                <span className="text-[10px] font-bold text-slate-500">PT / Shift</span>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-slate-500 italic bg-amber-50/50 p-2 rounded-xl border border-amber-100">
+              💡 Jaise hi kisi shift me is trainer ke <strong>{editForm.maxPtPerSlot || 2} members</strong> book ho jayenge, add member modal me wo slot automatic <strong>🔴 Busy / Full</strong> dikhayega taaki overbooking na ho.
+            </p>
           </div>
 
           {/* Trainer PT Membership Packages (Custom Packages per Trainer) */}

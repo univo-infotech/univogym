@@ -47,11 +47,15 @@ export async function submitComplaint(gymId, complaintData) {
     }
   }
 
-  // Local storage cache backup
+  // Also save to nested gyms/{gymId}/complaints for consistency
   try {
-    const cached = JSON.parse(localStorage.getItem("univo_complaints") || "[]");
-    cached.unshift({ ...payload, id: createdId });
-    localStorage.setItem("univo_complaints", JSON.stringify(cached));
+    if (createdId && !createdId.startsWith("comp_")) {
+      await addDoc(collection(db, "gyms", GID, "complaints"), {
+        ...payload,
+        id: createdId,
+        timestamp: serverTimestamp(),
+      });
+    }
   } catch (e3) {}
 
   return createdId;
@@ -96,17 +100,6 @@ export async function getGymComplaints(gymId) {
     });
   } catch (e3) {}
 
-  // Merge with local storage
-  try {
-    const cached = JSON.parse(localStorage.getItem("univo_complaints") || "[]");
-    for (const c of cached) {
-      if (!seenIds.has(c.id) && (!c.gymId || c.gymId === GID)) {
-        seenIds.add(c.id);
-        list.push(c);
-      }
-    }
-  } catch (e4) {}
-
   // Sort descending by date
   list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   return list;
@@ -149,30 +142,15 @@ export async function replyToComplaint(gymId, complaintId, replyText, newStatus 
         replies: updatedReplies,
         lastReply: newReply,
       });
-    } catch (e1) {
-      try {
-        await updateDoc(doc(db, "gyms", GID, "complaints", complaintId), {
-          ...updateData,
-          replies: updatedReplies,
-          lastReply: newReply,
-        });
-      } catch (e2) {}
-    }
+    } catch (e1) {}
 
     try {
-      const cached = JSON.parse(localStorage.getItem("univo_complaints") || "[]");
-      const idx = cached.findIndex((c) => c.id === complaintId);
-      if (idx !== -1) {
-        cached[idx] = {
-          ...cached[idx],
-          status: newStatus,
-          replies: updatedReplies,
-          lastReply: newReply,
-          updatedAt: new Date().toISOString(),
-        };
-        localStorage.setItem("univo_complaints", JSON.stringify(cached));
-      }
-    } catch (e3) {}
+      await updateDoc(doc(db, "gyms", GID, "complaints", complaintId), {
+        ...updateData,
+        replies: updatedReplies,
+        lastReply: newReply,
+      });
+    } catch (e2) {}
   } catch (err) {
     console.error("Error replying to complaint:", err);
   }

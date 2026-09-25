@@ -13,7 +13,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { getPaymentById } from "../../firebase/payments";
-import { getGymSettings } from "../../utils/settings";
+import { getGymSettings, fetchGymSettings } from "../../utils/settings";
 import { generatePaymentReceipt } from "../../utils/pdf";
 
 export default function PublicReceipt() {
@@ -24,20 +24,18 @@ export default function PublicReceipt() {
   const [settings, setSettings] = useState(getGymSettings());
 
   useEffect(() => {
-    // Refresh settings from local storage
-    setSettings(getGymSettings());
+    fetchGymSettings("univo_main").then((s) => {
+      if (s) setSettings(s);
+    });
 
     async function fetchReceipt() {
       setLoading(true);
       try {
         let data = await getPaymentById(receiptId);
-
-        if (!data) {
-          const raw = localStorage.getItem("univo_recent_payments");
-          if (raw) {
-            const list = JSON.parse(raw);
-            data = list.find((p) => p.id === receiptId);
-          }
+        if (data?.gymId) {
+          fetchGymSettings(data.gymId).then((s) => {
+            if (s) setSettings(s);
+          });
         }
 
         if (!data) {

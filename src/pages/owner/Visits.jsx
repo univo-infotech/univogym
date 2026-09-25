@@ -27,7 +27,9 @@ import {
   Share2,
   CalendarDays,
   Target,
-  FileText
+  FileText,
+  XCircle,
+  RotateCcw
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import Button from "../../components/ui/Button";
@@ -161,6 +163,11 @@ export default function Visits() {
   const [inviteData, setInviteData] = useState({ name: "", phone: "", link: "", secondsLeft: TIMER_SECONDS, expired: false });
   const timerRef = useRef(null);
 
+  // Not Interested Modal State
+  const [notInterestedModalOpen, setNotInterestedModalOpen] = useState(false);
+  const [selectedVisitForStatus, setSelectedVisitForStatus] = useState(null);
+  const [notInterestedReason, setNotInterestedReason] = useState("");
+
   // Form State for Add / Edit Walk-in Lead
   const defaultSlot = (settings?.workoutSlots && settings.workoutSlots.length > 0)
     ? `${settings.workoutSlots[0].label} (${settings.workoutSlots[0].time})`
@@ -184,7 +191,8 @@ export default function Visits() {
     assignedTrainer: "Unassigned",
     notes: "",
     followUpDate: "",
-    status: "scheduled"
+    status: "scheduled",
+    notInterestedReason: ""
   });
 
   // Load Firestore Data
@@ -239,7 +247,8 @@ export default function Visits() {
       assignedTrainer: "Unassigned",
       notes: "",
       followUpDate: "",
-      status: initialType === "demo" ? "scheduled" : "new"
+      status: initialType === "demo" ? "scheduled" : "new",
+      notInterestedReason: ""
     });
     setAddModalOpen(true);
   };
@@ -264,7 +273,8 @@ export default function Visits() {
       assignedTrainer: visit.assignedTrainer || "Unassigned",
       notes: visit.notes || "",
       followUpDate: visit.followUpDate || "",
-      status: visit.status || "new"
+      status: visit.status || "new",
+      notInterestedReason: visit.notInterestedReason || ""
     });
     setAddModalOpen(true);
   };
@@ -302,6 +312,51 @@ export default function Visits() {
     } catch (err) {
       toast.error("Failed to delete");
     }
+  };
+
+  // --- ACTIONS: QUICK STATUS CHANGE (DEMO DONE / NOT INTERESTED / REOPEN) ---
+  const handleUpdateStatus = async (visitId, newStatus, reason = "") => {
+    try {
+      const updateData = { status: newStatus };
+      if (newStatus === "lost") {
+        updateData.notInterestedReason = reason || "Visitor dropped after demo / enquiry";
+        updateData.notInterestedAt = new Date().toISOString();
+      } else if (newStatus === "demo_done") {
+        updateData.demoCompletedAt = new Date().toISOString();
+      }
+      await updateVisit(gymId, visitId, updateData);
+      setVisits((prev) =>
+        prev.map((v) => (v.id === visitId ? { ...v, ...updateData } : v))
+      );
+      if (newStatus === "lost") {
+        toast.success("Lead marked as Not Interested ❌");
+      } else if (newStatus === "demo_done") {
+        toast.success("Trial / Demo marked as Completed! 🎯");
+      } else if (newStatus === "scheduled") {
+        toast.success("Demo reopened and scheduled! ⏳");
+      } else {
+        toast.success("Status updated!");
+      }
+    } catch (err) {
+      console.error("Status update error:", err);
+      toast.error("Failed to update status");
+    }
+  };
+
+  const handleOpenNotInterestedModal = (visit) => {
+    setSelectedVisitForStatus(visit);
+    setNotInterestedReason(visit.notInterestedReason || "");
+    setNotInterestedModalOpen(true);
+  };
+
+  const handleConfirmNotInterested = async () => {
+    if (!selectedVisitForStatus) return;
+    await handleUpdateStatus(
+      selectedVisitForStatus.id,
+      "lost",
+      notInterestedReason.trim() || "Visitor not interested after demo"
+    );
+    setNotInterestedModalOpen(false);
   };
 
   // --- ACTIONS: CONVERT TO FULL MEMBER DIRECTLY ---
@@ -471,8 +526,8 @@ export default function Visits() {
       case "lost":
         return {
           label: "NOT INTERESTED",
-          class: "bg-slate-100 text-slate-500 border-slate-200",
-          icon: AlertCircle
+          class: "bg-rose-50 text-rose-700 border-rose-200",
+          icon: XCircle
         };
       default:
         return enquiryType === "demo"
@@ -503,8 +558,10 @@ export default function Visits() {
   // KPI Metrics
   const totalLeads = visits.length;
   const newCount = visits.filter((v) => v.status === "new").length;
+  const scheduledCount = visits.filter((v) => v.status === "scheduled").length;
   const demoDoneCount = visits.filter((v) => v.status === "demo_done").length;
   const convertedCount = visits.filter((v) => v.status === "converted").length;
+  const notInterestedCount = visits.filter((v) => v.status === "lost").length;
   const conversionRate = totalLeads > 0 ? Math.round((convertedCount / totalLeads) * 100) : 0;
 
   return (
@@ -537,48 +594,59 @@ export default function Visits() {
       </div>
 
       {/* Analytics KPI Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        <div className="p-4 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500">Total Enquiries Received</p>
-            <h3 className="text-2xl font-black text-slate-900 mt-1">{totalLeads} Leads</h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">{newCount} New Inquiries Pending Demo</p>
+            <p className="text-xs font-semibold text-slate-500">Total Leads</p>
+            <h3 className="text-2xl font-black text-slate-900 mt-0.5">{totalLeads}</h3>
+            <p className="text-[10.5px] text-slate-400 mt-0.5">{newCount} New Inquiries</p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center">
-            <Users className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center">
+            <Users className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500">Trial / Demos Completed</p>
-            <h3 className="text-2xl font-black text-cyan-600 mt-1">{demoDoneCount} Visitors</h3>
-            <p className="text-[11px] text-cyan-700 font-bold mt-0.5">High Intent for Joining</p>
+            <p className="text-xs font-semibold text-slate-500">Demo Scheduled</p>
+            <h3 className="text-2xl font-black text-teal-600 mt-0.5">{scheduledCount}</h3>
+            <p className="text-[10.5px] text-teal-700 font-bold mt-0.5">Upcoming Trials</p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center">
-            <Dumbbell className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
+            <Clock className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500">Converted Full Members</p>
-            <h3 className="text-2xl font-black text-emerald-600 mt-1">{convertedCount} Enrolled</h3>
-            <p className="text-[11px] text-emerald-600 font-bold mt-0.5">Active Paid Subscriptions</p>
+            <p className="text-xs font-semibold text-slate-500">Trial Completed</p>
+            <h3 className="text-2xl font-black text-cyan-600 mt-0.5">{demoDoneCount}</h3>
+            <p className="text-[10.5px] text-cyan-700 font-bold mt-0.5">Demo Done</p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <CheckCircle2 className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center">
+            <Dumbbell className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div className="p-4 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-slate-500">Lead Conversion Rate</p>
-            <h3 className="text-2xl font-black text-purple-600 mt-1">{conversionRate}%</h3>
-            <p className="text-[11px] text-purple-700 font-bold mt-0.5">Walk-in to Member Success</p>
+            <p className="text-xs font-semibold text-slate-500">Converted Members</p>
+            <h3 className="text-2xl font-black text-emerald-600 mt-0.5">{convertedCount}</h3>
+            <p className="text-[10.5px] text-emerald-600 font-bold mt-0.5">{conversionRate}% Conv. Rate</p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center">
-            <TrendingUp className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="p-4 rounded-3xl bg-white border border-rose-200/80 shadow-sm flex items-center justify-between col-span-2 sm:col-span-1">
+          <div>
+            <p className="text-xs font-semibold text-rose-500">Not Interested</p>
+            <h3 className="text-2xl font-black text-rose-600 mt-0.5">{notInterestedCount}</h3>
+            <p className="text-[10.5px] text-rose-700 font-bold mt-0.5">Dropped Leads</p>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+            <XCircle className="w-5 h-5" />
           </div>
         </div>
       </div>
@@ -599,16 +667,17 @@ export default function Visits() {
         {/* Status Filter Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
           {[
-            { id: "all", label: "All Leads" },
-            { id: "new", label: "New Inquiry" },
-            { id: "demo_done", label: "Trial Completed" },
-            { id: "converted", label: "Converted" },
-            { id: "lost", label: "Dropped" }
+            { id: "all", label: `All Leads (${totalLeads})` },
+            { id: "scheduled", label: `Demo Scheduled (${scheduledCount})` },
+            { id: "demo_done", label: `Trial Completed (${demoDoneCount})` },
+            { id: "converted", label: `Converted (${convertedCount})` },
+            { id: "lost", label: `Not Interested (${notInterestedCount})` },
+            { id: "new", label: `Inquiries (${newCount})` }
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setStatusFilter(tab.id)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
                 statusFilter === tab.id
                   ? "bg-emerald-600 text-white shadow-sm"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
@@ -691,6 +760,12 @@ export default function Visits() {
                     "{vis.notes}"
                   </p>
                 )}
+                {/* If Not Interested with reason, show note */}
+                {vis.status === "lost" && vis.notInterestedReason && (
+                  <p className="text-xs text-rose-700 bg-rose-50/80 p-2 rounded-xl border border-rose-200 italic leading-relaxed">
+                    ⚠️ Reason: "{vis.notInterestedReason}"
+                  </p>
+                )}
               </div>
 
               {/* Action Buttons: 1-Click Convert, WhatsApp, Link */}
@@ -700,7 +775,7 @@ export default function Visits() {
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => handleOpenConvertModal(vis)}
-                      className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 transition"
+                      className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 transition cursor-pointer"
                     >
                       <Zap className="w-3.5 h-3.5 fill-current" />
                       <span>Add as Member</span>
@@ -708,7 +783,7 @@ export default function Visits() {
 
                     <button
                       onClick={() => handleOpenInviteModal(vis)}
-                      className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition"
+                      className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                     >
                       <QrCode className="w-3.5 h-3.5 text-emerald-400" />
                       <span>QR & Link</span>
@@ -722,26 +797,51 @@ export default function Visits() {
                   </div>
                 )}
 
-                {/* Secondary Row: WhatsApp Follow-up & Edit */}
-                <div className="flex items-center justify-between text-xs pt-1">
+                {/* Secondary Row: WhatsApp Follow-up & Edit/Delete/Not-Interested */}
+                <div className="flex items-center justify-between text-xs pt-1 gap-2">
                   <button
                     onClick={() => handleQuickWhatsAppChat(vis)}
-                    className="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1"
+                    className="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1 shrink-0"
                   >
                     <MessageCircle className="w-3.5 h-3.5" /> WhatsApp Follow-up
                   </button>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {/* Not Interested / Reopen Button next to Edit & Delete */}
+                    {vis.status !== "converted" && (
+                      vis.status !== "lost" ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenNotInterestedModal(vis)}
+                          className="px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 text-[11px] font-bold border border-rose-200 flex items-center gap-1 transition cursor-pointer"
+                          title="Mark as Not Interested"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>Not Interested</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateStatus(vis.id, "scheduled")}
+                          className="px-2 py-1 rounded-lg text-amber-700 hover:bg-amber-50 text-[11px] font-bold border border-amber-200 flex items-center gap-1 transition cursor-pointer"
+                          title="Reopen Demo Lead"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Reopen</span>
+                        </button>
+                      )
+                    )}
+
                     <button
                       onClick={() => handleOpenEditModal(vis)}
-                      className="text-slate-400 hover:text-slate-700 p-1"
+                      className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition cursor-pointer"
                       title="Edit Enquiry"
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDeleteVisit(vis.id)}
-                      className="text-slate-400 hover:text-rose-600 p-1"
+                      className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition cursor-pointer"
                       title="Delete Record"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -970,6 +1070,42 @@ export default function Visits() {
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
               className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none"
             />
+          </div>
+
+          {/* Lead & Demo Status Selection */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/90 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-emerald-600" /> Lead & Demo Status
+              </label>
+              <span className="text-[10px] font-semibold text-slate-400">Current Progress</span>
+            </div>
+            <select
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+              className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
+            >
+              <option value="scheduled">⏳ Free Demo Trial Scheduled</option>
+              <option value="demo_done">✅ Trial / Demo Workout Completed</option>
+              <option value="lost">❌ Not Interested (Dropped Lead)</option>
+              <option value="new">📋 New Inquiry (Pending Demo)</option>
+              <option value="converted">🎉 Converted to Full Member</option>
+            </select>
+
+            {form.status === "lost" && (
+              <div className="pt-2 border-t border-slate-200 space-y-1">
+                <label className="text-[11px] font-bold text-rose-700 block">
+                  Reason for Not Joining / Not Interested
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Fee too high, timing issue, joined another gym..."
+                  value={form.notInterestedReason || ""}
+                  onChange={(e) => setForm({ ...form, notInterestedReason: e.target.value })}
+                  className="w-full bg-white border border-rose-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-rose-500"
+                />
+              </div>
+            )}
           </div>
 
           {/* Modal Action Buttons (Cancel + Save) */}
@@ -1227,6 +1363,86 @@ export default function Visits() {
             <MessageCircle className="w-4 h-4" /> Send Invite on WhatsApp (+{inviteData.phone})
           </button>
         </div>
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* ----------------- MODAL: MARK LEAD AS NOT INTERESTED -------------------- */}
+      {/* ========================================================================= */}
+      <Modal
+        isOpen={notInterestedModalOpen}
+        onClose={() => setNotInterestedModalOpen(false)}
+        title="Mark Lead as Not Interested"
+      >
+        {selectedVisitForStatus && (
+          <div className="space-y-4 text-slate-800">
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-black text-slate-900">{selectedVisitForStatus.name}</h4>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Phone: {selectedVisitForStatus.phone} • {selectedVisitForStatus.interestedIn}
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200">
+                  Demo Dropped
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                Reason for Not Joining / Dropping Demo (Optional)
+              </label>
+              <div className="grid grid-cols-2 gap-2 mb-2.5">
+                {[
+                  "Fee / Pricing too high",
+                  "Timing / Shift issue",
+                  "Too far / Distance",
+                  "Joined another gym",
+                  "Personal / Medical reason",
+                  "Just checking / Not ready"
+                ].map((reasonOption) => (
+                  <button
+                    key={reasonOption}
+                    type="button"
+                    onClick={() => setNotInterestedReason(reasonOption)}
+                    className={`py-2 px-2.5 rounded-xl text-[11px] font-semibold text-left border transition cursor-pointer ${
+                      notInterestedReason === reasonOption
+                        ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {reasonOption}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                placeholder="Or type custom reason (e.g. Will contact next month)..."
+                value={notInterestedReason}
+                onChange={(e) => setNotInterestedReason(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setNotInterestedModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmNotInterested}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md shadow-rose-500/20 transition cursor-pointer"
+              >
+                Confirm Not Interested
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

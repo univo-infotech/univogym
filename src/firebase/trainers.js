@@ -15,41 +15,27 @@ import {
 import { db } from "./config";
 import { getCachedData, setCachedData, invalidateCache } from "../utils/dataCache";
 
+let inMemoryTrainers = [];
+
 /**
- * Helper to get local trainers cache
+ * Helper to get in-memory trainers cache
  */
 export function getLocalTrainers() {
-  try {
-    const raw = localStorage.getItem("univo_recent_trainers");
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    return [];
-  }
+  return inMemoryTrainers;
 }
 
 /**
- * Helper to save local trainers cache
+ * Helper to save in-memory trainers cache
  */
 export function saveLocalTrainer(trainer) {
-  try {
-    const list = getLocalTrainers();
-    const filtered = list.filter((t) => t.id !== trainer.id && (t.phone && trainer.phone ? t.phone !== trainer.phone : true));
-    localStorage.setItem("univo_recent_trainers", JSON.stringify([trainer, ...filtered].slice(0, 100)));
-  } catch (e) {
-    console.warn("Could not save to local trainers cache:", e);
-  }
+  inMemoryTrainers = [trainer, ...inMemoryTrainers.filter((t) => t.id !== trainer.id)];
 }
 
 /**
- * Helper to remove from local trainers cache
+ * Helper to remove from in-memory trainers cache
  */
 export function removeLocalTrainer(trainerId) {
-  try {
-    const list = getLocalTrainers().filter((t) => t.id !== trainerId);
-    localStorage.setItem("univo_recent_trainers", JSON.stringify(list));
-  } catch (e) {
-    console.warn("Could not remove from local trainers cache:", e);
-  }
+  inMemoryTrainers = inMemoryTrainers.filter((t) => t.id !== trainerId);
 }
 
 export async function getTrainers(gymId, forceRefresh = false) {
@@ -205,10 +191,8 @@ export async function updateTrainer(gymId, trainerId, data) {
   const nowIso = new Date().toISOString();
   const payload = { ...data, updatedAt: nowIso };
 
-  // 1. Update local cache immediately
-  const localList = getLocalTrainers();
-  const updatedLocal = localList.map((t) => (t.id === trainerId ? { ...t, ...payload } : t));
-  localStorage.setItem("univo_recent_trainers", JSON.stringify(updatedLocal));
+  // 1. Update in-memory cache immediately
+  inMemoryTrainers = inMemoryTrainers.map((t) => (t.id === trainerId ? { ...t, ...payload } : t));
   invalidateCache("trainers");
 
   // 2. Update top-level trainers
@@ -290,17 +274,6 @@ export async function getTrainerMembers(gymId, trainerId, trainerName = "") {
         }
       });
     } catch (e2) {}
-
-    // 3. Merge with local cache if any
-    try {
-      const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-      for (const c of cached) {
-        if (!seenIds.has(c.id)) {
-          seenIds.add(c.id);
-          allMembers.push(c);
-        }
-      }
-    } catch (cErr) {}
 
     const targetTId = (trainerId || "").trim();
     const targetName = (trainerName || "").trim().toLowerCase();
@@ -394,17 +367,7 @@ export async function saveMemberDietPlan(gymId, memberId, dietPlan) {
     await updateDoc(ref2, updatePayload);
   } catch (e2) {}
 
-  // 3. Update in univo_recent_members local cache
-  try {
-    const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-    const idx = cached.findIndex((m) => m.id === memberId);
-    if (idx !== -1) {
-      cached[idx] = { ...cached[idx], dietPlan, dietPlanUpdatedAt: new Date().toISOString() };
-      localStorage.setItem("univo_recent_members", JSON.stringify(cached));
-    }
-  } catch (e3) {}
-
-  // 4. Update in univo_member_session if active logged-in member matches
+  // 3. Update in univo_member_session if active logged-in member matches
   try {
     const sessionStr = localStorage.getItem("univo_member_session");
     if (sessionStr) {
@@ -446,17 +409,7 @@ export async function saveMemberWorkoutRoutine(gymId, memberId, workoutRoutine) 
     await updateDoc(ref2, updatePayload);
   } catch (e2) {}
 
-  // 3. Update in univo_recent_members local cache
-  try {
-    const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-    const idx = cached.findIndex((m) => m.id === memberId);
-    if (idx !== -1) {
-      cached[idx] = { ...cached[idx], workoutRoutine, workoutRoutineUpdatedAt: new Date().toISOString() };
-      localStorage.setItem("univo_recent_members", JSON.stringify(cached));
-    }
-  } catch (e3) {}
-
-  // 4. Update in univo_member_session if active logged-in member matches
+  // 3. Update in univo_member_session if active logged-in member matches
   try {
     const sessionStr = localStorage.getItem("univo_member_session");
     if (sessionStr) {
@@ -522,17 +475,7 @@ export async function logMemberWeight(gymId, memberId, weightEntry) {
     await updateDoc(doc(db, "gyms", GID, "members", memberId), updatePayload);
   } catch (e2) {}
 
-  // 3. Update in univo_recent_members local cache
-  try {
-    const cached = JSON.parse(localStorage.getItem("univo_recent_members") || "[]");
-    const idx = cached.findIndex((m) => m.id === memberId);
-    if (idx !== -1) {
-      cached[idx] = { ...cached[idx], weight: Number(weightEntry.weight), weightHistory: newHistory };
-      localStorage.setItem("univo_recent_members", JSON.stringify(cached));
-    }
-  } catch (e3) {}
-
-  // 4. Update in univo_member_session
+  // 3. Update in univo_member_session
   try {
     const sessionStr = localStorage.getItem("univo_member_session");
     if (sessionStr) {

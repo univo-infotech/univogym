@@ -643,10 +643,10 @@ export default function Members() {
           </button>
           <button
             onClick={() => setShowDirectAdd(true)}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition shadow-xs"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition shadow-xs cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
-            <span>+ Add Member</span>
+            <span>Add Member</span>
           </button>
         </div>
       </div>

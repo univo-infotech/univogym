@@ -35,6 +35,7 @@ import { getMembers } from "../../firebase/members";
 import {
   getBiometricPunches,
   logBiometricPunch,
+  getBiometricDevices,
   getLocalDevices,
   saveBiometricDevice,
   enrollMemberBiometric,
@@ -68,12 +69,14 @@ export default function BiometricAttendance() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [mList, pList] = await Promise.all([
+      const [mList, pList, dList] = await Promise.all([
         getMembers(currentGymId),
-        getBiometricPunches(currentGymId, 50)
+        getBiometricPunches(currentGymId, 50),
+        getBiometricDevices(currentGymId)
       ]);
       setMembers(mList || []);
       setPunches(pList || []);
+      if (dList && dList.length > 0) setDevices(dList);
       if (mList && mList.length > 0 && !simSelectedMemberId) {
         setSimSelectedMemberId(mList[0].id);
       }

@@ -41,7 +41,7 @@ import toast from "react-hot-toast";
 import { addMember, getMembers } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
 import { getPlans, getActivePlans } from "../../firebase/plans";
-import { getServices, DEFAULT_SERVICES } from "../../firebase/services";
+import { getServices, DEFAULT_SERVICES, isServiceIncludedInPlan } from "../../firebase/services";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
 import { calculateBmi, parseHeightToMeters } from "../../utils/bmi";
@@ -233,13 +233,51 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     return availablePlans.find((p) => p.id === formData.planId) || availablePlans[0];
   }, [availablePlans, formData.planId]);
 
+  // Auto-sync services included with currentBasePlan (Default Selected for FREE)
+  useEffect(() => {
+    if (!currentBasePlan || dbServices.length === 0) return;
+    const included = dbServices.filter((srv) => isServiceIncludedInPlan(srv, currentBasePlan));
+
+    setSelectedServices((prev) => {
+      // Keep extra services the user manually selected that are not in the new plan
+      const customAdded = prev.filter(
+        (s) => !dbServices.some((svc) => svc.id === s.id && isServiceIncludedInPlan(svc, currentBasePlan))
+      );
+      // Combine all included services + previously custom added services
+      const combined = [...included];
+      customAdded.forEach((ca) => {
+        if (!combined.some((c) => c.id === ca.id)) {
+          combined.push(ca);
+        }
+      });
+      return combined;
+    });
+  }, [formData.planId, currentBasePlan, dbServices]);
+
   // Combined Fee Calculation: Gym Membership Plan Fee + Personal Trainer PT Package Add-on Fee + Selected Services Fee
   const basePlanPrice = Number(currentBasePlan?.price || 0);
   const ptAddonPrice = Number(formData.ptPlanPrice || 0);
-  const servicesTotalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+
+  // Price for a service: ₹0 if included in currentBasePlan, else regular srv.price
+  const getServiceCharge = (srv) => {
+    if (isServiceIncludedInPlan(srv, currentBasePlan)) {
+      return 0; // Included free in plan
+    }
+    return Number(srv.price || 0);
+  };
+
+  const servicesTotalPrice = selectedServices.reduce((sum, s) => sum + getServiceCharge(s), 0);
   const totalPayableFee = basePlanPrice + ptAddonPrice + servicesTotalPrice;
 
   const toggleServiceSelection = (srv) => {
+    const isIncluded = isServiceIncludedInPlan(srv, currentBasePlan);
+    if (isIncluded) {
+      toast.success(`"${srv.name}" is already included FREE with ${currentBasePlan?.name || "this plan"}!`, {
+        icon: "✨",
+        id: `inc_${srv.id}`
+      });
+      return;
+    }
     setSelectedServices((prev) => {
       const exists = prev.some((s) => s.id === srv.id);
       if (exists) {
@@ -419,13 +457,18 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       ptCommissionType: commissionType,
       ptCommissionValue: commissionValue,
       ptOwnerCommission,
-      selectedServices: selectedServices.map(s => ({
-        id: s.id,
-        name: s.name,
-        price: Number(s.price || 0),
-        category: s.category || "General",
-        billingType: s.billingType || "Per Month"
-      })),
+      selectedServices: selectedServices.map(s => {
+        const isInc = isServiceIncludedInPlan(s, currentBasePlan);
+        return {
+          id: s.id,
+          name: s.name,
+          price: isInc ? 0 : Number(s.price || 0),
+          originalPrice: Number(s.price || 0),
+          isIncluded: isInc,
+          category: s.category || "General",
+          billingType: s.billingType || "Per Month"
+        };
+      }),
       servicesTotalPrice,
       totalAmount: basePrice + ptPrice + servicesTotalPrice,
       dueAmount: basePrice + ptPrice + servicesTotalPrice,
@@ -715,126 +758,6 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
               </span>
             </div>
 
-            {/* Preferred Workout Time Slot with LIVE Trainer Availability & Occupancy */}
-            <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <label className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
-                  <Clock className="w-4 h-4 text-amber-500" />
-                  Preferred Workout Time Slot *
-                </label>
-                {isPersonalTrainer && (
-                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg flex items-center gap-1 self-start sm:self-auto">
-                    <Sparkles className="w-3 h-3 text-indigo-600" />
-                    Live Trainer Slot Schedule: {selectedTrainerObj.name}
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {activeSlots.map((s) => {
-                  const fullText = `${s.label} (${s.time})`;
-                  const isSelected = formData.preferredSlot === fullText;
-                  const Icon = s.icon || Sun;
-
-                  // Find how many athletes are booked with THIS trainer in this slot
-                  const bookedAthletes = isPersonalTrainer
-                    ? (trainerSlotOccupancy[fullText] || trainerSlotOccupancy[s.label] || trainerSlotOccupancy[s.time] || [])
-                    : [];
-                  const bookedCount = bookedAthletes.length;
-
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, preferredSlot: fullText })}
-                      className={`p-2 sm:p-2.5 rounded-xl text-left border transition relative flex flex-col justify-between overflow-hidden ${
-                        isSelected
-                          ? "bg-amber-50 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-400"
-                          : "bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100"
-                      }`}
-                    >
-                      <div className="w-full">
-                        <div className="flex items-center justify-between gap-1">
-                          <div className="flex items-center gap-1.5 font-bold text-xs truncate">
-                            <Icon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                            <span className="truncate">{s.label}</span>
-                          </div>
-                          {/* Live Occupancy Badge for larger screens */}
-                          {isPersonalTrainer && (
-                            <span
-                              className={`hidden md:inline-flex text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shrink-0 ${
-                                bookedCount === 0
-                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                                  : bookedCount === 1
-                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
-                                  : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
-                              }`}
-                            >
-                              {bookedCount === 0 ? "🟢 Free" : bookedCount === 1 ? "🟡 1 Booked" : `🔴 ${bookedCount} Busy`}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Live Occupancy Badge on mobile screens (stacked cleanly, zero overlap) */}
-                        {isPersonalTrainer && (
-                          <div className="md:hidden mt-1">
-                            <span
-                              className={`inline-flex text-[8.5px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-tight ${
-                                bookedCount === 0
-                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                                  : bookedCount === 1
-                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
-                                  : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
-                              }`}
-                            >
-                              {bookedCount === 0 ? "🟢 Free" : bookedCount === 1 ? "🟡 1 Booked" : `🔴 ${bookedCount} Busy`}
-                            </span>
-                          </div>
-                        )}
-
-                        <p className="text-[10px] text-slate-500 mt-1">{s.time}</p>
-                      </div>
-
-                      {/* Show active member names booked in this slot */}
-                      {isPersonalTrainer && bookedCount > 0 && (
-                        <div className="mt-1.5 pt-1 border-t border-slate-200/60 text-[9.5px] text-slate-600 truncate">
-                          🏋️ {bookedAthletes.join(", ")}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Overbooking Alert Warning */}
-              {(() => {
-                if (!isPersonalTrainer) return null;
-                const curBooked = trainerSlotOccupancy[formData.preferredSlot] || [];
-                if (curBooked.length >= 2) {
-                  return (
-                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-900 animate-in fade-in duration-200">
-                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                      <div className="text-[11px] leading-tight">
-                        <strong className="font-extrabold text-rose-800">Trainer Slot Overbooked! </strong>
-                        Coach <strong>{selectedTrainerObj.name}</strong> ke paas is slot (<strong>{formData.preferredSlot}</strong>) mein pehle se <strong>{curBooked.length} athletes</strong> training le rahe hain ({curBooked.join(", ")}). Trainer ek waqt mein zyada members par dhyan nahi de payega. Agar sambhav ho toh doosra free slot chunein.
-                      </div>
-                    </div>
-                  );
-                }
-                if (curBooked.length === 1) {
-                  return (
-                    <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-900 text-[11px]">
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span>
-                        Coach <strong>{selectedTrainerObj.name}</strong> is already coaching <strong>{curBooked[0]}</strong> at this slot.
-                      </span>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-            </div>
-
             {/* Selectors Row: Plan, Date, Coach */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Gym Membership Plan */}
@@ -853,9 +776,25 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     </option>
                   ))}
                 </select>
-                <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  Base gym access plan
-                </span>
+                {currentBasePlan && (
+                  <div className="mt-1.5 space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                        ⏳ {currentBasePlan.duration ? `${currentBasePlan.duration} Days` : "Active Plan"}
+                      </span>
+                      {currentBasePlan.category && (
+                        <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[130px]">
+                          {currentBasePlan.category}
+                        </span>
+                      )}
+                    </div>
+                    {currentBasePlan.features && currentBasePlan.features.length > 0 && (
+                      <p className="text-[10px] text-slate-500 leading-tight">
+                        <span className="font-bold text-slate-700">Includes:</span> {currentBasePlan.features.join(" • ")}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Admission / Joining Date */}
@@ -1490,6 +1429,133 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 </div>
               )}
 
+            {/* Preferred Workout Time Slot with LIVE Trainer Availability & Occupancy */}
+            <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                  <Clock className="w-4 h-4 text-amber-500" />
+                  Preferred Workout Time Slot *
+                </label>
+                {isPersonalTrainer && (
+                  <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg flex items-center gap-1 self-start sm:self-auto">
+                    <Sparkles className="w-3 h-3 text-indigo-600" />
+                    Live Trainer Schedule: {selectedTrainerObj?.name} (Max {selectedTrainerObj?.maxPtPerSlot || 2} PT/Shift)
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {activeSlots.map((s) => {
+                  const fullText = `${s.label} (${s.time})`;
+                  const isSelected = formData.preferredSlot === fullText;
+                  const Icon = s.icon || Sun;
+                  const maxSlotLimit = Number(selectedTrainerObj?.maxPtPerSlot || 2);
+
+                  // Find how many athletes are booked with THIS trainer in this slot
+                  const bookedAthletes = isPersonalTrainer
+                    ? (trainerSlotOccupancy[fullText] || trainerSlotOccupancy[s.label] || trainerSlotOccupancy[s.time] || [])
+                    : [];
+                  const bookedCount = bookedAthletes.length;
+                  const isFull = bookedCount >= maxSlotLimit;
+
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, preferredSlot: fullText })}
+                      className={`p-2 sm:p-2.5 rounded-xl text-left border transition relative flex flex-col justify-between overflow-hidden cursor-pointer ${
+                        isSelected
+                          ? "bg-amber-50 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-400"
+                          : "bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100"
+                      }`}
+                    >
+                      <div className="w-full">
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 font-bold text-xs truncate">
+                            <Icon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span className="truncate">{s.label}</span>
+                          </div>
+                          {/* Live Occupancy Badge for larger screens */}
+                          {isPersonalTrainer && (
+                            <span
+                              className={`hidden md:inline-flex text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shrink-0 ${
+                                bookedCount === 0
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                  : !isFull
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                  : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
+                              }`}
+                            >
+                              {bookedCount === 0 ? `🟢 Free (0/${maxSlotLimit})` : !isFull ? `🟡 ${bookedCount}/${maxSlotLimit}` : `🔴 ${bookedCount}/${maxSlotLimit} Full`}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Live Occupancy Badge on mobile screens (stacked cleanly, zero overlap) */}
+                        {isPersonalTrainer && (
+                          <div className="md:hidden mt-1">
+                            <span
+                              className={`inline-flex text-[8.5px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-tight ${
+                                bookedCount === 0
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                  : !isFull
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                  : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
+                              }`}
+                            >
+                              {bookedCount === 0 ? `🟢 Free (0/${maxSlotLimit})` : !isFull ? `🟡 ${bookedCount}/${maxSlotLimit}` : `🔴 ${bookedCount}/${maxSlotLimit} Full`}
+                            </span>
+                          </div>
+                        )}
+
+                        <p className="text-[10px] text-slate-500 mt-1">{s.time}</p>
+                      </div>
+
+                      {/* Show active member names booked in this slot */}
+                      {isPersonalTrainer && bookedCount > 0 && (
+                        <div className="mt-1.5 pt-1 border-t border-slate-200/60 text-[9.5px] text-slate-600 truncate">
+                          🏋️ {bookedAthletes.join(", ")}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Overbooking Alert Warning */}
+              {(() => {
+                if (!isPersonalTrainer) return null;
+                const maxSlotLimit = Number(selectedTrainerObj?.maxPtPerSlot || 2);
+                const curBooked = trainerSlotOccupancy[formData.preferredSlot] || [];
+                const coachName = (selectedTrainerObj?.name || '').startsWith('Coach')
+                  ? selectedTrainerObj.name
+                  : `Coach ${selectedTrainerObj?.name || 'Trainer'}`;
+
+                if (curBooked.length >= maxSlotLimit) {
+                  return (
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-900 animate-in fade-in duration-200">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="text-[11px] leading-tight">
+                        <strong className="font-extrabold text-rose-800">Trainer Shift Capacity Full ({curBooked.length}/{maxSlotLimit}): </strong>
+                        <strong>{coachName}</strong> already has <strong>{curBooked.length} active athletes</strong> scheduled in this slot (<strong>{formData.preferredSlot}</strong>) ({curBooked.join(", ")}). Maximum allowed is {maxSlotLimit} PT per shift. Please select an alternate available time slot.
+                      </div>
+                    </div>
+                  );
+                }
+                if (curBooked.length > 0) {
+                  return (
+                    <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-900 text-[11px]">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>
+                        <strong>{coachName}</strong> is coaching <strong>{curBooked.length}/{maxSlotLimit}</strong> athletes at this slot ({curBooked.join(", ")}). <strong>{maxSlotLimit - curBooked.length} slot remaining</strong>.
+                      </span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+
             {/* ==========================================================
                 ADD-ON GYM SERVICES & AMENITIES CHECKLIST (STEAM, LOCKER, DIET)
             ========================================================== */}
@@ -1516,7 +1582,8 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {dbServices.map((srv) => {
-                    const isChecked = selectedServices.some((s) => s.id === srv.id);
+                    const isIncluded = isServiceIncludedInPlan(srv, currentBasePlan);
+                    const isChecked = selectedServices.some((s) => s.id === srv.id) || isIncluded;
                     const srvPrice = Number(srv.price || 0);
                     return (
                       <div
@@ -1524,7 +1591,9 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                         onClick={() => toggleServiceSelection(srv)}
                         className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-start justify-between gap-3 select-none ${
                           isChecked
-                            ? "bg-emerald-50/70 border-emerald-500 shadow-xs"
+                            ? isIncluded
+                              ? "bg-emerald-50/90 border-emerald-500 shadow-xs ring-1 ring-emerald-500/20"
+                              : "bg-teal-50/70 border-teal-500 shadow-xs"
                             : "bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                         }`}
                       >
@@ -1536,9 +1605,16 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                             className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 pointer-events-none"
                           />
                           <div className="min-w-0">
-                            <span className="text-xs font-bold text-slate-900 block truncate">
-                              {srv.name}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold text-slate-900 block truncate">
+                                {srv.name}
+                              </span>
+                              {isIncluded && (
+                                <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  Included in Plan
+                                </span>
+                              )}
+                            </div>
                             {srv.desc && (
                               <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
                                 {srv.desc}
@@ -1551,12 +1627,25 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                         </div>
 
                         <div className="text-right shrink-0">
-                          <span className={`text-xs font-black block ${isChecked ? "text-emerald-700" : "text-slate-900"}`}>
-                            +₹{srvPrice.toLocaleString("en-IN")}
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-semibold">
-                            Fee Add-on
-                          </span>
+                          {isIncluded ? (
+                            <div>
+                              <span className="text-xs font-black text-emerald-700 block">
+                                FREE
+                              </span>
+                              <span className="text-[10px] text-slate-400 line-through">
+                                ₹{srvPrice.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          ) : (
+                            <div>
+                              <span className={`text-xs font-black block ${isChecked ? "text-teal-700" : "text-slate-900"}`}>
+                                +₹{srvPrice.toLocaleString("en-IN")}
+                              </span>
+                              <span className="text-[9px] text-slate-400 font-semibold">
+                                Extra Add-on
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1680,15 +1769,22 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                   </div>
                 </>
               )}
+              {selectedServices.some(s => isServiceIncludedInPlan(s, currentBasePlan)) && (
+                <div className="flex items-center gap-1.5 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/30">
+                  <Sparkles className="w-3 h-3 text-emerald-400" />
+                  <span className="text-emerald-300 font-medium">Services:</span>
+                  <span className="font-bold text-emerald-400">Included Free</span>
+                </div>
+              )}
               {servicesTotalPrice > 0 && (
                 <>
                   <span className="text-emerald-400 font-extrabold">+</span>
-                  <div className="flex items-center gap-1.5 bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/40">
-                    <CheckCircle className="w-3 h-3 text-emerald-400" />
-                    <span className="text-emerald-200 font-medium">
-                      {selectedServices.length} Services:
+                  <div className="flex items-center gap-1.5 bg-teal-500/20 px-2 py-0.5 rounded-lg border border-teal-500/40">
+                    <CheckCircle className="w-3 h-3 text-teal-400" />
+                    <span className="text-teal-200 font-medium">
+                      Extra Services:
                     </span>
-                    <span className="font-bold text-emerald-300">₹{servicesTotalPrice.toLocaleString("en-IN")}</span>
+                    <span className="font-bold text-teal-300">₹{servicesTotalPrice.toLocaleString("en-IN")}</span>
                   </div>
                 </>
               )}
@@ -1703,7 +1799,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
           </div>
 
           {/* Submit Actions */}
-          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-3 border-t border-slate-200 sticky bottom-0 bg-white py-2.5 -mx-3.5 sm:-mx-6 -mb-3.5 sm:-mb-5 px-3.5 sm:px-6 rounded-b-2xl sm:rounded-b-3xl z-10 shadow-lg">
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}

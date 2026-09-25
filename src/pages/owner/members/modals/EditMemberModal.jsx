@@ -526,18 +526,20 @@ export default function EditMemberModal({ member, initialTab = 'personal', onClo
                   {activeSlots.map((s) => {
                     const fullText = s.time ? `${s.label} (${s.time})` : s.label;
                     const isSelected = slot === fullText || slot === s.label;
+                    const maxSlotLimit = Number(selectedTrainerObj?.maxPtPerSlot || 2);
 
                     const bookedAthletes = isPersonalTrainer
                       ? (trainerSlotOccupancy[fullText] || trainerSlotOccupancy[s.label] || trainerSlotOccupancy[s.time] || [])
                       : [];
                     const bookedCount = bookedAthletes.length;
+                    const isFull = bookedCount >= maxSlotLimit;
 
                     return (
                       <button
                         key={s.id}
                         type="button"
                         onClick={() => setSlot(fullText)}
-                        className={`p-2.5 rounded-xl border text-left transition text-xs font-semibold flex flex-col justify-between ${
+                        className={`p-2.5 rounded-xl border text-left transition text-xs font-semibold flex flex-col justify-between cursor-pointer ${
                           isSelected
                             ? 'bg-amber-50 border-amber-500 text-amber-900 ring-2 ring-amber-400/20'
                             : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
@@ -551,12 +553,12 @@ export default function EditMemberModal({ member, initialTab = 'personal', onClo
                                 className={`text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wide shrink-0 ${
                                   bookedCount === 0
                                     ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                    : bookedCount === 1
+                                    : !isFull
                                     ? 'bg-amber-100 text-amber-900 border border-amber-300'
                                     : 'bg-rose-100 text-rose-900 border border-rose-300 animate-pulse'
                                 }`}
                               >
-                                {bookedCount === 0 ? '🟢 Free' : bookedCount === 1 ? '🟡 1 Booked' : `🔴 ${bookedCount} Busy`}
+                                {bookedCount === 0 ? `🟢 Free (0/${maxSlotLimit})` : !isFull ? `🟡 ${bookedCount}/${maxSlotLimit}` : `🔴 ${bookedCount}/${maxSlotLimit} Full`}
                               </span>
                             )}
                           </div>
@@ -576,14 +578,15 @@ export default function EditMemberModal({ member, initialTab = 'personal', onClo
                 {/* Overbooking Alert Warning in EditMemberModal */}
                 {(() => {
                   if (!isPersonalTrainer) return null;
+                  const maxSlotLimit = Number(selectedTrainerObj?.maxPtPerSlot || 2);
                   const curBooked = trainerSlotOccupancy[slot] || [];
-                  if (curBooked.length >= 2) {
+                  if (curBooked.length >= maxSlotLimit) {
                     return (
                       <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-900 animate-in fade-in duration-200">
                         <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                         <div className="text-[11px] leading-tight">
-                          <strong className="font-extrabold text-rose-800">Trainer Slot Overbooked! </strong>
-                          Coach <strong>{selectedTrainerObj.name}</strong> ke paas is slot (<strong>{slot}</strong>) mein pehle se <strong>{curBooked.length} athletes</strong> booked hain ({curBooked.join(', ')}).
+                          <strong className="font-extrabold text-rose-800">Trainer Shift Capacity Full ({curBooked.length}/{maxSlotLimit})! </strong>
+                          Coach <strong>{selectedTrainerObj.name}</strong> ke paas is shift (<strong>{slot}</strong>) mein pehle se <strong>{curBooked.length} athletes</strong> booked hain ({curBooked.join(', ')}). Maximum capacity {maxSlotLimit} PT per shift hai.
                         </div>
                       </div>
                     );

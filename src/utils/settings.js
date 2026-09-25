@@ -1,4 +1,7 @@
-// Gym Settings storage helper
+import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
+import { db } from "../firebase/config";
+
+// Default Gym Settings
 const DEFAULT_SETTINGS = {
   gymName: "UNIVO GYM MANAGEMENT",
   tagline: "Stronger Today, Healthier Tomorrow",
@@ -20,43 +23,138 @@ const DEFAULT_SETTINGS = {
   ]
 };
 
+// In-memory runtime cache (No localStorage!)
+let inMemorySettings = { ...DEFAULT_SETTINGS };
+let hasFetchedFromFirebase = false;
+let activeUnsub = null;
+
+function normalizeSettings(data) {
+  if (!data || typeof data !== "object") return { ...DEFAULT_SETTINGS };
+  return {
+    ...DEFAULT_SETTINGS,
+    ...data,
+    workoutSlots: Array.isArray(data.workoutSlots) && data.workoutSlots.length > 0
+      ? data.workoutSlots
+      : DEFAULT_SETTINGS.workoutSlots
+  };
+}
+
+/**
+ * Synchronous getter returning current in-memory settings.
+ * If not yet fetched from Firebase, triggers an initial fetch in the background.
+ */
 export function getGymSettings() {
+  if (!hasFetchedFromFirebase) {
+    fetchGymSettings("univo_main").catch(() => {});
+  }
+  return inMemorySettings;
+}
+
+/**
+ * Fetch gym settings directly from Firebase Firestore
+ */
+export async function fetchGymSettings(gymId = "univo_main") {
+  const targetGymId = gymId || "univo_main";
   try {
-    const saved = localStorage.getItem("univo_gym_settings");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return {
-        ...DEFAULT_SETTINGS,
-        ...parsed,
-        workoutSlots: Array.isArray(parsed.workoutSlots) && parsed.workoutSlots.length > 0
-          ? parsed.workoutSlots
-          : DEFAULT_SETTINGS.workoutSlots
-      };
+    const docRef = doc(db, "gyms", targetGymId, "settings", "general");
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      inMemorySettings = normalizeSettings(snap.data());
+      hasFetchedFromFirebase = true;
+      return inMemorySettings;
     }
-  } catch (e) {
-    console.error(e);
+
+    // Fallback: check top-level gyms/{gymId} doc
+    const gymDocRef = doc(db, "gyms", targetGymId);
+    const gymSnap = await getDoc(gymDocRef);
+    if (gymSnap.exists() && gymSnap.data()?.settings) {
+      inMemorySettings = normalizeSettings(gymSnap.data().settings);
+      hasFetchedFromFirebase = true;
+      return inMemorySettings;
+    }
+  } catch (err) {
+    console.warn("fetchGymSettings Firestore note:", err);
   }
-  return DEFAULT_SETTINGS;
+
+  hasFetchedFromFirebase = true;
+  return inMemorySettings;
 }
 
-export function saveGymSettings(settings) {
+/**
+ * Subscribe to real-time Gym Settings updates from Firebase Firestore
+ */
+export function subscribeGymSettings(gymId = "univo_main", callback) {
+  const targetGymId = gymId || "univo_main";
+  if (activeUnsub) {
+    activeUnsub();
+    activeUnsub = null;
+  }
+
+  const docRef = doc(db, "gyms", targetGymId, "settings", "general");
+  activeUnsub = onSnapshot(docRef, (snap) => {
+    if (snap.exists()) {
+      inMemorySettings = normalizeSettings(snap.data());
+      hasFetchedFromFirebase = true;
+      if (callback) callback(inMemorySettings);
+    }
+  }, (err) => {
+    console.warn("subscribeGymSettings listener note:", err);
+  });
+
+  return activeUnsub;
+}
+
+/**
+ * Save Gym Settings directly to Firebase Firestore
+ */
+export async function saveGymSettings(settings, gymId = "univo_main") {
+  const targetGymId = gymId || "univo_main";
+  const normalized = normalizeSettings(settings);
+  inMemorySettings = normalized;
+
   try {
-    localStorage.setItem("univo_gym_settings", JSON.stringify(settings));
+    const docRef = doc(db, "gyms", targetGymId, "settings", "general");
+    await setDoc(docRef, {
+      ...normalized,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    // Also update parent gym doc for broad compatibility
+    try {
+      const parentRef = doc(db, "gyms", targetGymId);
+      await setDoc(parentRef, {
+        name: normalized.gymName,
+        phone: normalized.phone,
+        address: normalized.address,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (e) {}
+
     return true;
-  } catch (e) {
-    console.error(e);
-    return false;
+  } catch (err) {
+    console.error("saveGymSettings Firestore error:", err);
+    throw err;
   }
 }
 
-export function resetGymSettings() {
+/**
+ * Reset Gym Settings to defaults in Firebase Firestore
+ */
+export async function resetGymSettings(gymId = "univo_main") {
+  const targetGymId = gymId || "univo_main";
+  inMemorySettings = { ...DEFAULT_SETTINGS };
+
   try {
-    localStorage.setItem("univo_gym_settings", JSON.stringify(DEFAULT_SETTINGS));
-    return DEFAULT_SETTINGS;
-  } catch (e) {
-    console.error(e);
-    return DEFAULT_SETTINGS;
+    const docRef = doc(db, "gyms", targetGymId, "settings", "general");
+    await setDoc(docRef, {
+      ...DEFAULT_SETTINGS,
+      updatedAt: serverTimestamp()
+    });
+  } catch (err) {
+    console.warn("resetGymSettings Firestore note:", err);
   }
+
+  return DEFAULT_SETTINGS;
 }
 
 export { DEFAULT_SETTINGS };

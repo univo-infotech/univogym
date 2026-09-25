@@ -4,6 +4,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { useDropzone } from 'react-dropzone';
 import { useForm } from 'react-hook-form';
 import PhotoCaptureInput from '../../components/shared/PhotoCaptureInput';
+import SignaturePad from '../../components/shared/SignaturePad';
 import {
   CheckCircle,
   ChevronRight,
@@ -50,7 +51,7 @@ import {
 import { addPayment } from '../../firebase/payments';
 import { getActivePlans } from '../../firebase/plans';
 import { getTrainers } from '../../firebase/trainers';
-import { getServices } from '../../firebase/services';
+import { getServices, isServiceIncludedInPlan } from '../../firebase/services';
 import {
   getStorage,
   ref as storageRef,
@@ -144,6 +145,55 @@ const DEFAULT_TRAINERS = [
     specialization: 'CrossFit & Athletic Conditioning',
     experience: '4',
     photoURL: ''
+  }
+];
+
+const DEFAULT_PT_PACKAGES = [
+  {
+    id: 'pt_1m',
+    name: '1 Month 1-on-1 PT',
+    duration: '1 Month',
+    durationDays: 30,
+    durationMonths: 1,
+    price: 3500,
+    description: 'Daily 1-on-1 workout coaching, form correction & posture analysis'
+  },
+  {
+    id: 'pt_2m',
+    name: '2 Months Transformation PT',
+    duration: '2 Months',
+    durationDays: 60,
+    durationMonths: 2,
+    price: 6500,
+    description: 'Focused fat loss/hypertrophy coaching + weekly progress reviews'
+  },
+  {
+    id: 'pt_3m',
+    name: '3 Months Pro PT',
+    duration: '3 Months',
+    durationDays: 90,
+    durationMonths: 3,
+    price: 9500,
+    popular: true,
+    description: 'Complete body recomposition, customized diet plan & workout routine'
+  },
+  {
+    id: 'pt_6m',
+    name: '6 Months Elite PT',
+    duration: '6 Months',
+    durationDays: 180,
+    durationMonths: 6,
+    price: 17000,
+    description: 'Long-term athletic transformation & dedicated coach mentorship'
+  },
+  {
+    id: 'pt_1y',
+    name: '1 Year VIP PT',
+    duration: '12 Months',
+    durationDays: 365,
+    durationMonths: 12,
+    price: 30000,
+    description: 'Year-round elite 1-on-1 coaching, priority scheduling & full support'
   }
 ];
 
@@ -283,6 +333,35 @@ export default function MemberSelfRegister() {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [selectedTrainer, setSelectedTrainer] = useState(null);
   const [selectedPtPlan, setSelectedPtPlan] = useState(null); // { id, name, price, duration, description }
+
+  // Dynamic available PT packages catalog for selected coach
+  const availablePtPackages = React.useMemo(() => {
+    if (!selectedTrainer) return [];
+    if (selectedTrainer?.ptPlans && Array.isArray(selectedTrainer.ptPlans) && selectedTrainer.ptPlans.length > 0) {
+      return selectedTrainer.ptPlans.map((pkg, idx) => ({
+        id: pkg.id || `pt_custom_${idx}`,
+        name: pkg.name || `${pkg.duration || '1 Month'} PT`,
+        price: Number(pkg.price || 0),
+        duration: pkg.duration || `${pkg.durationMonths || 1} Month(s)`,
+        durationDays: Number(pkg.durationDays || (pkg.durationMonths ? pkg.durationMonths * 30 : 30)),
+        description: pkg.description || 'Dedicated 1-on-1 Personal Training',
+        popular: Boolean(pkg.popular)
+      }));
+    }
+    const gymPt = (plans || []).filter(p => p.isPt || p.ptAddon || (p.name && p.name.toLowerCase().includes('pt'))).map(p => ({
+      id: p.id,
+      name: p.name,
+      price: Number(p.price || 3500),
+      duration: p.duration ? `${p.duration} ${p.durationUnit || 'months'}` : '1 Month',
+      durationDays: Number(p.durationDays || (p.durationMonths ? p.durationMonths * 30 : (p.duration ? Number(p.duration) * 30 : 30))),
+      description: p.description || p.features?.join(', ') || 'Dedicated 1-on-1 Personal Training',
+      popular: Boolean(p.popular)
+    }));
+    if (gymPt.length > 0) return gymPt;
+
+    return DEFAULT_PT_PACKAGES;
+  }, [selectedTrainer, plans]);
+
   const [plansLoading, setPlansLoading] = useState(false);
   const [fullPhotoModal, setFullPhotoModal] = useState(null);
 
@@ -290,13 +369,51 @@ export default function MemberSelfRegister() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('Member@123');
 
+  // Auto-sync services included with selectedPlan (Default Selected for FREE)
+  useEffect(() => {
+    if (!selectedPlan || services.length === 0) return;
+    const included = services.filter((srv) => isServiceIncludedInPlan(srv, selectedPlan));
+
+    setSelectedServices((prev) => {
+      // Keep any extra services the member manually selected that are not in the new plan
+      const customAdded = prev.filter(
+        (s) => !services.some((svc) => svc.id === s.id && isServiceIncludedInPlan(svc, selectedPlan))
+      );
+      // Combine all included services + previously custom added services
+      const combined = [...included];
+      customAdded.forEach((ca) => {
+        if (!combined.some((c) => c.id === ca.id)) {
+          combined.push(ca);
+        }
+      });
+      return combined;
+    });
+  }, [selectedPlan, services]);
+
   // Dynamic fee calculation (Base Plan + Trainer PT Add-on + Services Add-on)
   const basePlanPrice = Number(selectedPlan?.price || 0);
   const ptAddonPrice = Number(selectedPtPlan?.price || 0);
-  const servicesTotalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+
+  // Price for a service: ₹0 if included in selectedPlan, else regular srv.price
+  const getServiceCharge = (srv) => {
+    if (isServiceIncludedInPlan(srv, selectedPlan)) {
+      return 0; // Included free in plan
+    }
+    return Number(srv.price || 0);
+  };
+
+  const servicesTotalPrice = selectedServices.reduce((sum, s) => sum + getServiceCharge(s), 0);
   const totalRegistrationFee = basePlanPrice + ptAddonPrice + servicesTotalPrice;
 
   const toggleServiceSelection = (srv) => {
+    const isIncluded = isServiceIncludedInPlan(srv, selectedPlan);
+    if (isIncluded) {
+      toast.success(`"${srv.name}" is already included FREE with ${selectedPlan?.name || "your plan"}!`, {
+        icon: "✨",
+        id: `inc_${srv.id}`
+      });
+      return;
+    }
     setSelectedServices((prev) => {
       const exists = prev.some((s) => s.id === srv.id);
       if (exists) {
@@ -371,6 +488,8 @@ export default function MemberSelfRegister() {
 
   // Step 5: Waiver
   const sigRef = useRef(null);
+  const [signatureType, setSignatureType] = useState('draw'); // 'draw' | 'typed'
+  const [drawnSignature, setDrawnSignature] = useState('');
   const [waiverAgreed, setWaiverAgreed] = useState(false);
   const [typedName, setTypedName] = useState('');
   const [sigError, setSigError] = useState('');
@@ -571,23 +690,24 @@ export default function MemberSelfRegister() {
       setSubmitError('You must agree to the Liability Waiver before submitting.');
       return;
     }
-    if (!typedName.trim()) {
-      setSubmitError('Please enter your full name as a typed signature.');
-      return;
-    }
-    if (sigRef.current && sigRef.current.isEmpty()) {
-      setSigError('Please provide your digital signature using your finger or mouse.');
-      return;
+    if (signatureType === 'typed') {
+      const legalName = (typedName || personalData?.fullName || '').trim();
+      if (!legalName) {
+        setSubmitError('Please enter your full legal name as a typed signature.');
+        return;
+      }
+    } else {
+      if (!drawnSignature) {
+        setSigError('Please provide your digital signature using your finger or mouse.');
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
       // 1. Capture base64 data directly (instant, reliable, no CORS or network blocking)
       let photoURL = photoPreview || '';
-      let signatureURL = '';
-      if (sigRef.current && !sigRef.current.isEmpty()) {
-        signatureURL = sigRef.current.toDataURL('image/png');
-      }
+      let signatureURL = signatureType === 'draw' ? (drawnSignature || '') : '';
 
       // 2. Non-blocking asynchronous Firebase Storage backup (if available and CORS configured)
       try {
@@ -610,7 +730,7 @@ export default function MemberSelfRegister() {
 
       const baseFee = Number(selectedPlan?.price || 0);
       const ptFee = Number(selectedPtPlan?.price || 0);
-      const srvFee = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
+      const srvFee = selectedServices.reduce((sum, s) => sum + getServiceCharge(s), 0);
       const combinedTotalFee = baseFee + ptFee + srvFee;
 
       // Calculate Gym Owner Commission and Trainer Payout on PT Sale
@@ -638,6 +758,7 @@ export default function MemberSelfRegister() {
         altPhone: personalData.altPhone || '',
         photoURL,
         signatureURL,
+        signatureType,
         gender,
         email: personalData.email || '',
         dob: personalData.dob || '',
@@ -655,13 +776,18 @@ export default function MemberSelfRegister() {
         ptOwnerCommission,
         ptTrainerPayout,
         // Add-on Services details
-        selectedServices: selectedServices.map(s => ({
-          id: s.id,
-          name: s.name,
-          price: Number(s.price || 0),
-          category: s.category || "General",
-          billingType: s.billingType || "Per Month"
-        })),
+        selectedServices: selectedServices.map(s => {
+          const isInc = isServiceIncludedInPlan(s, selectedPlan);
+          return {
+            id: s.id,
+            name: s.name,
+            price: isInc ? 0 : Number(s.price || 0),
+            originalPrice: Number(s.price || 0),
+            isIncluded: isInc,
+            category: s.category || "General",
+            billingType: s.billingType || "Per Month"
+          };
+        }),
         servicesTotalPrice: srvFee,
         totalAmount: combinedTotalFee,
         dueAmount: combinedTotalFee,
@@ -671,6 +797,11 @@ export default function MemberSelfRegister() {
         trainerName: selectedTrainer?.name || 'Unassigned (General Floor)',
         hasPersonalCoach: Boolean(selectedTrainer),
         isPTMember: Boolean(selectedTrainer),
+        isPt: Boolean(selectedTrainer && selectedPtPlan),
+        ptStatus: Boolean(selectedTrainer && selectedPtPlan) ? 'active' : 'none',
+        ptDurationDays: Number(selectedPtPlan?.durationDays || 30),
+        ptStartDate: todayDate.toISOString().split('T')[0],
+        ptEndDate: new Date(Date.now() + (Number(selectedPtPlan?.durationDays || 30) * 86400000)).toISOString().split('T')[0],
         loginEmail: selectedTrainer ? (loginEmail || tokenData?.loginEmail || personalData.phone || tokenData?.phone || '').trim() : '',
         loginPassword: selectedTrainer ? (loginPassword || tokenData?.loginPassword || 'Member@123').trim() : '',
         weight: weight || '',
@@ -687,7 +818,7 @@ export default function MemberSelfRegister() {
         targetWeight: targetWeight || '',
         preferredTime,
         healthNotes,
-        typedSignature: typedName.trim(),
+        typedSignature: (typedName || personalData?.fullName || '').trim(),
         waiverAgreed: true,
         waiverDate: new Date().toISOString(),
         registeredAt: new Date().toISOString(),
@@ -728,7 +859,11 @@ export default function MemberSelfRegister() {
           basePlanPrice: baseFee,
           ptPlanName: selectedPtPlan?.name || '',
           ptPlanPrice: ptFee,
-          services: selectedServices.map(s => ({ name: s.name, price: Number(s.price || 0) })),
+          services: selectedServices.map(s => ({
+            name: s.name,
+            price: getServiceCharge(s),
+            isIncluded: isServiceIncludedInPlan(s, selectedPlan)
+          })),
           servicesPrice: srvFee,
           discount: 0,
           amount: combinedTotalFee,
@@ -1128,106 +1263,7 @@ export default function MemberSelfRegister() {
           <Card className="space-y-6">
             <div>
               <h2 className="text-xl font-bold text-slate-900">Step 3: Membership Plan & Coach Selection</h2>
-              <p className="text-slate-500 text-xs mt-1">Select your preferred workout slot, membership tier, and dedicated coach</p>
-            </div>
-
-            {/* Preferred Workout Time Slot with Live Trainer Shift Availability */}
-            <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 space-y-2.5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-amber-500" />
-                  Preferred Workout Time Slot *
-                </label>
-                {selectedTrainer && (
-                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-lg flex items-center gap-1 self-start sm:self-auto">
-                    <Sparkles className="w-3 h-3 text-emerald-600" />
-                    Live Shift Schedule: {selectedTrainer.name}
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {activeWorkoutSlots.map((t) => {
-                  const fullSlotText = `${t.label} (${t.time})`;
-                  const active = preferredTime === fullSlotText || preferredTime === t.id;
-                  const Icon = t.icon || Sun;
-
-                  // Check if coach has booked athletes in this slot
-                  const bookedAthletes = selectedTrainer
-                    ? (trainerSlotOccupancy[fullSlotText] || trainerSlotOccupancy[t.label] || trainerSlotOccupancy[t.time] || [])
-                    : [];
-                  const bookedCount = bookedAthletes.length;
-
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => { setPreferredTime(fullSlotText); setStepError(''); }}
-                      className={cn(
-                        'p-2.5 rounded-xl border-2 transition-all text-left relative flex flex-col justify-between',
-                        active
-                          ? 'border-emerald-600 bg-white text-emerald-950 font-bold shadow-xs ring-1 ring-emerald-500/30'
-                          : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
-                      )}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-1">
-                          <div className="flex items-center gap-1.5 font-bold text-xs">
-                            <Icon className="w-3.5 h-3.5 text-amber-500" />
-                            {t.label}
-                          </div>
-                          {selectedTrainer && (
-                            <span
-                              className={`text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wide shrink-0 ${
-                                bookedCount === 0
-                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                                  : bookedCount === 1
-                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
-                                  : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
-                              }`}
-                            >
-                              {bookedCount === 0 ? "🟢 Khali" : bookedCount === 1 ? "🟡 1 Booked" : `🔴 Bhari (${bookedCount})`}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{t.time}</p>
-                      </div>
-
-                      {selectedTrainer && bookedCount > 0 && (
-                        <div className="mt-1.5 pt-1 border-t border-slate-200/60 text-[9.5px] text-slate-500 truncate">
-                          🏋️ {bookedAthletes.length} Active Member{bookedAthletes.length > 1 ? 's' : ''}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Overbooking Warning Alert for Member */}
-              {(() => {
-                if (!selectedTrainer) return null;
-                const curBooked = trainerSlotOccupancy[preferredTime] || [];
-                if (curBooked.length >= 2) {
-                  return (
-                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-900 text-xs">
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                      <div>
-                        <strong className="font-extrabold text-rose-800">Yeh Shift Bhari Hai (Slot Busy): </strong>
-                        Coach <strong>{selectedTrainer.name}</strong> ke paas is slot ({preferredTime}) mein pehle se <strong>{curBooked.length} members</strong> hain. Agar aapko free slot chahiye toh kripya doosra time slot select karein.
-                      </div>
-                    </div>
-                  );
-                }
-                if (curBooked.length === 1) {
-                  return (
-                    <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-900 text-[11px]">
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span>Coach <strong>{selectedTrainer.name}</strong> ke paas is slot mein 1 member pehle se booked hai.</span>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
+              <p className="text-slate-500 text-xs mt-1">Select your base membership tier, coach program, workout schedule & services</p>
             </div>
 
             <div className="space-y-3">
@@ -1258,37 +1294,41 @@ export default function MemberSelfRegister() {
                         type="button"
                         onClick={() => { setSelectedPlan(plan); setStepError(''); }}
                         className={cn(
-                          'relative w-full text-left p-4 sm:p-5 rounded-2xl border-2 transition-all',
+                          'w-full text-left p-4 sm:p-5 rounded-2xl border-2 transition-all',
                           active
                             ? 'border-emerald-600 bg-emerald-50/60 shadow-md ring-2 ring-emerald-500/20'
                             : 'border-slate-200 bg-white hover:border-slate-300'
                         )}
                       >
-                        <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5">
-                          {plan.popular && (
-                            <span className="flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">
-                              <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Popular
-                            </span>
-                          )}
-                          {active && (
-                            <span className="flex items-center gap-1 bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
-                              <Check className="w-3 h-3" /> Selected
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-start justify-between pr-14">
-                          <div>
-                            <p className="font-bold text-slate-900 text-sm">{plan.name}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 sm:gap-4">
+                          {/* Plan Details & Badges */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-extrabold text-slate-900 text-sm sm:text-base leading-tight">
+                                {plan.name}
+                              </p>
+                              {plan.popular && (
+                                <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                                  <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Popular
+                                </span>
+                              )}
+                              {active && (
+                                <span className="inline-flex items-center gap-1 bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-xs shrink-0">
+                                  <Check className="w-3 h-3" /> Selected
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">
                               Duration: {plan.duration} {plan.durationUnit || 'months'}
                             </p>
                           </div>
-                          <div className="text-right">
-                            <p className="text-lg font-extrabold text-emerald-700">
+
+                          {/* Price Block (Strictly separated from badges, zero overlap) */}
+                          <div className="text-left sm:text-right shrink-0 flex items-baseline sm:flex-col justify-between sm:justify-start gap-1 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                            <p className="text-base sm:text-xl font-black text-emerald-700 whitespace-nowrap">
                               ₹{Number(plan.price).toLocaleString('en-IN')}
                             </p>
-                            <p className="text-[10px] text-slate-400">Total Plan Fee</p>
+                            <p className="text-[10px] text-slate-400 font-medium whitespace-nowrap">Total Plan Fee</p>
                           </div>
                         </div>
 
@@ -1344,7 +1384,43 @@ export default function MemberSelfRegister() {
                           setSelectedPtPlan(null);
                         } else {
                           setSelectedTrainer(trainer);
-                          setSelectedPtPlan(null);
+                          // Auto-select first or popular PT package for this coach
+                          let pkgs = DEFAULT_PT_PACKAGES;
+                          if (trainer.ptPlans && Array.isArray(trainer.ptPlans) && trainer.ptPlans.length > 0) {
+                            pkgs = trainer.ptPlans.map((pkg, idx) => ({
+                              id: pkg.id || `pt_custom_${idx}`,
+                              name: pkg.name || `${pkg.duration || '1 Month'} PT`,
+                              price: Number(pkg.price || 0),
+                              duration: pkg.duration || `${pkg.durationMonths || 1} Month(s)`,
+                              durationDays: Number(pkg.durationDays || (pkg.durationMonths ? pkg.durationMonths * 30 : 30)),
+                              description: pkg.description || 'Dedicated 1-on-1 Personal Training',
+                              popular: Boolean(pkg.popular)
+                            }));
+                          } else {
+                            const gymPt = (plans || []).filter(p => p.isPt || p.ptAddon || (p.name && p.name.toLowerCase().includes('pt')));
+                            if (gymPt.length > 0) {
+                              pkgs = gymPt.map(p => ({
+                                id: p.id,
+                                name: p.name,
+                                price: Number(p.price || 3500),
+                                duration: p.duration ? `${p.duration} ${p.durationUnit || 'months'}` : '1 Month',
+                                durationDays: Number(p.durationDays || (p.durationMonths ? p.durationMonths * 30 : (p.duration ? Number(p.duration) * 30 : 30))),
+                                description: p.description || '',
+                                popular: Boolean(p.popular)
+                              }));
+                            }
+                          }
+                          const defPkg = pkgs.find(p => p.popular) || pkgs[0];
+                          if (defPkg) {
+                            setSelectedPtPlan({
+                              id: defPkg.id,
+                              name: defPkg.name,
+                              price: Number(defPkg.price || 3500),
+                              duration: defPkg.duration || '1 Month',
+                              durationDays: Number(defPkg.durationDays || 30),
+                              description: defPkg.description || ''
+                            });
+                          }
                         }
                         setStepError('');
                       }}
@@ -1501,117 +1577,121 @@ export default function MemberSelfRegister() {
                           )}
                         </div>
                       )}
+                    </div>
+                  </div>
 
-                      {/* Coach Custom PT Packages (Clickable Add-on) */}
-                      {selectedTrainer.ptPlans && selectedTrainer.ptPlans.length > 0 && (
-                        <div className="pt-2">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
-                              <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Coach Personal Training (PT) Packages & Add-on:
-                            </span>
-                            {selectedPtPlan && (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedPtPlan(null)}
-                                className="text-[10px] text-rose-600 hover:text-rose-700 font-bold hover:underline"
-                              >
-                                Remove PT Add-on
-                              </button>
+                  {/* ==========================================================
+                      DEDICATED 1-ON-1 PT PACKAGE & DURATION SELECTION
+                  ========================================================== */}
+                  <div className="pt-3 border-t border-emerald-200/80 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                          <Sparkles className="w-4 h-4 text-purple-600" />
+                          Select Personal Training (PT) Package & Duration *
+                        </h5>
+                        <p className="text-[11px] text-slate-500">
+                          Choose 1-on-1 coaching duration with {(selectedTrainer.name || '').startsWith('Coach') ? selectedTrainer.name : `Coach ${selectedTrainer.name}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-purple-700 font-bold bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-200 shadow-2xs">
+                          {(selectedTrainer.name || '').startsWith('Coach') ? selectedTrainer.name : `Coach ${selectedTrainer.name}`}
+                        </span>
+                        {selectedPtPlan && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPtPlan(null)}
+                            className="text-[11px] text-rose-600 hover:text-rose-700 font-bold hover:underline"
+                          >
+                            Remove PT Package
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                      {availablePtPackages.map((pkg) => {
+                        const pPrice = Number(pkg.price || 0);
+                        const isSelected = selectedPtPlan?.id === pkg.id || selectedPtPlan?.name === pkg.name;
+                        const perMonth = pkg.durationDays > 30 && pPrice > 0 ? Math.round(pPrice / (pkg.durationDays / 30)) : null;
+
+                        return (
+                          <div
+                            key={pkg.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedPtPlan(null);
+                              } else {
+                                setSelectedPtPlan({
+                                  id: pkg.id,
+                                  name: pkg.name,
+                                  price: pPrice,
+                                  duration: pkg.duration,
+                                  durationDays: pkg.durationDays,
+                                  description: pkg.description || ''
+                                });
+                              }
+                            }}
+                            className={`border-2 rounded-2xl p-3.5 text-left shadow-2xs space-y-2 transition-all cursor-pointer relative ${
+                              isSelected
+                                ? "bg-gradient-to-br from-emerald-50 via-teal-50/50 to-white border-emerald-600 shadow-md ring-2 ring-emerald-500/20"
+                                : "bg-white border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/20"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition ${
+                                  isSelected ? "bg-emerald-600 text-white shadow-xs" : "border-2 border-slate-300 bg-slate-50"
+                                }`}>
+                                  {isSelected ? "✓" : ""}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-xs sm:text-sm font-extrabold text-slate-900 block leading-tight">
+                                      {pkg.name}
+                                    </span>
+                                    {pkg.popular && (
+                                      <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full border border-amber-200 shrink-0">
+                                        <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> Popular
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10.5px] font-semibold text-emerald-700 flex items-center gap-1 mt-0.5">
+                                    ⏳ {pkg.duration || `${pkg.durationDays} Days`}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-baseline justify-between pt-1 border-t border-slate-100 gap-1 flex-wrap">
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-base font-black text-emerald-700 whitespace-nowrap">
+                                  +₹{pPrice.toLocaleString("en-IN")}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">PT Fee</span>
+                              </div>
+                              {perMonth && (
+                                <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md whitespace-nowrap">
+                                  ≈ ₹{perMonth.toLocaleString("en-IN")}/mo
+                                </span>
+                              )}
+                            </div>
+
+                            {pkg.description && (
+                              <p className="text-[10.5px] text-slate-600 line-clamp-2 leading-relaxed">
+                                {pkg.description}
+                              </p>
+                            )}
+
+                            {isSelected && (
+                              <div className="text-[10px] font-black tracking-wide text-emerald-800 bg-emerald-100/90 rounded-xl py-1 px-2 text-center uppercase flex items-center justify-center gap-1.5 border border-emerald-300">
+                                <CheckCircle className="w-3.5 h-3.5 text-emerald-700" /> Selected PT Package
+                              </div>
                             )}
                           </div>
-                          <p className="text-[10px] text-slate-500 mb-2">
-                            Select a personal training package to add dedicated 1-on-1 coaching to your membership.
-                          </p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {selectedTrainer.ptPlans.map((pkg, pidx) => {
-                              const pPrice = Number(pkg.price || 0);
-                              const isSelected = selectedPtPlan?.id === (pkg.id || `pt_${pidx}`) || selectedPtPlan?.name === pkg.name;
-                              const durType = pkg.durationType || (pkg.duration?.toLowerCase().includes("year") ? "years" : "months");
-                              const durVal = Number(pkg.durationValue) || (pkg.duration?.toLowerCase().includes("3 month") ? 3 : pkg.duration?.toLowerCase().includes("6 month") ? 6 : pkg.duration?.toLowerCase().includes("1 year") ? 1 : 1);
-                              const totalMonths = durType === "years" ? durVal * 12 : durVal;
-                              const perMonth = (totalMonths > 1 && pPrice > 0) ? Math.round(pPrice / totalMonths) : null;
-
-                              return (
-                                <div
-                                  key={pkg.id || pidx}
-                                  onClick={() => {
-                                    if (isSelected) {
-                                      setSelectedPtPlan(null);
-                                    } else {
-                                      setSelectedPtPlan({
-                                        id: pkg.id || `pt_${pidx}`,
-                                        name: pkg.name,
-                                        price: pPrice,
-                                        duration: pkg.duration || `${totalMonths} Month(s)`,
-                                        description: pkg.description || ""
-                                      });
-                                    }
-                                  }}
-                                  className={`border-2 rounded-xl p-3 text-left shadow-2xs space-y-1.5 transition-all cursor-pointer relative ${
-                                    isSelected
-                                      ? "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-600 shadow-md ring-2 ring-emerald-500/20"
-                                      : "bg-white/95 border-emerald-200/90 hover:border-emerald-400 hover:bg-emerald-50/30"
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between gap-1">
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                                        isSelected ? "bg-emerald-600 text-white" : "border border-slate-300 bg-slate-50"
-                                      }`}>
-                                        {isSelected ? "✓" : ""}
-                                      </span>
-                                      <span className="text-xs font-bold text-slate-900 truncate">
-                                        {pkg.name}
-                                      </span>
-                                    </div>
-                                    <span className={`text-xs font-extrabold shrink-0 px-2 py-0.5 rounded-lg border ${
-                                      isSelected
-                                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                                        : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                    }`}>
-                                      +₹{pPrice.toLocaleString("en-IN")}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 flex-wrap text-[10px] pl-5">
-                                    {pkg.duration && (
-                                      <span className="text-slate-600 font-semibold">
-                                        ⏳ {pkg.duration}
-                                      </span>
-                                    )}
-                                    {perMonth && (
-                                      <span className="font-bold text-emerald-700 bg-emerald-100/60 px-1 py-0.2 rounded">
-                                        ₹{perMonth.toLocaleString("en-IN")}/mo
-                                      </span>
-                                    )}
-                                  </div>
-                                  {pkg.description && (
-                                    <p className="text-[10px] text-slate-600 line-clamp-1 pl-5">
-                                      {pkg.description}
-                                    </p>
-                                  )}
-                                  {isSelected && (
-                                    <div className="text-[9px] font-black tracking-wider text-emerald-800 bg-emerald-100/80 rounded-md py-0.5 px-2 text-center uppercase mt-1">
-                                      ✓ PT Add-on Added to Total
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                          {selectedPtPlan && (
-                            <div className="mt-2.5 p-2 rounded-xl bg-emerald-100/80 border border-emerald-300 text-emerald-900 text-xs font-bold flex items-center justify-between">
-                              <span className="flex items-center gap-1.5">
-                                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-                                PT Add-on: {selectedPtPlan.name}
-                              </span>
-                              <span className="font-extrabold text-emerald-800">
-                                +₹{Number(selectedPtPlan.price).toLocaleString("en-IN")}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -1682,14 +1762,14 @@ export default function MemberSelfRegister() {
 
                   {/* Physical Assessment (Weight, Height & BMI) */}
                   <div className="pt-3 border-t border-emerald-200/80 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h5 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                    <div>
+                      <h5 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
                         <Scale className="w-4 h-4 text-emerald-600" />
                         Physical Baseline Assessment & Health Profile
                       </h5>
-                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                        For Coach Program
-                      </span>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Enter your baseline metrics to help your coach tailor your custom workout & nutrition program
+                      </p>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1905,6 +1985,134 @@ export default function MemberSelfRegister() {
             </div>
 
             {/* ==========================================================
+                PREFERRED WORKOUT TIME SLOT & TRAINER SHIFT OCCUPANCY
+            ========================================================== */}
+            <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-amber-500" />
+                  Preferred Workout Time Slot *
+                </label>
+                {selectedTrainer && (
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-lg flex items-center gap-1 self-start sm:self-auto">
+                    <Sparkles className="w-3 h-3 text-emerald-600" />
+                    Live Shift Schedule: {selectedTrainer.name}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {activeWorkoutSlots.map((t) => {
+                  const fullSlotText = `${t.label} (${t.time})`;
+                  const active = preferredTime === fullSlotText || preferredTime === t.id;
+                  const Icon = t.icon || Sun;
+
+                  // Check if coach has booked athletes in this slot
+                  const bookedAthletes = selectedTrainer
+                    ? (trainerSlotOccupancy[fullSlotText] || trainerSlotOccupancy[t.label] || trainerSlotOccupancy[t.time] || [])
+                    : [];
+                  const bookedCount = bookedAthletes.length;
+
+                  const maxSlotLimit = Number(selectedTrainer?.maxPtPerSlot || 2);
+                  const isFull = bookedCount >= maxSlotLimit;
+
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => { setPreferredTime(fullSlotText); setStepError(''); }}
+                      className={cn(
+                        'p-2 sm:p-2.5 rounded-xl border-2 transition-all text-left relative flex flex-col justify-between overflow-hidden cursor-pointer',
+                        active
+                          ? 'border-emerald-600 bg-white text-emerald-950 font-bold shadow-xs ring-1 ring-emerald-500/30'
+                          : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
+                      )}
+                    >
+                      <div className="w-full">
+                        <div className="flex items-center justify-between gap-1">
+                          <div className="flex items-center gap-1.5 font-bold text-xs truncate">
+                            <Icon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span className="truncate">{t.label}</span>
+                          </div>
+                          {selectedTrainer && (
+                            <span
+                              className={`hidden md:inline-flex text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shrink-0 ${
+                                bookedCount === 0
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                  : !isFull
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                  : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
+                              }`}
+                            >
+                              {bookedCount === 0 ? `🟢 FREE (0/${maxSlotLimit})` : !isFull ? `🟡 ${bookedCount}/${maxSlotLimit}` : `🔴 ${bookedCount}/${maxSlotLimit} FULL`}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Live Occupancy Badge on mobile / compact screens (stacked cleanly, zero overlap) */}
+                        {selectedTrainer && (
+                          <div className="md:hidden mt-1">
+                            <span
+                              className={`inline-flex text-[8.5px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-tight ${
+                                bookedCount === 0
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                  : !isFull
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                  : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
+                              }`}
+                            >
+                              {bookedCount === 0 ? `🟢 FREE (0/${maxSlotLimit})` : !isFull ? `🟡 ${bookedCount}/${maxSlotLimit}` : `🔴 ${bookedCount}/${maxSlotLimit} FULL`}
+                            </span>
+                          </div>
+                        )}
+
+                        <p className="text-[10px] text-slate-500 mt-0.5">{t.time}</p>
+                      </div>
+
+                      {selectedTrainer && bookedCount > 0 && (
+                        <div className="mt-1.5 pt-1 border-t border-slate-200/60 text-[9.5px] text-slate-500 truncate">
+                          🏋️ {bookedAthletes.length} Active Member{bookedAthletes.length > 1 ? 's' : ''}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Overbooking Warning Alert for Member */}
+              {(() => {
+                if (!selectedTrainer) return null;
+                const maxSlotLimit = Number(selectedTrainer.maxPtPerSlot || 2);
+                const curBooked = trainerSlotOccupancy[preferredTime] || 
+                  trainerSlotOccupancy[preferredTime?.split(' ')[0]] || [];
+                const coachName = (selectedTrainer.name || '').startsWith('Coach')
+                  ? selectedTrainer.name
+                  : `Coach ${selectedTrainer.name}`;
+
+                if (curBooked.length >= maxSlotLimit) {
+                  return (
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-900 text-xs animate-in fade-in duration-200">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="font-extrabold text-rose-800">Time Slot Full ({curBooked.length}/{maxSlotLimit}): </strong>
+                        <strong>{coachName}</strong> already has reached maximum PT capacity (<strong>{curBooked.length}/{maxSlotLimit} active members</strong>) scheduled during this slot ({preferredTime}). If you prefer a less crowded session with maximum attention, please select an available free slot.
+                      </div>
+                    </div>
+                  );
+                }
+                if (curBooked.length > 0) {
+                  return (
+                    <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2 text-amber-900 text-[11px] animate-in fade-in duration-200">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span><strong>{coachName}</strong> currently has {curBooked.length}/{maxSlotLimit} active members scheduled in this slot. {maxSlotLimit - curBooked.length} spot(s) remaining.</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+
+            {/* ==========================================================
                 ADD-ON GYM SERVICES & FACILITIES (STEAM, LOCKER, DIET)
             ========================================================== */}
             <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">
@@ -1920,7 +2128,7 @@ export default function MemberSelfRegister() {
                 </div>
                 {selectedServices.length > 0 && (
                   <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-300">
-                    {selectedServices.length} Selected (+₹{servicesTotalPrice.toLocaleString("en-IN")})
+                    {selectedServices.length} Selected {servicesTotalPrice > 0 ? `(+₹${servicesTotalPrice.toLocaleString("en-IN")})` : '(Included Free)'}
                   </span>
                 )}
               </div>
@@ -1930,7 +2138,8 @@ export default function MemberSelfRegister() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {services.map((srv) => {
-                    const isChecked = selectedServices.some((s) => s.id === srv.id);
+                    const isIncluded = isServiceIncludedInPlan(srv, selectedPlan);
+                    const isChecked = selectedServices.some((s) => s.id === srv.id) || isIncluded;
                     const srvPrice = Number(srv.price || 0);
                     return (
                       <div
@@ -1938,7 +2147,9 @@ export default function MemberSelfRegister() {
                         onClick={() => toggleServiceSelection(srv)}
                         className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-start justify-between gap-3 select-none ${
                           isChecked
-                            ? "bg-emerald-50/70 border-emerald-500 shadow-xs"
+                            ? isIncluded
+                              ? "bg-emerald-50/90 border-emerald-500 shadow-xs ring-1 ring-emerald-500/20"
+                              : "bg-teal-50/70 border-teal-500 shadow-xs"
                             : "bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                         }`}
                       >
@@ -1950,9 +2161,16 @@ export default function MemberSelfRegister() {
                             className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 pointer-events-none"
                           />
                           <div className="min-w-0">
-                            <span className="text-xs font-bold text-slate-900 block truncate">
-                              {srv.name}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold text-slate-900 block truncate">
+                                {srv.name}
+                              </span>
+                              {isIncluded && (
+                                <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  Included in Plan
+                                </span>
+                              )}
+                            </div>
                             {srv.desc && (
                               <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
                                 {srv.desc}
@@ -1965,12 +2183,25 @@ export default function MemberSelfRegister() {
                         </div>
 
                         <div className="text-right shrink-0">
-                          <span className={`text-xs font-black block ${isChecked ? "text-emerald-700" : "text-slate-900"}`}>
-                            +₹{srvPrice.toLocaleString("en-IN")}
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-semibold">
-                            Fee Add-on
-                          </span>
+                          {isIncluded ? (
+                            <div>
+                              <span className="text-xs font-black text-emerald-700 block">
+                                FREE
+                              </span>
+                              <span className="text-[10px] text-slate-400 line-through">
+                                ₹{srvPrice.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+                          ) : (
+                            <div>
+                              <span className={`text-xs font-black block ${isChecked ? "text-teal-700" : "text-slate-900"}`}>
+                                +₹{srvPrice.toLocaleString("en-IN")}
+                              </span>
+                              <span className="text-[9px] text-slate-400 font-semibold">
+                                Extra Add-on
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1980,43 +2211,56 @@ export default function MemberSelfRegister() {
             </div>
 
             {/* Live Fee Summary & Breakdown Banner */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md border border-slate-800">
-              <div className="flex items-center gap-3 text-xs w-full sm:w-auto justify-between sm:justify-start">
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-300 font-medium">Gym Membership:</span>
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-emerald-950 text-white border border-slate-800 shadow-md space-y-3 overflow-hidden">
+              {/* Fee Component Badges */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <div className="flex items-center gap-1.5 bg-slate-800/90 px-2.5 py-1 rounded-lg border border-slate-700/80">
+                  <span className="text-slate-300">Gym Plan:</span>
                   <span className="font-bold text-white">₹{basePlanPrice.toLocaleString('en-IN')}</span>
                 </div>
+
                 {ptAddonPrice > 0 && (
-                  <>
-                    <span className="text-emerald-400 font-extrabold">+</span>
-                    <div className="flex items-center gap-1.5 bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/40">
-                      <Sparkles className="w-3 h-3 text-emerald-300" />
-                      <span className="text-emerald-200 font-medium truncate max-w-[120px] sm:max-w-[180px]">
-                        {selectedPtPlan?.name || 'Coach PT'}:
-                      </span>
-                      <span className="font-bold text-emerald-300">₹{ptAddonPrice.toLocaleString('en-IN')}</span>
-                    </div>
-                  </>
+                  <div className="flex items-center gap-1.5 bg-emerald-500/20 px-2.5 py-1 rounded-lg border border-emerald-500/40 text-emerald-200">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                    <span className="text-emerald-300 font-medium truncate max-w-[130px] sm:max-w-[180px]">
+                      {selectedPtPlan?.name || 'Coach PT'}:
+                    </span>
+                    <span className="font-bold text-emerald-300 whitespace-nowrap">+₹{ptAddonPrice.toLocaleString('en-IN')}</span>
+                  </div>
                 )}
+
+                {selectedServices.some(s => isServiceIncludedInPlan(s, selectedPlan)) && (
+                  <div className="flex items-center gap-1.5 bg-emerald-500/20 px-2.5 py-1 rounded-lg border border-emerald-500/40 text-emerald-200">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                    <span className="text-emerald-300 font-medium">Services:</span>
+                    <span className="font-bold text-emerald-300 whitespace-nowrap">Included Free</span>
+                  </div>
+                )}
+
                 {servicesTotalPrice > 0 && (
-                  <>
-                    <span className="text-emerald-400 font-extrabold">+</span>
-                    <div className="flex items-center gap-1.5 bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/40">
-                      <CheckCircle className="w-3 h-3 text-emerald-300" />
-                      <span className="text-emerald-200 font-medium">
-                        {selectedServices.length} Services:
-                      </span>
-                      <span className="font-bold text-emerald-300">₹{servicesTotalPrice.toLocaleString('en-IN')}</span>
-                    </div>
-                  </>
+                  <div className="flex items-center gap-1.5 bg-teal-500/20 px-2.5 py-1 rounded-lg border border-teal-500/40 text-teal-200">
+                    <CheckCircle className="w-3.5 h-3.5 text-teal-300 shrink-0" />
+                    <span className="text-teal-300 font-medium">Extra Services:</span>
+                    <span className="font-bold text-teal-300 whitespace-nowrap">+₹{servicesTotalPrice.toLocaleString('en-IN')}</span>
+                  </div>
                 )}
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-slate-800 pt-2 sm:pt-0">
-                <span className="text-slate-300 text-xs font-bold uppercase tracking-wider">Total Payable:</span>
-                <span className="text-lg font-black text-emerald-400">
-                  ₹{totalRegistrationFee.toLocaleString('en-IN')}
-                </span>
+              {/* Total Payable Row */}
+              <div className="pt-2.5 border-t border-slate-800/90 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs uppercase font-extrabold tracking-wider text-slate-300">
+                    Total Payable:
+                  </span>
+                  <span className="text-[10px] text-slate-400 hidden sm:inline">
+                    (Gym + Add-ons)
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight whitespace-nowrap">
+                    ₹{totalRegistrationFee.toLocaleString('en-IN')}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -2079,41 +2323,86 @@ export default function MemberSelfRegister() {
               </span>
             </label>
 
+            {/* Digital Signature Toggle & Input */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-700">Digital Signature *</label>
-                <button
-                  type="button"
-                  onClick={clearSignature}
-                  className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 transition font-semibold"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" /> Clear Signature
-                </button>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <label className="text-xs font-bold text-slate-700">Member Digital Signature *</label>
+                <div className="flex items-center rounded-xl bg-slate-200/80 p-0.5 text-xs font-semibold overflow-hidden border border-slate-300/80 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSignatureType('draw');
+                      setSigError('');
+                    }}
+                    className={`px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
+                      signatureType === 'draw'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-transparent text-slate-600 hover:bg-white/60'
+                    }`}
+                  >
+                    Draw Signature
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSignatureType('typed');
+                      setSigError('');
+                      if (!typedName && personalData.fullName) {
+                        setTypedName(personalData.fullName);
+                      }
+                    }}
+                    className={`px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
+                      signatureType === 'typed'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-transparent text-slate-600 hover:bg-white/60'
+                    }`}
+                  >
+                    Type Full Name
+                  </button>
+                </div>
               </div>
 
-              <div className="rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-50">
-                <SignatureCanvas
-                  ref={sigRef}
-                  canvasProps={{
-                    className: 'w-full',
-                    height: 160,
-                    style: { touchAction: 'none', display: 'block', width: '100%' },
-                  }}
-                  penColor="#0f172a"
-                  backgroundColor="#f8fafc"
-                  onEnd={() => setSigError('')}
-                />
-              </div>
-              <p className="text-[11px] text-slate-500">Sign with your finger on phone or drag mouse on desktop</p>
-              {sigError && <p className="text-xs text-rose-600 font-semibold">{sigError}</p>}
+              {signatureType === 'draw' ? (
+                <div className="w-full bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
+                  <SignaturePad
+                    onSave={(dataUrl) => {
+                      setDrawnSignature(dataUrl);
+                      setSigError('');
+                    }}
+                    currentSignature={drawnSignature}
+                    onClear={() => {
+                      setDrawnSignature('');
+                      setSigError('');
+                    }}
+                  />
+                  {sigError && <p className="text-xs text-rose-600 font-semibold mt-2">{sigError}</p>}
+                </div>
+              ) : (
+                <div className="w-full bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2">
+                  <label className="text-[11px] font-bold text-slate-600 block">
+                    Type your full legal name as digital signature:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Type your full legal name"
+                    value={typedName || personalData?.fullName || ''}
+                    onChange={(e) => {
+                      setTypedName(e.target.value);
+                      setSubmitError('');
+                    }}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-serif italic text-slate-900 focus:outline-none focus:border-indigo-500 font-bold tracking-wide"
+                  />
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Your typed name serves as a legally recognized electronic signature.</span>
+                    {(typedName || personalData?.fullName) && (
+                      <span className="text-emerald-600 font-bold flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Valid Signature
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-
-            <Input
-              label="Full Name (Printed Signature) *"
-              placeholder="e.g. Rahul Sharma"
-              value={typedName}
-              onChange={(e) => setTypedName(e.target.value)}
-            />
 
             <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-xs">
               <Calendar className="w-4 h-4 text-emerald-600 flex-shrink-0" />
@@ -2124,22 +2413,79 @@ export default function MemberSelfRegister() {
             </div>
 
             {/* Order / Fee Breakdown Summary */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white space-y-2 border border-slate-800 shadow-sm">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-300">Base Gym Plan ({selectedPlan?.name || 'Selected Plan'}):</span>
-                <span className="font-bold text-white">₹{basePlanPrice.toLocaleString('en-IN')}</span>
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white space-y-3 border border-slate-800 shadow-md">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Fee Breakdown
+                </span>
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  Verified Total
+                </span>
               </div>
-              {ptAddonPrice > 0 && (
-                <div className="flex items-center justify-between text-xs text-emerald-300">
-                  <span className="flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> Coach PT Add-on ({selectedPtPlan?.name}):
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-slate-300 font-medium truncate">
+                    Base Gym Plan ({selectedPlan?.name || 'Selected Plan'})
                   </span>
-                  <span className="font-bold">+₹{ptAddonPrice.toLocaleString('en-IN')}</span>
+                  <span className="font-bold text-white shrink-0 whitespace-nowrap">
+                    ₹{basePlanPrice.toLocaleString('en-IN')}
+                  </span>
                 </div>
-              )}
-              <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                <span className="text-xs uppercase font-bold text-slate-300">Total Registration Payable:</span>
-                <span className="text-lg font-black text-emerald-400">
+
+                {ptAddonPrice > 0 && (
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0 text-emerald-300 font-medium">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="truncate">
+                        Coach PT Add-on ({selectedPtPlan?.name || 'Personal Training'})
+                      </span>
+                    </div>
+                    <span className="font-bold text-emerald-400 shrink-0 whitespace-nowrap">
+                      +₹{ptAddonPrice.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                )}
+
+                {selectedServices.some(s => isServiceIncludedInPlan(s, selectedPlan)) && (
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0 text-emerald-300 font-medium">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="truncate">
+                        Included Services ({selectedServices.filter(s => isServiceIncludedInPlan(s, selectedPlan)).map(s => s.name).join(', ')})
+                      </span>
+                    </div>
+                    <span className="font-bold text-emerald-400 shrink-0 whitespace-nowrap">
+                      FREE (Included)
+                    </span>
+                  </div>
+                )}
+
+                {servicesTotalPrice > 0 && (
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0 text-teal-300 font-medium">
+                      <CheckCircle className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                      <span className="truncate">
+                        Extra Add-on Services ({selectedServices.filter(s => !isServiceIncludedInPlan(s, selectedPlan)).map(s => s.name).join(', ')})
+                      </span>
+                    </div>
+                    <span className="font-bold text-teal-400 shrink-0 whitespace-nowrap">
+                      +₹{servicesTotalPrice.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2.5 border-t border-slate-800 flex items-center justify-between gap-3">
+                <div className="flex flex-col">
+                  <span className="text-xs uppercase font-extrabold tracking-wider text-slate-300">
+                    Total Registration Payable:
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-normal">
+                    Due at gym desk upon arrival
+                  </span>
+                </div>
+                <span className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight shrink-0 whitespace-nowrap">
                   ₹{totalRegistrationFee.toLocaleString('en-IN')}
                 </span>
               </div>

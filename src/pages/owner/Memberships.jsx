@@ -39,6 +39,7 @@ import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import { getPlans, addPlan, updatePlan, deletePlan } from "../../firebase/plans";
 import { getTrainers } from "../../firebase/trainers";
+import { getServices, DEFAULT_SERVICES } from "../../firebase/services";
 import { useAuth } from "../../contexts/AuthContext";
 import toast from "react-hot-toast";
 
@@ -106,17 +107,26 @@ const THEME_STYLES = {
   }
 };
 
-// Preset Recommended Perks
-const PRESET_PERKS = [
-  "Unlimited Cardio & Strength Zone Access",
-  "Free Weight & Powerlifting Platform",
-  "Clean Locker & Steam / Sauna Access",
-  "Free InBody BMI Body Composition Test",
-  "Custom Workout Routine & Goal Tracker",
-  "Free Diet & Nutrition Consultation",
-  "General Gym Floor Trainer Support",
-  "Free Shaker Bottle & Gym Welcome Kit",
-  "1 Free Monthly Guest Pass for Friend"
+// Preset standard categories
+const PRESET_CATEGORIES = [
+  "General Fitness",
+  "Fat Loss & Muscle Gain",
+  "Muscle Building",
+  "Student / Youth Special",
+  "Couple / Duo Package",
+  "VIP / Elite Member"
+];
+
+// Preset standard tags/badges
+const PRESET_TAGS = [
+  "Most Popular",
+  "Bestseller",
+  "Best Value",
+  "Starter Choice",
+  "Limited Time Offer",
+  "Save 35%",
+  "Student Special",
+  "None"
 ];
 
 // Default plans if database is new
@@ -225,10 +235,8 @@ export default function Memberships() {
 
   const [plans, setPlans] = useState([]);
   const [trainers, setTrainers] = useState([]);
+  const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Active membership type tab: 'all' | 'regular' | 'pt'
-  const [membershipTypeTab, setMembershipTypeTab] = useState("all");
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState("");
@@ -245,44 +253,65 @@ export default function Memberships() {
   const initialForm = {
     name: "",
     category: "General Fitness",
-    planType: "regular", // "regular" | "pt"
+    planType: "regular",
     isPtOnly: false,
-    ptSessions: 24,
-    assignedTrainerId: "all",
     duration: 90,
     price: 6500,
     originalPrice: 9000,
-    admissionFee: 0,
     color: "emerald",
     tag: "Most Popular",
     accessTiming: "All Day Unlimited (6:00 AM - 10:00 PM)",
     freezeDays: "15 Days Free Freeze",
-    ptOption: "1 Free PT Session Included",
+    ptOption: "General Floor Support",
     features: [
-      "All Cardio & Strength Equipment",
-      "Locker & Steam Bath Access",
-      "Free InBody BMI Body Composition Test",
-      "Custom Diet & Nutrition Meal Chart"
+      "All Cardio & Strength Equipment"
     ],
     customFeatureInput: "",
     isActive: true
   };
   const [form, setForm] = useState(initialForm);
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [isCustomTag, setIsCustomTag] = useState(false);
+
+  const allCategories = useMemo(() => {
+    const set = new Set(PRESET_CATEGORIES);
+    plans.forEach(p => {
+      if (p.category) set.add(p.category);
+    });
+    if (form.category) set.add(form.category);
+    return Array.from(set);
+  }, [plans, form.category]);
+
+  const allTags = useMemo(() => {
+    const set = new Set(PRESET_TAGS);
+    plans.forEach(p => {
+      if (p.tag && p.tag !== "None") set.add(p.tag);
+    });
+    if (form.tag && form.tag !== "None") set.add(form.tag);
+    return Array.from(set);
+  }, [plans, form.tag]);
 
   // Delete Confirmation Modal
   const [deletePlanModal, setDeletePlanModal] = useState(null);
 
-  // Load plans & trainers from Firestore
+  // Load plans, trainers & services from Firestore
   const loadPlans = async () => {
     setLoading(true);
     try {
-      const [plansData, trainersData] = await Promise.all([
+      const [plansData, trainersData, servicesData] = await Promise.all([
         getPlans(currentGymId),
-        getTrainers(currentGymId)
+        getTrainers(currentGymId),
+        getServices(currentGymId)
       ]);
 
       if (trainersData && trainersData.length > 0) {
         setTrainers(trainersData);
+      }
+
+      if (servicesData && servicesData.length > 0) {
+        setServices(servicesData);
+      } else {
+        setServices(DEFAULT_SERVICES);
       }
 
       if (plansData && plansData.length > 0) {
@@ -298,6 +327,7 @@ export default function Memberships() {
     } catch (err) {
       console.warn("Using default plans:", err);
       setPlans(DEFAULT_PLANS);
+      setServices(DEFAULT_SERVICES);
     } finally {
       setLoading(false);
     }
@@ -307,32 +337,24 @@ export default function Memberships() {
     loadPlans();
   }, [currentGymId]);
 
-  // Open Create Modal for Regular or PT Package
-  const handleOpenCreate = (forcedPlanType = "regular") => {
+  // Open Create Modal for Regular Gym Package
+  const handleOpenCreate = () => {
     setEditingPlanId(null);
+    setIsCustomCategory(false);
+    setIsCustomTag(false);
     setForm({
       ...initialForm,
-      planType: forcedPlanType,
-      isPtOnly: forcedPlanType === "pt",
-      category: forcedPlanType === "pt" ? "Personal Training (1-on-1 PT)" : "General Fitness",
-      color: forcedPlanType === "pt" ? "purple" : "emerald",
-      tag: forcedPlanType === "pt" ? "1-on-1 Coach" : "Most Popular",
-      ptOption: forcedPlanType === "pt" ? "Dedicated Personal Trainer Included" : "General Floor Support",
-      price: forcedPlanType === "pt" ? 4500 : 6500,
-      originalPrice: forcedPlanType === "pt" ? 6000 : 9000,
-      duration: 30,
-      ptSessions: 24,
-      features: forcedPlanType === "pt" ? [
-        "24 Dedicated 1-on-1 Personal Training Sessions",
-        "Daily Form & Posture Correction",
-        "Custom Macro & Calorie Diet Plan",
-        "Weekly Body Composition & Fat Tracking",
-        "WhatsApp Direct Access with Coach"
-      ] : [
-        "All Cardio & Strength Equipment",
-        "Locker & Steam Bath Access",
-        "Free InBody BMI Body Composition Test",
-        "Custom Diet & Nutrition Meal Chart"
+      planType: "regular",
+      isPtOnly: false,
+      category: "General Fitness",
+      color: "emerald",
+      tag: "Most Popular",
+      ptOption: "General Floor Support",
+      price: 6500,
+      originalPrice: 9000,
+      duration: 90,
+      features: [
+        "All Cardio & Strength Equipment"
       ]
     });
     setModalTab("basic");
@@ -342,23 +364,23 @@ export default function Memberships() {
   // Open Edit Modal
   const handleOpenEdit = (plan) => {
     setEditingPlanId(plan.id);
-    const isPt = plan.isPtOnly || plan.category === "Personal Training (1-on-1 PT)" || plan.ptSessions > 0;
+    const isCatCustom = plan.category && !PRESET_CATEGORIES.includes(plan.category);
+    const isTagCustom = plan.tag && plan.tag !== "None" && !PRESET_TAGS.includes(plan.tag);
+    setIsCustomCategory(Boolean(isCatCustom));
+    setIsCustomTag(Boolean(isTagCustom));
     setForm({
       name: plan.name || "",
-      category: plan.category || (isPt ? "Personal Training (1-on-1 PT)" : "General Fitness"),
-      planType: isPt ? "pt" : "regular",
-      isPtOnly: isPt,
-      ptSessions: plan.ptSessions || (isPt ? 24 : 0),
-      assignedTrainerId: plan.assignedTrainerId || "all",
+      category: plan.category || "General Fitness",
+      planType: "regular",
+      isPtOnly: false,
       duration: plan.duration || 30,
       price: plan.price || 0,
       originalPrice: plan.originalPrice || 0,
-      admissionFee: plan.admissionFee || 0,
-      color: plan.color || (isPt ? "purple" : "emerald"),
+      color: plan.color || "emerald",
       tag: plan.tag || "None",
       accessTiming: plan.accessTiming || "All Day Unlimited (6:00 AM - 10:00 PM)",
       freezeDays: plan.freezeDays || "No Pause Allowed",
-      ptOption: plan.ptOption || (isPt ? "Dedicated Personal Trainer Included" : "General Floor Support"),
+      ptOption: plan.ptOption || "General Floor Support",
       features: Array.isArray(plan.features) ? plan.features : (plan.features ? [plan.features] : []),
       customFeatureInput: "",
       isActive: plan.isActive !== false
@@ -457,25 +479,22 @@ export default function Memberships() {
       return;
     }
 
-    const isPt = form.planType === "pt" || form.isPtOnly || form.category === "Personal Training (1-on-1 PT)";
     const payload = {
       name: form.name.trim(),
-      category: isPt ? "Personal Training (1-on-1 PT)" : form.category,
-      planType: isPt ? "pt" : "regular",
-      isPtOnly: isPt,
-      ptSessions: isPt ? Number(form.ptSessions || 0) : 0,
-      assignedTrainerId: isPt ? (form.assignedTrainerId || "all") : "all",
+      category: form.category || "General Fitness",
+      planType: "regular",
+      isPtOnly: false,
       duration: Number(form.duration),
       price: Number(form.price),
       originalPrice: Number(form.originalPrice) || Number(form.price),
-      admissionFee: Number(form.admissionFee) || 0,
       color: form.color,
       tag: form.tag,
       accessTiming: form.accessTiming,
       freezeDays: form.freezeDays,
-      ptOption: isPt ? "Dedicated Personal Trainer Included" : form.ptOption,
+      ptOption: form.ptOption || "General Floor Support",
       features: form.features,
-      ptAddon: isPt || form.ptOption !== "None (General Floor Support)",
+      includedServices: form.features,
+      ptAddon: false,
       isActive: form.isActive
     };
 
@@ -560,26 +579,7 @@ export default function Memberships() {
     });
   }, [plans, searchTerm, selectedDurationFilter, statusFilter, sortBy]);
 
-  // --- Statistics ------------------------------------------------
-  const stats = useMemo(() => {
-    const gymOnly = plans.filter(p => !p.isPtOnly && p.planType !== "pt" && p.category !== "Personal Training (1-on-1 PT)" && !p.ptSessions);
-    const totalPlans = gymOnly.length;
-    const activePlans = gymOnly.filter(p => p.isActive !== false).length;
-    const avgPrice =
-      activePlans > 0
-        ? Math.round(
-            gymOnly
-              .filter(p => p.isActive !== false)
-              .reduce((acc, curr) => acc + Number(curr.price || 0), 0) / activePlans
-          )
-        : 0;
 
-    const mostPopular = [...gymOnly].sort(
-      (a, b) => (b.memberCount || 0) - (a.memberCount || 0)
-    )[0];
-
-    return { totalPlans, activePlans, avgPrice, mostPopular };
-  }, [plans]);
 
   return (
     <div className="space-y-6">
@@ -587,91 +587,32 @@ export default function Memberships() {
           TOP HEADER
       ============================================================ */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 shrink-0">
+            <Tag className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
               Membership Packages & Plans
             </h1>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-              {stats.activePlans} Active
-            </span>
+            <p className="text-slate-500 text-xs mt-0.5">
+              Configure flexible gym tiers, discount offers, access timings, pause rules & athlete perks
+            </p>
           </div>
-          <p className="text-slate-500 text-xs mt-1">
-            Configure flexible gym tiers, discount offers, access timings, pause rules & athlete perks
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           <Button
             icon={<Plus className="w-4 h-4" />}
-            onClick={() => handleOpenCreate("regular")}
-            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md hover:shadow-emerald-500/20 transition duration-200 text-xs py-2.5 px-4"
+            onClick={handleOpenCreate}
+            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md hover:shadow-emerald-500/20 transition duration-200 text-xs py-2.5 px-4 shrink-0"
           >
-            + New Gym Package
+            New Gym Package
           </Button>
         </div>
       </div>
 
-      {/* ============================================================
-          STAT CARDS ROW
-      ============================================================ */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Card 1: Total Packages */}
-        <div className="p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Total Packages</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <Tag className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-slate-900">{stats.totalPlans}</p>
-          <p className="text-[11px] text-emerald-600 font-semibold">
-            {stats.activePlans} live for registration
-          </p>
-        </div>
 
-        {/* Card 2: Bestselling Plan */}
-        <div className="p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Bestselling Tier</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Flame className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-lg font-black text-slate-900 truncate">
-            {stats.mostPopular?.name || "3-Month Pro"}
-          </p>
-          <p className="text-[11px] text-amber-700 font-semibold">
-            {stats.mostPopular?.memberCount || 68} enrolled athletes
-          </p>
-        </div>
-
-        {/* Card 3: Avg Plan Value */}
-        <div className="p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Average Plan Value</span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <Coins className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-slate-900">
-            Rs. {stats.avgPrice.toLocaleString("en-IN")}
-          </p>
-          <p className="text-[11px] text-slate-500 font-medium">Per subscription cycle</p>
-        </div>
-
-        {/* Card 4: Flexible Perks */}
-        <div className="p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Facility Access</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-              <Sparkles className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-slate-900">100%</p>
-          <p className="text-[11px] text-purple-600 font-semibold">Full equipment + locker</p>
-        </div>
-      </div>
 
       {/* ============================================================
           FILTER & CONTROLS BAR
@@ -940,45 +881,24 @@ export default function Memberships() {
                 </div>
 
                 {/* Card Actions Footer */}
-                <div className="p-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
                   <button
                     type="button"
-                    onClick={() => handleShareWhatsApp(p)}
-                    className="p-2 rounded-xl bg-white border border-slate-200 text-emerald-600 hover:bg-emerald-50 text-xs font-bold transition flex items-center gap-1 shadow-2xs"
-                    title="Share Package on WhatsApp"
+                    onClick={() => handleOpenEdit(p)}
+                    className="flex-1 py-2 px-3 rounded-xl bg-slate-900 text-white hover:bg-emerald-600 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs"
+                    title="Edit Package"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span className="text-[11px]">Share</span>
+                    <Edit3 className="w-3.5 h-3.5" /> Edit
                   </button>
 
-                  <div className="flex items-center gap-1 ml-auto">
-                    <button
-                      type="button"
-                      onClick={() => handleDuplicatePlan(p)}
-                      className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-white border border-transparent hover:border-slate-200 transition"
-                      title="Duplicate Package"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEdit(p)}
-                      className="px-3 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-emerald-600 text-xs font-bold transition flex items-center gap-1 shadow-xs"
-                      title="Edit Package"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" /> Edit
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDeletePlanModal(p)}
-                      className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                      title="Delete Package"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDeletePlanModal(p)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200/80 bg-white transition flex items-center justify-center shrink-0"
+                    title="Delete Package"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             );
@@ -1027,110 +947,9 @@ export default function Memberships() {
           </div>
 
           {/* TAB 1: BASIC & PRICING */}
+          {/* TAB 1: BASIC DETAILS */}
           {modalTab === "basic" && (
             <div className="space-y-3.5">
-              {/* Package Type Switcher: Regular Gym Plan vs Dedicated 1-on-1 PT */}
-              <div className="p-3 bg-slate-100 rounded-2xl border border-slate-200">
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">
-                  Package Type / Category *
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForm({
-                        ...form,
-                        planType: "regular",
-                        isPtOnly: false,
-                        category: "General Fitness",
-                        color: "emerald",
-                        ptOption: "General Floor Support"
-                      });
-                    }}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border ${
-                      form.planType !== "pt"
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
-                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                    }`}
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>General Gym Plan</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForm({
-                        ...form,
-                        planType: "pt",
-                        isPtOnly: true,
-                        category: "Personal Training (1-on-1 PT)",
-                        color: "purple",
-                        ptOption: "Dedicated Personal Trainer Included"
-                      });
-                    }}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border ${
-                      form.planType === "pt"
-                        ? "bg-purple-600 text-white border-purple-600 shadow-sm"
-                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                    }`}
-                  >
-                    <Dumbbell className="w-3.5 h-3.5" />
-                    <span>1-on-1 PT Membership</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* If PT Package: Sessions Count & Dedicated Coach Selection */}
-              {(form.planType === "pt" || form.isPtOnly) && (
-                <div className="p-3.5 bg-purple-50/80 rounded-2xl border border-purple-200 space-y-3">
-                  <div className="flex items-center gap-2 text-purple-900 font-extrabold text-xs">
-                    <Dumbbell className="w-4 h-4 text-purple-600" />
-                    <span>Personal Training (PT) Specific Rules</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">
-                        1-on-1 PT Sessions Included *
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={form.ptSessions || 24}
-                        onChange={(e) => setForm({ ...form, ptSessions: Number(e.target.value) })}
-                        className="w-full bg-white border border-purple-200 rounded-xl px-3 py-2 text-xs font-bold text-purple-950 focus:outline-none focus:border-purple-500"
-                        placeholder="e.g. 24 or 36 sessions"
-                      />
-                      <span className="text-[10px] text-purple-700 font-medium">
-                        Total coach-guided workout slots
-                      </span>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">
-                        Assigned Coach / Trainer
-                      </label>
-                      <select
-                        value={form.assignedTrainerId || "all"}
-                        onChange={(e) => setForm({ ...form, assignedTrainerId: e.target.value })}
-                        className="w-full bg-white border border-purple-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500"
-                      >
-                        <option value="all">Any Available Gym Trainer</option>
-                        {trainers.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            Coach {t.name} ({t.specialization || "Fitness Coach"})
-                          </option>
-                        ))}
-                      </select>
-                      <span className="text-[10px] text-slate-500">
-                        Can be chosen during member registration
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Plan Name */}
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
@@ -1139,48 +958,121 @@ export default function Memberships() {
                 <input
                   required
                   type="text"
-                  placeholder={form.planType === "pt" ? "e.g. 1-Month 1-on-1 PT Transformation" : "e.g. 3-Month Pro Transformation"}
+                  placeholder="e.g. 3-Month Pro Transformation"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
-              {/* Category & Preset Tag */}
+              {/* Category & Preset Tag with Custom Support */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Category / Purpose */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Category / Purpose</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="General Fitness">General Fitness</option>
-                    <option value="Fat Loss & Muscle Gain">Fat Loss & Muscle Gain</option>
-                    <option value="Muscle Building">Muscle Building (Hypertrophy)</option>
-                    <option value="Personal Training (1-on-1 PT)">Personal Training (1-on-1 PT)</option>
-                    <option value="Student / Youth Special">Student / Youth Special</option>
-                    <option value="Couple / Duo Package">Couple / Duo Package</option>
-                    <option value="VIP / Elite Member">VIP / Elite Member</option>
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">Category / Purpose</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !isCustomCategory;
+                        setIsCustomCategory(next);
+                        if (!next && !PRESET_CATEGORIES.includes(form.category)) {
+                          setForm(f => ({ ...f, category: "General Fitness" }));
+                        }
+                      }}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
+                    >
+                      {isCustomCategory ? "← Select List" : "+ Custom"}
+                    </button>
+                  </div>
+
+                  {isCustomCategory ? (
+                    <div>
+                      <input
+                        type="text"
+                        value={form.category}
+                        onChange={(e) => setForm({ ...form, category: e.target.value })}
+                        placeholder="e.g. CrossFit, Boxing, Senior Fitness..."
+                        className="w-full bg-emerald-50/50 border-2 border-emerald-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        autoFocus
+                      />
+                      <p className="text-[10px] text-emerald-600 font-semibold mt-1">✨ Type your custom category name</p>
+                    </div>
+                  ) : (
+                    <select
+                      value={form.category}
+                      onChange={(e) => {
+                        if (e.target.value === "__custom__") {
+                          setIsCustomCategory(true);
+                          setForm({ ...form, category: "" });
+                        } else {
+                          setForm({ ...form, category: e.target.value });
+                        }
+                      }}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    >
+                      {allCategories.map(cat => (
+                        <option key={cat} value={cat}>
+                          {cat === "Muscle Building" ? "Muscle Building (Hypertrophy)" : cat}
+                        </option>
+                      ))}
+                      <option value="__custom__">✨ + Type Custom Category...</option>
+                    </select>
+                  )}
                 </div>
 
+                {/* Highlight Badge / Tag */}
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Highlight Badge / Tag</label>
-                  <select
-                    value={form.tag}
-                    onChange={(e) => setForm({ ...form, tag: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="Most Popular">Most Popular</option>
-                    <option value="Bestseller">Bestseller</option>
-                    <option value="Best Value">Best Value</option>
-                    <option value="Starter Choice">Starter Choice</option>
-                    <option value="Limited Time Offer">Limited Time Offer</option>
-                    <option value="Save 35%">Save 35%</option>
-                    <option value="Student Special">Student Special</option>
-                    <option value="None">None (No badge)</option>
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">Highlight Badge / Tag</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !isCustomTag;
+                        setIsCustomTag(next);
+                        if (!next && !PRESET_TAGS.includes(form.tag)) {
+                          setForm(f => ({ ...f, tag: "None" }));
+                        }
+                      }}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer"
+                    >
+                      {isCustomTag ? "← Select List" : "+ Custom"}
+                    </button>
+                  </div>
+
+                  {isCustomTag ? (
+                    <div>
+                      <input
+                        type="text"
+                        value={form.tag === "None" ? "" : form.tag}
+                        onChange={(e) => setForm({ ...form, tag: e.target.value || "None" })}
+                        placeholder="e.g. Hot Deal, Summer Pass, Weekend Deal..."
+                        className="w-full bg-amber-50/50 border-2 border-amber-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                        autoFocus
+                      />
+                      <p className="text-[10px] text-amber-600 font-semibold mt-1">✨ Badge will appear on top of package card</p>
+                    </div>
+                  ) : (
+                    <select
+                      value={form.tag}
+                      onChange={(e) => {
+                        if (e.target.value === "__custom__") {
+                          setIsCustomTag(true);
+                          setForm({ ...form, tag: "" });
+                        } else {
+                          setForm({ ...form, tag: e.target.value });
+                        }
+                      }}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                    >
+                      {allTags.map(tag => (
+                        <option key={tag} value={tag}>
+                          {tag === "None" ? "None (No badge)" : tag}
+                        </option>
+                      ))}
+                      <option value="__custom__">✨ + Type Custom Badge...</option>
+                    </select>
+                  )}
                 </div>
               </div>
 
@@ -1222,7 +1114,7 @@ export default function Memberships() {
               </div>
 
               {/* Pricing (Selling Price vs MRP) */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                 <div>
                   <label className="text-xs font-bold text-slate-800 block mb-1">Selling Fee (Rs.) *</label>
                   <input
@@ -1245,18 +1137,6 @@ export default function Memberships() {
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-emerald-500"
                   />
                   <span className="text-[10px] text-slate-400">Shows strike-through discount</span>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Admission Fee (Rs.)</label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={form.admissionFee}
-                    onChange={(e) => setForm({ ...form, admissionFee: Number(e.target.value) })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-emerald-500"
-                  />
-                  <span className="text-[10px] text-slate-400">One-time registration</span>
                 </div>
               </div>
 
@@ -1352,27 +1232,62 @@ export default function Memberships() {
 
           {/* TAB 3: PERKS & FEATURES */}
           {modalTab === "perks" && (
-            <div className="space-y-3.5">
+            <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">
-                  1-Click Select Standard Perks & Amenities
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50 rounded-2xl border border-slate-200">
-                  {PRESET_PERKS.map((perk, idx) => {
-                    const isSelected = form.features.includes(perk);
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-800 block">
+                    1-Click Include Gym Services ({services.length})
+                  </label>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Tap to add / remove services from this plan
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto p-2 bg-slate-50 rounded-2xl border border-slate-200">
+                  {services.map((svc) => {
+                    const isSelected = form.features.includes(svc.name);
                     return (
                       <button
-                        key={idx}
+                        key={svc.id || svc.name}
                         type="button"
-                        onClick={() => handleTogglePerk(perk)}
-                        className={`p-2 rounded-xl text-left text-xs font-semibold flex items-center gap-2 transition ${
+                        onClick={() => handleTogglePerk(svc.name)}
+                        className={`p-2.5 rounded-xl text-left text-xs font-semibold flex items-center justify-between gap-2 transition border ${
                           isSelected
-                            ? "bg-emerald-100/90 text-emerald-900 border border-emerald-300"
-                            : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                            ? "bg-emerald-50 text-emerald-900 border-emerald-400 shadow-2xs ring-1 ring-emerald-400/40"
+                            : "bg-white text-slate-700 hover:bg-slate-100 border-slate-200"
                         }`}
                       >
-                        <CheckSquare className={`w-3.5 h-3.5 ${isSelected ? "text-emerald-700" : "text-slate-400"}`} />
-                        <span className="truncate">{perk}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 ${
+                              isSelected
+                                ? "bg-emerald-600 text-white"
+                                : "border border-slate-300 text-transparent"
+                            }`}
+                          >
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                          <div className="truncate">
+                            <span className="font-bold block truncate">{svc.name}</span>
+                            {svc.category && (
+                              <span className="text-[10px] text-slate-400 font-normal block truncate">
+                                {svc.category}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {svc.price ? (
+                          <span
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${
+                              isSelected
+                                ? "bg-emerald-200/70 text-emerald-800"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            ₹{svc.price} val
+                          </span>
+                        ) : null}
                       </button>
                     );
                   })}

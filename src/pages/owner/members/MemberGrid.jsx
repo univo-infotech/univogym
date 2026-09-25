@@ -304,7 +304,7 @@ export default function MemberGrid({
                       onClick={() => onPtRenew(m)}
                       className="px-2 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-[10px] inline-flex items-center gap-1 transition"
                     >
-                      <PlusCircle size={10} /> + Add PT
+                      <PlusCircle size={10} /> Add PT
                     </button>
                   </div>
                 )}

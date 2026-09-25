@@ -303,7 +303,7 @@ export default function MemberTable({
                       onClick={() => onPtRenew(m)}
                       className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs inline-flex items-center gap-1 transition"
                     >
-                      <PlusCircle size={11} /> + Add PT
+                      <PlusCircle size={11} /> Add PT
                     </button>
                   </div>
                 )}
@@ -680,7 +680,7 @@ export default function MemberTable({
                               title="Assign Coach & Add Personal Training Package"
                             >
                               <PlusCircle size={11} className="text-indigo-600" />
-                              <span>+ Add PT</span>
+                              <span>Add PT</span>
                             </button>
                           </div>
                         </>
