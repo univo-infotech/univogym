@@ -1668,11 +1668,11 @@ export default function Payments() {
           </div>
 
           {/* Modal Actions */}
-          <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+          <div className="pt-2 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 border-t border-slate-100">
             <button
               type="button"
               onClick={() => setRenewModalOpen(false)}
-              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition text-center"
             >
               Cancel
             </button>
@@ -1680,7 +1680,7 @@ export default function Payments() {
             <button
               type="button"
               onClick={() => handleCollectFee(false)}
-              className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition shadow-sm"
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition shadow-sm text-center"
             >
               Collect ₹{payingNow} Only
             </button>
@@ -1688,7 +1688,7 @@ export default function Payments() {
             <button
               type="button"
               onClick={() => handleCollectFee(true)}
-              className="px-4 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
             >
               <MessageCircle className="w-3.5 h-3.5" />
               Collect ₹{payingNow} & WhatsApp Bill

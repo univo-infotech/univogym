@@ -787,6 +787,7 @@ export default function Dashboard() {
         onClose={() => setDirectAddOpen(false)}
         onSuccess={(newMem) => setMembers([newMem, ...members])}
         plans={plans}
+        existingMembers={members}
       />
 
       {/* Modal 3: Renewals & WhatsApp Reminders Blast */}

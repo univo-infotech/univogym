@@ -245,6 +245,8 @@ export default function MemberSelfRegister() {
   const { register: reg2, handleSubmit: hs2, formState: { errors: e2 }, setValue: setVal2 } = useForm();
   const [gender, setGender] = useState('male');
   const [personalData, setPersonalData] = useState({});
+  const [phone, setPhone] = useState('');
+  const [altPhone, setAltPhone] = useState('');
 
   // Step 3: Plan, Trainer & Add-on Services
   const [plans, setPlans] = useState([]);
@@ -252,6 +254,32 @@ export default function MemberSelfRegister() {
   const [services, setServices] = useState([]);
   const [selectedServices, setSelectedServices] = useState([]); // array of selected service objects
   const [existingMembers, setExistingMembers] = useState([]);
+
+  // Real-time check for duplicate phone against existing members
+  const duplicateMember = React.useMemo(() => {
+    const clean = (phone || '').replace(/\D/g, '');
+    if (clean.length < 10) return null;
+    const target10 = clean.slice(-10);
+    return (existingMembers || []).find((m) => {
+      const p = (m.phone || '').replace(/\D/g, '');
+      const p10 = p.length >= 10 ? p.slice(-10) : p;
+      const alt = (m.altPhone || '').replace(/\D/g, '');
+      const alt10 = alt.length >= 10 ? alt.slice(-10) : alt;
+      return p10 === target10 || alt10 === target10;
+    });
+  }, [phone, existingMembers]);
+
+  // Check if token phone is already registered
+  const tokenDuplicateMember = React.useMemo(() => {
+    const raw = (tokenData?.phone || '').replace(/\D/g, '');
+    if (raw.length < 10) return null;
+    const target10 = raw.slice(-10);
+    return (existingMembers || []).find((m) => {
+      const p = (m.phone || '').replace(/\D/g, '');
+      const p10 = p.length >= 10 ? p.slice(-10) : p;
+      return p10 === target10;
+    });
+  }, [tokenData?.phone, existingMembers]);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [selectedTrainer, setSelectedTrainer] = useState(null);
   const [selectedPtPlan, setSelectedPtPlan] = useState(null); // { id, name, price, duration, description }
@@ -389,6 +417,10 @@ export default function MemberSelfRegister() {
       setVal2('fullName', tokenData.memberName);
       setTypedName(tokenData.memberName);
     }
+    if (tokenData?.phone) {
+      const clean = tokenData.phone.replace(/\D/g, '').slice(0, 10);
+      setPhone(clean);
+    }
     if (tokenData?.loginEmail) {
       setLoginEmail(tokenData.loginEmail);
     } else if (tokenData?.phone) {
@@ -483,11 +515,42 @@ export default function MemberSelfRegister() {
 
   const onStep2Submit = (data) => {
     setStepError('');
+
+    // 1. Full Name (Mandatory)
+    if (!data.fullName || !data.fullName.trim()) {
+      setStepError('Full Name is required.');
+      return;
+    }
+
+    // 2. Primary Phone Number (Mandatory, strictly 10 digits, no duplicate)
+    const cleanPhone = (phone || '').replace(/\D/g, '');
+    if (!cleanPhone) {
+      setStepError('Primary WhatsApp / Mobile phone number is required.');
+      return;
+    }
+    if (cleanPhone.length !== 10) {
+      setStepError(`Phone number must be exactly 10 digits (${cleanPhone.length}/10 entered).`);
+      return;
+    }
+    if (duplicateMember) {
+      setStepError(`This phone number is already registered with member: ${duplicateMember.fullName || duplicateMember.name}. Please enter a unique phone number.`);
+      return;
+    }
+
+    // 3. Gender (Mandatory)
     if (!gender) {
       setStepError('Please select your gender.');
       return;
     }
-    setPersonalData({ ...data, gender });
+
+    // 4. Date of birth (Mandatory)
+    if (!data.dob) {
+      setStepError('Please select your date of birth.');
+      return;
+    }
+
+    const cleanAltPhone = (altPhone || '').replace(/\D/g, '').slice(0, 10);
+    setPersonalData({ ...data, gender, phone: cleanPhone, altPhone: cleanAltPhone });
     if (!typedName && data.fullName) {
       setTypedName(data.fullName);
     }
@@ -571,7 +634,8 @@ export default function MemberSelfRegister() {
         fullName: personalData.fullName || tokenData?.memberName || typedName,
         name: personalData.fullName || tokenData?.memberName || typedName,
         aadhaar: personalData.aadhaar || '',
-        phone: tokenData?.phone || personalData.altPhone || personalData.phone || '',
+        phone: personalData.phone || (phone || '').replace(/\D/g, '').slice(0, 10) || tokenData?.phone || '',
+        altPhone: personalData.altPhone || '',
         photoURL,
         signatureURL,
         gender,
@@ -864,6 +928,21 @@ export default function MemberSelfRegister() {
               </div>
             </div>
 
+            {tokenDuplicateMember && (
+              <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-2xl text-left text-xs text-rose-900 flex items-start gap-2.5 max-w-sm mx-auto animate-fadeIn">
+                <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-rose-800">⚠️ Already Registered Member!</p>
+                  <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                    This phone number ({tokenData?.phone}) is already registered with member <strong>{tokenDuplicateMember.fullName || tokenDuplicateMember.name}</strong>.
+                  </p>
+                  <p className="text-[10px] text-rose-600 mt-1 font-medium">
+                    Aap already registered hain! Aap directly Member Login kar sakte hain.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="pt-2">
               <button
                 onClick={() => { setStep(2); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
@@ -900,6 +979,56 @@ export default function MemberSelfRegister() {
                 {...reg2('fullName', { required: 'Full name is required' })}
               />
 
+              {/* Primary Mobile / WhatsApp Number (Mandatory, 10 Digits strictly, Duplicate detection) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Mobile / WhatsApp Phone Number *
+                  </label>
+                  {phone.replace(/\D/g, '').length > 0 && (
+                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                      phone.replace(/\D/g, '').length === 10 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {phone.replace(/\D/g, '').length}/10 digits
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="tel"
+                  maxLength={10}
+                  value={phone}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setPhone(val);
+                    setStepError('');
+                  }}
+                  placeholder="9876543210"
+                  className={`w-full bg-slate-50 border rounded-xl px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:bg-white ${
+                    duplicateMember
+                      ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20'
+                      : 'border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20'
+                  }`}
+                />
+                <p className="text-[11px] text-slate-500">Official 10-digit mobile number for membership and WhatsApp updates</p>
+              </div>
+
+              {/* Instant Duplicate Phone Alert */}
+              {duplicateMember && (
+                <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-2xl flex items-start gap-2.5 text-xs text-rose-900 animate-fadeIn">
+                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-rose-800">⚠️ Phone Number Already Registered!</p>
+                    <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                      Yeh 10-digit number already member <strong>{duplicateMember.fullName || duplicateMember.name}</strong>
+                      {duplicateMember.id ? ` (ID: ${duplicateMember.id.slice(-6).toUpperCase()})` : ''} ke naam par registered hai.
+                    </p>
+                    <p className="text-[10px] text-rose-600 mt-1 font-medium">
+                      Jab tak aap doosra number nahi dalte ya apna account login nahi karte, aage next nahi ho sakta.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <Input
                 label="Aadhaar Number (UIDAI) (Optional)"
                 placeholder="XXXX XXXX XXXX"
@@ -933,12 +1062,17 @@ export default function MemberSelfRegister() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                  label="Alternative Phone Number"
-                  type="tel"
-                  placeholder="+91 98765 43210"
-                  {...reg2('altPhone')}
-                />
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">Alternative Phone (Optional)</label>
+                  <input
+                    type="tel"
+                    maxLength={10}
+                    value={altPhone}
+                    onChange={(e) => setAltPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="9876543210"
+                    className="w-full bg-slate-50 border border-slate-300 text-slate-900 placeholder-slate-400 rounded-xl px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
                 <Input
                   label="Date of Birth *"
                   type="date"

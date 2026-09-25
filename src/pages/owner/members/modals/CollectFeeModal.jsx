@@ -456,22 +456,22 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
       <div className="space-y-4 text-slate-800 text-xs">
         {/* Rejoin / Welcome Back Banner if Member previously Left or was Ended */}
         {(member.status === 'left' || member.status === 'ended') && (
-          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent border border-emerald-300 flex items-center justify-between shadow-xs">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent border border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs">
+            <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0 mt-0.5 sm:mt-0">
                 🎉
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="font-bold text-xs text-emerald-950">
                   {member.status === 'left' ? 'Member Rejoining' : 'New Membership Rejoin'}
                 </p>
-                <p className="text-[11px] text-emerald-800 font-medium">
+                <p className="text-[11px] text-emerald-800 font-medium leading-relaxed">
                   {member.name || member.fullName} gym me wapas shuru kar rahe hain. Naya plan chunein aur fee collect karke fresh validity start karein.
                 </p>
               </div>
             </div>
-            <div className="text-right">
-              <span className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-extrabold text-xs shadow-xs tracking-wide">
+            <div className="self-start sm:self-auto shrink-0">
+              <span className="inline-block px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-extrabold text-xs shadow-xs tracking-wide whitespace-nowrap">
                 Rejoin & Bill
               </span>
             </div>
@@ -480,22 +480,22 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
 
         {/* Renewal Banner if Member's plan is ending soon or expired */}
         {isRenewing && !hasPartialPaymentDue && member.status !== 'left' && member.status !== 'ended' && (
-          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent border border-emerald-300 flex items-center justify-between shadow-xs">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent border border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs">
+            <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0 mt-0.5 sm:mt-0">
                 ⚡
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="font-bold text-xs text-emerald-950">Membership Renewal</p>
-                <p className="text-[11px] text-emerald-800 font-medium">
+                <p className="text-[11px] text-emerald-800 font-medium leading-relaxed">
                   {memberStatus === 'ending_soon'
                     ? `Current plan ending soon on ${formatDate(member.expiryDate)}. New plan validity will start immediately from ${formatDate(validityStart)}.`
                     : `Plan has ended on ${formatDate(member.expiryDate)}. Renewing will reactivate member with a fresh validity cycle.`}
                 </p>
               </div>
             </div>
-            <div className="text-right">
-              <span className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-extrabold text-xs shadow-xs tracking-wide">
+            <div className="self-start sm:self-auto shrink-0">
+              <span className="inline-block px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-extrabold text-xs shadow-xs tracking-wide whitespace-nowrap">
                 Renew Cycle
               </span>
             </div>
@@ -504,20 +504,20 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
 
         {/* Due Balance Alert Banner if Member has pending dues from previous collection */}
         {hasPartialPaymentDue && (
-          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-300 flex items-center justify-between shadow-xs">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs">
+            <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs shrink-0 mt-0.5 sm:mt-0">
                 ⚠️
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="font-bold text-xs text-amber-950">Pending Balance Due</p>
-                <p className="text-[11px] text-amber-800 font-medium">
+                <p className="text-[11px] text-amber-800 font-medium leading-relaxed">
                   Outstanding balance of <b className="text-amber-950 font-extrabold">₹{existingDueAmount}</b> for current plan ({member.planName || "Active Plan"}).
                 </p>
               </div>
             </div>
-            <div className="text-right">
-              <span className="px-3 py-1.5 rounded-xl bg-amber-600 text-white font-black text-xs shadow-xs tracking-wide">
+            <div className="self-start sm:self-auto shrink-0">
+              <span className="inline-block px-3 py-1.5 rounded-xl bg-amber-600 text-white font-black text-xs shadow-xs tracking-wide whitespace-nowrap">
                 Due: ₹{existingDueAmount}
               </span>
             </div>
@@ -525,30 +525,30 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
         )}
 
         {/* Member Card Header with Univo Gym Brand Gradient Banner */}
-        <div className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 text-white shadow-md">
+        <div className="relative overflow-hidden p-3.5 sm:p-4 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 text-white shadow-md">
           {/* Subtle Decorative glow background */}
           <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="relative flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-emerald-400 text-white font-extrabold flex items-center justify-center text-lg shadow-md border border-white/20">
+          <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-3 min-w-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-emerald-400 text-white font-extrabold flex items-center justify-center text-base sm:text-lg shadow-md border border-white/20 shrink-0 mt-0.5 sm:mt-0">
                 {(getName(member) || "M")[0]?.toUpperCase()}
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-extrabold text-white tracking-tight">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <h3 className="text-sm sm:text-base font-extrabold text-white tracking-tight break-words">
                     {getName(member)}
                   </h3>
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30 shrink-0">
                     Active Member
                   </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-300 text-[11px] mt-1">
-                  <span className="flex items-center gap-1 text-slate-300">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-slate-300 text-[11px] mt-1">
+                  <span className="flex items-center gap-1 text-slate-300 shrink-0">
                     <Smartphone className="w-3 h-3 text-indigo-400" />
                     {getPhone(member) || "No phone"}
                   </span>
-                  <span className="text-slate-500">•</span>
-                  <span className="flex items-center gap-1 text-slate-300">
+                  <span className="text-slate-500 hidden sm:inline">•</span>
+                  <span className="flex items-center gap-1 text-slate-300 shrink-0">
                     <Clock className="w-3 h-3 text-emerald-400" />
                     {member.slot || member.workoutSlot || "General Shift"}
                   </span>
@@ -556,11 +556,11 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
               </div>
             </div>
 
-            <div className="text-right bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 shrink-0">
+            <div className="flex sm:flex-col items-center sm:items-end justify-between bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 shrink-0 self-stretch sm:self-auto">
               <p className="text-[9px] text-indigo-200 font-bold uppercase tracking-wider">
                 CURRENT EXPIRY
               </p>
-              <p className="text-xs font-black text-emerald-300 mt-0.5">
+              <p className="text-xs font-black text-emerald-300">
                 {formatDate(member.expiryDate)}
               </p>
             </div>
@@ -610,17 +610,17 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
 
         {/* Coach & Personal Training (PT) Selection Card */}
         <div className={`p-3.5 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-purple-50/40 to-slate-50 border border-indigo-200 space-y-2.5 shadow-2xs ${hasPartialPaymentDue ? 'opacity-60 pointer-events-none' : ''}`}>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
             <span className="font-extrabold text-indigo-950 text-xs flex items-center gap-1.5">
-              <Dumbbell className="w-4 h-4 text-purple-600" />
+              <Dumbbell className="w-4 h-4 text-purple-600 shrink-0" />
               Coach & Personal Training (PT) Add-on
             </span>
             {selectedPtPrice > 0 ? (
-              <span className="px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-extrabold text-[10px] border border-purple-300">
+              <span className="px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-extrabold text-[10px] border border-purple-300 shrink-0">
                 ✨ PT Active (+₹{Number(selectedPtPrice).toLocaleString('en-IN')})
               </span>
             ) : (
-              <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold text-[10px]">
+              <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold text-[10px] shrink-0">
                 No PT (Floor Only)
               </span>
             )}
@@ -703,19 +703,19 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
 
         {/* Add-on Gym Services (Steam & Sauna, Locker, Diet Consultation, etc.) */}
         <div className="p-3.5 rounded-2xl bg-gradient-to-br from-teal-50/70 via-emerald-50/40 to-slate-50 border border-teal-200 space-y-3 shadow-2xs">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-teal-600" />
+              <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
               <span className="font-extrabold text-teal-950 text-xs">
                 Add-on Gym Services & Facilities
               </span>
             </div>
             {selectedServices.length > 0 ? (
-              <span className="text-[10px] font-black bg-teal-600 text-white px-2.5 py-0.5 rounded-full shadow-2xs">
+              <span className="text-[10px] font-black bg-teal-600 text-white px-2.5 py-0.5 rounded-full shadow-2xs shrink-0">
                 {selectedServices.length} Selected (+₹{servicesTotal.toLocaleString('en-IN')})
               </span>
             ) : (
-              <span className="text-[10px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+              <span className="text-[10px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200 shrink-0">
                 Optional
               </span>
             )}
@@ -801,31 +801,31 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
         </div>
 
         {/* Fee Summary Banner */}
-        <div className="p-3 px-4 rounded-xl bg-slate-900 text-white flex items-center justify-between text-xs shadow-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <div className="p-3 px-3.5 sm:px-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs shadow-sm">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
             <span className="text-slate-300 font-semibold">
               {currentPlan.name} (₹{currentPlan.price})
             </span>
             {selectedPtPrice > 0 && (
-              <span className="px-2 py-0.5 rounded-md bg-purple-900/70 text-purple-200 font-bold text-[10px] border border-purple-700/60">
+              <span className="px-2 py-0.5 rounded-md bg-purple-900/70 text-purple-200 font-bold text-[10px] border border-purple-700/60 shrink-0">
                 + PT {selectedPtPlanName ? `(${selectedPtPlanName})` : ''}: ₹{selectedPtPrice}
               </span>
             )}
             {servicesTotal > 0 && (
-              <span className="px-2 py-0.5 rounded-md bg-teal-900/70 text-teal-200 font-bold text-[10px] border border-teal-700/60">
+              <span className="px-2 py-0.5 rounded-md bg-teal-900/70 text-teal-200 font-bold text-[10px] border border-teal-700/60 shrink-0">
                 + Services: ₹{servicesTotal}
               </span>
             )}
             {discountAmount > 0 && (
-              <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+              <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30 shrink-0">
                 Discount -₹{discountAmount}
               </span>
             )}
           </div>
-          <div>
-            <span className="text-[11px] text-slate-400 uppercase font-bold mr-2">TOTAL PAYABLE:</span>
-            <span className="font-black text-emerald-400 text-base tracking-tight">
+          <div className="self-end sm:self-auto flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] sm:text-[11px] text-slate-400 uppercase font-bold">TOTAL:</span>
+            <span className="font-black text-emerald-400 text-sm sm:text-base tracking-tight">
               ₹{calculatedTotal}
             </span>
           </div>
@@ -836,7 +836,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
           <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block">
             PAYMENT TYPE
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
             <button
               type="button"
               onClick={() => setPaymentType("full")}
@@ -887,22 +887,22 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
           )}
 
           {/* Stat Cards: Total, Paying Now, Remaining Due */}
-          <div className="grid grid-cols-3 gap-2.5 pt-1">
-            <div className="p-2.5 rounded-xl bg-slate-100/80 border border-slate-200 text-center">
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">TOTAL PLAN FEE</p>
-              <p className="text-sm font-black text-slate-900 mt-0.5">₹{calculatedTotal}</p>
+          <div className="grid grid-cols-3 gap-2 sm:gap-2.5 pt-1">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-slate-100/80 border border-slate-200 text-center min-w-0">
+              <p className="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-wider truncate">TOTAL PLAN</p>
+              <p className="text-xs sm:text-sm font-black text-slate-900 mt-0.5 truncate">₹{calculatedTotal}</p>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-              <p className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider">PAYING NOW</p>
-              <p className="text-sm font-black text-emerald-700 mt-0.5">₹{payingNow}</p>
+            <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-center min-w-0">
+              <p className="text-[9px] sm:text-[10px] text-emerald-800 font-bold uppercase tracking-wider truncate">PAYING NOW</p>
+              <p className="text-xs sm:text-sm font-black text-emerald-700 mt-0.5 truncate">₹{payingNow}</p>
             </div>
 
-            <div className={`p-2.5 rounded-xl border text-center transition ${remainingDue > 0 ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200"}`}>
-              <p className={`text-[10px] font-bold uppercase tracking-wider ${remainingDue > 0 ? "text-rose-700" : "text-slate-500"}`}>
+            <div className={`p-2 sm:p-2.5 rounded-xl border text-center transition min-w-0 ${remainingDue > 0 ? "bg-rose-50 border-rose-200" : "bg-slate-50 border-slate-200"}`}>
+              <p className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider truncate ${remainingDue > 0 ? "text-rose-700" : "text-slate-500"}`}>
                 REMAINING DUE
               </p>
-              <p className={`text-sm font-black mt-0.5 ${remainingDue > 0 ? "text-rose-600" : "text-slate-700"}`}>
+              <p className={`text-xs sm:text-sm font-black mt-0.5 truncate ${remainingDue > 0 ? "text-rose-600" : "text-slate-700"}`}>
                 ₹{remainingDue}
               </p>
             </div>
@@ -1003,11 +1003,11 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
         </div>
 
         {/* Modal Actions matching user design */}
-        <div className="pt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100">
+        <div className="pt-3 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 border-t border-slate-100">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition text-center"
           >
             Cancel
           </button>
@@ -1016,7 +1016,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
             type="button"
             disabled={loading}
             onClick={() => handleCollect(false)}
-            className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs flex items-center gap-1.5 transition shadow-sm disabled:opacity-50"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm disabled:opacity-50"
           >
             <Receipt className="w-3.5 h-3.5 text-emerald-400" />
             {loading ? "Processing..." : `Collect ₹${payingNow} Only`}
@@ -1026,7 +1026,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
             type="button"
             disabled={loading}
             onClick={() => handleCollect(true)}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs flex items-center gap-2 transition shadow-md shadow-emerald-600/20 disabled:opacity-50"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition shadow-md shadow-emerald-600/20 disabled:opacity-50"
           >
             <Share2 className="w-4 h-4 text-white" />
             {loading ? "Processing..." : `Collect ₹${payingNow} & WhatsApp Bill`}

@@ -73,7 +73,8 @@ export function toIndianDate(val) {
 
 /** Get member display name. */
 export function getName(m) {
-  return m?.name || m?.fullName || 'Member';
+  const raw = m?.fullName || m?.name || 'Member';
+  return raw.replace(/\s*\([^)]*\)/g, '').trim() || raw;
 }
 
 /** Get member phone number. */
@@ -235,15 +236,15 @@ export function getMemberDaysInfo(member) {
   // Member has both Gym and PT
   if (pStatus !== null && gymDiff !== null) {
     if (pStatus === 'ended') {
-      if (gymDiff < -2) return { text: `Gym Due (${Math.abs(gymDiff)}d) • PT Ended`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold' };
+      if (gymDiff < -2) return { text: `Gym Overdue (${Math.abs(gymDiff)}d) • PT Ended`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold' };
       if (gymDiff <= 0) return { text: `Gym Expired • PT Ended`, cls: 'bg-rose-50 text-rose-700 border-rose-200 font-bold' };
       if (gymDiff <= 3) return { text: `Gym Ending Soon (${gymDiff}d) • PT Ended`, cls: 'bg-amber-100 text-amber-900 border-amber-300 font-bold' };
       return { text: `Gym Active (${gymDiff}d left) • PT Ended`, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 font-bold' };
     }
 
     if (ptDiff !== null) {
-      const gTxt = gymDiff < -2 ? `Gym Due (${Math.abs(gymDiff)}d)` : gymDiff <= 0 ? 'Gym Expired' : `Gym ${gymDiff}d`;
-      const pTxt = ptDiff < -2 ? `PT Due (${Math.abs(ptDiff)}d)` : ptDiff <= 0 ? 'PT Expired' : `PT ${ptDiff}d`;
+      const gTxt = gymDiff < -2 ? `Gym Overdue (${Math.abs(gymDiff)}d)` : gymDiff <= 0 ? 'Gym Expired' : `Gym ${gymDiff}d`;
+      const pTxt = ptDiff < -2 ? `PT Overdue (${Math.abs(ptDiff)}d)` : ptDiff <= 0 ? 'PT Expired' : `PT ${ptDiff}d`;
 
       if (gymDiff < -2 || ptDiff < -2) {
         return { text: `${gTxt} • ${pTxt}`, cls: 'bg-red-100 text-red-800 border-red-300 font-extrabold animate-pulse' };
@@ -401,8 +402,8 @@ export const STATUS_CONFIG = {
   active:      { label: 'Active',             dot: 'bg-emerald-500', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
   ending_soon: { label: 'Ending Soon (≤3d)',  dot: 'bg-amber-500',   cls: 'bg-amber-100 text-amber-900 border border-amber-300' },
   expired:     { label: 'Expired (1-2d)',     dot: 'bg-rose-500',    cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
-  due:         { label: 'Renewal Due (2d+)',  dot: 'bg-red-600',     cls: 'bg-red-100 text-red-800 border border-red-300 font-extrabold' },
-  overdue:     { label: 'Renewal Due (2d+)',  dot: 'bg-red-600',     cls: 'bg-red-100 text-red-800 border border-red-300 font-extrabold' },
+  due:         { label: 'Overdue (2d+)',      dot: 'bg-red-600',     cls: 'bg-red-100 text-red-800 border border-red-300 font-extrabold' },
+  overdue:     { label: 'Overdue (2d+)',      dot: 'bg-red-600',     cls: 'bg-red-100 text-red-800 border border-red-300 font-extrabold' },
   left:        { label: 'Left',              dot: 'bg-slate-500',   cls: 'bg-slate-100 text-slate-700 border border-slate-300 font-bold' },
   ended:       { label: 'PT Ended',          dot: 'bg-purple-500',  cls: 'bg-purple-100 text-purple-800 border border-purple-300 font-bold' },
   inactive:    { label: 'Inactive',          dot: 'bg-slate-400',   cls: 'bg-slate-100 text-slate-600 border border-slate-200' },

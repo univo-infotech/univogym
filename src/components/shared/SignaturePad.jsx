@@ -101,35 +101,35 @@ export default function SignaturePad({ onSave, currentSignature = null, onClear 
           }}
           onEnd={handleSave}
           canvasProps={{
-            className: "w-full h-40 cursor-crosshair block",
-            style: { width: "100%", height: "160px" }
+            className: "w-full h-36 sm:h-40 cursor-crosshair block touch-none",
+            style: { width: "100%", height: "150px", touchAction: "none" }
           }}
         />
 
         {/* Subtle baseline watermark */}
-        <div className="absolute bottom-6 left-6 right-6 border-b border-dashed border-slate-200 pointer-events-none flex justify-between items-center text-[10px] text-slate-300">
+        <div className="absolute bottom-4 left-3 right-3 sm:bottom-6 sm:left-6 sm:right-6 border-b border-dashed border-slate-200 pointer-events-none flex justify-between items-center text-[9px] sm:text-[10px] text-slate-300">
           <span>X Member Signature Baseline</span>
-          <span className="text-[9px]">Verified Digital</span>
+          <span className="text-[8px] sm:text-[9px]">Verified Digital</span>
         </div>
 
         {!hasDrawn && !currentSignature && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-400 text-xs font-medium gap-1.5 bg-slate-50/30">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-400 text-[11px] sm:text-xs font-medium gap-1.5 bg-slate-50/20 px-3 text-center">
             ✍️ Sign here with mouse, finger, or stylus
           </div>
         )}
       </div>
 
       {/* Actions Toolbar */}
-      <div className="flex items-center justify-between pt-0.5">
-        <p className="text-[11px] text-slate-500">
-          Sign with your mouse or touchpad. It auto-saves as you release.
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+        <p className="text-[11px] text-slate-500 leading-tight">
+          Sign with your mouse, finger, or stylus. It auto-saves as you release.
         </p>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
           <button
             type="button"
             onClick={handleClear}
-            className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold flex items-center gap-1.5 transition"
+            className="flex-1 sm:flex-none justify-center px-3 py-1.5 rounded-xl border border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" /> Clear
           </button>
@@ -138,7 +138,7 @@ export default function SignaturePad({ onSave, currentSignature = null, onClear 
             type="button"
             onClick={handleSave}
             disabled={!hasDrawn}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs ${
+            className={`flex-1 sm:flex-none justify-center px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer ${
               saved
                 ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                 : "bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40"

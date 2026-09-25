@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Sparkles, Clock, Copy, QrCode } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { Sparkles, Clock, Copy, QrCode, AlertTriangle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import toast from 'react-hot-toast';
-import { generateInviteToken } from '../../../../firebase/members';
+import { generateInviteToken, getMembers } from '../../../../firebase/members';
 import { getTrainers } from '../../../../firebase/trainers';
 import { openWhatsApp } from '../../../../utils/whatsapp';
 import Modal from '../../../../components/ui/Modal';
@@ -10,7 +10,7 @@ import { fmtCountdown, toDate, formatDate, getName } from '../memberUtils';
 
 const TIMER_SECONDS = 600;
 
-export default function InviteLinkModal({ gymId, onClose }) {
+export default function InviteLinkModal({ gymId, onClose, existingMembers = [] }) {
   const [memberName, setMemberName] = useState('');
   const [phone, setPhone] = useState('');
   const [isPT, setIsPT] = useState(false);
@@ -22,18 +22,41 @@ export default function InviteLinkModal({ gymId, onClose }) {
   const [link, setLink] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(TIMER_SECONDS);
   const [expired, setExpired] = useState(false);
+  const [dbMembers, setDbMembers] = useState([]);
   const timerRef = useRef(null);
 
   useEffect(() => {
-    async function loadTrainers() {
+    async function loadData() {
       try {
         const list = await getTrainers(gymId || 'univo_main');
         setTrainersList(list || []);
         if (list && list.length > 0) setSelectedTrainerId(list[0].id);
       } catch (e) {}
+
+      if (!existingMembers || existingMembers.length === 0) {
+        try {
+          const membersList = await getMembers(gymId || 'univo_main');
+          if (membersList && membersList.length > 0) setDbMembers(membersList);
+        } catch (e) {}
+      }
     }
-    loadTrainers();
-  }, [gymId]);
+    loadData();
+  }, [gymId, existingMembers]);
+
+  // Real-time duplicate phone check against existing members
+  const duplicateMember = useMemo(() => {
+    const clean = (phone || '').replace(/\D/g, '');
+    if (clean.length < 10) return null;
+    const target10 = clean.slice(-10);
+    const list = (existingMembers && existingMembers.length > 0) ? existingMembers : dbMembers;
+    return list.find((m) => {
+      const p = (m.phone || '').replace(/\D/g, '');
+      const p10 = p.length >= 10 ? p.slice(-10) : p;
+      const alt = (m.altPhone || '').replace(/\D/g, '');
+      const alt10 = alt.length >= 10 ? alt.slice(-10) : alt;
+      return p10 === target10 || alt10 === target10;
+    });
+  }, [phone, existingMembers, dbMembers]);
 
   const startTimer = useCallback(() => {
     setSecondsLeft(TIMER_SECONDS);
@@ -54,8 +77,17 @@ export default function InviteLinkModal({ gymId, onClose }) {
   useEffect(() => () => clearInterval(timerRef.current), []);
 
   async function handleGenerate() {
-    if (!phone.trim()) {
-      toast.error('WhatsApp number is required');
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (!cleanPhone) {
+      toast.error('WhatsApp 10-digit phone number is required');
+      return;
+    }
+    if (cleanPhone.length !== 10) {
+      toast.error(`Phone number must be exactly 10 digits (${cleanPhone.length}/10 entered)`);
+      return;
+    }
+    if (duplicateMember) {
+      toast.error(`Already registered with ${duplicateMember.fullName || duplicateMember.name}! Cannot generate link.`);
       return;
     }
     setGenerating(true);
@@ -63,11 +95,11 @@ export default function InviteLinkModal({ gymId, onClose }) {
       const selTrainer = trainersList.find((t) => t.id === selectedTrainerId);
       const url = await generateInviteToken(gymId || 'univo_main', {
         memberName: memberName.trim(),
-        phone: phone.trim(),
+        phone: cleanPhone,
         isPT,
         trainerId: isPT ? selectedTrainerId : '',
         trainerName: isPT ? (selTrainer?.name || '') : '',
-        loginEmail: isPT ? (loginEmail.trim() || phone.trim()) : '',
+        loginEmail: isPT ? (loginEmail.trim() || cleanPhone) : '',
         loginPassword: isPT ? (loginPassword.trim() || 'Member@123') : '',
       });
       setLink(url);
@@ -130,20 +162,51 @@ export default function InviteLinkModal({ gymId, onClose }) {
             />
           </div>
           <div>
-            <label className='block text-xs font-semibold text-slate-700 mb-1'>
-              WhatsApp Phone Number <span className='text-rose-500'>*</span>
-            </label>
+            <div className='flex items-center justify-between mb-1'>
+              <label className='block text-xs font-semibold text-slate-700'>
+                WhatsApp Phone Number <span className='text-rose-500'>*</span>
+              </label>
+              {phone.replace(/\D/g, '').length > 0 && (
+                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                  phone.replace(/\D/g, '').length === 10 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {phone.replace(/\D/g, '').length}/10 digits
+                </span>
+              )}
+            </div>
             <input
               value={phone}
+              maxLength={10}
               onChange={(e) => {
-                setPhone(e.target.value);
-                if (!loginEmail) setLoginEmail(e.target.value);
+                const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                setPhone(val);
+                if (!loginEmail) setLoginEmail(val);
               }}
               placeholder='9876543210'
-              className='w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white'
+              className={`w-full bg-slate-50 border rounded-xl px-3.5 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white transition ${
+                duplicateMember ? 'border-rose-400 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200 focus:border-emerald-500'
+              }`}
             />
           </div>
         </div>
+
+        {/* Real-time duplicate phone alert */}
+        {duplicateMember && (
+          <div className="p-3 bg-rose-50 border border-rose-300 rounded-2xl flex items-start gap-2.5 text-xs text-rose-900 animate-fadeIn">
+            <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-rose-800">⚠️ Number Already Registered!</p>
+              <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                This 10-digit number is already registered with member <strong>{duplicateMember.fullName || duplicateMember.name || 'Existing Member'}</strong>
+                {duplicateMember.id ? ` (ID: ${duplicateMember.id.slice(-6).toUpperCase()})` : ''}
+                {duplicateMember.status ? ` • Status: ${duplicateMember.status}` : ''}.
+              </p>
+              <p className="text-[10px] text-rose-600 mt-1 font-medium">
+                Ek hi number doosre member ke liye use nahi ho sakta. Kripya naya number enter karein.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* PT Membership & Credentials Configuration */}
         <div className="p-3.5 rounded-2xl bg-indigo-50/80 border border-indigo-200/90 space-y-2.5">

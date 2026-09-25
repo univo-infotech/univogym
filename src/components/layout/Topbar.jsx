@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   Bell,
-  Search,
   Menu,
   Check,
   Clock,
@@ -201,16 +200,6 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
       </div>
 
       <div className="flex items-center gap-3 md:gap-4">
-        {/* Search */}
-        <div className="relative hidden sm:block">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search members, billing, staff..."
-            className="pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white w-52 md:w-64 transition-all"
-          />
-        </div>
-
         {/* Top Notification Bell with Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button

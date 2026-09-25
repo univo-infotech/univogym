@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserCheck, Sparkles, Calendar, Clock, CreditCard, Smartphone, Banknote, Building2, Split, Receipt, MessageCircle } from 'lucide-react';
+import { 
+  UserCheck, Sparkles, Calendar, Clock, CreditCard, Smartphone, 
+  Banknote, Building2, Split, Receipt, MessageCircle, Sun, Sunset, 
+  Moon, Key, Eye, EyeOff, ShieldCheck, Dumbbell, AlertTriangle, Info
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
-import { updateMember } from '../../../../firebase/members';
+import { updateMember, getMembers } from '../../../../firebase/members';
 import { addPayment } from '../../../../firebase/payments';
 import { getGymSettings } from '../../../../utils/settings';
 import { openWhatsApp, generatePtAddonReceiptMessage } from '../../../../utils/whatsapp';
@@ -10,15 +14,35 @@ import Modal from '../../../../components/ui/Modal';
 import { invalidateCache } from '../../../../utils/dataCache';
 import { toDate, formatDate, getName, getPhone, hasPt, toIndianDate } from '../memberUtils';
 
-export default function AddPtPackageModal({ member, gymId, onClose, onSave, trainers = [], plans = [] }) {
+const WORKOUT_SLOTS = [
+  { id: "morning", label: "Morning", time: "6:00 AM - 9:00 AM", icon: Sun },
+  { id: "afternoon", label: "Afternoon", time: "12:00 PM - 4:00 PM", icon: Sun },
+  { id: "evening", label: "Evening", time: "4:00 PM - 8:00 PM", icon: Sunset },
+  { id: "night", label: "Night", time: "8:00 PM - 11:00 PM", icon: Moon },
+];
+
+export default function AddPtPackageModal({ member, gymId, onClose, onSave, trainers = [], plans = [], existingMembers = [] }) {
   const settings = getGymSettings();
+
+  const activeSlots = useMemo(() => {
+    const configured = settings?.workoutSlots;
+    if (Array.isArray(configured) && configured.length > 0) {
+      return configured.map((s) => ({
+        id: s.id || s.label,
+        label: s.label,
+        time: s.time,
+        icon: s.iconName === "Sunset" ? Sunset : s.iconName === "Moon" ? Moon : Sun,
+      }));
+    }
+    return WORKOUT_SLOTS;
+  }, [settings]);
 
   const DEFAULT_PT_PACKAGES = [
     { id: "pt_1m", name: "1 Month 1-on-1 PT", durationDays: 30, durationMonths: 1, price: 3500 },
     { id: "pt_2m", name: "2 Months Transformation PT", durationDays: 60, durationMonths: 2, price: 6500 },
     { id: "pt_3m", name: "3 Months Pro PT", durationDays: 90, durationMonths: 3, price: 9500 },
     { id: "pt_6m", name: "6 Months Elite PT", durationDays: 180, durationMonths: 6, price: 17000 },
-    { id: "pt_custom", name: "Custom PT Package", durationDays: 30, durationMonths: 1, price: 3000 },
+    { id: "pt_1y", name: "1 Year VIP PT", durationDays: 365, durationMonths: 12, price: 30000 },
   ];
 
   // Merge with any custom PT plans from Firestore plans
@@ -66,8 +90,16 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
   const [selectedTrainerId, setSelectedTrainerId] = useState(member.trainerId || trainers[0]?.id || "");
   const [ptStartDate, setPtStartDate] = useState(initialStartDate);
   const [durationDays, setDurationDays] = useState(initialPkg?.durationDays || 30);
-  const [customDays, setCustomDays] = useState(String(initialPkg?.durationDays || 30));
-  const [isCustomDays, setIsCustomDays] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState(
+    member?.ptSlot || member?.slot || member?.preferredSlot || member?.workoutSlot || (activeSlots[0] ? `${activeSlots[0].label} (${activeSlots[0].time})` : "Morning (6:00 AM - 9:00 AM)")
+  );
+  const [loginEmail, setLoginEmail] = useState(
+    member?.loginEmail || member?.email || member?.phone || getPhone(member) || ""
+  );
+  const [loginPassword, setLoginPassword] = useState(
+    member?.loginPassword || member?.password || "Member@123"
+  );
+  const [showPassword, setShowPassword] = useState(false);
   const [totalFee, setTotalFee] = useState(String(member?.ptPlanPrice || initialPkg?.price || 3500));
   const [payingNow, setPayingNow] = useState(String(member?.ptPlanPrice || initialPkg?.price || 3500));
   const [paymentMode, setPaymentMode] = useState("online"); // 'online' | 'cash' | 'bank' | 'split'
@@ -75,9 +107,6 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
   const [onlineAmount, setOnlineAmount] = useState("");
   const [referenceId, setReferenceId] = useState("");
   const [remarks, setRemarks] = useState("");
-  const [hasCommission, setHasCommission] = useState(false);
-  const [commissionType, setCommissionType] = useState("percentage");
-  const [commissionValue, setCommissionValue] = useState("30");
   const [loading, setLoading] = useState(false);
 
   // Selected trainer object
@@ -87,12 +116,59 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
 
   const trainerName = selectedTrainerObj ? getName(selectedTrainerObj) : (member.trainerName || "Assigned Coach");
 
+  // Load members if not passed via props
+  const [dbMembers, setDbMembers] = useState([]);
+  useEffect(() => {
+    if ((!existingMembers || existingMembers.length === 0) && gymId) {
+      getMembers(gymId).then((list) => {
+        if (list && list.length > 0) setDbMembers(list);
+      }).catch((err) => {
+        console.warn("Could not load members in AddPtPackageModal:", err);
+      });
+    }
+  }, [gymId, existingMembers]);
+
+  const allMembers = useMemo(() => {
+    return (existingMembers && existingMembers.length > 0) ? existingMembers : dbMembers;
+  }, [existingMembers, dbMembers]);
+
+  // Compute live trainer slot booking counts & member names from allMembers
+  const trainerSlotOccupancy = useMemo(() => {
+    if (!selectedTrainerObj) return {};
+    const tName = selectedTrainerObj.name || selectedTrainerObj.fullName;
+    const tId = selectedTrainerObj.id;
+
+    // Filter active members assigned to this trainer (excluding the current member if renewing)
+    const assigned = (allMembers || []).filter((m) => {
+      if (m.id === member?.id) return false;
+      const match = m.trainerId === tId || m.trainerName === tName;
+      return match && m.status !== "left" && m.active !== false;
+    });
+
+    // Group members by slot/timing
+    const map = {};
+    assigned.forEach((m) => {
+      const rawSlot = (m.ptSlot || m.slot || m.workoutSlot || m.preferredSlot || m.preferredTime || "").trim();
+      if (!rawSlot) return;
+      if (!map[rawSlot]) map[rawSlot] = [];
+      const mName = m.name || m.fullName || "Member";
+      map[rawSlot].push(mName);
+
+      // Also index under the prefix label only, e.g. "Morning"
+      const labelOnly = rawSlot.split('(')[0].trim();
+      if (labelOnly && labelOnly !== rawSlot) {
+        if (!map[labelOnly]) map[labelOnly] = [];
+        map[labelOnly].push(mName);
+      }
+    });
+    return map;
+  }, [selectedTrainerObj, allMembers, member?.id]);
+
   // Handle package selection
   const handleSelectPackage = (pkg) => {
     setSelectedPackageId(pkg.id);
     setPtPackageName(pkg.name);
     setDurationDays(pkg.durationDays || 30);
-    setIsCustomDays(pkg.id === "pt_custom");
     setTotalFee(String(pkg.price || 3500));
     setPayingNow(String(pkg.price || 3500));
   };
@@ -103,13 +179,13 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
     const parts = ptStartDate.split("-").map(Number);
     if (parts.length !== 3) return "";
     const d = new Date(parts[0], parts[1] - 1, parts[2]);
-    const daysToAdd = isCustomDays ? (Number(customDays) || 30) : Number(durationDays || 30);
+    const daysToAdd = Number(durationDays || 30);
     d.setDate(d.getDate() + daysToAdd);
     const yr = d.getFullYear();
     const mo = String(d.getMonth() + 1).padStart(2, "0");
     const da = String(d.getDate()).padStart(2, "0");
     return `${yr}-${mo}-${da}`;
-  }, [ptStartDate, durationDays, isCustomDays, customDays]);
+  }, [ptStartDate, durationDays]);
 
   // Sync split payment amounts
   useEffect(() => {
@@ -121,7 +197,7 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
     }
   }, [paymentMode, payingNow]);
 
-  const activeDurationDays = isCustomDays ? (Number(customDays) || 30) : Number(durationDays || 30);
+  const activeDurationDays = Number(durationDays || 30);
   const remainingDue = Math.max(0, (Number(totalFee) || 0) - (Number(payingNow) || 0));
 
   const handleActivatePT = async (withWhatsApp = true) => {
@@ -150,7 +226,8 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
       memberId: member.id,
       memberName,
       phone,
-      slot: member.slot || member.workoutSlot || "General Shift",
+      slot: selectedSlot || member.slot || member.workoutSlot || "Morning (6:00 AM - 9:00 AM)",
+      ptSlot: selectedSlot,
       batch: member.batch || "Alpha Gym",
       planName: `Personal Training (PT) - ${ptPackageName}`,
       planType: "PT",
@@ -175,7 +252,7 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
       dueDate: toIndianDate(computedPtEndDate),
       date: toIndianDate(new Date().toISOString().split("T")[0]),
       status: remainingDue > 0 ? "partial" : "paid",
-      remarks: remarks || `1-on-1 PT package (${activeDurationDays} Days) with Coach ${trainerName}`,
+      remarks: remarks || `1-on-1 PT package (${activeDurationDays} Days) with Coach ${trainerName} [Shift: ${selectedSlot}]`,
       createdAt: new Date().toISOString(),
     };
 
@@ -202,14 +279,16 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
         ptStartDate,
         ptEndDate: computedPtEndDate,
         ptDurationDays: activeDurationDays,
-        ptCommissionType: hasCommission ? commissionType : null,
-        ptCommissionValue: hasCommission ? Number(commissionValue || 0) : 0,
+        ptSlot: selectedSlot,
+        slot: member.slot || selectedSlot,
+        loginEmail: loginEmail.trim() || member.loginEmail || member.email || phone,
+        loginPassword: loginPassword.trim() || member.loginPassword || member.password || "Member@123",
+        password: loginPassword.trim() || member.password || member.loginPassword || "Member@123",
+        ptCommissionType: selectedTrainerObj?.commissionType || selectedTrainerObj?.ptCommissionType || 'percentage',
+        ptCommissionValue: Number(selectedTrainerObj?.commissionRate || selectedTrainerObj?.commissionValue || selectedTrainerObj?.commission || 0),
         dueAmount: Number(member.dueAmount || 0) + remainingDue,
         paidAmount: Number(member.paidAmount || 0) + paidNum,
         lastPaymentDate: new Date().toISOString(),
-        loginEmail: member.loginEmail || member.email || phone,
-        loginPassword: member.loginPassword || member.password || "Member@123",
-        password: member.password || member.loginPassword || "Member@123",
       };
 
       await updateMember(member.id, updatedFields);
@@ -231,6 +310,7 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
           gymName: settings.gymName,
           ptPlanName: ptPackageName,
           trainerName,
+          ptSlot: selectedSlot,
           startDate: toIndianDate(ptStartDate),
           expiryDate: toIndianDate(computedPtEndDate),
           durationDays: activeDurationDays,
@@ -240,6 +320,8 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
           paymentMode,
           billId,
           receiptLink,
+          loginEmail: loginEmail.trim() || phone,
+          loginPassword: loginPassword.trim() || "Member@123",
         });
         openWhatsApp(phone, msg);
       }
@@ -343,89 +425,228 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
           </div>
         </div>
 
-        {/* PT Start Date & Duration Calculator */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-          <div>
-            <label className="font-bold text-slate-700 flex items-center gap-1.5 mb-1">
-              <Calendar className="w-3.5 h-3.5 text-purple-600" />
-              PT Start Date (Date of Taking PT)
-            </label>
-            <input
-              type="date"
-              value={ptStartDate}
-              onChange={(e) => setPtStartDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 font-bold text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
-            <span className="text-[10px] text-slate-500 mt-1 block">
-              Defaulted to today. Change if member started earlier.
-            </span>
-          </div>
-
-          <div>
-            <label className="font-bold text-slate-700 flex items-center gap-1.5 mb-1">
-              <Clock className="w-3.5 h-3.5 text-purple-600" />
-              PT Duration (Days)
-            </label>
-            <div className="flex gap-1.5 flex-wrap">
-              {[15, 30, 60, 90, 180, 365].map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => {
-                    setDurationDays(d);
-                    setIsCustomDays(false);
-                  }}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                    !isCustomDays && durationDays === d
-                      ? 'bg-purple-600 text-white shadow-xs'
-                      : 'bg-white border border-slate-200 text-slate-700 hover:border-purple-300'
-                  }`}
-                >
-                  {d >= 30 ? `${d / 30}M` : `${d}d`}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setIsCustomDays(true)}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
-                  isCustomDays
-                    ? 'bg-purple-600 text-white shadow-xs'
-                    : 'bg-white border border-slate-200 text-slate-700 hover:border-purple-300'
-                }`}
-              >
-                Custom
-              </button>
-            </div>
-            {isCustomDays && (
+        {/* PT Start Date (User only changes start date; duration is from package) */}
+        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+            <div>
+              <label className="font-bold text-slate-800 flex items-center gap-1.5 mb-1.5 text-xs">
+                <Calendar className="w-4 h-4 text-purple-600 shrink-0" />
+                PT Start Date <span className="text-rose-500">*</span>
+              </label>
               <input
-                type="number"
-                min="1"
-                max="730"
-                value={customDays}
-                onChange={(e) => setCustomDays(e.target.value)}
-                placeholder="Enter days (e.g. 45)"
-                className="w-full mt-2 px-3 py-1.5 rounded-lg bg-white border border-slate-300 font-bold text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                type="date"
+                value={ptStartDate}
+                onChange={(e) => setPtStartDate(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 font-bold text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-600 transition shadow-2xs"
               />
-            )}
+              <span className="text-[10px] text-slate-500 mt-1 block">
+                {isPtRenewal ? "Ongoing PT expiry se aage seamlessly start hoga" : "PT training start date"}
+              </span>
+            </div>
+
+            {/* Live Computed Validity Card */}
+            <div className="p-3 rounded-xl bg-gradient-to-r from-purple-100/70 via-indigo-50 to-white border border-purple-200 shadow-2xs">
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-600 text-white shrink-0">
+                  {durationDays} Days ({durationDays >= 365 ? '1 Year' : `${Math.round(durationDays / 30)} Month(s)`})
+                </span>
+                <span className="text-[10px] text-purple-700 font-bold">Auto-Calculated</span>
+              </div>
+              <p className="text-xs font-bold text-purple-950 flex flex-wrap items-center gap-1.5 mt-1">
+                <span className="font-black text-purple-900 bg-white px-2 py-0.5 rounded border border-purple-200">
+                  {toIndianDate(ptStartDate)}
+                </span>
+                <span className="text-purple-400 font-normal">to</span>
+                <span className="font-black text-purple-900 bg-white px-2 py-0.5 rounded border border-purple-200">
+                  {toIndianDate(computedPtEndDate)}
+                </span>
+              </p>
+              <p className="text-[10px] text-purple-700 font-semibold mt-1 truncate">
+                🎯 {ptPackageName} with Coach {trainerName}
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Live Computed Validity Card */}
-        <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-purple-600 animate-pulse" />
+        {/* PT Workout Shift / Timing Slot Selection with LIVE Trainer Availability & Occupancy */}
+        <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <label className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+              <Clock className="w-3.5 h-3.5 text-purple-600" />
+              Select PT Workout Shift / Timing Slot <span className="text-rose-500">*</span>
+            </label>
+            {selectedTrainerObj && (
+              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg flex items-center gap-1 self-start sm:self-auto">
+                <Sparkles className="w-3 h-3 text-indigo-600" />
+                Live Trainer Slot Schedule: {trainerName}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {activeSlots.map((s) => {
+              const fullText = `${s.label} (${s.time})`;
+              const isSelected = selectedSlot === fullText || selectedSlot === s.label;
+              const Icon = s.icon || Sun;
+
+              // Find how many athletes are booked with THIS trainer in this slot
+              const bookedAthletes = trainerSlotOccupancy[fullText] || trainerSlotOccupancy[s.label] || trainerSlotOccupancy[s.time] || [];
+              const bookedCount = bookedAthletes.length;
+
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSelectedSlot(fullText)}
+                  className={`p-2 sm:p-2.5 rounded-xl border text-left transition relative flex flex-col justify-between overflow-hidden cursor-pointer ${
+                    isSelected
+                      ? 'border-purple-500 bg-purple-50/90 ring-2 ring-purple-400 shadow-xs text-purple-950'
+                      : 'border-slate-200 hover:border-purple-300 bg-white text-slate-700'
+                  }`}
+                >
+                  <div className="w-full">
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 font-bold text-xs truncate">
+                        <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-purple-600' : 'text-amber-500'}`} />
+                        <span className="truncate">{s.label}</span>
+                      </div>
+
+                      {/* Live Occupancy Badge on desktop/sm screens */}
+                      <span
+                        className={`hidden md:inline-flex text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shrink-0 ${
+                          bookedCount === 0
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                            : bookedCount === 1
+                            ? "bg-amber-100 text-amber-900 border border-amber-300"
+                            : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
+                        }`}
+                      >
+                        {bookedCount === 0 ? "🟢 FREE" : bookedCount === 1 ? "🟡 1 BOOKED" : `🔴 ${bookedCount} BUSY`}
+                      </span>
+                    </div>
+
+                    {/* Live Occupancy Badge on mobile screens (stacked cleanly, zero overlap) */}
+                    <div className="md:hidden mt-1">
+                      <span
+                        className={`inline-flex text-[8.5px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-tight ${
+                          bookedCount === 0
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                            : bookedCount === 1
+                            ? "bg-amber-100 text-amber-900 border border-amber-300"
+                            : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
+                        }`}
+                      >
+                        {bookedCount === 0 ? "🟢 FREE" : bookedCount === 1 ? "🟡 1 BOOKED" : `🔴 ${bookedCount} BUSY`}
+                      </span>
+                    </div>
+
+                    <p className="text-[10px] text-slate-500 font-medium mt-1 truncate">{s.time}</p>
+                  </div>
+
+                  {/* Show active member names booked in this slot */}
+                  {bookedCount > 0 && (
+                    <div className="mt-1.5 pt-1 border-t border-slate-200/60 text-[9.5px] text-slate-600 truncate">
+                      🏋️ {bookedAthletes.join(", ")}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Overbooking Alert Warning */}
+          {(() => {
+            const curBooked = trainerSlotOccupancy[selectedSlot] || 
+              trainerSlotOccupancy[selectedSlot?.split(' ')[0]] || [];
+            if (curBooked.length >= 2) {
+              return (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-900 animate-in fade-in duration-200">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="text-[11px] leading-tight">
+                    <strong className="font-extrabold text-rose-800">Trainer Slot Overbooked! </strong>
+                    Coach <strong>{trainerName}</strong> ke paas is slot (<strong>{selectedSlot}</strong>) mein pehle se <strong>{curBooked.length} athletes</strong> training le rahe hain ({curBooked.join(", ")}). Trainer ek waqt mein zyada members par dhyan nahi de payega. Agar sambhav ho toh doosra free slot chunein.
+                  </div>
+                </div>
+              );
+            }
+            if (curBooked.length === 1) {
+              return (
+                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-2 text-amber-900 animate-in fade-in duration-200">
+                  <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-[11px] leading-tight">
+                    <strong className="font-bold text-amber-800">Slot Occupancy Note: </strong>
+                    Coach <strong>{trainerName}</strong> ke paas is slot mein pehle se 1 athlete (<strong>{curBooked[0]}</strong>) booked hai.
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+        </div>
+
+        {/* Member App Portal Credentials (uski id password banti) */}
+        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 text-white shadow-sm border border-indigo-700/50 space-y-3">
+          <div className="flex items-center justify-between border-b border-indigo-500/30 pb-2">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+                <Key className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="font-extrabold text-xs text-white flex items-center gap-1.5">
+                  Member App Portal Credentials (1-on-1 PT App Access)
+                </h4>
+                <p className="text-[10px] text-indigo-200/80">
+                  Athlete login ID & password to view Coach {trainerName}'s diet, workouts & schedules
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+              Auto-Generated
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <p className="text-[11px] font-bold text-purple-900">
-                PT Validity: <b className="text-purple-950 font-black">{toIndianDate(ptStartDate)}</b> to <b className="text-purple-950 font-black">{toIndianDate(computedPtEndDate)}</b>
-              </p>
-              <p className="text-[10px] text-purple-700">
-                Total Coaching Period: {activeDurationDays} Days ({Math.round(activeDurationDays / 30)} Month(s))
-              </p>
+              <label className="text-[10px] font-bold text-indigo-200 uppercase tracking-wider block mb-1">
+                Login ID / Phone *
+              </label>
+              <input
+                type="text"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                placeholder={getPhone(member) || "Phone or Email"}
+                className="w-full bg-slate-800/90 border border-indigo-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-semibold"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-indigo-200 uppercase tracking-wider block mb-1 flex items-center justify-between">
+                <span>Portal Login Password *</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-[10px] text-indigo-300 hover:text-white flex items-center gap-1 font-normal lowercase tracking-normal"
+                >
+                  {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="Member@123"
+                  className="w-full bg-slate-800/90 border border-indigo-500/40 rounded-xl px-3 py-2 text-xs text-emerald-300 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 font-mono font-bold tracking-wider"
+                />
+              </div>
             </div>
           </div>
-          <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-md bg-purple-200 text-purple-900">
-            Auto-calculated
-          </span>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-0.5 text-[10px] text-indigo-200/80">
+            <span>💡 Yeh credentials bill ke saath WhatsApp par member ko auto send ho jayenge.</span>
+            <span className="font-mono text-indigo-300">Default: Member@123</span>
+          </div>
         </div>
 
         {/* Financial Billing & Ledger Transaction Section */}
@@ -551,38 +772,6 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
                   className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold"
                 />
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* Trainer Commission Deal (Optional) */}
-        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-          <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
-            <input
-              type="checkbox"
-              checked={hasCommission}
-              onChange={(e) => setHasCommission(e.target.checked)}
-              className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
-            />
-            <span>Set Trainer Commission / Deal for Coach {trainerName}</span>
-          </label>
-          {hasCommission && (
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <select
-                value={commissionType}
-                onChange={(e) => setCommissionType(e.target.value)}
-                className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold"
-              >
-                <option value="percentage">Percentage (%) of PT Fee</option>
-                <option value="fixed">Fixed Amount (₹)</option>
-              </select>
-              <input
-                type="number"
-                value={commissionValue}
-                onChange={(e) => setCommissionValue(e.target.value)}
-                placeholder={commissionType === 'percentage' ? 'e.g. 30%' : 'e.g. 1000'}
-                className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold"
-              />
             </div>
           )}
         </div>

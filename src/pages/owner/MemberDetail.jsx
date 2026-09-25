@@ -1318,7 +1318,7 @@ export default function MemberDetail() {
               />
             </div>
             <div>
-              <label className="font-bold text-slate-700 block mb-1">PT Start Date (Date of Taking PT)</label>
+              <label className="font-bold text-slate-700 block mb-1">PT Start Date *</label>
               <input
                 type="date"
                 value={ptForm.startDate}
@@ -1330,7 +1330,7 @@ export default function MemberDetail() {
 
           {/* Duration Chips */}
           <div>
-            <label className="font-bold text-slate-700 block mb-1">Duration (Days)</label>
+            <label className="font-bold text-slate-700 block mb-1">PT Duration</label>
             <div className="flex gap-1.5 flex-wrap">
               {[15, 30, 60, 90, 180, 365].map((d) => (
                 <button
@@ -1343,7 +1343,7 @@ export default function MemberDetail() {
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
-                  {d >= 30 ? `${d / 30} Month(s)` : `${d} Days`}
+                  {d >= 30 ? (d === 365 ? '1 Year' : `${Math.round(d / 30)} Month(s)`) : `${d} Days`}
                 </button>
               ))}
             </div>

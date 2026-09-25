@@ -54,7 +54,7 @@ export default function MemberKpiBar({
     },
     {
       key: 'due',
-      label: 'Due (2d+ Overdue)',
+      label: 'Overdue (2d+)',
       count: dueCount,
       icon: AlertTriangle,
       bgIcon: 'bg-red-100 text-red-700',

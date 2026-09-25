@@ -38,7 +38,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { addMember } from "../../firebase/members";
+import { addMember, getMembers } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
 import { getPlans, getActivePlans } from "../../firebase/plans";
 import { getServices, DEFAULT_SERVICES } from "../../firebase/services";
@@ -85,17 +85,19 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
   const [dbTrainers, setDbTrainers] = useState([]);
   const [dbPlans, setDbPlans] = useState([]);
   const [dbServices, setDbServices] = useState([]);
+  const [dbMembers, setDbMembers] = useState([]);
   const [selectedServices, setSelectedServices] = useState([]); // array of selected service objects
   const [fullPhotoModal, setFullPhotoModal] = useState(null); // { img, title, desc }
 
-  // Fetch real trainers, plans & services created by owner from Firestore
+  // Fetch real trainers, plans, services & members from Firestore
   useEffect(() => {
     async function loadData() {
       try {
-        const [trainerList, planList, serviceList] = await Promise.all([
+        const [trainerList, planList, serviceList, memberList] = await Promise.all([
           getTrainers(GID),
           getPlans(GID),
           getServices(GID),
+          getMembers(GID).catch(() => [])
         ]);
         if (trainerList && trainerList.length > 0) {
           setDbTrainers(trainerList);
@@ -110,6 +112,9 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
           setDbServices(activeServices.length > 0 ? activeServices : DEFAULT_SERVICES);
         } else {
           setDbServices(DEFAULT_SERVICES);
+        }
+        if (memberList && memberList.length > 0) {
+          setDbMembers(memberList);
         }
       } catch (err) {
         console.warn("Could not load data in AddMemberModal:", err);
@@ -203,6 +208,19 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
   const [saving, setSaving] = useState(false);
 
+  // Real-time check for duplicate phone number against existing gym members
+  const duplicateMember = useMemo(() => {
+    const clean = (formData.phone || '').replace(/\D/g, '');
+    if (clean.length < 10) return null;
+    const target10 = clean.slice(-10);
+    const list = (existingMembers && existingMembers.length > 0) ? existingMembers : dbMembers;
+    return list.find((m) => {
+      const p = (m.phone || '').replace(/\D/g, '');
+      const p10 = p.length >= 10 ? p.slice(-10) : p;
+      return p10 === target10;
+    });
+  }, [formData.phone, existingMembers, dbMembers]);
+
   // Selected trainer object
   const selectedTrainerObj = useMemo(() => {
     return availableTrainers.find(t => t.name === formData.trainerName) || availableTrainers[0];
@@ -286,16 +304,64 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // 1. Full Name (Mandatory)
     if (!formData.fullName.trim()) {
       toast.error("Member full name is required");
       return;
     }
-    if (!formData.phone.trim()) {
-      toast.error("Phone number is required");
+
+    // 2. Phone Number (Mandatory, strictly 10 digits, no duplicate)
+    const cleanPhone = formData.phone.replace(/\D/g, "");
+    if (!cleanPhone) {
+      toast.error("Mobile phone number is required");
       return;
     }
+    if (cleanPhone.length !== 10) {
+      toast.error(`Phone number must be exactly 10 digits (${cleanPhone.length}/10 entered)`);
+      return;
+    }
+    if (duplicateMember) {
+      toast.error(`This number is already registered with ${duplicateMember.fullName || duplicateMember.name}!`);
+      return;
+    }
+
+    // 3. Gender (Mandatory)
+    if (!formData.gender) {
+      toast.error("Please select a gender");
+      return;
+    }
+
+    // 4. Admission / Joining Date (Mandatory)
+    if (!formData.joiningDate) {
+      toast.error("Please select an admission/joining date");
+      return;
+    }
+
+    // 5. Preferred Workout Slot (Mandatory)
+    if (!formData.preferredSlot) {
+      toast.error("Please select a preferred workout slot");
+      return;
+    }
+
+    // 6. Gym Membership Plan (Mandatory)
+    if (!formData.planId) {
+      toast.error("Please select a gym membership plan");
+      return;
+    }
+
+    // 7. Liability Waiver (Mandatory)
     if (!formData.waiverAgreed) {
       toast.error("Please accept the liability waiver agreement");
+      return;
+    }
+
+    // 8. Signature (Mandatory)
+    if (formData.signatureType === "draw" && !formData.signatureURL) {
+      toast.error("Please draw digital signature or switch to 'Type Full Name'");
+      return;
+    }
+    if (formData.signatureType === "typed" && !formData.typedSignature?.trim() && !formData.fullName?.trim()) {
+      toast.error("Please type your legal name as digital signature");
       return;
     }
 
@@ -459,10 +525,10 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       <Modal
         isOpen={isOpen}
         onClose={onClose}
-        title="Add Member Directly (Complete Registration Form)"
+        title="Add Member Directly"
         maxWidth="max-w-5xl"
       >
-        <form onSubmit={handleSubmit} className="space-y-4 text-slate-800 text-xs max-h-[82vh] overflow-y-auto pr-1">
+        <form onSubmit={handleSubmit} className="space-y-4 text-slate-800 text-xs">
           
           {/* ============================================================
               SECTION 1: PHOTO & PERSONAL DETAILS (2-COLUMN ON DESKTOP)
@@ -538,24 +604,61 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="font-bold text-slate-700 block mb-1">Primary Phone *</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-bold text-slate-700">Primary Phone *</label>
+                      {formData.phone && (
+                        <span className={`text-[10px] font-bold ${
+                          duplicateMember ? "text-rose-600" : formData.phone.length === 10 ? "text-emerald-600" : "text-amber-600"
+                        }`}>
+                          {formData.phone.length}/10 digits
+                        </span>
+                      )}
+                    </div>
                     <input
                       required
                       type="tel"
-                      placeholder="9876543210"
+                      maxLength={10}
+                      placeholder="10-digit mobile number"
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-semibold"
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D/g, "").slice(0, 10);
+                        setFormData({ ...formData, phone: raw });
+                      }}
+                      className={`w-full bg-white border ${
+                        duplicateMember
+                          ? "border-rose-500 focus:border-rose-600 ring-1 ring-rose-300"
+                          : formData.phone.length === 10
+                          ? "border-emerald-400 focus:border-emerald-500 ring-1 ring-emerald-200"
+                          : "border-slate-300 focus:border-indigo-500"
+                      } rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none font-semibold`}
                     />
+                    {duplicateMember && (
+                      <div className="mt-1.5 p-2 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-[11px] flex items-start gap-1.5 animate-in fade-in duration-150">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-black">Already Registered! </span>
+                          This number is already registered with <strong>{duplicateMember.fullName || duplicateMember.name}</strong> ({duplicateMember.status === 'active' ? 'Active Member' : duplicateMember.status || 'Member'}).
+                        </div>
+                      </div>
+                    )}
+                    {formData.phone && formData.phone.length > 0 && formData.phone.length < 10 && (
+                      <p className="text-[10px] text-amber-600 font-semibold mt-1">
+                        ⚠️ Please enter exactly 10 digits ({10 - formData.phone.length} more remaining)
+                      </p>
+                    )}
                   </div>
 
                   <div>
                     <label className="font-bold text-slate-700 block mb-1">Alt. Phone (Optional)</label>
                     <input
                       type="tel"
-                      placeholder="Family / Emergency"
+                      maxLength={10}
+                      placeholder="10-digit emergency"
                       value={formData.altPhone}
-                      onChange={(e) => setFormData({ ...formData, altPhone: e.target.value })}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D/g, "").slice(0, 10);
+                        setFormData({ ...formData, altPhone: raw });
+                      }}
                       className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
@@ -644,22 +747,22 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       key={s.id}
                       type="button"
                       onClick={() => setFormData({ ...formData, preferredSlot: fullText })}
-                      className={`p-2.5 rounded-xl text-left border transition relative flex flex-col justify-between ${
+                      className={`p-2 sm:p-2.5 rounded-xl text-left border transition relative flex flex-col justify-between overflow-hidden ${
                         isSelected
                           ? "bg-amber-50 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-400"
                           : "bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100"
                       }`}
                     >
-                      <div>
+                      <div className="w-full">
                         <div className="flex items-center justify-between gap-1">
-                          <div className="flex items-center gap-1.5 font-bold text-xs">
-                            <Icon className="w-3.5 h-3.5 text-amber-500" />
-                            {s.label}
+                          <div className="flex items-center gap-1.5 font-bold text-xs truncate">
+                            <Icon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span className="truncate">{s.label}</span>
                           </div>
-                          {/* Live Occupancy Badge when a Personal Trainer is selected */}
+                          {/* Live Occupancy Badge for larger screens */}
                           {isPersonalTrainer && (
                             <span
-                              className={`text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wide shrink-0 ${
+                              className={`hidden md:inline-flex text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shrink-0 ${
                                 bookedCount === 0
                                   ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                                   : bookedCount === 1
@@ -671,7 +774,25 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                             </span>
                           )}
                         </div>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{s.time}</p>
+
+                        {/* Live Occupancy Badge on mobile screens (stacked cleanly, zero overlap) */}
+                        {isPersonalTrainer && (
+                          <div className="md:hidden mt-1">
+                            <span
+                              className={`inline-flex text-[8.5px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-tight ${
+                                bookedCount === 0
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                  : bookedCount === 1
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                  : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
+                              }`}
+                            >
+                              {bookedCount === 0 ? "🟢 Free" : bookedCount === 1 ? "🟡 1 Booked" : `🔴 ${bookedCount} Busy`}
+                            </span>
+                          </div>
+                        )}
+
+                        <p className="text-[10px] text-slate-500 mt-1">{s.time}</p>
                       </div>
 
                       {/* Show active member names booked in this slot */}
@@ -1485,13 +1606,13 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
             {/* Signature Selection */}
             <div className="pt-2 border-t border-slate-200">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                 <span className="font-bold text-slate-700 text-xs">Member Digital Signature</span>
-                <div className="flex rounded-xl overflow-hidden border border-slate-200 text-[10px] font-bold">
+                <div className="flex rounded-xl overflow-hidden border border-slate-200 text-[10px] font-bold self-start sm:self-auto">
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, signatureType: "draw" })}
-                    className={`px-3.5 py-1.5 ${
+                    className={`px-3.5 py-1.5 cursor-pointer ${
                       formData.signatureType === "draw"
                         ? "bg-indigo-600 text-white"
                         : "bg-white text-slate-600 hover:bg-slate-100"
@@ -1502,7 +1623,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, signatureType: "typed" })}
-                    className={`px-3.5 py-1.5 ${
+                    className={`px-3.5 py-1.5 cursor-pointer ${
                       formData.signatureType === "typed"
                         ? "bg-indigo-600 text-white"
                         : "bg-white text-slate-600 hover:bg-slate-100"
@@ -1514,14 +1635,14 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
               </div>
 
               {formData.signatureType === "draw" ? (
-                <div className="w-full max-w-2xl bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+                <div className="w-full bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
                   <SignaturePad
                     onSave={(dataUrl) => setFormData((prev) => ({ ...prev, signatureURL: dataUrl }))}
                     onClear={() => setFormData((prev) => ({ ...prev, signatureURL: "" }))}
                   />
                 </div>
               ) : (
-                <div className="w-full max-w-2xl bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2">
+                <div className="w-full bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2">
                   <label className="text-[11px] font-bold text-slate-600 block">
                     Type your full legal name as digital signature:
                   </label>
@@ -1541,9 +1662,9 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
           </div>
 
           {/* Live Order Fee Summary & Breakdown Banner */}
-          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md border border-slate-800">
-            <div className="flex items-center gap-3 text-xs w-full sm:w-auto justify-between sm:justify-start">
-              <div className="flex items-center gap-2">
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md border border-slate-800">
+            <div className="flex items-center gap-2 sm:gap-3 text-xs w-full sm:w-auto justify-between sm:justify-start flex-wrap">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 <span className="text-slate-300 font-medium">Gym Plan:</span>
                 <span className="font-bold text-white">₹{basePlanPrice.toLocaleString("en-IN")}</span>
               </div>
@@ -1552,7 +1673,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                   <span className="text-indigo-400 font-extrabold">+</span>
                   <div className="flex items-center gap-1.5 bg-indigo-500/20 px-2 py-0.5 rounded-lg border border-indigo-500/40">
                     <Sparkles className="w-3 h-3 text-indigo-300" />
-                    <span className="text-indigo-200 font-medium truncate max-w-[120px] sm:max-w-[180px]">
+                    <span className="text-indigo-200 font-medium truncate max-w-[100px] sm:max-w-[180px]">
                       {formData.ptPlanName || "PT Add-on"}:
                     </span>
                     <span className="font-bold text-indigo-300">₹{ptAddonPrice.toLocaleString("en-IN")}</span>
@@ -1573,7 +1694,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
               )}
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-slate-800 pt-2 sm:pt-0">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-slate-800/80 pt-2 sm:pt-0">
               <span className="text-slate-300 text-xs font-bold uppercase tracking-wider">Total Fee:</span>
               <span className="text-lg font-black text-emerald-400">
                 ₹{totalPayableFee.toLocaleString("en-IN")}
@@ -1582,18 +1703,18 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
           </div>
 
           {/* Submit Actions */}
-          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-3 border-t border-slate-200 sticky bottom-0 bg-white py-2">
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-3 border-t border-slate-200 sticky bottom-0 bg-white py-2.5 -mx-3.5 sm:-mx-6 -mb-3.5 sm:-mb-5 px-3.5 sm:px-6 rounded-b-2xl sm:rounded-b-3xl z-10 shadow-lg">
             <button
               type="button"
               onClick={onClose}
-              className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 transition text-center"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 transition text-center cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="w-full sm:w-auto px-8 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md transition disabled:opacity-50 text-center"
+              className="w-full sm:w-auto px-6 sm:px-8 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md transition disabled:opacity-50 text-center cursor-pointer"
             >
               {saving ? "Registering Member..." : "Register Member & Activate Plan"}
             </button>

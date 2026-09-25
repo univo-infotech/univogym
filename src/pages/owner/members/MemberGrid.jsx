@@ -100,13 +100,13 @@ export default function MemberGrid({
             {/* Top Identity Header */}
             <div>
               <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <Avatar member={m} size="lg" />
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h4 className="font-extrabold text-slate-900 text-sm leading-tight flex items-center gap-1">
-                      {name}
+                      <span className="truncate" title={name}>{name}</span>
                       {isMemberLeft && (
-                        <span className="px-1 py-0.2 rounded bg-slate-200 text-slate-700 text-[9px] font-bold">
+                        <span className="px-1 py-0.2 rounded bg-slate-200 text-slate-700 text-[9px] font-bold shrink-0">
                           LEFT
                         </span>
                       )}

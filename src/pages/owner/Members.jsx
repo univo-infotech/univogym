@@ -10,7 +10,9 @@ import {
   X,
   Filter,
   Dumbbell,
-  Sparkles
+  Sparkles,
+  Clock,
+  AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -71,6 +73,8 @@ export default function Members() {
   const [search, setSearch] = useState('');
   const [filterTab, setFilterTab] = useState('active');
   const [dueSubFilter, setDueSubFilter] = useState('all');
+  const [endingSoonSubFilter, setEndingSoonSubFilter] = useState('all');
+  const [expiredSubFilter, setExpiredSubFilter] = useState('all');
   const [trainerFilter, setTrainerFilter] = useState('all');
   const [slotFilter, setSlotFilter] = useState('all');
   const [expireFilter, setExpireFilter] = useState('all');
@@ -158,6 +162,10 @@ export default function Members() {
     let dueCount = 0;
     let leftCount = 0;
     let endedCount = 0;
+    let gymEndingSoonCount = 0;
+    let ptEndingSoonCount = 0;
+    let gymExpiredCount = 0;
+    let ptExpiredCount = 0;
     let gymDueCount = 0;
     let ptDueCount = 0;
 
@@ -176,8 +184,20 @@ export default function Members() {
         if (isPartial(m)) partialCount++;
         if (isPtActive(m)) ptCount++;
         if (gStat === 'active' || pStat === 'active') activeCount++;
-        if (gStat === 'ending_soon' || pStat === 'ending_soon') endingSoonCount++;
-        if (gStat === 'expired' || pStat === 'expired') expiredCount++;
+
+        const isEndingSoon = gStat === 'ending_soon' || pStat === 'ending_soon';
+        if (isEndingSoon) {
+          endingSoonCount++;
+          if (gStat === 'ending_soon') gymEndingSoonCount++;
+          if (pStat === 'ending_soon') ptEndingSoonCount++;
+        }
+
+        const isExpired = gStat === 'expired' || pStat === 'expired';
+        if (isExpired) {
+          expiredCount++;
+          if (gStat === 'expired') gymExpiredCount++;
+          if (pStat === 'expired') ptExpiredCount++;
+        }
 
         const isDue = gStat === 'due' || pStat === 'due';
         if (isDue) {
@@ -198,6 +218,10 @@ export default function Members() {
       dueCount,
       leftCount,
       endedCount,
+      gymEndingSoonCount,
+      ptEndingSoonCount,
+      gymExpiredCount,
+      ptExpiredCount,
       gymDueCount,
       ptDueCount
     };
@@ -210,7 +234,7 @@ export default function Members() {
     { key: 'paid', label: `Paid (${counts.paidCount})` },
     { key: 'ending_soon', label: `Ending Soon (${counts.endingSoonCount})` },
     { key: 'expired', label: `Expired (${counts.expiredCount})` },
-    { key: 'due', label: `⚠️ Due (${counts.dueCount})` },
+    { key: 'due', label: `⚠️ Overdue (${counts.dueCount})` },
     { key: 'partial', label: `Partial Fee (${counts.partialCount})` },
     { key: 'left', label: `🚪 Left (${counts.leftCount})` },
     { key: 'ended', label: `🛑 End (${counts.endedCount})` },
@@ -278,10 +302,20 @@ export default function Members() {
           return isPaid(m) && !inactive;
         case 'partial':
           return isPartial(m) && !inactive;
-        case 'ending_soon':
-          return (gStat === 'ending_soon' || pStat === 'ending_soon') && !inactive;
-        case 'expired':
-          return (gStat === 'expired' || pStat === 'expired') && !inactive;
+        case 'ending_soon': {
+          const isEndingSoon = gStat === 'ending_soon' || pStat === 'ending_soon';
+          if (!isEndingSoon || inactive) return false;
+          if (endingSoonSubFilter === 'gym') return gStat === 'ending_soon';
+          if (endingSoonSubFilter === 'pt') return pStat === 'ending_soon';
+          return true;
+        }
+        case 'expired': {
+          const isExp = gStat === 'expired' || pStat === 'expired';
+          if (!isExp || inactive) return false;
+          if (expiredSubFilter === 'gym') return gStat === 'expired';
+          if (expiredSubFilter === 'pt') return pStat === 'expired';
+          return true;
+        }
         case 'due': {
           const isRenewalDue = gStat === 'due' || pStat === 'due';
           if (!isRenewalDue || inactive) return false;
@@ -294,7 +328,7 @@ export default function Members() {
           return (gStat === 'active' || pStat === 'active') && !inactive;
       }
     });
-  }, [members, search, filterTab, dueSubFilter, trainerFilter, slotFilter, expireFilter]);
+  }, [members, search, filterTab, dueSubFilter, endingSoonSubFilter, expiredSubFilter, trainerFilter, slotFilter, expireFilter]);
 
   // --- Modal Success Handlers ---
   const handleExtendSuccess = useCallback((memberId, updatedFieldsOrExpiry, createdPayment) => {
@@ -694,63 +728,69 @@ export default function Members() {
 
         {/* Row 3: Filter Groups - Exact 3 Containers matching UI reference */}
         <div className="space-y-2 pt-0.5">
-          {/* Container 1: Renewal Alerts Box (Yellow/Cream Card) */}
-          <div className="bg-[#fffdf2] border border-amber-200/80 rounded-2xl p-2.5 grid grid-cols-3 gap-1 items-center">
+          {/* Container 1: Renewal Alerts Box (Yellow/Cream Card) - Exact 3-column fit with zero scroll */}
+          <div className="bg-[#fffdf2] border border-amber-200/80 rounded-2xl p-1.5 grid grid-cols-3 gap-1.5">
             <button
               type="button"
               onClick={() => setFilterTab('ending_soon')}
-              className={`py-1 px-1 rounded-xl transition flex flex-col items-center justify-center text-center cursor-pointer ${
+              className={`w-full py-1.5 px-1 rounded-xl transition flex flex-col items-center justify-center text-center cursor-pointer ${
                 filterTab === 'ending_soon'
-                  ? 'bg-amber-100/80 ring-2 ring-amber-400 shadow-2xs'
-                  : 'hover:bg-amber-50'
+                  ? 'bg-amber-100 border-2 border-amber-400 text-amber-950 shadow-2xs font-black'
+                  : 'bg-white/90 hover:bg-amber-50 text-amber-900 border border-amber-200/60 font-bold'
               }`}
               title="Expiring within 3 days"
             >
-              <span className="text-sm leading-none mb-1">⏰</span>
-              <div className="flex items-center gap-1 justify-center whitespace-nowrap">
-                <span className="text-[11px] font-extrabold text-amber-950">Ending Soon</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-[#fef3c7] text-amber-900">
+              <div className="flex items-center gap-1 leading-none">
+                <span className="text-xs">⏰</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-[#fef3c7] text-amber-900 border border-amber-300/80">
                   {counts.endingSoonCount}
                 </span>
               </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterTab('due')}
-              className={`py-1 px-1 rounded-xl transition flex flex-col items-center justify-center text-center cursor-pointer ${
-                filterTab === 'due'
-                  ? 'bg-red-100/80 ring-2 ring-red-400 shadow-2xs'
-                  : 'hover:bg-red-50'
-              }`}
-              title="Members with remaining due balance"
-            >
-              <span className="text-sm leading-none mb-1">⚠️</span>
-              <div className="flex items-center gap-1 justify-center whitespace-nowrap">
-                <span className="text-[11px] font-extrabold text-amber-950">Due</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-[#fee2e2] text-red-900">
-                  {counts.dueCount}
-                </span>
-              </div>
+              <span className="text-[10px] sm:text-[11px] font-extrabold mt-1 text-amber-950 leading-tight">
+                Ending Soon
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => setFilterTab('expired')}
-              className={`py-1 px-1 rounded-xl transition flex flex-col items-center justify-center text-center cursor-pointer ${
+              className={`w-full py-1.5 px-1 rounded-xl transition flex flex-col items-center justify-center text-center cursor-pointer ${
                 filterTab === 'expired'
-                  ? 'bg-rose-100/80 ring-2 ring-rose-400 shadow-2xs'
-                  : 'hover:bg-rose-50'
+                  ? 'bg-rose-100 border-2 border-rose-400 text-rose-950 shadow-2xs font-black'
+                  : 'bg-white/90 hover:bg-rose-50 text-rose-900 border border-rose-200/60 font-bold'
               }`}
               title="Expired members"
             >
-              <span className="text-sm leading-none mb-1">🔴</span>
-              <div className="flex items-center gap-1 justify-center whitespace-nowrap">
-                <span className="text-[11px] font-extrabold text-red-950">Expired</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-[#fee2e2] text-rose-900">
+              <div className="flex items-center gap-1 leading-none">
+                <span className="text-xs">🔴</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-[#fee2e2] text-rose-900 border border-rose-300/80">
                   {counts.expiredCount}
                 </span>
               </div>
+              <span className="text-[10px] sm:text-[11px] font-extrabold mt-1 text-red-950 leading-tight">
+                Expired
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterTab('due')}
+              className={`w-full py-1.5 px-1 rounded-xl transition flex flex-col items-center justify-center text-center cursor-pointer ${
+                filterTab === 'due'
+                  ? 'bg-red-100 border-2 border-red-400 text-red-950 shadow-2xs font-black'
+                  : 'bg-white/90 hover:bg-red-50 text-red-900 border border-red-200/60 font-bold'
+              }`}
+              title="Overdue members"
+            >
+              <div className="flex items-center gap-1 leading-none">
+                <span className="text-xs">⚠️</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-[#fee2e2] text-red-900 border border-red-300/80">
+                  {counts.dueCount}
+                </span>
+              </div>
+              <span className="text-[10px] sm:text-[11px] font-extrabold mt-1 text-amber-950 leading-tight">
+                Overdue
+              </span>
             </button>
           </div>
 
@@ -984,22 +1024,6 @@ export default function Members() {
 
               <button
                 type="button"
-                onClick={() => setFilterTab('due')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                  filterTab === 'due'
-                    ? 'bg-red-600 text-white shadow-xs'
-                    : 'text-red-800 hover:bg-red-100/70'
-                }`}
-                title="Members with remaining due balance"
-              >
-                <span>⚠️ Due</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-100 text-red-900 font-extrabold">
-                  {counts.dueCount}
-                </span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setFilterTab('expired')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                   filterTab === 'expired'
@@ -1011,6 +1035,22 @@ export default function Members() {
                 <span>🔴 Expired</span>
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-100 text-rose-900 font-extrabold">
                   {counts.expiredCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterTab('due')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                  filterTab === 'due'
+                    ? 'bg-red-600 text-white shadow-xs'
+                    : 'text-red-800 hover:bg-red-100/70'
+                }`}
+                title="Overdue members"
+              >
+                <span>⚠️ Overdue</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-red-100 text-red-900 font-extrabold">
+                  {counts.dueCount}
                 </span>
               </button>
             </div>
@@ -1106,50 +1146,148 @@ export default function Members() {
         </div>
       </div>
 
+      {/* --- Ending Soon Category Sub-Filter (Gym vs PT) --- */}
+      {filterTab === 'ending_soon' && (
+        <div className="p-2.5 sm:p-3 rounded-2xl bg-amber-50/90 border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+            <div>
+              <span className="font-bold text-amber-950">Ending Soon Renewal Filter:</span>
+              <span className="text-[11px] text-amber-800/90 ml-1.5 hidden sm:inline">
+                Expiring within 3 days. Check whether Gym or PT plan is ending:
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 w-full sm:w-auto sm:flex sm:items-center sm:gap-1.5">
+            <button
+              onClick={() => setEndingSoonSubFilter('all')}
+              className={`px-1.5 sm:px-3 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs transition flex items-center justify-center text-center cursor-pointer ${
+                endingSoonSubFilter === 'all'
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-amber-100/60 border border-amber-200'
+              }`}
+            >
+              <span className="truncate">All <span className="hidden sm:inline">Ending Soon</span> ({counts.endingSoonCount})</span>
+            </button>
+            <button
+              onClick={() => setEndingSoonSubFilter('gym')}
+              className={`px-1.5 sm:px-3 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs transition inline-flex items-center justify-center gap-1 text-center cursor-pointer ${
+                endingSoonSubFilter === 'gym'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
+              }`}
+            >
+              <Dumbbell className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Gym <span className="hidden sm:inline">Ending</span> ({counts.gymEndingSoonCount})</span>
+            </button>
+            <button
+              onClick={() => setEndingSoonSubFilter('pt')}
+              className={`px-1.5 sm:px-3 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs transition inline-flex items-center justify-center gap-1 text-center cursor-pointer ${
+                endingSoonSubFilter === 'pt'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-purple-50 border border-slate-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">PT <span className="hidden sm:inline">Ending</span> ({counts.ptEndingSoonCount})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* --- Expired Category Sub-Filter (Gym vs PT) --- */}
+      {filterTab === 'expired' && (
+        <div className="p-2.5 sm:p-3 rounded-2xl bg-rose-50/90 border border-rose-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <div>
+              <span className="font-bold text-rose-950">Expired Renewal Filter:</span>
+              <span className="text-[11px] text-rose-800/90 ml-1.5 hidden sm:inline">
+                Expired members. Check whether Gym or PT plan has expired:
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 w-full sm:w-auto sm:flex sm:items-center sm:gap-1.5">
+            <button
+              onClick={() => setExpiredSubFilter('all')}
+              className={`px-1.5 sm:px-3 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs transition flex items-center justify-center text-center cursor-pointer ${
+                expiredSubFilter === 'all'
+                  ? 'bg-rose-500 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-rose-100/60 border border-rose-200'
+              }`}
+            >
+              <span className="truncate">All <span className="hidden sm:inline">Expired</span> ({counts.expiredCount})</span>
+            </button>
+            <button
+              onClick={() => setExpiredSubFilter('gym')}
+              className={`px-1.5 sm:px-3 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs transition inline-flex items-center justify-center gap-1 text-center cursor-pointer ${
+                expiredSubFilter === 'gym'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
+              }`}
+            >
+              <Dumbbell className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Gym <span className="hidden sm:inline">Expired</span> ({counts.gymExpiredCount})</span>
+            </button>
+            <button
+              onClick={() => setExpiredSubFilter('pt')}
+              className={`px-1.5 sm:px-3 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs transition inline-flex items-center justify-center gap-1 text-center cursor-pointer ${
+                expiredSubFilter === 'pt'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-purple-50 border border-slate-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">PT <span className="hidden sm:inline">Expired</span> ({counts.ptExpiredCount})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* --- Due Category Sub-Filter (Gym vs PT Due) --- */}
       {filterTab === 'due' && (
-        <div className="p-3 rounded-2xl bg-red-50/90 border border-red-200/90 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        <div className="p-2.5 sm:p-3 rounded-2xl bg-red-50/90 border border-red-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
             <div>
               <span className="font-bold text-red-950">Overdue Renewal Filter:</span>
               <span className="text-[11px] text-red-800/90 ml-1.5 hidden sm:inline">
-                Membership expired over 2 days ago. Check whether Gym or PT plan is due:
+                Membership expired over 2 days ago. Check whether Gym or PT plan is overdue:
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="grid grid-cols-3 gap-1.5 w-full sm:w-auto sm:flex sm:items-center sm:gap-1.5">
             <button
               onClick={() => setDueSubFilter('all')}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition ${
+              className={`px-1.5 sm:px-3 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs transition flex items-center justify-center text-center cursor-pointer ${
                 dueSubFilter === 'all'
                   ? 'bg-red-600 text-white shadow-xs'
                   : 'bg-white text-slate-700 hover:bg-red-100/60 border border-red-200'
               }`}
             >
-              All Due ({counts.dueCount})
+              <span className="truncate">All <span className="hidden sm:inline">Overdue</span> ({counts.dueCount})</span>
             </button>
             <button
               onClick={() => setDueSubFilter('gym')}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition inline-flex items-center gap-1.5 ${
+              className={`px-1.5 sm:px-3 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs transition inline-flex items-center justify-center gap-1 text-center cursor-pointer ${
                 dueSubFilter === 'gym'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-white text-slate-700 hover:bg-blue-50 border border-slate-200'
               }`}
             >
-              <Dumbbell className="w-3.5 h-3.5" />
-              <span>Gym Due ({counts.gymDueCount})</span>
+              <Dumbbell className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Gym <span className="hidden sm:inline">Overdue</span> ({counts.gymDueCount})</span>
             </button>
             <button
               onClick={() => setDueSubFilter('pt')}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition inline-flex items-center gap-1.5 ${
+              className={`px-1.5 sm:px-3 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs transition inline-flex items-center justify-center gap-1 text-center cursor-pointer ${
                 dueSubFilter === 'pt'
                   ? 'bg-purple-600 text-white shadow-xs'
                   : 'bg-white text-slate-700 hover:bg-purple-50 border border-slate-200'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>PT Due ({counts.ptDueCount})</span>
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">PT <span className="hidden sm:inline">Overdue</span> ({counts.ptDueCount})</span>
             </button>
           </div>
         </div>
@@ -1222,6 +1360,7 @@ export default function Members() {
           gymId={gymId}
           trainers={trainers}
           plans={plans}
+          existingMembers={members}
           onClose={() => setPtAddonMember(null)}
           onSave={handlePtAddonSuccess}
         />
@@ -1252,6 +1391,7 @@ export default function Members() {
         <InviteLinkModal
           gymId={gymId}
           onClose={() => setShowInvite(false)}
+          existingMembers={members}
         />
       )}
 

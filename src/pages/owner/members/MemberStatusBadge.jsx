@@ -16,7 +16,7 @@ function getBadgePill(type, state) {
     cls = 'bg-red-100 text-red-800 border-red-300 font-extrabold animate-pulse';
     dot = 'bg-red-600';
   }
-  const labels = { active: 'Active', ending_soon: 'Ending Soon (≤3d)', expired: 'Expired', due: 'Due' };
+  const labels = { active: 'Active', ending_soon: 'Ending Soon (≤3d)', expired: 'Expired', due: 'Overdue' };
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${cls}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />

@@ -97,6 +97,7 @@ export function generatePtAddonReceiptMessage({
   gymName = "",
   ptPlanName = "1-on-1 PT Package",
   trainerName = "Personal Trainer",
+  ptSlot = "",
   startDate = "",
   expiryDate = "",
   durationDays = 30,
@@ -105,7 +106,9 @@ export function generatePtAddonReceiptMessage({
   dueAmount = 0,
   paymentMode = "Cash",
   billId = "",
-  receiptLink = ""
+  receiptLink = "",
+  loginEmail = "",
+  loginPassword = "",
 }) {
   const settings = getGymSettings();
   const gym = gymName || settings.gymName || "UNIVO GYM MANAGEMENT";
@@ -114,6 +117,7 @@ export function generatePtAddonReceiptMessage({
   let msg = `🧾 *OFFICIAL PERSONAL TRAINING (PT) BILL & RECEIPT*\n*${gym}*\n\n`;
   msg += `Dear *${memberName}*,\nCongratulations on starting your dedicated 1-on-1 Personal Training Transformation with *Coach ${trainerName}*! Here are your official package & billing details:\n\n`;
   msg += `🏋️ *Personal Coach:* Coach ${trainerName}\n`;
+  if (ptSlot) msg += `⏰ *PT Shift / Slot:* ${ptSlot}\n`;
   msg += `📋 *PT Package:* ${ptPlanName}\n`;
   if (startDate) msg += `📅 *PT Start Date:* ${startDate}\n`;
   if (expiryDate) msg += `🎯 *PT Valid Till:* ${expiryDate} (${durationDays} Days)\n`;
@@ -126,6 +130,9 @@ export function generatePtAddonReceiptMessage({
   }
   if (billId) msg += `🔖 *Bill / Invoice No:* #${billId}\n`;
   msg += `📅 *Receipt Date:* ${dateStr}\n\n`;
+  if (loginEmail && loginPassword) {
+    msg += `🔑 *Your PT Member App Credentials:*\n• Login ID / Phone: *${loginEmail}*\n• Password: *${loginPassword}*\n_Use these credentials to sign in and interact with Coach ${trainerName} for diet & workouts!_\n\n`;
+  }
   if (receiptLink) {
     msg += `📄 *View & Download Digital Bill Online:*\n${receiptLink}\n\n`;
   }
