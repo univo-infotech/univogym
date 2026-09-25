@@ -111,7 +111,9 @@ export default function MemberGrid({
                         </span>
                       )}
                     </h4>
-                    <p className="text-xs text-slate-500 mt-0.5">{phone || 'No phone'}</p>
+                    <p className="text-xs text-slate-500 font-medium whitespace-nowrap mt-0.5">
+                      {phone || 'No phone'}
+                    </p>
                   </div>
                 </div>
 

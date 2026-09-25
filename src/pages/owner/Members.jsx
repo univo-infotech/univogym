@@ -42,7 +42,6 @@ import {
 } from './members/memberUtils';
 
 // Subcomponents
-import MemberKpiBar from './members/MemberKpiBar';
 import MemberTable from './members/MemberTable';
 import MemberGrid from './members/MemberGrid';
 
@@ -618,20 +617,256 @@ export default function Members() {
         </div>
       </div>
 
-      {/* 7 KPI Metric Cards Row */}
-      <MemberKpiBar
-        {...counts}
-        activeTab={filterTab}
-        onSelectTab={(tabKey) => setFilterTab(tabKey)}
-      />
+      {/* =========================================================
+          FILTER & SEARCH BAR: MOBILE COMPACT CARD VIEW (< md)
+          Exact match with user design specification
+      ========================================================= */}
+      <div className="block md:hidden p-3 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2.5">
+        {/* Row 1: Primary View Segmented Control (Active, PT Members, All) */}
+        <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100/90 rounded-2xl w-full">
+          <button
+            type="button"
+            onClick={() => setFilterTab('active')}
+            className={`py-1.5 px-2 text-center rounded-xl transition flex items-center justify-center gap-1 ${
+              filterTab === 'active'
+                ? 'bg-white text-emerald-800 font-extrabold shadow-2xs ring-1 ring-slate-200/80'
+                : 'text-slate-600 hover:text-slate-900 font-bold'
+            }`}
+          >
+            <span className="text-xs font-extrabold text-emerald-800">
+              Active ({counts.activeCount})
+            </span>
+          </button>
 
-      {/* Systematic Filter & Search Bar */}
-      <div className="p-3 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
+          <button
+            type="button"
+            onClick={() => setFilterTab('pt')}
+            className={`py-1.5 px-2 text-center rounded-xl transition flex items-center justify-center gap-1.5 ${
+              filterTab === 'pt'
+                ? 'bg-white text-purple-900 font-extrabold shadow-2xs ring-1 ring-purple-200'
+                : 'text-slate-600 hover:text-slate-900 font-bold'
+            }`}
+          >
+            <span className="text-xs flex items-center gap-1 font-bold text-slate-800">
+              <span className="text-sm">🏋️</span>
+              <span>PT</span>
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-200 text-slate-700">
+              {counts.ptCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterTab('all')}
+            className={`py-1.5 px-2 text-center rounded-xl transition flex items-center justify-center gap-1 ${
+              filterTab === 'all'
+                ? 'bg-white text-slate-900 font-extrabold shadow-2xs ring-1 ring-slate-200/80'
+                : 'text-slate-600 hover:text-slate-900 font-bold'
+            }`}
+          >
+            <span className="text-xs font-bold text-slate-700">
+              All ({members.length})
+            </span>
+          </button>
+        </div>
+
+        {/* Row 2: Search Input (Full Width for mobile) */}
+        <div className="relative w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, phone..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white transition"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+              title="Clear Search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Row 3: Filter Groups - Exact 3 Containers matching UI reference */}
+        <div className="space-y-2 pt-0.5">
+          {/* Container 1: Renewal Alerts Box (Yellow/Cream Card) */}
+          <div className="bg-[#fffdf2] border border-amber-200/80 rounded-2xl p-2.5 grid grid-cols-3 gap-1 items-center">
+            <button
+              type="button"
+              onClick={() => setFilterTab('ending_soon')}
+              className={`py-1 px-1 rounded-xl transition flex flex-col items-center justify-center text-center cursor-pointer ${
+                filterTab === 'ending_soon'
+                  ? 'bg-amber-100/80 ring-2 ring-amber-400 shadow-2xs'
+                  : 'hover:bg-amber-50'
+              }`}
+              title="Expiring within 3 days"
+            >
+              <span className="text-sm leading-none mb-1">⏰</span>
+              <div className="flex items-center gap-1 justify-center whitespace-nowrap">
+                <span className="text-[11px] font-extrabold text-amber-950">Ending Soon</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-[#fef3c7] text-amber-900">
+                  {counts.endingSoonCount}
+                </span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterTab('due')}
+              className={`py-1 px-1 rounded-xl transition flex flex-col items-center justify-center text-center cursor-pointer ${
+                filterTab === 'due'
+                  ? 'bg-red-100/80 ring-2 ring-red-400 shadow-2xs'
+                  : 'hover:bg-red-50'
+              }`}
+              title="Members with remaining due balance"
+            >
+              <span className="text-sm leading-none mb-1">⚠️</span>
+              <div className="flex items-center gap-1 justify-center whitespace-nowrap">
+                <span className="text-[11px] font-extrabold text-amber-950">Due</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-[#fee2e2] text-red-900">
+                  {counts.dueCount}
+                </span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterTab('expired')}
+              className={`py-1 px-1 rounded-xl transition flex flex-col items-center justify-center text-center cursor-pointer ${
+                filterTab === 'expired'
+                  ? 'bg-rose-100/80 ring-2 ring-rose-400 shadow-2xs'
+                  : 'hover:bg-rose-50'
+              }`}
+              title="Expired members"
+            >
+              <span className="text-sm leading-none mb-1">🔴</span>
+              <div className="flex items-center gap-1 justify-center whitespace-nowrap">
+                <span className="text-[11px] font-extrabold text-red-950">Expired</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-[#fee2e2] text-rose-900">
+                  {counts.expiredCount}
+                </span>
+              </div>
+            </button>
+          </div>
+
+          {/* Container 2: Payment Status Box (Paid, Partial Fee) */}
+          <div className="bg-[#f8fafc] border border-slate-200/80 rounded-full py-1.5 px-3 flex items-center justify-around">
+            <button
+              type="button"
+              onClick={() => setFilterTab('paid')}
+              className={`py-1 px-3 rounded-full text-xs font-extrabold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                filterTab === 'paid'
+                  ? 'bg-emerald-50 ring-2 ring-emerald-500 shadow-2xs'
+                  : 'hover:bg-slate-200/50'
+              }`}
+              title="Fully paid members"
+            >
+              <span className="flex items-center gap-1 text-emerald-900 font-extrabold">
+                <span className="text-emerald-700 font-extrabold text-sm leading-none">✓</span>
+                <span>Paid</span>
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                {counts.paidCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterTab('partial')}
+              className={`py-1 px-3 rounded-full text-xs font-extrabold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                filterTab === 'partial'
+                  ? 'bg-amber-50 ring-2 ring-amber-500 shadow-2xs'
+                  : 'hover:bg-slate-200/50'
+              }`}
+              title="Partial paid members"
+            >
+              <span className="flex items-center gap-1 text-amber-950 font-extrabold">
+                <span className="text-amber-900 font-extrabold text-sm leading-none">₹</span>
+                <span>Partial Fee</span>
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900">
+                {counts.partialCount}
+              </span>
+            </button>
+          </div>
+
+          {/* Container 3: Lifecycle Status Box (Left, PT Ended) */}
+          <div className="bg-[#f8fafc] border border-slate-200/80 rounded-full py-1.5 px-3 flex items-center justify-around">
+            <button
+              type="button"
+              onClick={() => setFilterTab('left')}
+              className={`py-1 px-3 rounded-full text-xs font-extrabold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                filterTab === 'left'
+                  ? 'bg-slate-200 ring-2 ring-slate-400 shadow-2xs'
+                  : 'hover:bg-slate-200/50'
+              }`}
+              title="Members who left the gym"
+            >
+              <span className="flex items-center gap-1 text-slate-800 font-extrabold">
+                <span className="text-sm leading-none">🚪</span>
+                <span>Left</span>
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-200 text-slate-800">
+                {counts.leftCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFilterTab('ended')}
+              className={`py-1 px-3 rounded-full text-xs font-extrabold transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                filterTab === 'ended'
+                  ? 'bg-purple-50 ring-2 ring-purple-500 shadow-2xs'
+                  : 'hover:bg-slate-200/50'
+              }`}
+              title="Members whose PT package ended"
+            >
+              <span className="flex items-center gap-1 text-purple-900 font-extrabold">
+                <span className="text-sm leading-none">🛑</span>
+                <span>PT Ended</span>
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-900">
+                {counts.endedCount}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Row 4: Showing Count & Reset Filter */}
+        <div className="flex items-center justify-between text-xs text-slate-500 pt-0.5 px-1">
+          <div>
+            Showing <strong className="text-slate-700 font-bold">{filteredMembers.length}</strong> members
+          </div>
+          {filterTab !== 'active' && (
+            <button
+              type="button"
+              onClick={() => setFilterTab('active')}
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200 cursor-pointer"
+              title="Reset view to Active Members"
+            >
+              <X className="w-3 h-3" />
+              <span>Reset</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* =========================================================
+          FILTER & SEARCH BAR: ORIGINAL DESKTOP VIEW (≥ md)
+          Exact original desktop horizontal layout
+      ========================================================= */}
+      <div className="hidden md:block p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3">
         {/* Row 1: Primary View Tabs + Search Input + Table/Grid Switcher */}
-        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+        <div className="flex flex-row gap-3 items-center justify-between">
           {/* Primary View Segmented Control (Active, PT Members, All) */}
           <div className="inline-flex p-1 bg-slate-100/80 rounded-xl shrink-0">
             <button
+              type="button"
               onClick={() => setFilterTab('active')}
               className={`px-3.5 py-1.5 text-xs font-extrabold rounded-lg transition ${
                 filterTab === 'active'
@@ -643,6 +878,7 @@ export default function Members() {
             </button>
 
             <button
+              type="button"
               onClick={() => setFilterTab('pt')}
               className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition flex items-center gap-1.5 ${
                 filterTab === 'pt'
@@ -661,6 +897,7 @@ export default function Members() {
             </button>
 
             <button
+              type="button"
               onClick={() => setFilterTab('all')}
               className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition ${
                 filterTab === 'all'
@@ -673,17 +910,18 @@ export default function Members() {
           </div>
 
           {/* Search & View Toggle Group */}
-          <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
-            <div className="relative flex-1 md:w-72">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="relative w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by name, phone..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 md:py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white transition"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:bg-white transition"
               />
               {search && (
                 <button
+                  type="button"
                   onClick={() => setSearch('')}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
                   title="Clear Search"
@@ -695,6 +933,7 @@ export default function Members() {
 
             <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
               <button
+                type="button"
                 onClick={() => setView('table')}
                 className={`p-1.5 rounded-lg transition ${
                   view === 'table' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-400 hover:text-slate-700'
@@ -704,6 +943,7 @@ export default function Members() {
                 <LayoutList className="w-4 h-4" />
               </button>
               <button
+                type="button"
                 onClick={() => setView('grid')}
                 className={`p-1.5 rounded-lg transition ${
                   view === 'grid' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-400 hover:text-slate-700'
@@ -727,6 +967,7 @@ export default function Members() {
             {/* 1. Renewal Alerts Group (Yellow/Amber container) */}
             <div className="inline-flex items-center gap-1 bg-amber-50/60 p-1 rounded-xl border border-amber-200/60">
               <button
+                type="button"
                 onClick={() => setFilterTab('ending_soon')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                   filterTab === 'ending_soon'
@@ -742,6 +983,7 @@ export default function Members() {
               </button>
 
               <button
+                type="button"
                 onClick={() => setFilterTab('due')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                   filterTab === 'due'
@@ -757,6 +999,7 @@ export default function Members() {
               </button>
 
               <button
+                type="button"
                 onClick={() => setFilterTab('expired')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                   filterTab === 'expired'
@@ -775,6 +1018,7 @@ export default function Members() {
             {/* 2. Fee Collection Group (Light Slate/Green container) */}
             <div className="inline-flex items-center gap-1 bg-slate-100/70 p-1 rounded-xl border border-slate-200/70">
               <button
+                type="button"
                 onClick={() => setFilterTab('paid')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                   filterTab === 'paid'
@@ -790,6 +1034,7 @@ export default function Members() {
               </button>
 
               <button
+                type="button"
                 onClick={() => setFilterTab('partial')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                   filterTab === 'partial'
@@ -808,6 +1053,7 @@ export default function Members() {
             {/* 3. Exited / Inactive Group */}
             <div className="inline-flex items-center gap-1 bg-slate-100/70 p-1 rounded-xl border border-slate-200/70">
               <button
+                type="button"
                 onClick={() => setFilterTab('left')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                   filterTab === 'left'
@@ -823,6 +1069,7 @@ export default function Members() {
               </button>
 
               <button
+                type="button"
                 onClick={() => setFilterTab('ended')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
                   filterTab === 'ended'
@@ -843,6 +1090,7 @@ export default function Members() {
           <div className="flex items-center gap-2">
             {filterTab !== 'active' && (
               <button
+                type="button"
                 onClick={() => setFilterTab('active')}
                 className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition border border-slate-200 shrink-0 cursor-pointer"
                 title="Reset view to Active Members"
