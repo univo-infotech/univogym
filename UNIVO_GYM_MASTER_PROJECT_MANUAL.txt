@@ -1,0 +1,189 @@
+================================================================================
+           UNIVO GYM MANAGEMENT — COMPLETE MASTER PRODUCT MANUAL & SOP
+     Complete Operating Guide: End-to-End Workflows, Button Actions & Architecture
+================================================================================
+
+Yeh master manual Univo Gym Management software ke poore architecture, har ek
+feature, har ek button aur daily gym operations ka standard operating procedure
+(SOP) detail me samjhati hai.
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS:
+1. THE UNIVO VISION & ROLE-BASED ACCESS HIERARCHY
+2. INITIAL GYM SETUP (FIRST DAY CONFIGURATION SOP)
+3. MEMBER ADMISSION & ONBOARDING (DIRECT ADD VS 10-MIN WHATSAPP LINK)
+4. MEMBER DIRECTORY COMMAND CENTER (7 METRIC TABS & 13 BUTTON ACTIONS)
+5. PERSONAL TRAINING (PT) LIFECYCLE & TRAINER SCHEDULE
+6. UNIVERSAL BIOMETRIC ATTENDANCE & REAL-TIME 4-POINT GATE LOCK
+7. BILLING, MULTI-MODE PAYMENTS & WHATSAPP RECEIPTS
+8. FRONT DESK & LEAD MANAGEMENT (VISITS & INQUIRIES)
+9. EQUIPMENT INVENTORY, STOCK & EXPENSES
+10. BUSINESS REPORTS, P&L ANALYTICS & STAFF PERMISSIONS
+--------------------------------------------------------------------------------
+
+================================================================================
+1. THE UNIVO VISION & ROLE-BASED ACCESS HIERARCHY
+================================================================================
+Univo Gym Management commercial fitness clubs, crossfit studios aur academies ke
+liye ek complete multi-role operating system hai.
+
+System me 4 role-based portals hain:
+1. Owner (Super Admin):
+   - Poora financial control: Revenue, Daily/Monthly Profit & Loss, Staff Salary.
+   - Plans banana aur pricing set karna.
+   - Members edit, delete, gate lock/unlock aur reports dekhna.
+2. Trainer (Coach Portal):
+   - Sirf unhi members ko dekh sakta hai jo uske under assigned hain.
+   - Daily workout plans, customized diet charts aur client transformation photos.
+   - Apna shift timing aur PT client roster manage karna.
+3. Front Desk / Staff:
+   - Walk-in inquiries register karna, admission lena, fee collect karna.
+   - Staff attendance mark karna aur equipment stock maintain karna.
+   - Sensitive profit/owner reports hidden rehte hain.
+4. Member (Client Portal):
+   - Member apne phone par apna active plan, expiry date aur daily streak dekh sakta hai.
+   - Assigned trainer, daily workout schedule, diet chart aur official fee receipts.
+
+================================================================================
+2. INITIAL GYM SETUP (FIRST DAY CONFIGURATION SOP)
+================================================================================
+Kisi bhi gym me pehle din Univo Gym start karne ke 4 aasan steps:
+
+Step 2.1: Gym Profile & Branding (Settings):
+- Business Profile me Gym ka Legal Name, Phone, Email, Address daalein.
+- Gym ka Logo aur UPI QR Code upload karein (taaki invoices par auto-print ho).
+- Liability waiver aur receipt terms & conditions set karein.
+
+Step 2.2: Membership Plans Create Karein (Memberships):
+- Standard plans banayein:
+  * 1-Month Basic (₹2,500)
+  * 3-Month Pro (₹6,500)
+  * 6-Month Transformation (₹11,000)
+  * 1-Year Elite (₹18,000)
+- Duration (in days/months), pricing aur features set karein.
+
+Step 2.3: Trainers & PT Packages Add Karein (Trainers):
+- Trainers ka naam, specialization, phone aur shift timings (Morning, Evening, Both) add karein.
+- Har trainer ke personal training packages daalein (e.g. 1 Month PT ₹4,500).
+
+Step 2.4: Add-on Services Configure Karein (Services):
+- Gym ke extra services set karein: Steam & Sauna, Personal Locker, Diet Consultation.
+- Billing type: Per Month ya One-Time.
+
+================================================================================
+3. MEMBER ADMISSION & ONBOARDING (2 SEAMLESS METHODS)
+================================================================================
+
+METHOD A: Direct In-Person Admission ("+ Add Member" Button):
+1. Member Directory me upar right side me "+ Add Member" par click karein.
+2. Form bharein: Name, Phone, Gender, Workout Slot (Morning/Evening/Night).
+3. Plan Select Karein: Gym plan select karein, duration aur price auto-fill hoga.
+4. Personal Trainer (Optional): Agar member coach chahta hai toh coach select karein.
+5. Payment Entry: Paid amount dalein (Full ya Partial Due).
+6. Save: "Save Member" dabate hi member Active ho jata hai aur WhatsApp invoice popup aa jata hai.
+
+METHOD B: 10-Minute Self-Registration WhatsApp Link:
+- Rush hours me reception par line se bachne ke liye:
+1. Upar "Share 10-Min Link" button par click karein.
+2. Link member ke WhatsApp par bhej dein.
+3. Member apne mobile par apna photo upload karta hai, details bharta hai aur digital waiver sign karta hai.
+4. Link 10 minute me auto-expire ho jati hai security ke liye. Member turant directory me add ho jata hai.
+
+================================================================================
+4. MEMBER DIRECTORY COMMAND CENTER (7 METRIC TABS & 13 BUTTON ACTIONS)
+================================================================================
+
+7 AUTOMATED METRIC FILTER TABS:
+1. Fully Paid (Green): Un sabhi members ki list jinki fees paid hai aur expiry date aage hai.
+2. Ending Soon (Amber): Members jinka plan agle 3 dino ke andar khatam hone wala hai.
+3. Expired (Red): Members jinki validity khatam ho chuki hai. Inka gate access automatic lock ho chuka hai.
+4. Due (Red Alert): Members jinka admission token/partial fee par hua tha aur balance baki hai.
+5. Partial Fee (Amber): Outstanding payment balance wale members.
+6. Gym Left (Slate): Wo members jinhone gym chhod diya. Coach slot free ho chuka hai aur login band ho chuka hai.
+7. PT Ended (Purple): Member ka gym plan active hai, lekin personal coach package expire ho chuka hai.
+
+HAR EK BUTTON KA PURA KAAM (13 ACTION TRIGGERS):
+1. View (Eye Icon):
+   - Member ki 360 Profile kholta hai: Attendance history, payment ledger, medical notes aur progress photos.
+2. Extend (Calendar Plus):
+   - Bina naya bill banaye member ko complimentary days (+10 days ya custom) deta hai (jaise injury/chhutti ke waqt).
+3. Gym Renew (Rotate Ccw):
+   - Jab plan expire ho jaye toh naya cycle shuru karta hai: naya plan chunein, fees collect karein aur fresh validity start karein.
+4. PT Renew (Sparkles Icon):
+   - Personal training package renew karta hai, trainer commission calculate karta hai aur shift schedule renew karta hai.
+5. Collect / Remaining (Rupee Icon):
+   - Due balance collect karne ka fast window. Baki bachi fees jama karta hai aur balance receipt deta hai.
+6. Receipt (Receipt Icon):
+   - Official payment bill kholta hai. Professional PDF print nikalta hai aur WhatsApp par 1-click me bhejta hai.
+7. Edit (Pencil Icon):
+   - Member ka phone number, slot, emergency contact, email aur photo update karta hai.
+8. Left (LogOut Icon):
+   - Member ko 'Left Gym' mark karta hai. Reason record karta hai, trainer ki shift free karta hai aur member portal login band kar deta hai.
+9. Rejoin Gym (Rotate Ccw on Left Members):
+   - Chhute hue member ke liye special flow: Nayi membership modal kholta hai, validity AAJ KI DATE se start karta hai aur naya bill banata hai.
+10. Delete (Trash Icon):
+    - Member ko database aur local memory se permanently remove kar deta hai.
+11. + Add PT:
+    - Mahine ke beech me kisi floor member ko bina uska gym plan reset kiye Personal Trainer allot karta hai.
+12. End PT:
+    - Member ka gym chalu rakhte hue uska trainer package khatam karta hai aur coach ki shift release karta hai.
+13. Lock / Unlock Gate (Biometric Tab):
+    - Kisi member ka biometric gate access disciplinary reasons ke liye 1 click me block ya unblock karta hai.
+
+================================================================================
+5. PERSONAL TRAINING (PT) LIFECYCLE & TRAINER SCHEDULE
+================================================================================
+- Gym is Base Rule: Koi bhi client akela PT nahi le sakta, gym membership mandatory foundation hai.
+- Independent Validity: Gym Plan (e.g. 3 Months) aur PT Package (e.g. 1 Month) ki apni alag start aur expiry dates hoti hain.
+- Automated Shift Release: Jab member PT end karta hai ya left hota hai, trainer ka specific slot (e.g. Morning 7-8 AM) free ho jata hai taaki naya member assign ho sake.
+- Separate Bills: Gym fees aur PT fees ke alag-alag transparent bills bante hain taaki coach commission me 0 confusion rahe.
+
+================================================================================
+6. UNIVERSAL BIOMETRIC ATTENDANCE & REAL-TIME 4-POINT GATE LOCK
+================================================================================
+
+REAL-TIME 4-POINT GATE SECURITY ENGINE:
+Jaise hi koi scanner par thumb/face lagata hai, software 0.1 second me 4 checks karta hai:
+1. Expiry Check: Agar expiryDate < today -> DENIED: "Membership Expired". Gate lock rehta hai.
+2. Due Balance Check: Agar fees pending hai -> DENIED: "Pending Due Balance". Gate lock rehta hai.
+3. Left Check: Agar member gym chhod chuka hai -> DENIED: "Account Terminated". Gate lock rehta hai.
+4. Owner Lock Check: Agar owner ne lock kiya hai -> DENIED: "Biometric Access Suspended". Gate lock rehta hai.
+- Agar charo check pass hain: LCD screen green hoti hai ("ACCESS GRANTED"), daily attendance mark hoti hai, streak +1 badhti hai aur gate open hota hai!
+
+HARDWARE CONNECTIVITY OPTIONS:
+- Cloud Webhook Mode (Realtime / e-SSL): Machine menu me Webhook URL daal do, direct internet se cloud sync. No PC needed.
+- Local LAN Mode (Secureye S-B8CB): Same Wi-Fi par machine aur computer connected, local bridge punches sync karta hai.
+- USB Pen Drive Mode (Offline Gyms): Pen drive lagayi -> U-Flash -> Download GLog -> Software me 1-click upload!
+
+================================================================================
+7. BILLING, MULTI-MODE PAYMENTS & WHATSAPP RECEIPTS
+================================================================================
+- Payment Modes: Cash, Online UPI (QR Code Scan), Direct Bank Transfer, aur Split Payments (Cash + UPI).
+- GST & Non-GST: Gym settings se GST percentage aur HSN code toggle kar sakte hain.
+- Auto-Invoice: Har payment par unique Receipt Number (e.g. REC-100234), gym branding aur validity dates ke saath PDF bill banta hai.
+- WhatsApp Integration: Ek click me member ke WhatsApp par pre-formatted confirmation message aur bill link chala jata hai.
+
+================================================================================
+8. FRONT DESK & LEAD MANAGEMENT (VISITS & INQUIRIES)
+================================================================================
+- Walk-In Entry: Aane wale visitor ka naam, phone, interested plan aur trial demo date note karein.
+- Pipeline Stages: New Inquiry -> Demo Scheduled -> Follow-Up -> Converted -> Lost.
+- 1-Click Convert: "Convert to Member" dabate hi visitor ki saari details seedha Admission Form me chali jati hain.
+
+================================================================================
+9. EQUIPMENT INVENTORY, STOCK & EXPENSES
+================================================================================
+- Stock Management: Machines, Barbells, Dumbbells, Plates aur Consumables (Chalk, Sanitizers) ka record.
+- Service Interval Alarms: Service due days set karein (e.g. cable lubrication every 30 days). System automatic alert deta hai.
+- Expenses Tracker: Daily petty cash expenses (repairs, cleaning) aur monthly recurring expenses (rent, electricity, salaries).
+
+================================================================================
+10. BUSINESS REPORTS, P&L ANALYTICS & STAFF PERMISSIONS
+================================================================================
+- Daily & Monthly P&L: Total Revenue minus Total Expenses = Net Profit calculation.
+- Member Growth Charts: Pichle 12 mahino me naye admissions vs dropped members ka visual chart.
+- Granular Permissions: Staff members ko customize permissions: kaun payments dekh sakta hai, kaun reports dekh sakta hai, aur kaun delete kar sakta hai.
+
+================================================================================
+         ALL RIGHTS RESERVED © 2026 UNIVO GYM MANAGEMENT SYSTEM
+================================================================================

@@ -109,21 +109,28 @@ export function StatusBadge({ status, dueAmount, member }) {
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
-export function Avatar({ member, size = 'sm' }) {
-  const sizeMap = { sm: 'w-10 h-10 text-xs', md: 'w-12 h-12 text-base', lg: 'w-16 h-16 text-xl' };
+export function Avatar({ member, size = 'md', className = '' }) {
+  const sizeMap = {
+    xs: 'w-8 h-8 text-[11px]',
+    sm: 'w-10 h-10 text-xs',
+    md: 'w-12 h-12 text-sm',
+    lg: 'w-14 h-14 sm:w-16 sm:h-16 text-base',
+    xl: 'w-20 h-20 text-xl'
+  };
   const name = getName(member);
+  const photo = member.photoURL || member.photo || member.photoUrl || member.avatar || member.image;
 
-  if (member.photoURL) {
+  if (photo) {
     return (
       <img
-        src={member.photoURL}
+        src={photo}
         alt={name}
-        className={`${sizeMap[size]} rounded-full object-cover ring-2 ring-slate-100 shadow-sm`}
+        className={`${sizeMap[size] || size} rounded-2xl object-cover ring-2 ring-slate-200/80 shadow-sm flex-shrink-0 ${className}`}
       />
     );
   }
 
-  const initials = name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
+  const initials = name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2) || 'M';
   const colors = [
     'from-emerald-500 to-teal-600',
     'from-cyan-500 to-blue-600',
@@ -133,7 +140,7 @@ export function Avatar({ member, size = 'sm' }) {
   const colorIdx = name.charCodeAt(0) % colors.length;
 
   return (
-    <div className={`${sizeMap[size]} rounded-full bg-gradient-to-br ${colors[colorIdx]} flex items-center justify-center font-bold text-white shadow-sm flex-shrink-0`}>
+    <div className={`${sizeMap[size] || size} rounded-2xl bg-gradient-to-br ${colors[colorIdx]} flex items-center justify-center font-bold text-white shadow-sm flex-shrink-0 ${className}`}>
       {initials}
     </div>
   );

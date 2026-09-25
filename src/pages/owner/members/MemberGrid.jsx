@@ -101,7 +101,7 @@ export default function MemberGrid({
             <div>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2.5">
-                  <Avatar member={m} size="md" />
+                  <Avatar member={m} size="lg" />
                   <div>
                     <h4 className="font-extrabold text-slate-900 text-sm leading-tight flex items-center gap-1">
                       {name}

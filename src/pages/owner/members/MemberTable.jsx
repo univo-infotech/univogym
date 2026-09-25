@@ -123,8 +123,8 @@ export default function MemberTable({
                       COLUMN 1: MEMBER PROFILE (Identity, Shift, Joined)
                   ========================================================= */}
                   <td className="px-5 py-4 align-top">
-                    <div className="flex items-start gap-3">
-                      <Avatar member={m} size="sm" />
+                    <div className="flex items-start gap-3.5">
+                      <Avatar member={m} size="lg" />
                       <div className="space-y-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="font-extrabold text-slate-900 text-sm leading-tight">
