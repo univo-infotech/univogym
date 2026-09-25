@@ -68,17 +68,8 @@ export default function MemberDetail() {
   const [transformations, setTransformations] = useState([]);
   const [trainers, setTrainers] = useState([]);
   const [plans, setPlans] = useState([]);
-  const [payModalOpen, setPayModalOpen] = useState(false);
   const [ptModalOpen, setPtModalOpen] = useState(false);
   const [settings] = useState(getGymSettings());
-
-  const [payForm, setPayForm] = useState({
-    amount: "1499",
-    paidAmount: "1499",
-    dueAmount: "0",
-    paymentMode: "online",
-    date: new Date().toISOString().split("T")[0],
-  });
 
   const [ptForm, setPtForm] = useState({
     trainerId: "",
@@ -181,11 +172,6 @@ export default function MemberDetail() {
         const m = await getMember("univo_main", targetMemberId);
         if (m) {
           setMember(m);
-          setPayForm((prev) => ({
-            ...prev,
-            amount: String(m.planPrice || 1499),
-            paidAmount: String(m.planPrice || 1499)
-          }));
         } else {
           // Dynamic fallback with target ID
           const fallbackMem = {
@@ -275,46 +261,99 @@ export default function MemberDetail() {
     );
   }
 
-  const handleRecordPay = async (e) => {
-    e.preventDefault();
-    const newP = {
-      ...payForm,
-      id: "p_" + Date.now(),
-      memberId: targetMemberId,
-      memberName: member.name || member.fullName,
-      planName: member.planName || "Membership Plan",
-      status: "paid",
-      date: payForm.date || new Date().toISOString().split("T")[0]
-    };
+  const formatTxnDateTime = (p) => {
+    let dateStr = "—";
+    let timeStr = "";
 
-    try {
-      await addPayment("univo_main", newP);
-      // Auto-extend expiry by 30 days & reactivate account
-      const expDate = new Date();
-      expDate.setMonth(expDate.getMonth() + 1);
-      const newExpiry = expDate.toISOString().split("T")[0];
-
-      await updateMember("univo_main", targetMemberId, {
-        status: "active",
-        active: true,
-        expiryDate: newExpiry,
-        dueAmount: 0
-      });
-
-      setMember((prev) => ({
-        ...prev,
-        status: "active",
-        active: true,
-        expiryDate: newExpiry,
-        dueAmount: 0
-      }));
-    } catch (err) {
-      console.warn("Save payment err:", err);
+    if (p.createdAt) {
+      const d = p.createdAt.toDate ? p.createdAt.toDate() : new Date(p.createdAt);
+      if (!isNaN(d.getTime())) {
+        dateStr = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        timeStr = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+      }
     }
 
-    setPayments([newP, ...payments]);
-    setPayModalOpen(false);
-    toast.success("Payment recorded & membership reactivated!");
+    if (dateStr === "—" && p.date) {
+      if (typeof p.date === "string") {
+        dateStr = p.date;
+      } else if (p.date.toDate) {
+        const d = p.date.toDate();
+        dateStr = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        timeStr = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+      }
+    }
+
+    return { date: dateStr, time: timeStr };
+  };
+
+  const handleSendReceiptWA = (p) => {
+    const rawPhone = (member?.phone || p.phone || "").replace(/\D/g, "");
+    if (!rawPhone) {
+      toast.error("Member phone number not available for WhatsApp");
+      return;
+    }
+    const amt = Number(p.paidAmount || p.amount || 0).toLocaleString("en-IN");
+    const plan = p.planName || member?.planName || "Membership Fee";
+    const dtInfo = formatTxnDateTime(p);
+    const dtText = dtInfo.time ? `${dtInfo.date} at ${dtInfo.time}` : dtInfo.date;
+    const mode = (p.paymentMode || "online").toUpperCase();
+    const receiptNo = p.receiptNo || p.id || "REC-" + Date.now().toString().slice(-6);
+
+    let msg = `🧾 *Official Payment Receipt - ${settings.gymName}*\n\n` +
+      `Hi *${member?.name || member?.fullName || "Athlete"}*,\n` +
+      `Your payment has been successfully recorded.\n\n` +
+      `📄 *Receipt / Invoice No:* ${receiptNo}\n` +
+      `🏋️ *Plan / Service:* ${plan}\n` +
+      `💰 *Amount Paid:* ₹${amt}\n` +
+      `💳 *Payment Mode:* ${mode}\n` +
+      `📅 *Date & Time:* ${dtText}\n`;
+
+    if (p.paymentMode === "split" && (p.cashAmount || p.onlineAmount)) {
+      msg += `💵 *Split Breakdown:* Cash: ₹${Number(p.cashAmount || 0).toLocaleString("en-IN")} | Online UPI: ₹${Number(p.onlineAmount || 0).toLocaleString("en-IN")}\n`;
+    }
+    if (p.validityStart && p.validityEnd) {
+      msg += `⏳ *Validity:* ${p.validityStart} to ${p.validityEnd}\n`;
+    }
+    if (Number(p.dueAmount || 0) > 0) {
+      msg += `⚠️ *Balance Due:* ₹${Number(p.dueAmount).toLocaleString("en-IN")}\n`;
+    }
+    if (p.reference) {
+      msg += `🔢 *Ref / UTR:* ${p.reference}\n`;
+    }
+    msg += `\nThank you for choosing ${settings.gymName}! Keep crushing your workouts! 💪🔥`;
+
+    openWhatsApp(rawPhone, msg);
+  };
+
+  const renderPaymentModeTag = (p) => {
+    const mode = (p.paymentMode || p.mode || "online").toLowerCase();
+    if (mode === "split" || mode === "mixed") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+          <Split className="w-3.5 h-3.5 text-amber-600" />
+          Split ({Number(p.cashAmount || 0) > 0 ? `Cash ₹${p.cashAmount}` : ""}{Number(p.onlineAmount || 0) > 0 ? ` + Online ₹${p.onlineAmount}` : ""})
+        </span>
+      );
+    }
+    if (mode === "cash") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+          <Banknote className="w-3.5 h-3.5 text-emerald-600" /> Cash Payment
+        </span>
+      );
+    }
+    if (mode === "bank") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">
+          <Building2 className="w-3.5 h-3.5 text-blue-600" /> Bank Transfer
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-800 border border-purple-200">
+        <Smartphone className="w-3.5 h-3.5 text-purple-600" /> Online UPI
+      </span>
+    );
   };
 
   const handleActivatePT = async (withWhatsApp = true) => {
@@ -525,12 +564,6 @@ export default function MemberDetail() {
               <Sparkles className="w-4 h-4 text-purple-200" /> + Add PT Package
             </button>
           )}
-          <button
-            onClick={() => setPayModalOpen(true)}
-            className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-sm"
-          >
-            Record Payment
-          </button>
         </div>
       </div>
 
@@ -904,35 +937,186 @@ export default function MemberDetail() {
         </div>
       )}
 
-      {/* Tab 2: Payments */}
+      {/* Tab 2: Payments / Transaction Ledger */}
       {activeTab === "payments" && (
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900">Payment History & Receipts</h3>
-            <button
-              onClick={() => setPayModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm"
-            >
-              + Record Payment
-            </button>
+        <div className="space-y-5">
+          {/* Financial Summary Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Paid Amount</p>
+              <p className="text-xl font-black text-emerald-600 mt-1">
+                ₹{payments.reduce((acc, p) => acc + Number(p.paidAmount || p.amount || 0), 0).toLocaleString("en-IN")}
+              </p>
+            </div>
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Outstanding Dues</p>
+              <p className={`text-xl font-black mt-1 ${Number(member.dueAmount || 0) > 0 ? "text-amber-600" : "text-slate-800"}`}>
+                ₹{Number(member.dueAmount || 0).toLocaleString("en-IN")}
+              </p>
+            </div>
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Transactions</p>
+              <p className="text-xl font-black text-indigo-700 mt-1">
+                {payments.length}
+              </p>
+            </div>
+            <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Current Membership</p>
+              <p className="text-xs font-extrabold text-slate-800 mt-1.5 truncate" title={member.planName}>
+                {member.planName || "Standard Plan"}
+              </p>
+            </div>
           </div>
 
-          <div className="divide-y divide-slate-100">
-            {payments.map((p) => (
-              <div key={p.id} className="py-3.5 flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">{p.planName}</h4>
-                  <p className="text-xs text-slate-400">Date: {p.date} • Mode: <span className="font-bold uppercase text-slate-600">{p.paymentMode}</span></p>
-                  <p className="text-xs text-emerald-600 font-extrabold mt-0.5">Paid: ₹{p.paidAmount || p.amount}</p>
-                </div>
-                <button
-                  onClick={() => generatePaymentReceipt(p)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
-                >
-                  <Download className="w-3.5 h-3.5 text-emerald-600" /> Official PDF Receipt
-                </button>
+          {/* Transactions List */}
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-emerald-600" /> Member Transaction Ledger
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Complete history of fee payments, renewals, payment modes (Cash / Online / Split), exact time & receipts.
+                </p>
               </div>
-            ))}
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-700 w-fit">
+                {payments.length} {payments.length === 1 ? "Record" : "Records"} Found
+              </span>
+            </div>
+
+            {payments.length === 0 ? (
+              <div className="py-12 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                  <Receipt className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-800">No Transactions Found</h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Payments and renewals collected for this member in the directory will appear here with full timestamps and tax invoices.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3.5">
+                {payments.map((p) => {
+                  const { date: txnDate, time: txnTime } = formatTxnDateTime(p);
+                  const isPartial = Number(p.dueAmount || 0) > 0;
+                  const receiptNo = p.receiptNo || p.id;
+
+                  return (
+                    <div
+                      key={p.id}
+                      className="p-4 sm:p-5 rounded-2xl bg-slate-50/70 hover:bg-slate-50 border border-slate-200/80 transition space-y-3"
+                    >
+                      {/* Top Header of each transaction */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-200/60">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white font-mono font-extrabold text-[11px] tracking-wider shadow-2xs">
+                            {receiptNo}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold bg-white px-2.5 py-1 rounded-lg border border-slate-200/80">
+                            <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>{txnDate}</span>
+                            {txnTime && (
+                              <>
+                                <span className="text-slate-300">•</span>
+                                <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                                <span className="font-bold text-slate-800">{txnTime}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {renderPaymentModeTag(p)}
+                          {isPartial ? (
+                            <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-amber-50 text-amber-900 border border-amber-300">
+                              ⚠️ Due: ₹{Number(p.dueAmount).toLocaleString("en-IN")}
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              ✓ Paid in Full
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Middle Details */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-sm font-bold text-slate-900">{p.planName || "Membership Fee"}</h4>
+                            {p.planType && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200/70 text-slate-700">
+                                {p.planType}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap text-xs">
+                            {(p.validityStart || p.validityEnd) && (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-slate-600 font-medium bg-white px-2.5 py-0.5 rounded-md border border-slate-200">
+                                <Calendar className="w-3 h-3 text-slate-400" />
+                                Validity: <strong className="text-slate-800">{p.validityStart || "—"}</strong> to <strong className="text-slate-800">{p.validityEnd || "—"}</strong>
+                              </span>
+                            )}
+                            {p.trainerName && (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                                <Sparkles className="w-3 h-3 text-indigo-600" /> Coach: {p.trainerName}
+                              </span>
+                            )}
+                          </div>
+
+                          {(p.paymentMode === "split" || p.paymentMode === "mixed") && (Number(p.cashAmount || 0) > 0 || Number(p.onlineAmount || 0) > 0) && (
+                            <div className="text-xs text-amber-900 bg-amber-50/80 px-2.5 py-1 rounded-lg border border-amber-200 font-semibold inline-flex items-center gap-2">
+                              <span>💵 Cash: ₹{Number(p.cashAmount || 0).toLocaleString("en-IN")}</span>
+                              <span>•</span>
+                              <span>📱 Online: ₹{Number(p.onlineAmount || 0).toLocaleString("en-IN")}</span>
+                            </div>
+                          )}
+
+                          {(p.reference || p.remarks) && (
+                            <p className="text-[11px] text-slate-500 font-mono">
+                              <span className="font-bold text-slate-700 font-sans">Details: </span>
+                              {p.reference ? `Ref: ${p.reference} ` : ""}{p.remarks ? `• ${p.remarks}` : ""}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Amount Box */}
+                        <div className="sm:text-right bg-white sm:bg-transparent p-3 sm:p-0 rounded-xl border sm:border-0 border-slate-200">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">Amount Paid</p>
+                          <p className="text-xl font-black text-emerald-600 mt-0.5">
+                            ₹{Number(p.paidAmount || p.amount || 0).toLocaleString("en-IN")}
+                          </p>
+                          {Number(p.amount) > Number(p.paidAmount) && (
+                            <p className="text-[11px] text-slate-500">
+                              Total Fee: ₹{Number(p.amount).toLocaleString("en-IN")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bottom Action Bar */}
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/60">
+                        <button
+                          onClick={() => handleSendReceiptWA(p)}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition shadow-2xs"
+                          title="Member ko WhatsApp par official receipt bhejein"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp Receipt
+                        </button>
+                        <button
+                          onClick={() => generatePaymentReceipt(p)}
+                          className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold flex items-center gap-1.5 transition shadow-2xs"
+                          title="Official GST/Gym Tax Invoice PDF download karein"
+                        >
+                          <Download className="w-3.5 h-3.5 text-indigo-600" /> Download PDF Receipt
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1084,52 +1268,6 @@ export default function MemberDetail() {
           )}
         </div>
       )}
-
-      {/* Record Pay Modal */}
-      <Modal isOpen={payModalOpen} onClose={() => setPayModalOpen(false)} title="💳 Record Member Fee Payment">
-        <form onSubmit={handleRecordPay} className="space-y-4 text-slate-800">
-          <div>
-            <label className="text-xs font-bold text-slate-700">Amount Paid (₹) *</label>
-            <input
-              required
-              type="number"
-              value={payForm.paidAmount}
-              onChange={(e) => setPayForm({ ...payForm, paidAmount: e.target.value, amount: e.target.value })}
-              className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-bold text-slate-700">Payment Mode</label>
-              <select
-                value={payForm.paymentMode}
-                onChange={(e) => setPayForm({ ...payForm, paymentMode: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900"
-              >
-                <option value="online">Online UPI</option>
-                <option value="cash">Cash</option>
-                <option value="bank">Bank Transfer</option>
-                <option value="mixed">Mixed / Split</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-bold text-slate-700">Payment Date</label>
-              <input
-                type="date"
-                value={payForm.date}
-                onChange={(e) => setPayForm({ ...payForm, date: e.target.value })}
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900"
-              />
-            </div>
-          </div>
-          <button
-            type="submit"
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:opacity-95"
-          >
-            Save Payment & Generate Receipt
-          </button>
-        </form>
-      </Modal>
 
       {/* Add Mid-Month PT Package Modal */}
       <Modal isOpen={ptModalOpen} onClose={() => setPtModalOpen(false)} title={`✨ Add PT Package & Bill — ${member.name || member.fullName}`} maxWidth="max-w-xl">
