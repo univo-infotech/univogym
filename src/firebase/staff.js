@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  getDoc,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -125,4 +126,74 @@ export async function getSalaryHistory(gymId, staffId) {
     return [];
   }
 }
+
+// ─── Trainer Salary History ───────────────────────────────────────
+export async function markTrainerSalaryPaid(gymId, trainerId, monthKey, paidData) {
+  const ref = doc(db, "gyms", gymId, "trainers", trainerId, "salaryHistory", monthKey);
+  await setDoc(ref, {
+    ...paidData,
+    paidAt: serverTimestamp(),
+    status: "paid",
+  }, { merge: true });
+}
+
+export async function getTrainerSalaryHistory(gymId, trainerId) {
+  try {
+    const snap = await getDocs(
+      collection(db, "gyms", gymId, "trainers", trainerId, "salaryHistory")
+    );
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch {
+    return [];
+  }
+}
+
+// ─── Staff Daily Attendance ──────────────────────────────────────
+export async function markStaffAttendance(gymId, staffId, date, status = "present", notes = "") {
+  const ref = doc(db, "gyms", gymId, "staff", staffId, "attendance", date);
+  await setDoc(ref, {
+    date,
+    status, // "present" | "absent" | "halfday" | "weekly_off" | "paid_leave"
+    notes,
+    markedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+export async function getStaffAttendanceForMonth(gymId, staffId, monthKey) {
+  try {
+    const snap = await getDocs(
+      collection(db, "gyms", gymId, "staff", staffId, "attendance")
+    );
+    return snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((d) => d.date && d.date.startsWith(monthKey));
+  } catch {
+    return [];
+  }
+}
+
+// ─── Monthly Leaves & Attendance Overrides ───────────────────────
+export async function setEmployeeMonthlyLeaves(gymId, empId, monthKey, leavesData, isTrainer = false) {
+  const collectionName = isTrainer ? "trainers" : "staff";
+  const ref = doc(db, "gyms", gymId, collectionName, empId, "monthlyLeaves", monthKey);
+  await setDoc(ref, {
+    ...leavesData,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+export async function getEmployeeMonthlyLeaves(gymId, empId, monthKey, isTrainer = false) {
+  try {
+    const collectionName = isTrainer ? "trainers" : "staff";
+    const ref = doc(db, "gyms", gymId, collectionName, empId, "monthlyLeaves", monthKey);
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      return snap.data();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 

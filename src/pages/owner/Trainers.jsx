@@ -1030,35 +1030,18 @@ export default function Trainers() {
               </div>
             </div>
 
-            <div className="pt-4 flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleOpenEdit(t)}
-                  className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 text-xs font-bold flex items-center justify-center gap-1.5 transition"
-                >
-                  <Edit className="w-3.5 h-3.5 text-emerald-600" /> Edit Profile
-                </button>
-                <button
-                  onClick={() => setViewTrainerModal(t)}
-                  className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center justify-center gap-1.5 transition"
-                >
-                  <Eye className="w-3.5 h-3.5 text-slate-600" /> View Profile
-                </button>
-              </div>
-
+            <div className="pt-4 flex items-center gap-2">
               <button
-                onClick={() => {
-                  const num = (t.phone || "").replace(/\D/g, "");
-                  window.open(
-                    `https://wa.me/${num}?text=Hi%20${encodeURIComponent(
-                      t.name || "Coach"
-                    )},%20Checking%20in%20from%20the%20gym!`,
-                    "_blank"
-                  );
-                }}
-                className="w-full py-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                onClick={() => handleOpenEdit(t)}
+                className="flex-1 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 text-xs font-bold flex items-center justify-center gap-1.5 transition"
               >
-                <MessageCircle className="w-4 h-4 text-emerald-600" /> Message on WhatsApp
+                <Edit className="w-3.5 h-3.5 text-emerald-600" /> Edit Profile
+              </button>
+              <button
+                onClick={() => setViewTrainerModal(t)}
+                className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+              >
+                <Eye className="w-3.5 h-3.5 text-slate-600" /> View Profile
               </button>
             </div>
           </div>
