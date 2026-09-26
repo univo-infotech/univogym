@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import { getGymSettings } from "./settings";
+import { formatDate, formatDateTime } from "./dateUtils";
 
 export function generatePaymentReceipt(payment, customSettings = null) {
   const settings = customSettings || getGymSettings();
@@ -73,7 +74,7 @@ export function generatePaymentReceipt(payment, customSettings = null) {
   doc.roundedRect(15, 43, 180, 24, 3, 3, "FD");
 
   const receiptNo = payment.receiptNo || payment.id || `INV-${Date.now().toString().slice(-6)}`;
-  const payDate = payment.date || new Date().toLocaleDateString("en-IN");
+  const payDate = formatDate(payment.date || new Date());
   const isPartial = Number(payment.dueAmount) > 0;
 
   doc.setFontSize(9);
@@ -122,7 +123,7 @@ export function generatePaymentReceipt(payment, customSettings = null) {
   doc.text("Amount (INR)", 165, 99.5);
 
   const validityText = (payment.validityStart && payment.validityEnd)
-    ? `${payment.validityStart} to ${payment.validityEnd}`
+    ? `${formatDate(payment.validityStart)} to ${formatDate(payment.validityEnd)}`
     : payment.validity || "Active Validity";
 
   // Build itemized list of particulars
@@ -402,7 +403,7 @@ export function generateFinancialStatementPDF({
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(100, 116, 139);
-  doc.text(`Generated On: ${new Date().toLocaleString("en-IN")}`, 18, 60.5);
+  doc.text(`Generated On: ${formatDateTime(new Date())}`, 18, 60.5);
   doc.text(`Audited By: ${settings.ownerSignatureName || "Authorized Administrator"}`, 110, 60.5);
 
   // 4. Financial KPI Summary Cards
@@ -505,7 +506,7 @@ export function generateFinancialStatementPDF({
   } else {
     revRows.forEach((item) => {
       doc.setTextColor(30, 41, 59);
-      doc.text(String(item.date || "—").slice(0, 10), 17, currentY + 4);
+      doc.text(formatDate(item.date), 17, currentY + 4);
       doc.text(String(item.memberName || item.particulars || "Gym Member").slice(0, 28), 42, currentY + 4);
       doc.text(String(item.planName || item.category || "Membership Fee").slice(0, 22), 105, currentY + 4);
       doc.text(String(item.paymentMode || "Cash").toUpperCase(), 152, currentY + 4);
@@ -547,7 +548,7 @@ export function generateFinancialStatementPDF({
   } else {
     expRows.forEach((item) => {
       doc.setTextColor(30, 41, 59);
-      doc.text(String(item.date || "—").slice(0, 10), 17, currentY + 4);
+      doc.text(formatDate(item.date), 17, currentY + 4);
       doc.text(String(item.title || "Operational Overhead").slice(0, 32), 42, currentY + 4);
       doc.text(String(item.category || "General").slice(0, 18), 115, currentY + 4);
       doc.text(String(item.type || "One-time").toUpperCase(), 152, currentY + 4);
@@ -654,7 +655,7 @@ export function generateTrainerEarningsStatementPDF({
 
   doc.setFont("helvetica", "normal");
   doc.text(`Phone / WhatsApp: ${trainerPhone || "—"}`, 22, 59);
-  doc.text(`Generated On: ${new Date().toLocaleDateString("en-IN")} ${new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`, 120, 59);
+  doc.text(`Generated On: ${formatDateTime(new Date())}`, 120, 59);
 
   // KPI Summary Strip (4 Cards)
   const kpis = [
@@ -723,7 +724,7 @@ export function generateTrainerEarningsStatementPDF({
       doc.setFontSize(7.5);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(30, 41, 59);
-      doc.text(String(row.date || "—").slice(0, 10), 19, curY + 3.5);
+      doc.text(formatDate(row.date), 19, curY + 3.5);
       doc.text(String(row.title || row.clientName || "—").slice(0, 28), 45, curY + 3.5);
       doc.text(String(row.typeLabel || row.planName || "Incentive").slice(0, 26), 100, curY + 3.5);
       doc.text(Number(row.totalSale || 0).toLocaleString("en-IN"), 150, curY + 3.5, { align: "right" });

@@ -529,3 +529,53 @@ export async function getBeforeAfterByTrainer(gymId, trainerId) {
   return await getTrainerBeforeAfter(gymId, trainerId);
 }
 
+/**
+ * Create a rich pre-configured Trainer Invite Link
+ */
+export async function createTrainerInvite(gymId, inviteData) {
+  const GID = gymId || "univo_main";
+  const token = "trinv_" + Date.now().toString(36) + "_" + Math.random().toString(36).substring(2, 8);
+  const docData = {
+    ...inviteData,
+    token,
+    gymId: GID,
+    used: false,
+    createdAt: new Date().toISOString()
+  };
+
+  try {
+    await setDoc(doc(db, "gyms", GID, "trainerInvites", token), docData);
+  } catch (e) {
+    console.warn("Failed to save invite to gym subcollection:", e);
+  }
+
+  try {
+    await setDoc(doc(db, "trainerInvites", token), docData);
+  } catch (e2) {
+    console.warn("Failed to save invite to top-level collection:", e2);
+  }
+
+  return token;
+}
+
+/**
+ * Retrieve a Trainer Invite by token
+ */
+export async function getTrainerInvite(gymId, token) {
+  if (!token) return null;
+  const GID = gymId || "univo_main";
+
+  try {
+    const snap1 = await getDoc(doc(db, "gyms", GID, "trainerInvites", token));
+    if (snap1.exists()) return snap1.data();
+  } catch (e) {}
+
+  try {
+    const snap2 = await getDoc(doc(db, "trainerInvites", token));
+    if (snap2.exists()) return snap2.data();
+  } catch (e2) {}
+
+  return null;
+}
+
+

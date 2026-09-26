@@ -17,6 +17,7 @@ import { getMember } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
 import { submitComplaint, getMemberComplaints } from "../../firebase/complaints";
 import toast from "react-hot-toast";
+import { formatDate, formatDateTime } from "../../utils/dateUtils";
 
 const COMPLAINT_CATEGORIES = [
   "Trainer Absent / Late without notice",
@@ -341,7 +342,7 @@ export default function TrainerComplain() {
                   <div className="flex items-center gap-2">
                     {getStatusBadge(c.status)}
                     <span className="text-[10px] text-slate-400 font-semibold">
-                      {new Date(c.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      {formatDate(c.createdAt)}
                     </span>
                   </div>
                 </div>
@@ -365,7 +366,7 @@ export default function TrainerComplain() {
                         <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
                           <span>{r.repliedBy || "Gym Owner"}</span>
                           <span className="text-emerald-700 text-[10px]">
-                            {new Date(r.repliedAt).toLocaleDateString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                            {formatDateTime(r.repliedAt)}
                           </span>
                         </div>
                         <p className="text-slate-800 leading-relaxed font-medium">

@@ -43,6 +43,7 @@ import { getSupplementSales } from "../../firebase/stock";
 import { getStaff } from "../../firebase/staff";
 import { generateTrainerEarningsStatementPDF } from "../../utils/pdf";
 import toast from "react-hot-toast";
+import { formatDate } from "../../utils/dateUtils";
 
 function normalizeDate(dStr) {
   if (!dStr) return "";
@@ -61,10 +62,19 @@ function normalizeDate(dStr) {
   if (s.includes("/")) {
     const parts = s.split("/");
     if (parts.length === 3) {
-      const day = parts[0].padStart(2, "0");
-      const month = parts[1].padStart(2, "0");
-      const year = parts[2];
-      return `${year}-${month}-${day}`;
+      if (parts[0].length === 4) {
+        // YYYY/MM/DD
+        const year = parts[0];
+        const month = parts[1].padStart(2, "0");
+        const day = parts[2].padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      } else {
+        // DD/MM/YYYY
+        const day = parts[0].padStart(2, "0");
+        const month = parts[1].padStart(2, "0");
+        const year = parts[2];
+        return `${year}-${month}-${day}`;
+      }
     }
   }
   return s.slice(0, 10);
@@ -206,12 +216,7 @@ export default function TrainerReports() {
     if (reportMode === "daily") {
       startBoundary = selectedDailyDate;
       endBoundary = selectedDailyDate;
-      pLabel = new Date(selectedDailyDate + "T00:00:00").toLocaleDateString("en-IN", {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      });
+      pLabel = formatDate(selectedDailyDate);
       salaryMultiplier = 1 / 30; // Daily prorated salary (assuming 30 days)
     } else if (reportMode === "monthly") {
       startBoundary = `${selectedMonth}-01`;
@@ -866,7 +871,7 @@ export default function TrainerReports() {
                 {filteredItems.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/80 transition">
                     <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
-                      {item.date}
+                      {formatDate(item.date)}
                     </td>
                     <td className="py-3.5 px-4 font-black text-slate-900 whitespace-nowrap">
                       {item.clientName}

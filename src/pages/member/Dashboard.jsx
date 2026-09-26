@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import StatCard from "../../components/ui/StatCard";
 import { useAuth } from "../../contexts/AuthContext";
 import { getMember, getMembers } from "../../firebase/members";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function MemberDashboard() {
   const { gymId, profileId, user } = useAuth();
@@ -83,7 +84,7 @@ export default function MemberDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Workout Streak" value="14 Days" icon={<Flame className="w-5 h-5 text-amber-600" />} color="orange" />
         <StatCard title="Days Attended (Month)" value="18 / 26" icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />} color="green" />
-        <StatCard title="Plan Expiry" value={member?.validityEnd || "30 Days Left"} icon={<Calendar className="w-5 h-5 text-teal-600" />} color="teal" />
+        <StatCard title="Plan Expiry" value={member?.validityEnd ? formatDate(member.validityEnd) : "30 Days Left"} icon={<Calendar className="w-5 h-5 text-teal-600" />} color="teal" />
         <StatCard title="Assigned PT Coach" value={coachName} icon={<Dumbbell className="w-5 h-5 text-blue-600" />} color="blue" />
       </div>
 
@@ -106,7 +107,7 @@ export default function MemberDashboard() {
               </div>
             )}
             <p className="text-xs text-slate-500">
-              Valid until: {member?.validityEnd || member?.dueDate || "Active Subscription"}
+              Valid until: {member?.validityEnd || member?.dueDate ? formatDate(member.validityEnd || member.dueDate) : "Active Subscription"}
             </p>
             <p className="text-xs text-slate-700 pt-2 border-t border-emerald-100">
               Preferred Workout Time: <b>{member?.slot || member?.preferredTime || "Morning (6:00 AM - 9:00 AM)"}</b>

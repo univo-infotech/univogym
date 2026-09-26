@@ -32,6 +32,7 @@ import { getChatRoomId, subscribeRoomMeta } from "../../firebase/chat";
 import AthleteHealthDietModal from "../../components/trainer/AthleteHealthDietModal";
 import DirectChatModal from "../../components/shared/DirectChatModal";
 import toast from "react-hot-toast";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function TrainerDashboard() {
   const { gymId, profileId, user } = useAuth();
@@ -478,7 +479,7 @@ export default function TrainerDashboard() {
                 {referredSales.slice(0, 5).map((sale, idx) => (
                   <tr key={sale.id || idx} className="hover:bg-slate-50/60 transition">
                     <td className="py-2.5 px-3 text-slate-500 text-[11px] whitespace-nowrap">
-                      {sale.timestamp ? new Date(sale.timestamp).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Recent"}
+                      {sale.timestamp ? formatDate(sale.timestamp) : "Recent"}
                     </td>
                     <td className="py-2.5 px-3 font-bold text-slate-900">
                       {sale.productName}

@@ -5,9 +5,10 @@ import {
   Users, BadgeCheck, Gift, Scissors, CreditCard,
   Camera, MessageCircle, FileText, Filter,
   TrendingUp, TrendingDown, AlertCircle, Download,
-  ShieldCheck, Eye, ChevronLeft, DollarSign, UserCheck,
+  ShieldCheck, Eye, EyeOff, ChevronLeft, DollarSign, UserCheck,
   UserX, Briefcase, Award, CheckCircle2, ChevronDown, Dumbbell,
-  Send, Share2, CalendarCheck, Percent, Info, CheckCircle
+  Send, Share2, CalendarCheck, Percent, Info, CheckCircle, Sliders,
+  KeyRound, Shield, Copy, Sparkles, CheckSquare, Square, Lock
 } from "lucide-react";
 import Modal from "../../components/ui/Modal";
 import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
@@ -20,11 +21,79 @@ import {
   markTrainerSalaryPaid, getTrainerSalaryHistory,
   setEmployeeMonthlyLeaves, getEmployeeMonthlyLeaves
 } from "../../firebase/staff";
+import { getStaffUsers, createStaffUser, updateStaffUser, revokeStaffLogin } from "../../firebase/auth";
+import { getRoles } from "../../firebase/roles";
 import { getTrainers } from "../../firebase/trainers";
 import { addExpense } from "../../firebase/expenses";
+import { formatDate } from "../../utils/dateUtils";
 import toast from "react-hot-toast";
 
 // --- Constants ---------------------------------------------------
+const APP_MODULES = [
+  { id: "dashboard", label: "Dashboard", desc: "Live occupancy, stats & overview", noEditDelete: true },
+  { id: "members", label: "Members", desc: "Member admission, profiles & renewals" },
+  { id: "payments", label: "Fees & Receipts", desc: "Collect payments, receipts & dues" },
+  { id: "trainers", label: "Trainers & Coaches", desc: "Trainer profiles & workout plans" },
+  { id: "staff", label: "Staff Management", desc: "Staff directory & payroll records" },
+  { id: "memberships", label: "Memberships & Plans", desc: "Pricing tiers & duration packages" },
+  { id: "services", label: "Services & Amenities", desc: "Lockers, PT & extra services" },
+  { id: "stock", label: "Stock & Equipment", desc: "Gym equipment & maintenance log" },
+  { id: "expenses", label: "Expenses & Utility", desc: "Daily gym expenses & bills" },
+  { id: "reports", label: "Reports & Analytics", desc: "Financial reports & stats", noEditDelete: true },
+  { id: "visits", label: "Visits & Demos", desc: "Walk-ins, demo sessions & leads" },
+  { id: "offers", label: "Offers & Broadcast", desc: "WhatsApp marketing & promos", noEditDelete: true },
+  { id: "settings", label: "Gym Settings", desc: "Gym profile & app preferences" }
+];
+
+const DEFAULT_PRESETS = {
+  "Receptionist": {
+    title: "Receptionist",
+    icon: "🛎️",
+    desc: "Front desk operations: admission, fee collection, inquiries & receipts",
+    perms: {
+      dashboard: { view: true },
+      members: { view: true, create: true, edit: true, delete: false },
+      payments: { view: true, create: true, edit: true, delete: false },
+      visits: { view: true, create: true, edit: true, delete: false }
+    }
+  },
+  "Branch Manager": {
+    title: "Branch Manager",
+    icon: "🏢",
+    desc: "Operational management: admissions, fees, staff, expenses & visits",
+    perms: {
+      dashboard: { view: true },
+      members: { view: true, create: true, edit: true, delete: true },
+      payments: { view: true, create: true, edit: true, delete: true },
+      trainers: { view: true, create: true, edit: true, delete: false },
+      staff: { view: true, create: true, edit: false, delete: false },
+      expenses: { view: true, create: true, edit: true, delete: true },
+      reports: { view: true },
+      visits: { view: true, create: true, edit: true, delete: true }
+    }
+  },
+  "Co-Owner": {
+    title: "Co-Owner",
+    icon: "👑",
+    desc: "Full administrative partner with 100% unrestricted access to all modules",
+    perms: {
+      dashboard: { view: true },
+      members: { view: true, create: true, edit: true, delete: true },
+      payments: { view: true, create: true, edit: true, delete: true },
+      trainers: { view: true, create: true, edit: true, delete: true },
+      staff: { view: true, create: true, edit: true, delete: true },
+      memberships: { view: true, create: true, edit: true, delete: true },
+      services: { view: true, create: true, edit: true, delete: true },
+      stock: { view: true, create: true, edit: true, delete: true },
+      expenses: { view: true, create: true, edit: true, delete: true },
+      reports: { view: true },
+      visits: { view: true, create: true, edit: true, delete: true },
+      offers: { view: true },
+      settings: { view: true, create: true, edit: true, delete: true }
+    }
+  }
+};
+
 const ROLES = [
   "Reception / Front Desk",
   "Manager / Floor Supervisor",
@@ -86,7 +155,7 @@ function getFirstSalaryDueDate(joinDate) {
   const d = new Date(joinDate);
   if (isNaN(d.getTime())) return "";
   const nextMonth = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate());
-  return nextMonth.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return formatDate(nextMonth);
 }
 
 function calculateSalaryDueInfo(joinDate, targetMonthKey) {
@@ -121,7 +190,7 @@ function calculateSalaryDueInfo(joinDate, targetMonthKey) {
 
   return {
     dueStr,
-    formattedDue: dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+    formattedDue: formatDate(dueDate),
     diffDays,
     statusText,
     badgeColor,
@@ -142,14 +211,14 @@ Hi *${emp.name}*,
 Aapki salary mahine *${monthLabel(paidData.monthKey || currentMonthKey())}* ke liye process ho gayi hai:
 
 💵 *Base Salary:* Rs. ${Number(paidData.baseSalary || 0).toLocaleString("en-IN")}
-🗓️ *Joining Date:* ${emp.joinDate || "N/A"}
+🗓️ *Joining Date:* ${formatDate(emp.joinDate)}
 ✂️ *Leave Deduction:* -Rs. ${Number(paidData.leaveDeduction || 0).toLocaleString("en-IN")} (${paidData.unpaidLeaves || 0} unpaid leaves)
 🎁 *Bonus / Incentives:* +Rs. ${Number(paidData.bonuses || 0).toLocaleString("en-IN")}
 📉 *Other Deductions:* -Rs. ${Number(paidData.otherDeductions || 0).toLocaleString("en-IN")}
 ────────────────────────
 💰 *NET SALARY PAID:* Rs. ${Number(paidData.netPay || 0).toLocaleString("en-IN")}
 💳 *Payment Mode:* ${(paidData.paymentMode || "Cash").toUpperCase()}
-📅 *Payment Date:* ${paidData.paidDate || todayStr()}
+📅 *Payment Date:* ${formatDate(paidData.paidDate || todayStr())}
 ${paidData.txnRef ? `🔖 *Txn Ref / UPI:* ${paidData.txnRef}\n` : ""}
 Thank you for your dedicated service and commitment! 💪🔥`
   );
@@ -201,6 +270,10 @@ export default function Staff() {
   const [salaryFilter, setSalaryFilter] = useState("all"); // all | paid | pending
   const [staffPayrollMap, setStaffPayrollMap] = useState({});
 
+  // App Login Users & Role Presets
+  const [staffUsers, setStaffUsers] = useState([]);
+  const [availableRoles, setAvailableRoles] = useState([]);
+
   // Modals
   const [addModal, setAddModal] = useState(false);
   const [editStaff, setEditStaff] = useState(null);
@@ -208,6 +281,23 @@ export default function Staff() {
   const [payrollModal, setPayrollModal] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [activeModalTab, setActiveModalTab] = useState("basic"); // "basic" | "salary" | "aadhaar"
+
+  // Role & App Access Modal
+  const [accessModalStaff, setAccessModalStaff] = useState(null);
+  const [accessForm, setAccessForm] = useState({
+    uid: null,
+    name: "",
+    phone: "",
+    email: "",
+    password: "",
+    role: "Receptionist",
+    status: "active",
+    permissions: {}
+  });
+  const [showAccessPassword, setShowAccessPassword] = useState(false);
+  const [savingAccess, setSavingAccess] = useState(false);
+  const [revokingAccess, setRevokingAccess] = useState(false);
+  const [showPermsMatrix, setShowPermsMatrix] = useState(false);
 
   // Pay Salary Modal
   const [payModal, setPayModal] = useState(null);
@@ -244,9 +334,11 @@ export default function Staff() {
   const loadStaff = useCallback(async () => {
     setLoading(true);
     try {
-      const [staffData, trainersData] = await Promise.all([
+      const [staffData, trainersData, usersData, rolesData] = await Promise.all([
         getStaff(GID),
         getTrainers(GID).catch(() => []),
+        getStaffUsers(GID).catch(() => []),
+        getRoles(GID).catch(() => [])
       ]);
       setStaffList(staffData || []);
       setTrainersList((trainersData || []).map(t => ({
@@ -257,15 +349,33 @@ export default function Staff() {
         allowedLeaves: Number(t.allowedLeaves ?? 4),
         joinDate: t.joinDate || (t.createdAt?.toDate ? t.createdAt.toDate().toISOString().split("T")[0] : todayStr()),
       })));
+      setStaffUsers(usersData || []);
+      setAvailableRoles(rolesData || []);
     } catch {
       setStaffList([]);
       setTrainersList([]);
+      setStaffUsers([]);
+      setAvailableRoles([]);
     } finally {
       setLoading(false);
     }
   }, [GID]);
 
   useEffect(() => { loadStaff(); }, [loadStaff]);
+
+  // Fast lookup map for Staff App Access accounts
+  const staffAccessMap = useMemo(() => {
+    const map = {};
+    (staffUsers || []).forEach(u => {
+      if (u.profileId) map[u.profileId] = u;
+      if (u.email) map[u.email.toLowerCase()] = u;
+      if (u.phone) {
+        const raw = u.phone.replace(/\D/g, "");
+        if (raw) map[raw.slice(-10)] = u;
+      }
+    });
+    return map;
+  }, [staffUsers]);
 
   // Load payroll data whenever month or staff list changes
   useEffect(() => {
@@ -326,7 +436,9 @@ export default function Staff() {
     }
   }, [GID, staffList, trainersList, salaryMonth]);
 
-  // --- Month navigation helpers ---
+  // --- Month navigation helpers (Cannot go past current month) ---
+  const isLatestMonth = salaryMonth >= currentMonthKey();
+
   const handlePrevMonth = () => {
     const [y, m] = salaryMonth.split("-").map(Number);
     const d = new Date(y, m - 2, 1);
@@ -334,10 +446,23 @@ export default function Staff() {
   };
 
   const handleNextMonth = () => {
+    if (salaryMonth >= currentMonthKey()) return;
     const [y, m] = salaryMonth.split("-").map(Number);
     const d = new Date(y, m, 1);
-    setSalaryMonth(monthKey(d));
+    const nextKey = monthKey(d);
+    if (nextKey > currentMonthKey()) {
+      setSalaryMonth(currentMonthKey());
+    } else {
+      setSalaryMonth(nextKey);
+    }
   };
+
+  // Clamping guard: If state ever exceeds current month, reset to current month
+  useEffect(() => {
+    if (salaryMonth > currentMonthKey()) {
+      setSalaryMonth(currentMonthKey());
+    }
+  }, [salaryMonth]);
 
   // --- Handlers --------------------------------------------------
   const handleFileUpload = (e, field) => {
@@ -392,6 +517,13 @@ export default function Staff() {
     if (!deleteConfirm) return;
     try {
       await deleteStaff(GID, deleteConfirm.id);
+      // Clean up linked app login user if exists
+      const existingUser = staffAccessMap[deleteConfirm.id] ||
+        (deleteConfirm.email ? staffAccessMap[deleteConfirm.email.toLowerCase()] : null) ||
+        (deleteConfirm.phone ? staffAccessMap[deleteConfirm.phone.replace(/\D/g, "").slice(-10)] : null);
+      if (existingUser?.uid) {
+        await revokeStaffLogin(existingUser.uid, deleteConfirm.id, GID).catch(() => {});
+      }
       toast.success("Staff profile deleted");
       setDeleteConfirm(null);
       loadStaff();
@@ -414,6 +546,201 @@ export default function Staff() {
       console.error(err);
       toast.error("Failed to update staff status");
     }
+  };
+
+  // --- Role & App Login Access Handlers ---
+  const openRoleAccessModal = (staffMember) => {
+    const existing = staffAccessMap[staffMember.id] ||
+      (staffMember.email ? staffAccessMap[staffMember.email.toLowerCase()] : null) ||
+      (staffMember.phone ? staffAccessMap[staffMember.phone.replace(/\D/g, "").slice(-10)] : null);
+
+    const cleanPhone = (staffMember.phone || "").replace(/\D/g, "");
+    const defaultEmail = staffMember.email || (cleanPhone ? `${cleanPhone.slice(-10)}@univo.gym` : "");
+
+    let initialRole = "Receptionist";
+    if (existing?.role) {
+      initialRole = existing.role;
+    } else if ((staffMember.role || "").toLowerCase().includes("manager")) {
+      initialRole = "Branch Manager";
+    } else if ((staffMember.role || "").toLowerCase().includes("owner")) {
+      initialRole = "Co-Owner";
+    }
+
+    let initialPerms = existing?.permissions || {};
+    if (!existing || Object.keys(initialPerms).length === 0) {
+      const matched = availableRoles.find(r => (r.title || "").toLowerCase() === initialRole.toLowerCase()) || DEFAULT_PRESETS[initialRole];
+      initialPerms = matched?.perms || DEFAULT_PRESETS["Receptionist"].perms;
+    }
+
+    setAccessForm({
+      uid: existing?.uid || null,
+      name: staffMember.name,
+      phone: staffMember.phone || "",
+      email: existing?.email || defaultEmail,
+      password: existing ? "" : `Staff@${Math.floor(1000 + Math.random() * 9000)}`,
+      role: initialRole,
+      status: existing?.status || "active",
+      permissions: initialPerms
+    });
+    setShowAccessPassword(false);
+    setShowPermsMatrix(false);
+    setAccessModalStaff(staffMember);
+  };
+
+  const handleSelectRolePreset = (roleTitle) => {
+    const matched = availableRoles.find(r => (r.title || "").toLowerCase() === roleTitle.toLowerCase()) || DEFAULT_PRESETS[roleTitle];
+    const newPerms = matched?.perms || DEFAULT_PRESETS[roleTitle]?.perms || {};
+    setAccessForm(prev => ({
+      ...prev,
+      role: roleTitle,
+      permissions: newPerms
+    }));
+  };
+
+  const handleTogglePermission = (modId, action) => {
+    setAccessForm(prev => {
+      const cur = prev.permissions?.[modId] || { view: false, create: false, edit: false, delete: false };
+      const updated = { ...cur, [action]: !cur[action] };
+      if (action === "view" && !updated.view) {
+        updated.create = false;
+        updated.edit = false;
+        updated.delete = false;
+      }
+      if (action !== "view" && updated[action]) {
+        updated.view = true;
+      }
+      return {
+        ...prev,
+        permissions: {
+          ...prev.permissions,
+          [modId]: updated
+        }
+      };
+    });
+  };
+
+  const handleSelectAllPerms = (grantAll) => {
+    const newPerms = {};
+    APP_MODULES.forEach(mod => {
+      newPerms[mod.id] = grantAll
+        ? { view: true, create: !mod.noEditDelete, edit: !mod.noEditDelete, delete: !mod.noEditDelete }
+        : { view: false, create: false, edit: false, delete: false };
+    });
+    setAccessForm(prev => ({ ...prev, permissions: newPerms }));
+  };
+
+  const handleSaveRoleAccess = async (e) => {
+    e.preventDefault();
+    if (!accessForm.email.trim()) {
+      toast.error("Please enter a valid Login Email or Username");
+      return;
+    }
+    if (!accessForm.uid && (!accessForm.password || accessForm.password.length < 6)) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    if (accessForm.password && accessForm.password.length > 0 && accessForm.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
+    setSavingAccess(true);
+    try {
+      const isOwnerRole = (accessForm.role || "").toLowerCase().includes("owner");
+      const assignedRole = isOwnerRole ? "owner" : accessForm.role;
+
+      if (accessForm.uid) {
+        await updateStaffUser(accessForm.uid, accessModalStaff.id, GID, {
+          name: accessForm.name,
+          email: accessForm.email,
+          phone: accessForm.phone,
+          role: assignedRole,
+          status: accessForm.status,
+          permissions: accessForm.permissions,
+          ...(accessForm.password ? { password: accessForm.password } : {})
+        });
+        toast.success(`Role & permissions updated for ${accessModalStaff.name}!`);
+      } else {
+        await createStaffUser(
+          accessForm.email,
+          accessForm.password,
+          assignedRole,
+          GID,
+          accessForm.name,
+          accessModalStaff.id,
+          accessForm.permissions,
+          accessForm.phone
+        );
+        toast.success(`App access & credentials granted to ${accessModalStaff.name}!`);
+      }
+      await loadStaff();
+      setAccessModalStaff(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save app access: " + err.message);
+    } finally {
+      setSavingAccess(false);
+    }
+  };
+
+  const handleRevokeRoleAccess = async () => {
+    if (!accessForm.uid) return;
+    setRevokingAccess(true);
+    try {
+      await revokeStaffLogin(accessForm.uid, accessModalStaff.id, GID);
+      toast.success(`Login access revoked for ${accessModalStaff.name}. Profile remains safe.`);
+      await loadStaff();
+      setAccessModalStaff(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to revoke access: " + err.message);
+    } finally {
+      setRevokingAccess(false);
+    }
+  };
+
+  const copyLoginDetails = () => {
+    const gymName = "UNIVO GYM MANAGEMENT";
+    const loginUrl = window.location.origin;
+    const passText = accessForm.password || "(Already assigned password)";
+    const text = `🔐 *STAFF APP LOGIN CREDENTIALS - ${gymName}*
+
+Hi *${accessModalStaff?.name}*,
+Aapko gym management software me *${accessForm.role}* ka access diya gaya hai:
+
+🌐 *Login Portal:* ${loginUrl}
+👤 *Assigned Role:* ${accessForm.role}
+📧 *Login ID / Email / Phone:* ${accessForm.email}
+🔑 *Password:* ${passText}
+
+Portal me login karke assigned features use kar sakte hain! 🚀`;
+
+    navigator.clipboard.writeText(text);
+    toast.success("Login details copied to clipboard!");
+  };
+
+  const sendLoginWhatsApp = () => {
+    const phone = (accessModalStaff?.phone || "").replace(/\D/g, "");
+    if (!phone) {
+      toast.error("Phone number not available");
+      return;
+    }
+    const cleanPhone = phone.length === 10 ? `91${phone}` : phone;
+    const gymName = "UNIVO GYM MANAGEMENT";
+    const loginUrl = window.location.origin;
+    const passText = accessForm.password || "(Already assigned password)";
+    const text = encodeURIComponent(`🔐 *STAFF APP LOGIN CREDENTIALS - ${gymName}*
+
+Hi *${accessModalStaff?.name}*,
+Aapko gym management software me *${accessForm.role}* ka access diya gaya hai:
+
+🌐 *Login Portal:* ${loginUrl}
+👤 *Assigned Role:* ${accessForm.role}
+📧 *Login ID / Email / Phone:* ${accessForm.email}
+🔑 *Password:* ${passText}
+
+Portal me login karke assigned features use kar sakte hain! 🚀`);
+    window.open(`https://wa.me/${cleanPhone}?text=${text}`, "_blank");
   };
 
   const handleAddPayroll = async (e) => {
@@ -591,17 +918,36 @@ export default function Staff() {
     });
   }, [nonTrainerStaff, search, filterRole, filterStatus]);
 
-  // Unified Payable Employees (Staff + Trainers)
+  // Unified Payable Employees (Staff + Trainers) - Inactive employees excluded from pending payouts
   const allPayableEmployees = useMemo(() => {
     const list = [];
     if (employeeScope === "all" || employeeScope === "staff") {
-      list.push(...nonTrainerStaff.map(s => ({ ...s, isTrainer: false })));
+      list.push(
+        ...nonTrainerStaff
+          .filter(s => {
+            const isInactive = (s.status || "active") === "inactive";
+            const wasPaid = staffPayrollMap[s.id]?.paid;
+            // Exclude inactive employees from pending salary payouts
+            return !isInactive || wasPaid;
+          })
+          .map(s => ({ ...s, isTrainer: false }))
+      );
     }
     if (employeeScope === "all" || employeeScope === "trainers") {
-      list.push(...trainersList.filter(t => Number(t.salary || 0) > 0).map(t => ({ ...t, isTrainer: true })));
+      list.push(
+        ...trainersList
+          .filter(t => Number(t.salary || 0) > 0)
+          .filter(t => {
+            const isInactive = t.active === false || t.isActive === false || (t.status || "active") === "inactive";
+            const wasPaid = staffPayrollMap[t.id]?.paid;
+            // Exclude inactive trainers from pending salary payouts
+            return !isInactive || wasPaid;
+          })
+          .map(t => ({ ...t, isTrainer: true }))
+      );
     }
     return list;
-  }, [nonTrainerStaff, trainersList, employeeScope]);
+  }, [nonTrainerStaff, trainersList, employeeScope, staffPayrollMap]);
 
   // Salary Table rows
   const salaryRows = useMemo(() => {
@@ -646,20 +992,20 @@ export default function Staff() {
       {/* ============================================================
           TOP HERO & METRICS SECTION
       ============================================================ */}
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 text-white shadow-xl relative overflow-hidden">
         <div className="absolute -top-24 -right-24 w-72 h-72 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-teal-500/15 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold uppercase tracking-wider">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 sm:gap-6">
+          <div className="space-y-1.5 sm:space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold uppercase tracking-wider">
               <Briefcase className="w-3.5 h-3.5 text-emerald-400" /> Human Resources & Payroll
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-white">
               Staff & Payroll Hub
             </h1>
-            <p className="text-slate-300 text-sm max-w-xl leading-relaxed">
-              Maintain coach profiles, staff identity documents, track salary disbursements, and auto-sync payroll with daily gym expenses.
+            <p className="text-slate-300 text-xs sm:text-sm max-w-xl leading-relaxed">
+              Maintain staff profiles, identity documents, track salary disbursements, and auto-sync payroll with gym expenses.
             </p>
           </div>
 
@@ -672,7 +1018,7 @@ export default function Staff() {
                   setActiveModalTab("basic");
                   setAddModal(true); 
                 }}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-sm shadow-lg shadow-emerald-500/25 transition active:scale-95"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/25 transition active:scale-95 cursor-pointer"
               >
                 <Plus className="w-4 h-4" /> Add Staff Member
               </button>
@@ -681,26 +1027,26 @@ export default function Staff() {
         </div>
 
         {/* Key Metrics Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mt-6 sm:mt-8 pt-6 border-t border-white/10">
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3.5 border border-white/10">
-            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Total Staff Members</p>
-            <p className="text-2xl font-black text-white mt-1">{staffList.length}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-white/10">
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl sm:rounded-2xl p-3 sm:p-3.5 border border-white/10">
+            <p className="text-[10px] sm:text-[11px] font-medium text-slate-400 uppercase tracking-wide">Total Staff</p>
+            <p className="text-lg sm:text-2xl font-black text-white mt-0.5 sm:mt-1">{staffList.length}</p>
           </div>
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3.5 border border-white/10">
-            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Active On-Duty</p>
-            <p className="text-2xl font-black text-emerald-400 mt-1">
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl sm:rounded-2xl p-3 sm:p-3.5 border border-white/10">
+            <p className="text-[10px] sm:text-[11px] font-medium text-slate-400 uppercase tracking-wide">Active On-Duty</p>
+            <p className="text-lg sm:text-2xl font-black text-emerald-400 mt-0.5 sm:mt-1">
               {staffList.filter(s => (s.status || "active") === "active").length}
             </p>
           </div>
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3.5 border border-white/10">
-            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Monthly Payroll</p>
-            <p className="text-2xl font-black text-teal-300 mt-1">
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl sm:rounded-2xl p-3 sm:p-3.5 border border-white/10">
+            <p className="text-[10px] sm:text-[11px] font-medium text-slate-400 uppercase tracking-wide">Monthly Payroll</p>
+            <p className="text-lg sm:text-2xl font-black text-teal-300 mt-0.5 sm:mt-1">
               {fmtCurrency(staffList.reduce((a, s) => a + Number(s.salary || 0), 0))}
             </p>
           </div>
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3.5 border border-white/10">
-            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">Pending Salary</p>
-            <p className="text-2xl font-black text-amber-400 mt-1">{pendingCount} Staff</p>
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl sm:rounded-2xl p-3 sm:p-3.5 border border-white/10">
+            <p className="text-[10px] sm:text-[11px] font-medium text-slate-400 uppercase tracking-wide">Pending Salary</p>
+            <p className="text-lg sm:text-2xl font-black text-amber-400 mt-0.5 sm:mt-1">{pendingCount} Staff</p>
           </div>
         </div>
       </div>
@@ -741,23 +1087,6 @@ export default function Staff() {
       ============================================================ */}
       {activeTab === "directory" && (
         <div className="space-y-5">
-          {/* Notice: Trainers managed separately */}
-          <div className="p-3.5 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200/80 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center flex-shrink-0">
-                <Dumbbell className="w-4 h-4" />
-              </div>
-              <p className="text-xs text-slate-700">
-                <span className="font-bold text-teal-950">Looking for Gym Trainers & Coaches?</span> Trainers ko manage karne ke liye alag se dedicated <strong>"Trainers"</strong> menu hai jaha unki Monthly Salary, Joining Date, PT Deals aur Auto-Expenses manage hote hain.
-              </p>
-            </div>
-            <a
-              href="/owner/trainers"
-              className="px-3 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold whitespace-nowrap transition shrink-0"
-            >
-              Go to Trainers →
-            </a>
-          </div>
 
           {/* Search & Filter Bar */}
           <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm">
@@ -874,9 +1203,59 @@ export default function Staff() {
                         </span>
 
                         <span className="text-[10px] text-slate-400">
-                          Joined {s.joinDate || "N/A"}
+                          Joined {formatDate(s.joinDate)}
                         </span>
                       </div>
+
+                      {/* App Login & Role Access 1-Click Status / Button */}
+                      {(() => {
+                        const acc = staffAccessMap[s.id] ||
+                          (s.email ? staffAccessMap[s.email.toLowerCase()] : null) ||
+                          (s.phone ? staffAccessMap[s.phone.replace(/\D/g, "").slice(-10)] : null);
+                        const hasAcc = Boolean(acc);
+                        const isCoOwner = (acc?.role || "").toLowerCase().includes("owner");
+                        return (
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1">
+                              <KeyRound className="w-3 h-3 text-slate-400" /> App Access
+                            </span>
+                            {hasAcc ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openRoleAccessModal(s);
+                                }}
+                                className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-lg border transition shadow-2xs cursor-pointer ${
+                                  acc.status === "inactive"
+                                    ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                                    : isCoOwner
+                                    ? "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100"
+                                    : "bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100"
+                                }`}
+                                title="Click to view/edit password, role & permissions"
+                              >
+                                <ShieldCheck className="w-3 h-3 text-violet-600" />
+                                <span>{acc.role}</span>
+                                {acc.status === "inactive" && <span className="text-rose-500 font-bold text-[9px]">(Locked)</span>}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openRoleAccessModal(s);
+                                }}
+                                className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition shadow-2xs cursor-pointer"
+                                title="Click to grant Role & Login Password in 1 click"
+                              >
+                                <Plus className="w-3 h-3 text-emerald-600" />
+                                <span>Grant Role & Login</span>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Footer with Salary & Actions */}
@@ -945,76 +1324,89 @@ export default function Staff() {
           TAB 2: MONTHLY SALARY TRACKER
       ============================================================ */}
       {activeTab === "payroll" && (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-4">
+        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden space-y-4">
           
           {/* Top KPI Cards for Payroll */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 p-5 pb-0">
-            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 p-3.5 sm:p-5 pb-0">
+            <div className="bg-slate-50/80 border border-slate-200/90 rounded-2xl p-3 sm:p-4">
               <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-                <span>Total Net Disbursable</span>
-                <DollarSign className="w-4 h-4 text-emerald-600" />
+                <span className="text-[11px] sm:text-xs">Net Disbursable</span>
+                <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700">
+                  <DollarSign className="w-3.5 h-3.5" />
+                </div>
               </div>
-              <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{fmtCurrency(totalPayroll)}</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">{salaryRows.length} Employees in this view</p>
+              <p className="text-lg sm:text-2xl font-black text-slate-900 mt-1">{fmtCurrency(totalPayroll)}</p>
+              <p className="text-[10px] text-slate-400 mt-0.5 truncate">{salaryRows.length} in current view</p>
             </div>
 
-            <div className="bg-emerald-50/60 border border-emerald-200/70 rounded-2xl p-4">
+            <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-3 sm:p-4">
               <div className="flex items-center justify-between text-emerald-700 text-xs font-semibold">
-                <span>Paid So Far</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span className="text-[11px] sm:text-xs">Paid So Far</span>
+                <div className="w-6 h-6 rounded-lg bg-emerald-200/70 flex items-center justify-center text-emerald-800">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                </div>
               </div>
-              <p className="text-xl sm:text-2xl font-black text-emerald-700 mt-1">{fmtCurrency(totalPaidAmount)}</p>
+              <p className="text-lg sm:text-2xl font-black text-emerald-700 mt-1">{fmtCurrency(totalPaidAmount)}</p>
               <p className="text-[10px] text-emerald-600 font-medium mt-0.5">{paidCount} Paid Employees</p>
             </div>
 
-            <div className="bg-amber-50/60 border border-amber-200/70 rounded-2xl p-4">
+            <div className="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-3 sm:p-4">
               <div className="flex items-center justify-between text-amber-800 text-xs font-semibold">
-                <span>Pending Payout</span>
-                <Clock className="w-4 h-4 text-amber-600" />
+                <span className="text-[11px] sm:text-xs">Pending Payout</span>
+                <div className="w-6 h-6 rounded-lg bg-amber-200/70 flex items-center justify-center text-amber-800">
+                  <Clock className="w-3.5 h-3.5" />
+                </div>
               </div>
-              <p className="text-xl sm:text-2xl font-black text-amber-700 mt-1">{fmtCurrency(totalPendingAmount)}</p>
-              <p className="text-[10px] text-amber-700 font-medium mt-0.5">{pendingCount} Pending Payouts</p>
+              <p className="text-lg sm:text-2xl font-black text-amber-700 mt-1">{fmtCurrency(totalPendingAmount)}</p>
+              <p className="text-[10px] text-amber-700 font-medium mt-0.5">{pendingCount} Pending</p>
             </div>
 
-            <div className="bg-teal-50/60 border border-teal-200/70 rounded-2xl p-4">
+            <div className="bg-teal-50/60 border border-teal-200/80 rounded-2xl p-3 sm:p-4">
               <div className="flex items-center justify-between text-teal-800 text-xs font-semibold">
-                <span>Active Workforce</span>
-                <Users className="w-4 h-4 text-teal-600" />
+                <span className="text-[11px] sm:text-xs">Workforce</span>
+                <div className="w-6 h-6 rounded-lg bg-teal-200/70 flex items-center justify-center text-teal-800">
+                  <Users className="w-3.5 h-3.5" />
+                </div>
               </div>
-              <p className="text-xl sm:text-2xl font-black text-teal-900 mt-1">{allPayableEmployees.length}</p>
-              <p className="text-[10px] text-teal-700 font-medium mt-0.5">
+              <p className="text-lg sm:text-2xl font-black text-teal-900 mt-1">{allPayableEmployees.length}</p>
+              <p className="text-[10px] text-teal-700 font-medium mt-0.5 truncate">
                 {nonTrainerStaff.length} Staff • {trainersList.filter(t => t.salary > 0).length} Fixed Trainers
               </p>
             </div>
           </div>
 
           {/* Header controls & Filters */}
-          <div className="px-5 pt-2 pb-4 border-b border-slate-100 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="px-3.5 sm:px-5 pt-3 pb-4 border-b border-slate-100 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Monthly Payroll & Salary Tracker</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900">Monthly Payroll & Salary Tracker</h2>
+                <p className="text-xs text-slate-500">
                   Joining date anniversary cycles, automatic leave deductions, and single-click expense posting.
                 </p>
               </div>
 
-              {/* Month Navigator */}
-              <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-2xl border border-slate-200 self-start sm:self-auto">
+              {/* Month Navigator (Capped at Latest / Current Month) */}
+              <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200 self-stretch sm:self-auto justify-between sm:justify-start">
                 <button 
                   onClick={handlePrevMonth} 
-                  className="p-1.5 rounded-xl hover:bg-white text-slate-600 transition shadow-sm"
+                  className="p-1.5 rounded-lg hover:bg-white text-slate-600 transition shadow-2xs cursor-pointer"
                   title="Previous Month"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <div className="px-3 text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-                  {monthLabel(salaryMonth)}
+                  <span>{monthLabel(salaryMonth)}</span>
                 </div>
                 <button 
                   onClick={handleNextMonth} 
-                  className="p-1.5 rounded-xl hover:bg-white text-slate-600 transition shadow-sm"
-                  title="Next Month"
+                  disabled={isLatestMonth}
+                  className={`p-1.5 rounded-lg transition shadow-2xs ${
+                    isLatestMonth 
+                      ? "text-slate-300 cursor-not-allowed opacity-30" 
+                      : "hover:bg-white text-slate-600 cursor-pointer"
+                  }`}
+                  title={isLatestMonth ? "Future months are not available" : "Next Month"}
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -1022,10 +1414,10 @@ export default function Staff() {
             </div>
 
             {/* Scope Tabs & Status Filter */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-1">
               
               {/* Employee Scope Switcher: All | Staff | Trainers */}
-              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80 text-xs font-bold w-full sm:w-auto">
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80 text-xs font-bold w-full md:w-auto overflow-x-auto">
                 {[
                   ["all", `All (${allPayableEmployees.length})`],
                   ["staff", `Staff (${nonTrainerStaff.length})`],
@@ -1034,9 +1426,9 @@ export default function Staff() {
                   <button
                     key={val}
                     onClick={() => setEmployeeScope(val)}
-                    className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg transition ${
+                    className={`flex-1 md:flex-none px-3 py-1.5 rounded-lg transition whitespace-nowrap cursor-pointer ${
                       employeeScope === val
-                        ? "bg-white text-slate-900 shadow-sm"
+                        ? "bg-white text-slate-900 shadow-xs"
                         : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
@@ -1046,16 +1438,24 @@ export default function Staff() {
               </div>
 
               {/* Search & Status Filter */}
-              <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full lg:w-auto">
-                <div className="relative flex-1 sm:w-64 w-full">
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+                <div className="relative w-full sm:w-56">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                   <input 
                     type="text" 
                     placeholder="Search name or role..."
                     value={salarySearch} 
                     onChange={e => setSalarySearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-500 outline-none" 
+                    className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-500 outline-none" 
                   />
+                  {salarySearch && (
+                    <button 
+                      onClick={() => setSalarySearch("")} 
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex rounded-xl overflow-hidden border border-slate-200 text-xs font-bold w-full sm:w-auto">
@@ -1063,7 +1463,7 @@ export default function Staff() {
                     <button 
                       key={val} 
                       onClick={() => setSalaryFilter(val)}
-                      className={`px-3 py-1.5 transition flex-1 sm:flex-none ${
+                      className={`px-3 py-1.5 transition flex-1 sm:flex-none cursor-pointer text-center ${
                         salaryFilter === val ? "bg-emerald-600 text-white" : "bg-slate-50 text-slate-600 hover:bg-slate-100"
                       }`}
                     >
@@ -1075,27 +1475,27 @@ export default function Staff() {
             </div>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
+          {/* ============================================================
+              DESKTOP TABLE VIEW (Visible on >= 1024px screens)
+          ============================================================ */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50/80 border-b border-slate-100">
+              <thead className="bg-slate-50/90 border-b border-slate-200/80">
                 <tr>
-                  <th className="text-left px-5 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Employee</th>
-                  <th className="text-left px-3 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Salary Cycle & Due</th>
-                  <th className="text-right px-3 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Base Salary</th>
-                  <th className="text-center px-3 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Leaves (Taken / Allow)</th>
-                  <th className="text-right px-3 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Leave Deduction</th>
-                  <th className="text-right px-3 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Bonus</th>
-                  <th className="text-right px-3 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Deductions</th>
-                  <th className="text-right px-4 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Net Payable</th>
-                  <th className="text-center px-3 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="text-center px-4 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Actions</th>
+                  <th className="text-left px-5 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Employee</th>
+                  <th className="text-left px-3 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Salary Cycle & Due</th>
+                  <th className="text-right px-3 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Base Salary</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Leaves & Ded</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Adjustments</th>
+                  <th className="text-right px-4 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Net Payable</th>
+                  <th className="text-center px-3 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                  <th className="text-right px-5 py-3 text-[11px] font-bold text-slate-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {salaryRows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-12 text-slate-400 text-xs">
+                    <td colSpan={8} className="text-center py-12 text-slate-400 text-xs">
                       No payroll records found for {monthLabel(salaryMonth)} matching your filters.
                     </td>
                   </tr>
@@ -1109,8 +1509,8 @@ export default function Staff() {
                   const dueInfo = calculateSalaryDueInfo(emp.joinDate, salaryMonth);
 
                   return (
-                    <tr key={emp.id} className="hover:bg-slate-50/60 transition">
-                      {/* Employee Identity */}
+                    <tr key={emp.id} className="hover:bg-slate-50/70 transition">
+                      {/* 1. Employee Identity */}
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <StaffAvatar name={emp.name} photo={emp.photoUrl} size="sm" />
@@ -1118,103 +1518,116 @@ export default function Staff() {
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="text-xs font-bold text-slate-900 truncate">{emp.name}</p>
                               {emp.isTrainer ? (
-                                <span className="text-[9px] font-extrabold px-1.5 py-0.2 bg-teal-50 text-teal-700 border border-teal-200 rounded">
+                                <span className="text-[9px] font-black px-1.5 py-0.5 bg-teal-50 text-teal-700 border border-teal-200 rounded">
                                   Trainer
                                 </span>
                               ) : (
-                                <span className="text-[9px] font-extrabold px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded">
+                                <span className="text-[9px] font-black px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
                                   Staff
                                 </span>
                               )}
                             </div>
                             <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                              {emp.role} • Joined {emp.joinDate || "N/A"}
+                              {emp.role} • Joined {formatDate(emp.joinDate)}
                             </p>
                           </div>
                         </div>
                       </td>
 
-                      {/* Salary Cycle & Due Date */}
+                      {/* 2. Salary Cycle & Due Date */}
                       <td className="px-3 py-3.5">
-                        <div className="text-xs">
-                          {pd.paid ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                        {pd.paid ? (
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
                               <CheckCircle className="w-3 h-3 text-emerald-600" />
-                              Paid {pd.paidData?.paidDate ? `(${pd.paidData.paidDate.slice(5)})` : ""}
+                              Paid {pd.paidData?.paidDate ? `(${formatDate(pd.paidData.paidDate)})` : ""}
                             </span>
-                          ) : (
-                            <div className="space-y-0.5">
-                              <p className="font-bold text-slate-800 text-[11px]">Due: {dueInfo.formattedDue}</p>
-                              <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-full border ${dueInfo.badgeColor}`}>
-                                {dueInfo.statusText}
-                              </span>
-                            </div>
+                            {pd.paidData?.paymentMode && (
+                              <p className="text-[10px] text-slate-400 uppercase font-semibold">
+                                via {pd.paidData.paymentMode}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <p className="font-bold text-slate-800 text-[11px]">Due: {dueInfo.formattedDue}</p>
+                            <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-full border ${dueInfo.badgeColor}`}>
+                              {dueInfo.statusText}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 3. Base Salary */}
+                      <td className="px-3 py-3.5 text-right font-mono text-xs font-bold text-slate-700">
+                        {fmtCurrency(emp.salary)}
+                      </td>
+
+                      {/* 4. Leaves & Deduction */}
+                      <td className="px-3 py-3.5 text-center">
+                        <div className="inline-flex flex-col items-center">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenLeaveModal(emp)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition border cursor-pointer hover:shadow-2xs ${
+                              pd.unpaidLeaves > 0
+                                ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
+                                : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                            }`}
+                            title="Click to view or adjust monthly leaves"
+                          >
+                            <CalendarCheck className="w-3 h-3 text-slate-400" />
+                            <span>{pd.leavesTaken || 0} / {pd.allowedLeaves ?? 4}d</span>
+                          </button>
+                          {leaveDed > 0 && (
+                            <span className="text-[10px] font-black text-rose-600 mt-0.5">
+                              -{fmtCurrency(leaveDed)} ({pd.unpaidLeaves}d)
+                            </span>
                           )}
                         </div>
                       </td>
 
-                      {/* Base Salary */}
-                      <td className="px-3 py-3.5 text-right text-xs font-semibold text-slate-700">
-                        {fmtCurrency(emp.salary)}
-                      </td>
-
-                      {/* Leaves (Taken / Allowed) */}
+                      {/* 5. Adjustments (Bonus / Other Deductions) */}
                       <td className="px-3 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenLeaveModal(emp)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition border cursor-pointer hover:shadow-2xs ${
-                            pd.unpaidLeaves > 0
-                              ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
-                              : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                          }`}
-                          title="Click to view or adjust monthly leaves"
-                        >
-                          <CalendarCheck className="w-3 h-3 text-slate-400" />
-                          <span>{pd.leavesTaken || 0} / {pd.allowedLeaves ?? 4}d</span>
-                          {pd.unpaidLeaves > 0 && (
-                            <span className="text-[10px] font-black text-rose-600">
-                              ({pd.unpaidLeaves} unpaid)
-                            </span>
+                        <div className="flex flex-col items-center gap-1">
+                          {bonuses > 0 || otherDed > 0 ? (
+                            <div className="flex flex-col items-center gap-0.5">
+                              {bonuses > 0 && (
+                                <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                                  +{fmtCurrency(bonuses)} Bonus
+                                </span>
+                              )}
+                              {otherDed > 0 && (
+                                <span className="inline-block text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded">
+                                  -{fmtCurrency(otherDed)} Ded
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 font-bold text-xs">—</span>
                           )}
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPayrollModal(emp);
+                              setPayrollForm({ type: "bonus", amount: "", reason: "", date: todayStr() });
+                            }}
+                            className="text-[10px] text-slate-400 hover:text-emerald-700 font-semibold hover:underline flex items-center gap-0.5 transition cursor-pointer"
+                            title="Add bonus or penalty adjustment"
+                          >
+                            <Plus className="w-2.5 h-2.5" /> Adjust
+                          </button>
+                        </div>
                       </td>
 
-                      {/* Leave Deduction */}
-                      <td className="px-3 py-3.5 text-right">
-                        {leaveDed > 0 ? (
-                          <span className="text-xs font-bold text-rose-600">-{fmtCurrency(leaveDed)}</span>
-                        ) : (
-                          <span className="text-slate-300">-</span>
-                        )}
-                      </td>
-
-                      {/* Bonus */}
-                      <td className="px-3 py-3.5 text-right hidden md:table-cell">
-                        {bonuses > 0 ? (
-                          <span className="text-xs font-bold text-emerald-600">+{fmtCurrency(bonuses)}</span>
-                        ) : (
-                          <span className="text-slate-300">-</span>
-                        )}
-                      </td>
-
-                      {/* Other Deductions */}
-                      <td className="px-3 py-3.5 text-right hidden md:table-cell">
-                        {otherDed > 0 ? (
-                          <span className="text-xs font-bold text-rose-600">-{fmtCurrency(otherDed)}</span>
-                        ) : (
-                          <span className="text-slate-300">-</span>
-                        )}
-                      </td>
-
-                      {/* Net Pay */}
+                      {/* 6. Net Payable */}
                       <td className="px-4 py-3.5 text-right">
-                        <span className="text-xs font-extrabold text-slate-900 bg-slate-100 px-2 py-1 rounded-lg">
+                        <span className="inline-block text-xs font-black text-slate-900 bg-emerald-50/70 border border-emerald-200/80 px-2.5 py-1 rounded-xl">
                           {fmtCurrency(net)}
                         </span>
                       </td>
 
-                      {/* Status */}
+                      {/* 7. Status */}
                       <td className="px-3 py-3.5 text-center">
                         {pd.paid ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
@@ -1227,9 +1640,9 @@ export default function Staff() {
                         )}
                       </td>
 
-                      {/* Actions */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center justify-center gap-1.5">
+                      {/* 8. Actions */}
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
                           {!pd.paid ? (
                             <button 
                               onClick={() => handleOpenPayModal(emp)}
@@ -1241,7 +1654,7 @@ export default function Staff() {
                             <button
                               type="button"
                               onClick={() => sendSalarySlipWhatsApp(emp, pd.paidData || { baseSalary: emp.salary, netPay: net, monthKey: salaryMonth })}
-                              className="text-[10px] font-bold px-2.5 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition shadow-2xs whitespace-nowrap flex items-center gap-1 cursor-pointer"
+                              className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition shadow-2xs whitespace-nowrap flex items-center gap-1 cursor-pointer"
                               title="Share Salary Slip on WhatsApp"
                             >
                               <Share2 className="w-3 h-3 text-emerald-600" /> Slip
@@ -1250,32 +1663,10 @@ export default function Staff() {
 
                           <button 
                             onClick={() => handleOpenLeaveModal(emp)}
-                            className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition" 
-                            title="Manage Monthly Leaves & Absents"
+                            className="p-1.5 rounded-xl bg-slate-50 hover:bg-amber-50 border border-slate-200 text-slate-500 hover:text-amber-700 transition cursor-pointer" 
+                            title="Adjust Leaves & Absents"
                           >
                             <CalendarCheck className="w-3.5 h-3.5" />
-                          </button>
-
-                          <button 
-                            onClick={() => { 
-                              setPayrollModal(emp); 
-                              setPayrollForm({ type: "bonus", amount: "", reason: "", date: todayStr() }); 
-                            }}
-                            className="p-1.5 rounded-lg hover:bg-violet-50 text-slate-400 hover:text-violet-600 transition" 
-                            title="Add Bonus / Incentive"
-                          >
-                            <TrendingUp className="w-3.5 h-3.5" />
-                          </button>
-
-                          <button 
-                            onClick={() => { 
-                              setPayrollModal(emp); 
-                              setPayrollForm({ type: "deduction", amount: "", reason: "", date: todayStr() }); 
-                            }}
-                            className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition" 
-                            title="Add Other Penalty / Settlement"
-                          >
-                            <TrendingDown className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -1288,28 +1679,185 @@ export default function Staff() {
               {salaryRows.length > 0 && (
                 <tfoot className="bg-slate-50 border-t-2 border-slate-200">
                   <tr>
-                    <td colSpan={4} className="px-5 py-3.5 text-xs font-bold text-slate-700">
+                    <td colSpan={3} className="px-5 py-3.5 text-xs font-bold text-slate-700">
                       Total Disbursable ({salaryRows.length} Employees) - {monthLabel(salaryMonth)}
                     </td>
-                    <td className="px-3 py-3.5 text-right text-xs font-black text-rose-600">
+                    <td className="px-3 py-3.5 text-center text-xs font-black text-rose-600">
                       -{fmtCurrency(salaryRows.reduce((a, emp) => a + Number(staffPayrollMap[emp.id]?.autoLeaveDeduction || 0), 0))}
                     </td>
-                    <td className="px-3 py-3.5 text-right text-xs font-bold text-emerald-600 hidden md:table-cell">
-                      +{fmtCurrency(salaryRows.reduce((a, emp) => a + Number(staffPayrollMap[emp.id]?.bonuses || 0), 0))}
-                    </td>
-                    <td className="px-3 py-3.5 text-right text-xs font-bold text-rose-600 hidden md:table-cell">
-                      -{fmtCurrency(salaryRows.reduce((a, emp) => a + Number(staffPayrollMap[emp.id]?.otherDeductions || 0), 0))}
+                    <td className="px-3 py-3.5 text-center text-xs font-bold text-slate-600">
+                      {fmtCurrency(salaryRows.reduce((a, emp) => a + Number(staffPayrollMap[emp.id]?.bonuses || 0) - Number(staffPayrollMap[emp.id]?.otherDeductions || 0), 0))}
                     </td>
                     <td className="px-4 py-3.5 text-right text-sm font-black text-slate-900">
                       {fmtCurrency(totalPayroll)}
                     </td>
-                    <td colSpan={2} className="px-4 py-3.5 text-center text-xs font-bold text-slate-600">
+                    <td colSpan={2} className="px-5 py-3.5 text-right text-xs font-bold text-slate-600">
                       {paidCount} Paid / {pendingCount} Pending
                     </td>
                   </tr>
                 </tfoot>
               )}
             </table>
+          </div>
+
+          {/* ============================================================
+              MOBILE CARD VIEW (Tailored for Phones & Tablets < 1024px)
+          ============================================================ */}
+          <div className="lg:hidden p-3.5 sm:p-5 pt-0 space-y-3">
+            {salaryRows.length === 0 ? (
+              <div className="text-center py-10 text-slate-400 text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                No payroll records found for {monthLabel(salaryMonth)}.
+              </div>
+            ) : salaryRows.map(emp => {
+              const pd = staffPayrollMap[emp.id] || { bonuses: 0, otherDeductions: 0, autoLeaveDeduction: 0, allowedLeaves: 4, leavesTaken: 0, unpaidLeaves: 0, paid: false };
+              const base = Number(emp.salary || 0);
+              const leaveDed = Number(pd.autoLeaveDeduction || 0);
+              const otherDed = Number(pd.otherDeductions || 0);
+              const bonuses = Number(pd.bonuses || 0);
+              const net = Math.max(0, base - leaveDed - otherDed + bonuses);
+              const dueInfo = calculateSalaryDueInfo(emp.joinDate, salaryMonth);
+
+              return (
+                <div key={emp.id} className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 space-y-3 shadow-xs">
+                  {/* Card Header: Avatar, Name, Role, Status badge */}
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <StaffAvatar name={emp.name} photo={emp.photoUrl} size="sm" />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate">{emp.name}</h4>
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${
+                            emp.isTrainer 
+                              ? "bg-teal-50 text-teal-700 border-teal-200" 
+                              : "bg-slate-100 text-slate-600 border-slate-200"
+                          }`}>
+                            {emp.isTrainer ? "Trainer" : "Staff"}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 truncate mt-0.5">
+                          {emp.role} • Joined {formatDate(emp.joinDate)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      {pd.paid ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Paid
+                        </span>
+                      ) : (
+                        <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-full border ${dueInfo.badgeColor}`}>
+                          {dueInfo.statusText}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Due & Cycle Strip */}
+                  <div className="flex items-center justify-between text-[11px] bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+                    <span className="text-slate-500 font-medium">Salary Due Date:</span>
+                    <span className="font-bold text-slate-800">
+                      {pd.paid ? `Paid on ${formatDate(pd.paidData?.paidDate)}` : dueInfo.formattedDue}
+                    </span>
+                  </div>
+
+                  {/* 3-Column Mini KPI Grid */}
+                  <div className="grid grid-cols-3 gap-2 text-center bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Base</span>
+                      <span className="text-xs font-bold text-slate-800">{fmtCurrency(base)}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">Leaves</span>
+                      <button 
+                        type="button"
+                        onClick={() => handleOpenLeaveModal(emp)} 
+                        className="text-xs font-bold text-emerald-700 hover:underline flex items-center justify-center gap-0.5 mx-auto cursor-pointer"
+                      >
+                        {pd.leavesTaken || 0}/{pd.allowedLeaves ?? 4}d
+                      </button>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-emerald-700 font-bold block uppercase">Net Pay</span>
+                      <span className="text-xs font-black text-slate-900">{fmtCurrency(net)}</span>
+                    </div>
+                  </div>
+
+                  {/* Adjustments chips if any */}
+                  {(leaveDed > 0 || bonuses > 0 || otherDed > 0) && (
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                      {leaveDed > 0 && (
+                        <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                          Leave: -{fmtCurrency(leaveDed)} ({pd.unpaidLeaves}d)
+                        </span>
+                      )}
+                      {bonuses > 0 && (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+                          Bonus: +{fmtCurrency(bonuses)}
+                        </span>
+                      )}
+                      {otherDed > 0 && (
+                        <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                          Penalty: -{fmtCurrency(otherDed)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Actions Row */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                    {!pd.paid ? (
+                      <button 
+                        onClick={() => handleOpenPayModal(emp)} 
+                        className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition cursor-pointer"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" /> Pay Salary ({fmtCurrency(net)})
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => sendSalarySlipWhatsApp(emp, pd.paidData || { baseSalary: emp.salary, netPay: net, monthKey: salaryMonth })} 
+                        className="flex-1 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition cursor-pointer"
+                      >
+                        <Share2 className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp Slip
+                      </button>
+                    )}
+
+                    <button 
+                      onClick={() => handleOpenLeaveModal(emp)} 
+                      className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:text-amber-700 hover:bg-amber-50 transition cursor-pointer" 
+                      title="Adjust Leaves"
+                    >
+                      <CalendarCheck className="w-4 h-4" />
+                    </button>
+
+                    <button 
+                      onClick={() => {
+                        setPayrollModal(emp);
+                        setPayrollForm({ type: "bonus", amount: "", reason: "", date: todayStr() });
+                      }} 
+                      className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:text-violet-700 hover:bg-violet-50 transition cursor-pointer" 
+                      title="Add Bonus / Penalty"
+                    >
+                      <Sliders className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Mobile Summary Box */}
+            {salaryRows.length > 0 && (
+              <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-2 mt-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">Total Net Disbursable:</span>
+                  <span className="font-black text-sm text-emerald-400">{fmtCurrency(totalPayroll)}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs pt-1.5 border-t border-white/10">
+                  <span className="text-slate-400">Status Breakdown:</span>
+                  <span className="font-semibold text-slate-300">{paidCount} Paid • {pendingCount} Pending</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1533,7 +2081,7 @@ export default function Staff() {
                   <span>Salary Cycle & Expense Schedule</span>
                 </div>
                 <p className="text-emerald-800 leading-relaxed text-[11px]">
-                  Joining Date: <strong>{form.joinDate || todayStr()}</strong>. Uski first salary theek 1 mahine baad <strong>{getFirstSalaryDueDate(form.joinDate || todayStr())}</strong> ko due hogi aur pay karne par Gym Expenses & Reports me auto-add hogi.
+                  Joining Date: <strong>{formatDate(form.joinDate || todayStr())}</strong>. Uski first salary theek 1 mahine baad <strong>{getFirstSalaryDueDate(form.joinDate || todayStr())}</strong> ko due hogi aur pay karne par Gym Expenses & Reports me auto-add hogi.
                 </p>
                 <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-emerald-700 font-semibold border-t border-emerald-200/60 mt-1">
                   <span>🗓️ Cycle Day: Har mahine ki {new Date(form.joinDate || todayStr()).getDate()} tareekh</span>
@@ -1662,8 +2210,8 @@ export default function Staff() {
                 { label: "Contact Phone", value: viewStaff.phone || "-" },
                 { label: "Email Address", value: viewStaff.email || "-" },
                 { label: "Monthly Base Salary", value: fmtCurrency(viewStaff.salary) },
-                { label: "Joined Date", value: viewStaff.joinDate || "-" },
-                { label: "Expense Cycle From", value: nextMonthFirst(viewStaff.joinDate) },
+                { label: "Joined Date", value: formatDate(viewStaff.joinDate) },
+                { label: "Expense Cycle From", value: formatDate(nextMonthFirst(viewStaff.joinDate)) },
                 { label: "Aadhaar Card No", value: viewStaff.aadhaarNo || "Not provided" },
               ].map((r, i) => (
                 <div key={i} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
@@ -1700,6 +2248,55 @@ export default function Staff() {
                 <p className="text-xs text-slate-700">{viewStaff.notes}</p>
               </div>
             )}
+
+            {/* App Login Access Status Card */}
+            {(() => {
+              const existingUser = staffAccessMap[viewStaff.id] ||
+                (viewStaff.email ? staffAccessMap[viewStaff.email.toLowerCase()] : null) ||
+                (viewStaff.phone ? staffAccessMap[viewStaff.phone.replace(/\D/g, "").slice(-10)] : null);
+              const hasApp = Boolean(existingUser);
+              return (
+                <div className={`p-4 rounded-2xl border ${
+                  hasApp ? "bg-violet-50/70 border-violet-200" : "bg-slate-50 border-slate-200"
+                }`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                        hasApp ? "bg-violet-600 text-white" : "bg-slate-200 text-slate-600"
+                      }`}>
+                        <KeyRound className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 truncate">
+                          {hasApp ? `App Access: ${existingUser.role}` : "App Login & Roles"}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {hasApp 
+                            ? `Login ID: ${existingUser.email || existingUser.phone || "Active"}` 
+                            : "Software login permissions not assigned yet"}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetStaff = viewStaff;
+                        setViewStaff(null);
+                        openRoleAccessModal(targetStaff);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0 ${
+                        hasApp
+                          ? "bg-violet-600 text-white hover:bg-violet-700"
+                          : "bg-emerald-600 text-white hover:bg-emerald-700"
+                      }`}
+                    >
+                      <Shield className="w-3.5 h-3.5" />
+                      {hasApp ? "Manage Access" : "Grant Access"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="flex gap-2.5 pt-2 border-t border-slate-100">
               <button 
@@ -1837,7 +2434,7 @@ export default function Staff() {
                       {emp.role} • {isT ? "Trainer" : "Staff"}
                     </p>
                     <p className="text-[10px] text-slate-400">
-                      Joining: {emp.joinDate || "N/A"}
+                      Joining: {formatDate(emp.joinDate, "N/A")}
                     </p>
                   </div>
                 </div>
@@ -2109,6 +2706,345 @@ export default function Staff() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* ============================================================
+          MODAL 7: ROLE & APP LOGIN PERMISSIONS (1-CLICK ACCESS)
+      ============================================================ */}
+      <Modal
+        isOpen={!!accessModalStaff}
+        onClose={() => setAccessModalStaff(null)}
+        title={`Role & App Login Access - ${accessModalStaff?.name || ""}`}
+        maxWidth="max-w-2xl"
+      >
+        {accessModalStaff && (
+          <form onSubmit={handleSaveRoleAccess} className="space-y-4">
+            {/* Staff Header Summary */}
+            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-4 rounded-2xl flex items-center justify-between border border-slate-700/60 shadow-xs">
+              <div className="flex items-center gap-3">
+                <StaffAvatar name={accessModalStaff.name} photo={accessModalStaff.photoUrl} size="md" />
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    {accessModalStaff.name}
+                    {accessForm.uid && (
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                        Linked Account
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    Designation: {accessModalStaff.role} • Phone: {accessModalStaff.phone || "N/A"}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className={`inline-block text-[10px] font-black px-2.5 py-1 rounded-xl uppercase tracking-wider ${
+                  accessForm.status === "active" ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"
+                }`}>
+                  {accessForm.status === "active" ? "Access Active" : "Access Blocked"}
+                </span>
+              </div>
+            </div>
+
+            {/* 1. Quick Role Selection Presets */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  Select Role & Permission Preset *
+                </label>
+                <span className="text-[11px] text-slate-400">Presets auto-configure module permissions</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { title: "Receptionist", icon: "🛎️", desc: "Front Desk & Billing" },
+                  { title: "Branch Manager", icon: "🏢", desc: "Operations & Expenses" },
+                  { title: "Co-Owner", icon: "👑", desc: "Full Unrestricted Admin" },
+                  ...availableRoles
+                    .filter(r => !["receptionist", "branch manager", "co-owner"].includes((r.title || "").toLowerCase()))
+                    .map(r => ({ title: r.title, icon: r.icon || "💼", desc: r.desc || "Custom Role" }))
+                ].map((preset) => {
+                  const isSelected = (accessForm.role || "").toLowerCase() === preset.title.toLowerCase();
+                  return (
+                    <button
+                      key={preset.title}
+                      type="button"
+                      onClick={() => handleSelectRolePreset(preset.title)}
+                      className={`p-3 rounded-2xl text-left border transition cursor-pointer flex flex-col justify-between ${
+                        isSelected
+                          ? "bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs"
+                          : "bg-slate-50/80 border-slate-200 hover:bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-lg">{preset.icon}</span>
+                        {isSelected && <Check className="w-4 h-4 text-emerald-600 font-bold" />}
+                      </div>
+                      <div className="mt-2">
+                        <p className={`text-xs font-bold ${isSelected ? "text-emerald-900" : "text-slate-800"}`}>
+                          {preset.title}
+                        </p>
+                        <p className="text-[10px] text-slate-500 truncate mt-0.5">{preset.desc}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. Login Credentials: Email & Password */}
+            <div className="bg-slate-50/80 border border-slate-200 p-4 rounded-2xl space-y-3">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                <KeyRound className="w-4 h-4 text-teal-600" />
+                <span>Login Credentials (Email / Phone & Password)</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Login Email / ID */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700">Login ID / Email *</label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="e.g. receptionist@gym.com or 9876543210"
+                    value={accessForm.email}
+                    onChange={e => setAccessForm({ ...accessForm, email: e.target.value })}
+                    className="inp-modern font-semibold"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Staff can log in with this email or their registered mobile number.
+                  </span>
+                </div>
+
+                {/* Password Input with Eye & Generate button */}
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">
+                      {accessForm.uid ? "Change Password (optional)" : "Set Password *"}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const randomPass = `Staff@${Math.floor(1000 + Math.random() * 9000)}`;
+                        setAccessForm(f => ({ ...f, password: randomPass }));
+                        setShowAccessPassword(true);
+                      }}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3" /> Auto-Generate
+                    </button>
+                  </div>
+
+                  <div className="relative mt-1">
+                    <input
+                      type={showAccessPassword ? "text" : "password"}
+                      placeholder={accessForm.uid ? "Leave blank to keep existing password" : "Enter password (min 6 chars)"}
+                      value={accessForm.password}
+                      onChange={e => setAccessForm({ ...accessForm, password: e.target.value })}
+                      className="inp-modern pr-10 font-mono font-medium"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAccessPassword(!showAccessPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showAccessPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Minimum 6 characters. Easy to remember for front desk staff.
+                  </span>
+                </div>
+              </div>
+
+              {/* Account Status Switch */}
+              <div className="flex items-center justify-between pt-1">
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Login Account Status</p>
+                  <p className="text-[11px] text-slate-500">
+                    {accessForm.status === "active" ? "Staff can log in to software" : "Account suspended/locked"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAccessForm(f => ({ ...f, status: f.status === "active" ? "inactive" : "active" }))}
+                  className={`flex items-center gap-2 px-3 py-1 rounded-xl text-xs font-bold transition border cursor-pointer ${
+                    accessForm.status === "active"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-rose-50 text-rose-700 border-rose-200"
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${accessForm.status === "active" ? "bg-emerald-500" : "bg-rose-500"}`} />
+                  {accessForm.status === "active" ? "Active" : "Locked / Suspended"}
+                </button>
+              </div>
+            </div>
+
+            {/* 3. Detailed Permissions Matrix (Collapsible) */}
+            <div className="border border-slate-200 rounded-2xl overflow-hidden">
+              <div
+                onClick={() => setShowPermsMatrix(!showPermsMatrix)}
+                className="bg-slate-50 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition"
+              >
+                <div className="flex items-center gap-2">
+                  <Sliders className="w-4 h-4 text-emerald-600" />
+                  <span className="text-xs font-bold text-slate-800">
+                    Custom Permissions Matrix ({Object.values(accessForm.permissions || {}).filter(p => p?.view).length} modules enabled)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-emerald-600 font-semibold">
+                    {showPermsMatrix ? "Hide Details" : "Customize Permissions"}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showPermsMatrix ? "rotate-180" : ""}`} />
+                </div>
+              </div>
+
+              {showPermsMatrix && (
+                <div className="p-4 space-y-3 bg-white">
+                  {/* Quick Select Buttons */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                    <p className="text-[11px] text-slate-500">Fine-tune View, Add, Edit and Delete rights per module:</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectAllPerms(true)}
+                        className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                      >
+                        ✓ Grant Full Access
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectAllPerms(false)}
+                        className="text-[11px] font-bold text-rose-600 hover:text-rose-700 cursor-pointer"
+                      >
+                        ✕ Clear All
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Modules List */}
+                  <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto pr-1">
+                    {APP_MODULES.map(mod => {
+                      const modPerm = accessForm.permissions?.[mod.id] || { view: false, create: false, edit: false, delete: false };
+                      return (
+                        <div key={mod.id} className="py-2.5 flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-slate-800">{mod.label}</p>
+                            <p className="text-[10px] text-slate-400 truncate">{mod.desc}</p>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <label className="flex items-center gap-1 cursor-pointer font-medium text-slate-700 text-[11px]">
+                              <input
+                                type="checkbox"
+                                checked={!!modPerm.view}
+                                onChange={() => handleTogglePermission(mod.id, "view")}
+                                className="rounded text-emerald-600 focus:ring-emerald-500"
+                              />
+                              View
+                            </label>
+
+                            {!mod.noEditDelete && (
+                              <>
+                                <label className="flex items-center gap-1 cursor-pointer font-medium text-slate-700 text-[11px]">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!modPerm.create}
+                                    onChange={() => handleTogglePermission(mod.id, "create")}
+                                    className="rounded text-emerald-600 focus:ring-emerald-500"
+                                  />
+                                  Add
+                                </label>
+                                <label className="flex items-center gap-1 cursor-pointer font-medium text-slate-700 text-[11px]">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!modPerm.edit}
+                                    onChange={() => handleTogglePermission(mod.id, "edit")}
+                                    className="rounded text-emerald-600 focus:ring-emerald-500"
+                                  />
+                                  Edit
+                                </label>
+                                <label className="flex items-center gap-1 cursor-pointer font-medium text-slate-700 text-[11px]">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!modPerm.delete}
+                                    onChange={() => handleTogglePermission(mod.id, "delete")}
+                                    className="rounded text-rose-600 focus:ring-rose-500"
+                                  />
+                                  Delete
+                                </label>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Share / WhatsApp / Copy buttons (if credentials prepared) */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={copyLoginDetails}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="Copy Login credentials to clipboard"
+                >
+                  <Copy className="w-3.5 h-3.5" /> Copy Details
+                </button>
+                {accessModalStaff.phone && (
+                  <button
+                    type="button"
+                    onClick={sendLoginWhatsApp}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    title="Send Login details on WhatsApp"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" /> Share on WhatsApp
+                  </button>
+                )}
+              </div>
+
+              {accessForm.uid && (
+                <button
+                  type="button"
+                  disabled={revokingAccess}
+                  onClick={handleRevokeRoleAccess}
+                  className="text-xs font-bold text-rose-600 hover:text-rose-700 transition cursor-pointer flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Revoke Login Access
+                </button>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col-reverse sm:flex-row gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setAccessModalStaff(null)}
+                className="w-full sm:flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition text-center cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingAccess}
+                className="w-full sm:flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-xs hover:opacity-95 transition shadow flex items-center justify-center gap-1.5 text-center cursor-pointer"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                {savingAccess
+                  ? "Saving Access..."
+                  : accessForm.uid
+                  ? "Update Role & Permissions"
+                  : "Grant App Login Access"}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* Custom Styles */}

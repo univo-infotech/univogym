@@ -1,4 +1,5 @@
 import { getGymSettings } from "./settings";
+import { formatDate } from "./dateUtils";
 
 export function formatPhone(phone) {
   if (!phone) return "";
@@ -26,7 +27,7 @@ export function generateRenewalReminderMessage(memberName, planName, expiryDate,
   return template
     .replace("{name}", memberName || "Athlete")
     .replace("{plan}", planName || "Gym Plan")
-    .replace("{expiry}", expiryDate || "upcoming date")
+    .replace("{expiry}", formatDate(expiryDate) || "upcoming date")
     .replace("{amount}", amount || "0")
     .replace("{gym_name}", settings.gymName);
 }
@@ -38,7 +39,7 @@ export function generatePtRenewalReminderMessage(memberName, ptPlanName, trainer
     .replace("{name}", memberName || "Athlete")
     .replace("{trainer}", trainerName || "Personal Trainer")
     .replace("{plan}", ptPlanName || "1-on-1 PT Plan")
-    .replace("{expiry}", expiryDate || "upcoming date")
+    .replace("{expiry}", formatDate(expiryDate) || "upcoming date")
     .replace("{amount}", amount || "0")
     .replace("{gym_name}", settings.gymName);
 }
@@ -55,7 +56,7 @@ export function generateOverdueReminderMessage(memberName, planName, daysOverdue
 
 export function generatePaymentReceiptMessage(memberName, amount, planName, date) {
   const settings = getGymSettings();
-  return `🧾 *Payment Confirmation - ${settings.gymName}*\n\nHi ${memberName},\nWe have successfully received your payment of *₹${amount}* for *${planName}* on ${date || "today"}.\n\nThank you for choosing us! Keep crushing your workouts! 💪`;
+  return `🧾 *Payment Confirmation - ${settings.gymName}*\n\nHi ${memberName},\nWe have successfully received your payment of *₹${amount}* for *${planName}* on ${formatDate(date || new Date())}.\n\nThank you for choosing us! Keep crushing your workouts! 💪`;
 }
 
 export function generateSupplementSaleReceiptMessage({
@@ -72,7 +73,7 @@ export function generateSupplementSaleReceiptMessage({
 }) {
   const settings = getGymSettings();
   const gym = settings.gymName || "UNIVO GYM MANAGEMENT";
-  const dateStr = date || new Date().toLocaleDateString("en-IN");
+  const dateStr = formatDate(date || new Date());
 
   let msg = `🧾 *OFFICIAL STORE TAX INVOICE & BILL*\n*${gym}*\n\n`;
   msg += `Dear *${memberName}*,\nThank you for purchasing fitness products from our Gym Store! Here is your official bill:\n\n`;
@@ -112,15 +113,15 @@ export function generatePtAddonReceiptMessage({
 }) {
   const settings = getGymSettings();
   const gym = gymName || settings.gymName || "UNIVO GYM MANAGEMENT";
-  const dateStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const dateStr = formatDate(new Date());
 
   let msg = `🧾 *OFFICIAL PERSONAL TRAINING (PT) BILL & RECEIPT*\n*${gym}*\n\n`;
   msg += `Dear *${memberName}*,\nCongratulations on starting your dedicated 1-on-1 Personal Training Transformation with *Coach ${trainerName}*! Here are your official package & billing details:\n\n`;
   msg += `🏋️ *Personal Coach:* Coach ${trainerName}\n`;
   if (ptSlot) msg += `⏰ *PT Shift / Slot:* ${ptSlot}\n`;
   msg += `📋 *PT Package:* ${ptPlanName}\n`;
-  if (startDate) msg += `📅 *PT Start Date:* ${startDate}\n`;
-  if (expiryDate) msg += `🎯 *PT Valid Till:* ${expiryDate} (${durationDays} Days)\n`;
+  if (startDate) msg += `📅 *PT Start Date:* ${formatDate(startDate)}\n`;
+  if (expiryDate) msg += `🎯 *PT Valid Till:* ${formatDate(expiryDate)} (${durationDays} Days)\n`;
   msg += `💰 *Total Package Fee:* ₹${Number(amount).toLocaleString("en-IN")}\n`;
   msg += `✅ *Amount Paid:* ₹${Number(paidAmount).toLocaleString("en-IN")} (${paymentMode.toUpperCase()})\n`;
   if (Number(dueAmount) > 0) {
@@ -158,15 +159,15 @@ export function generateServiceAddonReceiptMessage({
 }) {
   const settings = getGymSettings();
   const gym = gymName || settings.gymName || "UNIVO GYM MANAGEMENT";
-  const dateStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const dateStr = formatDate(new Date());
 
   let msg = `🧾 *OFFICIAL GYM SERVICE INVOICE & RECEIPT*\n*${gym}*\n\n`;
   msg += `Dear *${memberName}*,\nYour gym facility subscription has been activated successfully! Here are your official service invoice details:\n\n`;
   msg += `🛎️ *Service / Amenity:* ${serviceName}\n`;
   msg += `📂 *Category:* ${category}\n`;
   msg += `⏳ *Duration:* ${months} Month${months > 1 ? "s" : ""} (@ ₹${Number(monthlyRate).toLocaleString("en-IN")}/month)\n`;
-  if (startDate) msg += `📅 *Service Start Date:* ${startDate}\n`;
-  if (endDate) msg += `🎯 *Service Valid Till:* ${endDate}\n`;
+  if (startDate) msg += `📅 *Service Start Date:* ${formatDate(startDate)}\n`;
+  if (endDate) msg += `🎯 *Service Valid Till:* ${formatDate(endDate)}\n`;
   msg += `💰 *Total Service Fee:* ₹${Number(amount).toLocaleString("en-IN")}\n`;
   msg += `✅ *Amount Paid:* ₹${Number(paidAmount).toLocaleString("en-IN")} (${paymentMode.toUpperCase()})\n`;
   if (Number(dueAmount) > 0) {

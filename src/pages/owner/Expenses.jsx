@@ -22,7 +22,9 @@ import {
   Filter,
   ArrowUpRight,
   Info,
-  Dumbbell
+  Dumbbell,
+  Users,
+  RefreshCw
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
@@ -33,8 +35,11 @@ import {
   updateExpense,
   toggleRecurringExpense
 } from "../../firebase/expenses";
+import { getStaff } from "../../firebase/staff";
+import { getTrainers } from "../../firebase/trainers";
 import { useAuth } from "../../contexts/AuthContext";
 import toast from "react-hot-toast";
+import { formatDate } from "../../utils/dateUtils";
 
 const CATEGORIES = [
   { id: "Rent", name: "Gym Rent", icon: Building, color: "text-blue-600 bg-blue-50 border-blue-200" },
@@ -53,9 +58,12 @@ export default function Expenses() {
   const gymId = currentGymId || "univo_main";
 
   const [expenses, setExpenses] = useState([]);
+  const [staffList, setStaffList] = useState([]);
+  const [trainersList, setTrainersList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncingSalaries, setSyncingSalaries] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("all"); // "all" | "monthly_templates" | "onetime"
+  const [activeTab, setActiveTab] = useState("all"); // "all" | "salaries" | "monthly_templates" | "monthly_advance" | "monthly_postpaid" | "onetime"
   const [selectedCategory, setSelectedCategory] = useState("all");
 
   const todayIso = new Date().toISOString().split("T")[0];
@@ -73,12 +81,18 @@ export default function Expenses() {
     autoMonthlyRecur: true
   });
 
-  // Load all expenses with automated recurring calculation
+  // Load all expenses, staff, and trainers
   async function loadExpensesData() {
     setLoading(true);
     try {
-      const data = await getExpenses(gymId);
+      const [data, staffRes, trainersRes] = await Promise.all([
+        getExpenses(gymId, true),
+        getStaff(gymId).catch(() => []),
+        getTrainers(gymId).catch(() => [])
+      ]);
       setExpenses(data || []);
+      setStaffList(staffRes || []);
+      setTrainersList(trainersRes || []);
     } catch (err) {
       console.error("Failed to load expenses:", err);
       toast.error("Failed to load expenses");
@@ -90,6 +104,105 @@ export default function Expenses() {
   useEffect(() => {
     loadExpensesData();
   }, [gymId]);
+
+  // Active Staff & Trainers calculation (Inactive staff/trainers are excluded!)
+  const activeStaff = useMemo(() => {
+    return (staffList || []).filter((s) => s.isActive !== false && s.status !== "inactive");
+  }, [staffList]);
+
+  const activeTrainers = useMemo(() => {
+    return (trainersList || []).filter((t) => t.isActive !== false && t.status !== "inactive");
+  }, [trainersList]);
+
+  const totalMonthlyPayroll = useMemo(() => {
+    const staffPay = activeStaff.reduce((sum, s) => sum + (Number(s.salary) || 0), 0);
+    const trainerPay = activeTrainers.reduce((sum, t) => sum + (Number(t.salary) || 0), 0);
+    return staffPay + trainerPay;
+  }, [activeStaff, activeTrainers]);
+
+  // Sync active staff & trainer salaries for the current month
+  const syncActiveSalaries = async (forceToast = true) => {
+    setSyncingSalaries(true);
+    try {
+      const targetMonth = currentMonthKey;
+      const nowIso = new Date().toISOString().split("T")[0];
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+      const currentMonthName = monthNames[new Date().getMonth()];
+      const currentYear = new Date().getFullYear();
+
+      // Only ACTIVE trainers with salary > 0
+      const trainersToBill = activeTrainers.filter((t) => Number(t.salary) > 0);
+      // Only ACTIVE staff with salary > 0
+      const staffToBill = activeStaff.filter((s) => Number(s.salary) > 0);
+
+      let addedCount = 0;
+
+      for (const tr of trainersToBill) {
+        const alreadyExists = expenses.some(
+          (e) =>
+            (e.trainerId === tr.id || (e.title && e.title.includes(tr.name))) &&
+            (e.date || "").startsWith(targetMonth)
+        );
+        if (!alreadyExists) {
+          await addExpense(gymId, {
+            title: `Trainer Salary: ${tr.name} (${currentMonthName} ${currentYear})`,
+            amount: Number(tr.salary),
+            category: "Trainer Salary",
+            date: nowIso,
+            type: "salary",
+            isSalary: true,
+            isTrainerSalary: true,
+            trainerId: tr.id,
+            trainerName: tr.name,
+            status: "paid",
+            notes: `Monthly base salary for active coach ${tr.name}`,
+            createdAt: new Date().toISOString()
+          });
+          addedCount++;
+        }
+      }
+
+      for (const st of staffToBill) {
+        const alreadyExists = expenses.some(
+          (e) =>
+            (e.staffId === st.id || (e.title && e.title.includes(st.name))) &&
+            (e.date || "").startsWith(targetMonth)
+        );
+        if (!alreadyExists) {
+          await addExpense(gymId, {
+            title: `Staff Salary: ${st.name} (${currentMonthName} ${currentYear})`,
+            amount: Number(st.salary),
+            category: "Staff Salary",
+            date: nowIso,
+            type: "salary",
+            isSalary: true,
+            isTrainerSalary: false,
+            staffId: st.id,
+            staffName: st.name,
+            status: "paid",
+            notes: `Monthly payroll for active staff ${st.name}`,
+            createdAt: new Date().toISOString()
+          });
+          addedCount++;
+        }
+      }
+
+      if (addedCount > 0) {
+        if (forceToast) toast.success(`Synced ${addedCount} active salary records into Expenses!`);
+        await loadExpensesData();
+      } else if (forceToast) {
+        toast.success("Sabhi active staff aur trainers ki salary expenses me already updated hai!");
+      }
+    } catch (err) {
+      console.error("Salary sync error:", err);
+      if (forceToast) toast.error("Salary sync failed");
+    } finally {
+      setSyncingSalaries(false);
+    }
+  };
 
   // Create new expense
   const handleSaveExpense = async (e) => {
@@ -204,32 +317,66 @@ export default function Expenses() {
     }
   };
 
-  // Filtered lists
+  // Helper to identify salary records (which belong to Staff & Trainer Payroll)
+  const isSalaryRecord = (e) =>
+    Boolean(
+      e.isSalary ||
+      e.isTrainerSalary ||
+      e.category === "Trainer Salary" ||
+      e.category === "Staff Salary" ||
+      (e.title && e.title.toLowerCase().startsWith("trainer salary")) ||
+      (e.title && e.title.toLowerCase().startsWith("staff salary"))
+    );
+
+  // Filtered lists: Fixed bills strictly for gym overheads (Rent, Electricity, WiFi, etc.)
   const recurringTemplates = useMemo(() => {
-    return expenses.filter((e) => e.type === "monthly" && e.isRecurringTemplate === true);
+    return expenses.filter(
+      (e) => e.type === "monthly" && e.isRecurringTemplate === true && !isSalaryRecord(e)
+    );
   }, [expenses]);
 
   const filteredExpenses = useMemo(() => {
-    return expenses.filter((e) => {
-      // Tab filter
-      if (activeTab === "monthly_templates") {
-        if (!e.isRecurringTemplate) return false;
-      } else if (activeTab === "monthly_advance") {
-        if (e.type !== "monthly" || (e.monthlyPaymentType && e.monthlyPaymentType !== "advance")) return false;
-      } else if (activeTab === "monthly_postpaid") {
-        if (e.type !== "monthly" || e.monthlyPaymentType !== "postpaid") return false;
-      } else if (activeTab === "onetime") {
-        if (e.type !== "onetime") return false;
-      }
+    return expenses
+      .filter((e) => {
+        // Tab filter
+        if (activeTab === "all") {
+          // In All Ledger, show real transactions ONLY (exclude template rules)
+          if (e.isRecurringTemplate) return false;
+        } else if (activeTab === "salaries") {
+          if (!isSalaryRecord(e)) return false;
+        } else if (activeTab === "monthly_templates") {
+          if (!e.isRecurringTemplate || isSalaryRecord(e)) return false;
+        } else if (activeTab === "monthly_advance") {
+          if (e.isRecurringTemplate) return false;
+          if (e.type !== "monthly" || (e.monthlyPaymentType && e.monthlyPaymentType !== "advance")) return false;
+        } else if (activeTab === "monthly_postpaid") {
+          if (e.isRecurringTemplate) return false;
+          if (e.type !== "monthly" || e.monthlyPaymentType !== "postpaid") return false;
+        } else if (activeTab === "onetime") {
+          if (e.type !== "onetime") return false;
+        }
 
-      // Category filter
-      if (selectedCategory !== "all" && e.category !== selectedCategory) {
-        return false;
-      }
+        // Category filter
+        if (selectedCategory !== "all" && e.category !== selectedCategory) {
+          return false;
+        }
 
-      return true;
-    });
+        return true;
+      })
+      .sort((a, b) => {
+        const dateCmp = (b.date || "").localeCompare(a.date || "");
+        if (dateCmp !== 0) return dateCmp;
+        return (b.createdAt || "").localeCompare(a.createdAt || "");
+      });
   }, [expenses, activeTab, selectedCategory]);
+
+  // Tab counts
+  const ledgerCount = useMemo(() => expenses.filter((e) => !e.isRecurringTemplate).length, [expenses]);
+  const salariesCount = useMemo(() => expenses.filter((e) => !e.isRecurringTemplate && isSalaryRecord(e)).length, [expenses]);
+  const recurringCount = useMemo(() => recurringTemplates.length, [recurringTemplates]);
+  const advanceCount = useMemo(() => expenses.filter((e) => !e.isRecurringTemplate && e.type === "monthly" && (e.monthlyPaymentType === "advance" || !e.monthlyPaymentType)).length, [expenses]);
+  const postpaidCount = useMemo(() => expenses.filter((e) => !e.isRecurringTemplate && e.type === "monthly" && e.monthlyPaymentType === "postpaid").length, [expenses]);
+  const onetimeCount = useMemo(() => expenses.filter((e) => e.type === "onetime").length, [expenses]);
 
   // Current Month Financial Stats
   const currentMonthExpenses = useMemo(() => {
@@ -274,68 +421,129 @@ export default function Expenses() {
           </div>
         </div>
 
-        <Button
-          icon={<Plus className="w-4 h-4" />}
-          onClick={() => setModalOpen(true)}
-          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-md shadow-emerald-500/20 px-5 py-3 rounded-2xl shrink-0"
-        >
-          Add Expense / Fixed Bill
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-extrabold shadow-2xs">
+            <Calendar className="w-4 h-4 text-emerald-600" />
+            <span>Today: {formatDate(new Date())}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => syncActiveSalaries(true)}
+            disabled={syncingSalaries}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 font-extrabold text-xs shadow-2xs transition disabled:opacity-50"
+            title="Auto-sync active staff & trainers salaries for this month"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-teal-600 ${syncingSalaries ? "animate-spin" : ""}`} />
+            <span>Sync Salaries</span>
+          </button>
+
+          <Button
+            icon={<Plus className="w-4 h-4" />}
+            onClick={() => setModalOpen(true)}
+            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-md shadow-emerald-500/20 px-5 py-2.5 rounded-2xl shrink-0"
+          >
+            Add Expense / Fixed Bill
+          </Button>
+        </div>
       </div>
 
-      {/* KPI Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Staff & Trainer Automation Notice */}
+      <div className="p-4 bg-gradient-to-r from-teal-50/80 via-emerald-50/50 to-white border border-teal-200/80 rounded-3xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-700 shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <Users className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="font-bold text-slate-900">
+              Staff & Trainer Payroll Automation
+            </p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Active Trainers ({activeTrainers.length}) aur Active Staff ({activeStaff.length}) ki monthly salary expense me automatically include hoti hai. Inactive karne par salary add hona band ho jata hai.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => syncActiveSalaries(true)}
+          className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] shadow-xs transition self-start sm:self-auto shrink-0 flex items-center gap-1"
+        >
+          <RefreshCw className={`w-3 h-3 ${syncingSalaries ? "animate-spin" : ""}`} /> Sync Active Salaries
+        </button>
+      </div>
+
+      {/* KPI Stats Cards (4 Columns) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total This Month */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-100">
               Current Month Incurred
             </span>
-            <div className="text-2xl font-black text-slate-900 mt-2">
+            <div className="text-xl font-black text-slate-900 mt-2">
               ₹{totalThisMonthAmount.toLocaleString("en-IN")}
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-[11px] text-slate-500 mt-1">
               Billed for {new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
             </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-            <TrendingDown className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+            <TrendingDown className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Active Payroll Budget */}
+        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-100 flex items-center gap-1 w-fit">
+              <Users className="w-3 h-3 text-teal-600" /> Active Payroll
+            </span>
+            <div className="text-xl font-black text-teal-700 mt-2">
+              ₹{totalMonthlyPayroll.toLocaleString("en-IN")}
+              <span className="text-xs text-slate-400 font-normal">/mo</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              {activeStaff.length} Staff + {activeTrainers.length} Trainers Active
+            </p>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+            <Dumbbell className="w-5 h-5" />
           </div>
         </div>
 
         {/* Monthly Fixed Recurring Budget */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100 flex items-center gap-1 w-fit">
-              <Repeat className="w-3 h-3" /> Auto-Billed Monthly
+              <Repeat className="w-3 h-3 text-purple-600" /> Fixed Recurring
             </span>
-            <div className="text-2xl font-black text-purple-700 mt-2">
+            <div className="text-xl font-black text-purple-700 mt-2">
               ₹{recurringActiveMonthlyTotal.toLocaleString("en-IN")}
               <span className="text-xs text-slate-400 font-normal">/mo</span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              {recurringTemplates.filter((t) => t.isActive !== false).length} Active Fixed Recurring Bill(s)
+            <p className="text-[11px] text-slate-500 mt-1">
+              {recurringTemplates.filter((t) => t.isActive !== false).length} Active Fixed Bill(s)
             </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-            <Repeat className="w-6 h-6" />
+          <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <Repeat className="w-5 h-5" />
           </div>
         </div>
 
         {/* One-time Overhead this month */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
+        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
-              One-Time Overhead
+              One-Time Spends
             </span>
-            <div className="text-2xl font-black text-slate-900 mt-2">
+            <div className="text-xl font-black text-slate-900 mt-2">
               ₹{oneTimeThisMonthAmount.toLocaleString("en-IN")}
             </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Repairs, supplies & non-recurring spends
+            <p className="text-[11px] text-slate-500 mt-1">
+              Repairs, supplies & non-recurring
             </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
             <Calendar className="w-6 h-6" />
           </div>
         </div>
@@ -432,13 +640,40 @@ export default function Expenses() {
                     </div>
                     <div className="text-right">
                       <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                        {(t.monthlyPaymentType || "advance") === "advance" ? "Billed Upfront" : "Billed After Month"}
+                        {(t.monthlyPaymentType || "advance") === "advance" ? "Billed in Advance ⚡" : "Billed After Month 🗓️"}
                       </span>
                       <p className="text-xs font-black text-slate-800">
                         Day {t.dayOfMonth || 1} of Month
                       </p>
                     </div>
                   </div>
+
+                  {/* Real-time Status for Current Month */}
+                  {(() => {
+                    const thisMonthInstance = expenses.find(
+                      (e) => !e.isRecurringTemplate && (e.templateId === t.id || (e.title && e.title.toLowerCase() === t.title.toLowerCase())) && (e.date || "").startsWith(currentMonthKey)
+                    );
+                    return (
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 font-medium">Current Month Status:</span>
+                          {thisMonthInstance ? (
+                            <span className="font-extrabold text-emerald-700 flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Billed: {formatDate(thisMonthInstance.date)}
+                              {formatDate(thisMonthInstance.date) === formatDate(new Date()) && (
+                                <span className="text-[9px] px-1 py-0.2 bg-emerald-100 text-emerald-800 rounded font-black border border-emerald-300">Today</span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="font-bold text-amber-700 flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-amber-600" /> Scheduled Day {t.dayOfMonth || 1}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Actions (Pause/Resume & Delete) */}
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
@@ -490,7 +725,17 @@ export default function Expenses() {
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            All Ledger ({expenses.length})
+            All Ledger ({ledgerCount})
+          </button>
+          <button
+            onClick={() => setActiveTab("salaries")}
+            className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === "salaries"
+                ? "bg-white text-teal-700 shadow-xs border border-teal-100"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 text-teal-600" /> 👥 Salaries & Payroll ({salariesCount})
           </button>
           <button
             onClick={() => setActiveTab("monthly_templates")}
@@ -500,7 +745,7 @@ export default function Expenses() {
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <Repeat className="w-3.5 h-3.5" /> Recurring Rules ({recurringTemplates.length})
+            <Repeat className="w-3.5 h-3.5 text-emerald-600" /> Fixed Rules ({recurringCount})
           </button>
           <button
             onClick={() => setActiveTab("monthly_advance")}
@@ -510,7 +755,7 @@ export default function Expenses() {
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <Zap className="w-3.5 h-3.5 text-amber-600" /> ⚡ Advance Monthly
+            <Zap className="w-3.5 h-3.5 text-amber-600" /> ⚡ Advance Monthly ({advanceCount})
           </button>
           <button
             onClick={() => setActiveTab("monthly_postpaid")}
@@ -520,7 +765,7 @@ export default function Expenses() {
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <Clock className="w-3.5 h-3.5 text-blue-600" /> 🗓️ Postpaid Bills
+            <Clock className="w-3.5 h-3.5 text-blue-600" /> 🗓️ Postpaid Bills ({postpaidCount})
           </button>
           <button
             onClick={() => setActiveTab("onetime")}
@@ -530,7 +775,7 @@ export default function Expenses() {
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            One-Time Only
+            One-Time Only ({onetimeCount})
           </button>
         </div>
 
@@ -592,10 +837,17 @@ export default function Expenses() {
                   return (
                     <tr key={exp.id} className="hover:bg-slate-50/80 transition">
                       <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
-                        {exp.date || "N/A"}
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-slate-900">{formatDate(exp.date)}</span>
+                          {formatDate(exp.date) === formatDate(new Date()) && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                              Today
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-3.5">
-                        <p className="font-bold text-slate-900">{exp.title}</p>
+                        <p className="font-bold text-slate-900 capitalize">{exp.title}</p>
                         {exp.notes && (
                           <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-xs">
                             {exp.notes}
@@ -607,8 +859,16 @@ export default function Expenses() {
                           <IconComp className="w-3 h-3" /> {exp.category}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5">
-                        {exp.isRecurringTemplate ? (
+                      <td className="px-5 py-3.5 whitespace-nowrap">
+                        {exp.category === "Staff Salary" || (exp.isSalary && !exp.isTrainerSalary) ? (
+                          <span className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-extrabold text-[11px] shadow-2xs">
+                            <Users className="w-3.5 h-3.5 text-emerald-600" /> 👥 Staff Payroll
+                          </span>
+                        ) : exp.category === "Trainer Salary" || exp.isTrainerSalary ? (
+                          <span className="inline-flex items-center gap-1.5 text-teal-800 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-lg font-extrabold text-[11px] shadow-2xs">
+                            <Dumbbell className="w-3.5 h-3.5 text-teal-600" /> 🏋️ Trainer Payroll
+                          </span>
+                        ) : exp.isRecurringTemplate ? (
                           <span
                             className={`inline-flex items-center gap-1 font-extrabold text-[11px] px-2.5 py-0.5 rounded-md border ${
                               (exp.monthlyPaymentType || "advance") === "advance"
@@ -628,10 +888,10 @@ export default function Expenses() {
                           </span>
                         ) : exp.type === "monthly" || exp.isRecurringInstance ? (
                           <span
-                            className={`inline-flex items-center gap-1 font-bold text-[11px] px-2 py-0.5 rounded-md border ${
+                            className={`inline-flex items-center gap-1 font-bold text-[11px] px-2.5 py-1 rounded-lg border shadow-2xs ${
                               (exp.monthlyPaymentType || "advance") === "advance"
-                                ? "text-amber-800 bg-amber-50/80 border-amber-200"
-                                : "text-blue-800 bg-blue-50/80 border-blue-200"
+                                ? "text-amber-800 bg-amber-50/90 border-amber-200"
+                                : "text-blue-800 bg-blue-50/90 border-blue-200"
                             }`}
                           >
                             {(exp.monthlyPaymentType || "advance") === "advance" ? (
@@ -645,8 +905,8 @@ export default function Expenses() {
                             )}
                           </span>
                         ) : (
-                          <span className="text-slate-500 text-[11px] font-medium capitalize">
-                            {exp.type === "onetime" ? "One-time cost" : "Manual entry"}
+                          <span className="inline-flex items-center gap-1 text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                            {exp.type === "onetime" ? "🏷️ One-Time Cost" : "✍️ Manual Entry"}
                           </span>
                         )}
                       </td>
@@ -836,7 +1096,7 @@ export default function Expenses() {
                     onChange={(e) => setForm({ ...form, dayOfMonth: Number(e.target.value) })}
                     className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 font-extrabold text-slate-800"
                   >
-                    {[1, 2, 3, 4, 5, 7, 10, 15, 20, 25, 28, 30].map((day) => (
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
                       <option key={day} value={day}>
                         {day}th of every month
                       </option>
@@ -859,7 +1119,7 @@ export default function Expenses() {
                   <span>
                     {form.monthlyPaymentType === "advance" ? (
                       <>
-                        <strong>⚡ Advance Mode Active:</strong> Is kharche ka ₹{form.amount || "0"} ka record turant ledger me <strong>{form.date}</strong> par add ho jayega, aur agli har mahine ki <strong>{form.dayOfMonth}</strong> tarikh ko advance recurring repeat hoga.
+                        <strong>⚡ Advance Mode Active:</strong> Is kharche ka ₹{form.amount || "0"} ka record turant ledger me <strong>{formatDate(form.date)}</strong> par add ho jayega, aur agli har mahine ki <strong>{form.dayOfMonth}</strong> tarikh ko advance recurring repeat hoga.
                       </>
                     ) : (
                       <>

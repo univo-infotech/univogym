@@ -587,32 +587,36 @@ export default function Services() {
       {/* ============================================================
           TOP HEADER
       ============================================================ */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            Gym Services & Facility Add-ons
-          </h1>
-          <p className="text-slate-500 text-xs mt-1">
-            Manage steam sauna, physiotherapy, private lockers, diet consultation, and class batches
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
+            <Star className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
+              Gym Services & Facility Add-ons
+            </h1>
+            <p className="text-slate-500 text-xs mt-0.5">
+              Manage steam sauna, physiotherapy, private lockers, diet consultation & class batches
+            </p>
+          </div>
         </div>
 
-        <Button
-          icon={<Plus className="w-4 h-4" />}
+        <button
           onClick={handleOpenCreate}
-          className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md hover:shadow-emerald-500/20 transition self-start sm:self-auto"
+          className="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition duration-200 shrink-0 cursor-pointer"
         >
-          Add New Facility / Service
-        </Button>
+          <Plus className="w-4 h-4" />
+          <span>Add New Service</span>
+        </button>
       </div>
 
-
-
       {/* ============================================================
-          FILTER & SEARCH CONTROLS BAR
+          FILTER & SEARCH CONTROLS BAR (CLEAN & RESPONSIVE)
       ============================================================ */}
-      <div className="p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="p-3 sm:p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3">
+        {/* Row 1: Search Bar & Quick Dropdowns */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
           {/* Search Bar */}
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -621,89 +625,96 @@ export default function Services() {
               placeholder="Search facility name, coach in-charge or description..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-4 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 transition"
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-9 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500 transition"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1"
               >
                 ✕
               </button>
             )}
           </div>
 
-          {/* Pricing Model & Sort Selectors */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <select
-              value={billingFilter}
-              onChange={(e) => setBillingFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="all">All Fee Models</option>
-              <option value="paid">Paid Add-ons Only</option>
-              <option value="free">Free / Included Only</option>
-              <option value="Per Month">Per Month</option>
-              <option value="Per Session">Per Session</option>
-            </select>
+          {/* Quick Filters: Grid on Mobile, Flex on Desktop */}
+          <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 shrink-0">
+            {/* Fee Model Selector */}
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-2xl px-2.5 py-2 text-xs">
+              <select
+                value={billingFilter}
+                onChange={(e) => setBillingFilter(e.target.value)}
+                className="bg-transparent font-bold text-slate-800 focus:outline-none w-full cursor-pointer text-xs"
+              >
+                <option value="all">All Fee Models</option>
+                <option value="paid">Paid Only</option>
+                <option value="free">Free / Included</option>
+                <option value="Per Month">Per Month</option>
+                <option value="Per Session">Per Session</option>
+              </select>
+            </div>
 
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="popular">Most Inquired First</option>
-              <option value="name">Alphabetical (A-Z)</option>
-              <option value="price_asc">Price: Low to High</option>
-              <option value="price_desc">Price: High to Low</option>
-            </select>
+            {/* Status Filter */}
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-2xl px-2.5 py-2 text-xs">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-transparent font-bold text-slate-800 focus:outline-none w-full cursor-pointer text-xs"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active Only</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+
+            {/* Sort Selector */}
+            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-2xl px-2.5 py-2 text-xs col-span-3 sm:col-span-1">
+              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 shrink-0 hidden sm:inline" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="bg-transparent font-bold text-slate-800 focus:outline-none w-full cursor-pointer text-xs"
+              >
+                <option value="popular">Most Inquired</option>
+                <option value="name">A to Z</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        {/* Category Pill Tabs */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100">
-          {[
-            { id: "all", label: "All Categories" },
-            ...allCategories.map(cat => ({ id: cat, label: cat }))
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setSelectedCategory(tab.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-                selectedCategory === tab.id
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-
-          <div className="ml-auto flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
-            <button
-              onClick={() => setStatusFilter("all")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
-                statusFilter === "all" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setStatusFilter("active")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
-                statusFilter === "active" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setStatusFilter("inactive")}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${
-                statusFilter === "inactive" ? "bg-rose-50 text-rose-700 border border-rose-200" : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              Inactive
-            </button>
+        {/* Row 2: Category Pill Tabs (Single scrollable row, never wraps) */}
+        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth py-0.5 w-full">
+            {[
+              { id: "all", label: "All Categories", count: services.length },
+              ...allCategories.map(cat => ({
+                id: cat,
+                label: cat,
+                count: services.filter(s => s.category === cat).length
+              }))
+            ].map((tab) => {
+              const isSelected = selectedCategory === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setSelectedCategory(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                    isSelected
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    isSelected ? "bg-white/20 text-white" : "bg-white text-slate-500 border border-slate-200/60"
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -747,50 +758,33 @@ export default function Services() {
               >
                 {/* Main Card Body */}
                 <div className="p-5 space-y-4">
-                  {/* Top Header: Icon + Category + Price Tag */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-slate-900 group-hover:text-white text-slate-700 flex items-center justify-center transition shadow-2xs">
-                        <IconComponent className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full border ${catConfig.color}`}>
-                          {s.category}
-                        </span>
-                        {s.tag && (
-                          <p className="text-[10px] font-bold text-amber-600 mt-1 flex items-center gap-1">
-                            <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> {s.tag}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Active Status Badge */}
-                    <button
-                      type="button"
-                      onClick={() => handleToggleStatus(s)}
-                      className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold transition cursor-pointer ${
-                        s.isActive !== false
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : "bg-rose-50 text-rose-700 border border-rose-200"
-                      }`}
-                      title={s.isActive !== false ? "Click to Deactivate" : "Click to Activate"}
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full ${s.isActive !== false ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
-                      {s.isActive !== false ? "Active" : "Inactive"}
-                    </button>
+                  {/* Top Row: Category Pill & Optional Tag */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border whitespace-nowrap shadow-2xs ${catConfig.color}`}>
+                      {s.category}
+                    </span>
+                    {s.tag && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap">
+                        <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> {s.tag}
+                      </span>
+                    )}
                   </div>
 
-                  {/* Service Title & Description */}
-                  <div>
-                    <h3 className="text-base font-black text-slate-900 group-hover:text-emerald-700 transition leading-snug">
-                      {s.name}
-                    </h3>
-                    {s.desc && (
-                      <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">
-                        {s.desc}
-                      </p>
-                    )}
+                  {/* Service Title & Icon */}
+                  <div className="flex items-start gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-slate-100 group-hover:bg-slate-900 group-hover:text-white text-slate-700 flex items-center justify-center transition shadow-2xs shrink-0 mt-0.5">
+                      <IconComponent className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-base font-black text-slate-900 group-hover:text-emerald-700 transition leading-snug">
+                        {s.name}
+                      </h3>
+                      {s.desc && (
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">
+                          {s.desc}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   {/* Pricing Box */}
@@ -826,28 +820,30 @@ export default function Services() {
                     )}
                   </div>
 
-                  {/* Operational Details (Timing, Coach, Duration) */}
-                  <div className="space-y-1.5 text-xs text-slate-600 bg-white p-2.5 rounded-2xl border border-slate-100">
-                    {s.timing && (
-                      <div className="flex items-center gap-1.5 text-[11px]">
-                        <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{s.timing}</span>
-                      </div>
-                    )}
-                    {s.duration && (
-                      <div className="flex items-center gap-1.5 text-[11px]">
-                        <Activity className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span className="font-semibold text-slate-800">{s.duration}</span>
-                        {s.capacity && <span className="text-slate-400">• {s.capacity}</span>}
-                      </div>
-                    )}
-                    {s.instructor && (
-                      <div className="flex items-center gap-1.5 text-[11px]">
-                        <UserCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                        <span className="text-indigo-900 font-bold truncate">In-charge: {s.instructor}</span>
-                      </div>
-                    )}
-                  </div>
+                  {/* Operational Details (Timing, Coach, Duration) - Only show if data exists */}
+                  {Boolean(s.timing || s.duration || s.instructor || s.capacity) && (
+                    <div className="space-y-1.5 text-xs text-slate-600 bg-white p-2.5 rounded-2xl border border-slate-100">
+                      {s.timing && (
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{s.timing}</span>
+                        </div>
+                      )}
+                      {s.duration && (
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <Activity className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span className="font-semibold text-slate-800">{s.duration}</span>
+                          {s.capacity && <span className="text-slate-400">• {s.capacity}</span>}
+                        </div>
+                      )}
+                      {s.instructor && (
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <UserCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span className="text-indigo-900 font-bold truncate">In-charge: {s.instructor}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Key Benefits List */}
                   {s.benefits && s.benefits.length > 0 && (
@@ -874,11 +870,11 @@ export default function Services() {
 
                 {/* Card Footer Actions */}
                 <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
-                  {/* Active / Inactive Button */}
+                  {/* Active / Inactive Toggle Button at Bottom */}
                   <button
                     type="button"
                     onClick={() => handleToggleStatus(s)}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer ${
                       s.isActive !== false
                         ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
                         : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"

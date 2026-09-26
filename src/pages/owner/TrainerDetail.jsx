@@ -34,6 +34,7 @@ import {
   getTrainerBeforeAfter,
   getTrainerPlans,
 } from "../../firebase/trainers";
+import { formatDate } from "../../utils/dateUtils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SPEC_COLORS = {
@@ -103,11 +104,7 @@ function ProfileTab({ trainer }) {
           <InfoCard
             icon={Calendar}
             label="Joined Date"
-            value={new Date(trainer.joinDate).toLocaleDateString("en-IN", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
+            value={formatDate(trainer.joinDate)}
             color="purple"
           />
         )}
@@ -128,7 +125,7 @@ function ProfileTab({ trainer }) {
                   if (cycleM > 11) { cycleM = 0; cycleY++; }
                 }
                 const nextDue = new Date(cycleY, cycleM, d || 1);
-                return `${nextDue.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} (Day ${d || 1})`;
+                return `${formatDate(nextDue)} (Day ${d || 1})`;
               } catch (e) {
                 return "Monthly Recurring";
               }
@@ -758,11 +755,7 @@ function MembersTab({ members, loading }) {
         <tbody className="divide-y divide-slate-700/30">
           {members.map((m) => {
             const isActive = m.status === "active";
-            const expiry = m.expiryDate
-              ? new Date(m.expiryDate?.seconds * 1000 || m.expiryDate).toLocaleDateString(
-                  "en-IN"
-                )
-              : "—";
+            const expiry = formatDate(m.expiryDate, "—");
             return (
               <tr key={m.id} className="hover:bg-slate-700/20 transition-colors">
                 <td className="py-3.5 px-5">
@@ -860,7 +853,7 @@ function BeforeAfterTab({ photos, loading }) {
               {p.date && (
                 <span className="text-xs text-slate-500 flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  {new Date(p.date?.seconds * 1000 || p.date).toLocaleDateString("en-IN")}
+                  {formatDate(p.date)}
                 </span>
               )}
             </div>

@@ -29,6 +29,7 @@ import { collection, getDocs, addDoc, query, orderBy, serverTimestamp } from "fi
 import { db } from "../../firebase/config";
 import { useAuth } from "../../contexts/AuthContext";
 import toast from "react-hot-toast";
+import { formatDate } from "../../utils/dateUtils";
 
 // Rich fallback transformations if Firestore is not yet populated
 const DEFAULT_TRANSFORMATIONS = [
@@ -758,7 +759,7 @@ export default function BeforeAfter() {
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-center">
                 <p className="text-[10px] font-bold text-slate-400 uppercase">Verification Date</p>
                 <p className="text-base font-black text-slate-900 mt-0.5">
-                  {viewDetailModal.date || "2026"}
+                  {formatDate(viewDetailModal.date, "2026")}
                 </p>
               </div>
             </div>

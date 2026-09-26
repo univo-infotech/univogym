@@ -3,6 +3,7 @@ import { DollarSign, Download, CheckCircle, FileText } from "lucide-react";
 import { generatePaymentReceipt } from "../../utils/pdf";
 import { useAuth } from "../../contexts/AuthContext";
 import { getMemberPayments } from "../../firebase/payments";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function MemberPayments() {
   const { gymId, profileId, user } = useAuth();
@@ -85,7 +86,7 @@ export default function MemberPayments() {
             ) : (
               history.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50/80 transition">
-                  <td className="px-5 py-3.5 font-medium text-slate-500">{p.date}</td>
+                  <td className="px-5 py-3.5 font-medium text-slate-500">{formatDate(p.date)}</td>
                   <td className="px-5 py-3.5 font-bold text-slate-900">{p.planName}</td>
                   <td className="px-5 py-3.5 uppercase font-semibold text-slate-700">{p.paymentMode}</td>
                   <td className="px-5 py-3.5 font-extrabold text-emerald-600 text-sm">₹{p.paidAmount}</td>

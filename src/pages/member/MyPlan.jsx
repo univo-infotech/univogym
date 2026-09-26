@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getMember } from "../../firebase/members";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function MyPlan() {
   const { gymId, profileId, user } = useAuth();
@@ -65,8 +66,8 @@ export default function MyPlan() {
 
   const planTitle = member.ptPlanName || member.planName || "Personal Training Transformation";
   const coach = member.personalTrainer || member.trainerName || member.trainer || "Assigned Coach";
-  const joinDate = member.joinDate ? new Date(member.joinDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : "--";
-  const expiryDate = member.expiryDate ? new Date(member.expiryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : "--";
+  const joinDate = formatDate(member.joinDate, "--");
+  const expiryDate = formatDate(member.expiryDate, "--");
   
   const dietPlan = member.dietPlan;
   const workoutRoutine = member.workoutRoutine;
@@ -262,7 +263,7 @@ export default function MyPlan() {
 
               {member.dietPlanUpdatedAt && (
                 <p className="text-xs text-center text-slate-400">
-                  Last updated: {new Date(member.dietPlanUpdatedAt).toLocaleDateString()}
+                  Last updated: {formatDate(member.dietPlanUpdatedAt)}
                 </p>
               )}
             </>
@@ -314,7 +315,7 @@ export default function MyPlan() {
               
               {member.workoutRoutineUpdatedAt && (
                 <p className="text-xs text-center text-slate-400">
-                  Last updated: {new Date(member.workoutRoutineUpdatedAt).toLocaleDateString()}
+                  Last updated: {formatDate(member.workoutRoutineUpdatedAt)}
                 </p>
               )}
             </>

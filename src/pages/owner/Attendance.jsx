@@ -42,6 +42,7 @@ import {
   toggleMemberBiometricAccess
 } from "../../firebase/attendance";
 import toast from "react-hot-toast";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function BiometricAttendance() {
   const { gymId } = useAuth();
@@ -104,8 +105,8 @@ export default function BiometricAttendance() {
 
   // Statistics
   const stats = useMemo(() => {
-    const todayStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-    const todayPunches = punches.filter(p => p.date === todayStr || !p.date);
+    const todayStr = formatDate(new Date());
+    const todayPunches = punches.filter(p => formatDate(p.date) === todayStr || !p.date);
     const granted = todayPunches.filter(p => p.status === "granted");
     const denied = todayPunches.filter(p => p.status === "denied");
     const uniqueMembers = new Set(granted.map(p => p.memberId)).size;
@@ -439,7 +440,7 @@ export default function BiometricAttendance() {
                       <span className="flex items-center gap-1 font-mono font-bold text-slate-600">
                         <Clock className="w-3 h-3 text-emerald-600" /> {p.time || "Just now"}
                       </span>
-                      <span>{p.date}</span>
+                      <span>{formatDate(p.date)}</span>
                     </div>
                   </div>
                 );

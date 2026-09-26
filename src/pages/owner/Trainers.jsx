@@ -36,18 +36,23 @@ import {
   Sun,
   Sunset,
   Moon,
-  Layers
+  Layers,
+  QrCode,
+  Download,
+  ExternalLink
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
 import PhotoCaptureInput from "../../components/shared/PhotoCaptureInput";
-import { getTrainers, addTrainer, updateTrainer, deleteTrainer, getLocalTrainers } from "../../firebase/trainers";
+import { getTrainers, addTrainer, updateTrainer, deleteTrainer, getLocalTrainers, createTrainerInvite } from "../../firebase/trainers";
 import { getMembers } from "../../firebase/members";
 import { getStaff } from "../../firebase/staff";
-import { addExpense, getExpenses, updateExpense } from "../../firebase/expenses";
+import { addExpense, getExpenses, updateExpense, deleteExpense } from "../../firebase/expenses";
 import { useAuth } from "../../contexts/AuthContext";
 import { invalidateCache } from "../../utils/dataCache";
 import toast from "react-hot-toast";
+import { formatDate } from "../../utils/dateUtils";
 
 export const DEFAULT_SHIFTS_CONFIG = [
   { id: "morning", label: "Morning", fullLabel: "Morning Shift", time: "6:00 AM - 9:00 AM", icon: Sun, color: "text-amber-500", bg: "bg-amber-50", border: "border-amber-200" },
@@ -533,47 +538,17 @@ export default function Trainers() {
 
       await updateTrainer(gymId || "univo_main", editingTrainer.id, updatedData);
 
-      // Sync or update recurring salary expense rule
+      // Clean up any legacy recurring salary templates from expenses (salaries are managed via Monthly Payroll Tracker)
       try {
         const existingExp = await getExpenses(gymId || "univo_main", true);
         const foundTpl = existingExp.find(
           (e) => e.isRecurringTemplate && (e.trainerId === editingTrainer.id || (e.title && e.title.includes(editingTrainer.name)))
         );
-        const joinDay = Number(joinDate.split("-")[2]) || 1;
-
         if (foundTpl) {
-          await updateExpense(gymId || "univo_main", foundTpl.id, {
-            title: `Trainer Salary: ${editForm.name}`,
-            amount: salaryNum,
-            startDate: joinDate,
-            dayOfMonth: joinDay,
-            isActive: salaryNum > 0,
-            trainerName: editForm.name,
-            updatedAt: new Date().toISOString()
-          });
-        } else if (salaryNum > 0) {
-          await addExpense(gymId || "univo_main", {
-            title: `Trainer Salary: ${editForm.name}`,
-            category: "Trainer Salary",
-            amount: salaryNum,
-            type: "monthly",
-            monthlyPaymentType: "postpaid",
-            isSalary: true,
-            isTrainerSalary: true,
-            trainerId: editingTrainer.id,
-            trainerName: editForm.name,
-            date: joinDate,
-            startDate: joinDate,
-            dayOfMonth: joinDay,
-            isRecurringTemplate: true,
-            isActive: true,
-            status: "active_recurring",
-            notes: `Monthly recurring salary for Trainer ${editForm.name} (Joined: ${joinDate}). Auto-bills on day ${joinDay} of every month starting next month.`,
-            createdAt: new Date().toISOString()
-          });
+          await deleteExpense(gymId || "univo_main", foundTpl.id);
         }
       } catch (expSyncErr) {
-        console.warn("Could not sync recurring expense for trainer:", expSyncErr);
+        console.warn("Could not clean up recurring expense for trainer:", expSyncErr);
       }
 
       setTrainers((prev) =>
@@ -717,39 +692,11 @@ export default function Trainers() {
       };
       const trainerId = await addTrainer(gymId || "univo_main", newT);
 
-      // Create automated recurring monthly salary expense rule
-      if (salaryNum > 0) {
-        try {
-          const joinDay = Number(joinDate.split("-")[2]) || 1;
-          await addExpense(gymId || "univo_main", {
-            title: `Trainer Salary: ${newT.name}`,
-            category: "Trainer Salary",
-            amount: salaryNum,
-            type: "monthly",
-            monthlyPaymentType: "postpaid",
-            isSalary: true,
-            isTrainerSalary: true,
-            trainerId: trainerId,
-            trainerName: newT.name,
-            date: joinDate,
-            startDate: joinDate,
-            dayOfMonth: joinDay,
-            isRecurringTemplate: true,
-            isActive: true,
-            status: "active_recurring",
-            notes: `Monthly recurring salary for Trainer ${newT.name} (Joined: ${joinDate}). Auto-bills on day ${joinDay} of every month starting next month.`,
-            createdAt: new Date().toISOString()
-          });
-        } catch (expErr) {
-          console.warn("Could not create recurring expense rule for trainer:", expErr);
-        }
-      }
-
       invalidateCache("trainers");
       setTrainers((prev) => [{ ...newT, id: trainerId, membersCount: 0, assignedMembers: [] }, ...prev.filter(t => t.id !== trainerId)]);
       toast.success(
         salaryNum > 0
-          ? `Trainer created! Monthly salary ₹${salaryNum.toLocaleString("en-IN")} schedule added to Gym Expenses.`
+          ? `Trainer registered! Base salary of ₹${salaryNum.toLocaleString("en-IN")}/mo tracked in Monthly Payroll.`
           : "Trainer created with Login ID & PT packages!"
       );
       setModalOpen(false);
@@ -799,6 +746,90 @@ export default function Trainers() {
       toast.error(err.message || "Failed to create trainer");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateInviteLink = async () => {
+    if (!linkForm.phone || !linkForm.phone.trim()) {
+      toast.error("Trainer WhatsApp number is required");
+      return null;
+    }
+    const cleanPhone = linkForm.phone.replace(/\D/g, "");
+    if (cleanPhone.length < 10) {
+      toast.error("Please enter a valid 10-digit WhatsApp number");
+      return null;
+    }
+
+    setLoading(true);
+    try {
+      const inviteData = {
+        name: linkForm.name.trim() || "Coach",
+        phone: cleanPhone.slice(-10),
+      };
+
+      const token = await createTrainerInvite(gymId || "univo_main", inviteData);
+      const generatedLink = `${window.location.origin}/#/register-trainer/${gymId || "univo_main"}/${token}`;
+      setInviteLink(generatedLink);
+      try {
+        await navigator.clipboard.writeText(generatedLink);
+      } catch (e) {}
+      toast.success("Trainer invite link generated & copied to clipboard!");
+      return generatedLink;
+    } catch (err) {
+      console.error("Failed to generate invite token:", err);
+      toast.error("Failed to generate invite link");
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendWhatsAppInvite = async () => {
+    if (!linkForm.phone || !linkForm.phone.trim()) {
+      toast.error("Trainer WhatsApp number is required");
+      return;
+    }
+    const generatedLink = await handleGenerateInviteLink();
+    if (!generatedLink) return;
+
+    const rawNum = linkForm.phone.replace(/\D/g, "");
+    const waNum = rawNum.length === 10 ? `91${rawNum}` : rawNum;
+    const trainerName = linkForm.name.trim() || "Coach";
+
+    const msg = `Hi ${trainerName},\n\nYou have been invited to join the coaching team on UNIVO GYM! 🏋️‍♂️\n\nPlease use this link to complete your Trainer profile, select your shifts, set your PT packages, upload certificates & transformation photos:\n\n${generatedLink}\n\nWelcome to the team!`;
+
+    window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`, "_blank");
+    toast.success("Opening WhatsApp with invite link!");
+  };
+
+  const handleDownloadInviteQR = () => {
+    const svg = document.getElementById("trainer-invite-qrcode");
+    if (!svg) {
+      toast.error("QR Code not available yet");
+      return;
+    }
+    try {
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = img.width + 40;
+        canvas.height = img.height + 40;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 20, 20);
+        const pngFile = canvas.toDataURL("image/png");
+        const downloadLink = document.createElement("a");
+        downloadLink.download = `${(linkForm.name || "trainer").toLowerCase().replace(/\s+/g, "_")}_invite_qr.png`;
+        downloadLink.href = pngFile;
+        downloadLink.click();
+        toast.success("QR Code downloaded as PNG!");
+      };
+      img.src = `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgData)))}`;
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to download QR image");
     }
   };
 
@@ -1241,7 +1272,7 @@ export default function Trainers() {
                     </span>
                   </div>
                   <p className="text-slate-600 text-[11px] leading-relaxed">
-                    Trainer ki monthly salary (<strong>₹{Number(form.salary).toLocaleString("en-IN")}</strong>) har mahine unki joining date ({form.joinDate || todayStr}) ke hisaab se gym expenses me auto-add hogi.
+                    Trainer ki monthly salary (<strong>₹{Number(form.salary).toLocaleString("en-IN")}</strong>) har mahine unki joining date ({formatDate(form.joinDate || todayStr)}) ke hisaab se gym expenses me auto-add hogi.
                   </p>
                   <div className="p-2 bg-white/80 rounded-xl border border-teal-200/60 flex items-center justify-between text-[11px]">
                     <span className="text-slate-500 font-medium">🗓️ First Salary Expense Due:</span>
@@ -1250,7 +1281,7 @@ export default function Trainers() {
                         const raw = form.joinDate || todayStr;
                         const [y, m, d] = raw.split("-").map(Number);
                         const nextD = new Date(y, m, d);
-                        return nextD.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+                        return formatDate(nextD);
                       })()} (Next Month)
                     </span>
                   </div>
@@ -1893,7 +1924,7 @@ export default function Trainers() {
             <button
               disabled={loading}
               type="submit"
-              className="w-full py-3.5 mt-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:shadow-lg hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 flex justify-center items-center gap-2"
+              className="w-full py-3.5 mt-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-md transition hover:shadow-lg hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer"
             >
               {loading ? (
                 "Creating Account..."
@@ -1907,17 +1938,16 @@ export default function Trainers() {
         ) : (
           <div className="space-y-5 pb-2">
             <div className="text-center">
-              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-2">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-2 shadow-inner">
                 <Link2 className="w-8 h-8 text-emerald-600" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900">Invite Trainer via WhatsApp</h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                Send a secure registration link. The trainer can upload their photo, certificates,
-                and before/after transformation results.
+              <h3 className="text-lg font-black text-slate-900">Invite Trainer via Link & QR Code</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
+                Trainer ka naam aur WhatsApp number enter karein. Registration link aur scan karne ke liye direct QR Code generate ho jayega.
               </p>
             </div>
 
-            <div className="space-y-3 pt-2 text-left">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-left">
               <div>
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
                   Trainer Name
@@ -1929,94 +1959,151 @@ export default function Trainers() {
                     setLinkForm({ ...linkForm, name: e.target.value });
                     if (inviteLink) setInviteLink("");
                   }}
-                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
+                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none transition"
                   placeholder="e.g. Rahul Coach"
                 />
               </div>
               <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
-                  Trainer WhatsApp Number *
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                    Trainer WhatsApp Number *
+                  </label>
+                  {linkForm.phone.replace(/\D/g, "").length > 0 && (
+                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                      linkForm.phone.replace(/\D/g, "").length === 10 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                    }`}>
+                      {linkForm.phone.replace(/\D/g, "").length}/10 digits
+                    </span>
+                  )}
+                </div>
                 <input
                   type="tel"
+                  maxLength={10}
                   value={linkForm.phone}
                   onChange={(e) => {
-                    setLinkForm({ ...linkForm, phone: e.target.value });
+                    const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                    setLinkForm({ ...linkForm, phone: val });
                     if (inviteLink) setInviteLink("");
                   }}
-                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none"
+                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:border-emerald-500 focus:bg-white outline-none transition"
                   placeholder="9876543210"
                 />
               </div>
             </div>
 
-            {inviteLink && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-left space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Registration Link Ready
+            {/* If Link & QR Code Generated */}
+            {inviteLink ? (
+              <div className="bg-gradient-to-br from-emerald-50 via-teal-50/50 to-slate-50 border-2 border-emerald-200 rounded-2xl p-4 text-left space-y-3.5 shadow-sm">
+                <div className="flex items-center justify-between border-b border-emerald-200/70 pb-2">
+                  <span className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Registration Link & QR Code Ready
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(inviteLink);
-                      toast.success("Link copied to clipboard!");
-                    }}
-                    className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-emerald-200 shadow-sm"
-                  >
-                    <Copy className="w-3.5 h-3.5" /> Copy Link
-                  </button>
+                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    Active Token
+                  </span>
                 </div>
-                <div className="bg-white border border-emerald-200/80 rounded-xl px-3 py-2 text-xs font-mono text-slate-600 break-all select-all">
-                  {inviteLink}
+
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+                  {/* Left Column: Direct link & action buttons */}
+                  <div className="sm:col-span-7 space-y-2.5">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                        Direct Registration Link:
+                      </label>
+                      <input
+                        readOnly
+                        value={inviteLink}
+                        className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-700 select-all shadow-2xs"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2 pt-1">
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(inviteLink);
+                            toast.success("Link copied to clipboard!");
+                          }}
+                          className="flex-1 py-2 px-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-2xs cursor-pointer"
+                        >
+                          <Copy className="w-3.5 h-3.5" /> Copy Link
+                        </button>
+                        <a
+                          href={inviteLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="py-2 px-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-2xs"
+                          title="Open Link in New Tab"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" /> Preview
+                        </a>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSendWhatsAppInvite}
+                        className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition shadow-md shadow-emerald-600/20 cursor-pointer"
+                      >
+                        <MessageCircle className="w-4 h-4" /> Send on WhatsApp
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right Column: QR Code Display & Download */}
+                  <div className="sm:col-span-5 p-3 bg-white border-2 border-emerald-200/90 rounded-2xl flex flex-col items-center justify-center text-center shadow-xs">
+                    <p className="text-xs font-black text-slate-900 mb-1.5 flex items-center gap-1">
+                      <QrCode className="w-3.5 h-3.5 text-emerald-600" /> Scan to Register
+                    </p>
+                    <div className="p-2 bg-white rounded-xl border border-slate-200 shadow-inner flex items-center justify-center">
+                      <QRCodeSVG
+                        id="trainer-invite-qrcode"
+                        value={inviteLink}
+                        size={130}
+                        level="H"
+                        includeMargin={true}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1 max-w-[170px] leading-tight">
+                      Camera se scan karke trainer sidha form fill karega.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleDownloadInviteQR}
+                      className="mt-2 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition cursor-pointer"
+                    >
+                      <Download className="w-3 h-3" /> Download QR (PNG)
+                    </button>
+                  </div>
                 </div>
               </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={handleGenerateInviteLink}
+                  className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm flex items-center justify-center gap-2 shadow-md transition cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? (
+                    "Generating..."
+                  ) : (
+                    <>
+                      <QrCode className="w-4 h-4" /> ⚡ Generate Link & QR Code
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={handleSendWhatsAppInvite}
+                  className="px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  <MessageCircle className="w-4 h-4" /> Send on WhatsApp
+                </button>
+              </div>
             )}
-
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!linkForm.phone.trim()) {
-                    toast.error("Trainer WhatsApp number is required");
-                    return;
-                  }
-                  const token = Math.random().toString(36).substring(2, 10);
-                  const generatedLink = `${window.location.origin}/#/register-trainer/${gymId || "univo_main"}/${token}`;
-                  setInviteLink(generatedLink);
-
-                  const rawNum = linkForm.phone.replace(/\D/g, "");
-                  const waNum = rawNum.length === 10 ? `91${rawNum}` : rawNum;
-                  const msg = `Hi ${
-                    linkForm.name || "Coach"
-                  },\n\nPlease use this link to complete your Trainer profile and upload your certificates & transformations on UNIVO GYM:\n\n${generatedLink}`;
-
-                  window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`, "_blank");
-                  toast.success("Opening WhatsApp & link ready!");
-                }}
-                className="flex-1 py-3.5 rounded-2xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 flex items-center justify-center gap-2 shadow-sm transition"
-              >
-                <MessageCircle className="w-5 h-5" /> Send on WhatsApp
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (!linkForm.phone.trim()) {
-                    toast.error("Trainer WhatsApp number is required");
-                    return;
-                  }
-                  const token = Math.random().toString(36).substring(2, 10);
-                  const generatedLink = `${window.location.origin}/#/register-trainer/${gymId || "univo_main"}/${token}`;
-                  setInviteLink(generatedLink);
-                  navigator.clipboard.writeText(generatedLink);
-                  toast.success("Link generated & copied!");
-                }}
-                className="px-5 py-3.5 rounded-2xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 flex items-center justify-center gap-2 transition"
-              >
-                <Copy className="w-4 h-4" /> Generate Link
-              </button>
-            </div>
           </div>
         )}
       </Modal>
@@ -2582,7 +2669,7 @@ export default function Trainers() {
                   </span>
                 </div>
                 <p className="text-slate-600 text-[11px] leading-relaxed">
-                  Trainer ki monthly salary (<strong>₹{Number(editForm.salary).toLocaleString("en-IN")}</strong>) har mahine unki joining date ({editForm.joinDate || todayStr}) ke hisaab se gym expenses me auto-update / sync hogi.
+                  Trainer ki monthly salary (<strong>₹{Number(editForm.salary).toLocaleString("en-IN")}</strong>) har mahine unki joining date ({formatDate(editForm.joinDate || todayStr)}) ke hisaab se gym expenses me auto-update / sync hogi.
                 </p>
                 <div className="p-2 bg-white/80 rounded-xl border border-teal-200/60 flex items-center justify-between text-[11px]">
                   <span className="text-slate-500 font-medium">🗓️ First Salary Expense Due:</span>
@@ -2591,7 +2678,7 @@ export default function Trainers() {
                       const raw = editForm.joinDate || todayStr;
                       const [y, m, d] = raw.split("-").map(Number);
                       const nextD = new Date(y, m, d);
-                      return nextD.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+                      return formatDate(nextD);
                     })()} (Next Month)
                   </span>
                 </div>

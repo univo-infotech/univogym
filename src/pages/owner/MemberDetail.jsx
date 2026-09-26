@@ -52,12 +52,7 @@ import AddServiceModal from "./members/modals/AddServiceModal";
 import { collection, getDocs, query } from "firebase/firestore";
 import { db } from "../../firebase/config";
 
-function formatDate(val) {
-  if (!val) return '—';
-  const d = val.toDate ? val.toDate() : new Date(val);
-  if (isNaN(d.getTime())) return String(val);
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-}
+import { formatDate } from "../../utils/dateUtils";
 
 export default function MemberDetail() {
   const params = useParams();
@@ -287,20 +282,15 @@ export default function MemberDetail() {
     let dateStr = "—";
     let timeStr = "";
 
-    if (p.createdAt) {
-      const d = p.createdAt.toDate ? p.createdAt.toDate() : new Date(p.createdAt);
-      if (!isNaN(d.getTime())) {
-        dateStr = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-        timeStr = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
-      }
-    }
-
-    if (dateStr === "—" && p.date) {
-      if (typeof p.date === "string") {
-        dateStr = p.date;
-      } else if (p.date.toDate) {
-        const d = p.date.toDate();
-        dateStr = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    const raw = p.createdAt || p.date;
+    if (raw) {
+      dateStr = formatDate(raw, "—");
+      let d = null;
+      if (raw.toDate) d = raw.toDate();
+      else if (raw.seconds) d = new Date(raw.seconds * 1000);
+      else if (raw instanceof Date) d = raw;
+      else if (typeof raw === "string" && raw.includes("T")) d = new Date(raw);
+      if (d && !isNaN(d.getTime())) {
         timeStr = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
       }
     }

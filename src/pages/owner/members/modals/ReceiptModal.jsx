@@ -64,7 +64,7 @@ export default function ReceiptModal({
   const memberSlot = currentPayment.slot || member?.slot || member?.preferredTime || 'General Shift';
 
   const receiptNo = currentPayment.receiptNo || currentPayment.receiptNumber || currentPayment.id || `REC-${Date.now().toString().slice(-6)}`;
-  const payDate = currentPayment.date || (currentPayment.createdAt ? formatDate(currentPayment.createdAt) : toIndianDate(new Date()));
+  const payDate = toIndianDate(currentPayment.date) || (currentPayment.createdAt ? formatDate(currentPayment.createdAt) : toIndianDate(new Date()));
 
   // Bill Classification
   const isPtBill = Boolean(
@@ -99,7 +99,7 @@ export default function ReceiptModal({
 
   const planTitle = currentPayment.planName || (isPtBill ? `Personal Training (PT) - ${currentPayment.ptPlanName || member?.ptPlanName || '1-on-1 PT'}` : (member?.planName || 'Gym Membership Plan'));
   const validityText = (currentPayment.validityStart && currentPayment.validityEnd)
-    ? `${currentPayment.validityStart} to ${currentPayment.validityEnd}`
+    ? `${toIndianDate(currentPayment.validityStart)} to ${toIndianDate(currentPayment.validityEnd)}`
     : (currentPayment.validity || (member?.expiryDate ? `Till ${formatDate(member.expiryDate)}` : 'Active Validity'));
 
   // Financial Amounts
@@ -213,7 +213,7 @@ export default function ReceiptModal({
           icon: Sparkles,
           desc: `Personal Training (PT)${ptPlanName ? ` - ${ptPlanName}` : ''}${coachName ? ` (Coach: ${coachName})` : ''}`,
           period: (currentPayment.validityStart && currentPayment.validityEnd)
-            ? `${currentPayment.validityStart} to ${currentPayment.validityEnd}`
+            ? `${toIndianDate(currentPayment.validityStart)} to ${toIndianDate(currentPayment.validityEnd)}`
             : (member?.ptEndDate ? `Till ${formatDate(member?.ptEndDate)}` : validityText),
           amount: ptAmount
         });

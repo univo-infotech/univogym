@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
-  ShieldCheck, Plus, Check, User, KeyRound, Save, Edit, Trash2, Copy, 
+  ShieldCheck, Plus, Check, User, Users, KeyRound, Save, Edit, Trash2, Copy, 
   Search, CheckCircle2, XCircle, Shield, Sparkles, Filter, CheckSquare, 
-  Square, AlertCircle, ArrowRight, Lock, Eye, EyeOff
+  Square, AlertCircle, ArrowRight, Lock, Eye, EyeOff, MessageCircle, Briefcase
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getStaffUsers, createStaffUser, updateStaffUser, deleteStaffUser } from "../../firebase/auth";
-import { addStaff } from "../../firebase/staff";
+import { getStaff, addStaff } from "../../firebase/staff";
 import { getRoles, addRole, updateRole, deleteRole } from "../../firebase/roles";
 import Modal from "../../components/ui/Modal";
 import toast from "react-hot-toast";
@@ -33,6 +33,8 @@ export default function RolesPermissions() {
   
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [staffDirectory, setStaffDirectory] = useState([]);
+  const [activeViewTab, setActiveViewTab] = useState("all_staff"); // "all_staff" | "active_logins"
   const [loading, setLoading] = useState(true);
   
   // Search & Filter for Staff Accounts
@@ -40,6 +42,7 @@ export default function RolesPermissions() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [copiedId, setCopiedId] = useState(null);
+  const [showStaffPassword, setShowStaffPassword] = useState(false);
 
   // Modals
   const [staffModalOpen, setStaffModalOpen] = useState(false);
@@ -49,7 +52,7 @@ export default function RolesPermissions() {
   // Forms
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [staffForm, setStaffForm] = useState({ 
-    name: "", phone: "", email: "", password: "", role: "Receptionist", status: "active", permissions: {} 
+    profileId: "", name: "", phone: "", email: "", password: "", role: "Receptionist", status: "active", permissions: {} 
   });
   
   const [selectedRole, setSelectedRole] = useState(null);
@@ -68,10 +71,14 @@ export default function RolesPermissions() {
   async function loadData() {
     setLoading(true);
     try {
-      const uData = await getStaffUsers(GID);
-      let rData = await getRoles(GID);
+      const [uData, rData, sData] = await Promise.all([
+        getStaffUsers(GID),
+        getRoles(GID),
+        getStaff(GID).catch(() => [])
+      ]);
+      let resolvedRoles = rData;
       
-      if (rData.length === 0) {
+      if (resolvedRoles.length === 0) {
         const rec = { 
           title: "Receptionist", icon: "🛎️", desc: "Front desk operations: admission, fee collection, inquiries & receipts.", 
           perms: {
@@ -115,12 +122,13 @@ export default function RolesPermissions() {
         await addRole(GID, rec);
         await addRole(GID, man);
         await addRole(GID, coOwner);
-        rData = await getRoles(GID);
+        resolvedRoles = await getRoles(GID);
       }
       
       // Filter out only the primary root owner account so provisioned co-owners and staff appear
       setUsers(uData.filter(u => u.email !== 'univo@gmail.com'));
-      setRoles(rData);
+      setRoles(resolvedRoles);
+      setStaffDirectory(sData || []);
     } catch (err) {
       console.error(err);
       toast.error("Failed to load roles and permissions data");
@@ -140,11 +148,12 @@ export default function RolesPermissions() {
     });
   }, [roles]);
 
-  // Filtered staff list
+  // Filtered staff list (Active Logins)
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
       const matchSearch = (u.name || "").toLowerCase().includes(staffSearch.toLowerCase()) ||
                           (u.email || "").toLowerCase().includes(staffSearch.toLowerCase()) ||
+                          (u.phone || "").includes(staffSearch) ||
                           (u.role || "").toLowerCase().includes(staffSearch.toLowerCase());
       const matchStatus = statusFilter === "all" || (u.status || "active") === statusFilter;
       const matchRole = roleFilter === "all" || (u.role || "") === roleFilter;
@@ -152,20 +161,66 @@ export default function RolesPermissions() {
     });
   }, [users, staffSearch, statusFilter, roleFilter]);
 
+  // Filtered Gym Staff Directory list
+  const filteredStaffDirectory = useMemo(() => {
+    return staffDirectory.filter(s => {
+      const q = staffSearch.toLowerCase();
+      const matchSearch = (s.name || "").toLowerCase().includes(q) ||
+                          (s.email || "").toLowerCase().includes(q) ||
+                          (s.phone || "").includes(q) ||
+                          (s.role || "").toLowerCase().includes(q);
+      const matchStatus = statusFilter === "all" || (s.status || "active") === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [staffDirectory, staffSearch, statusFilter]);
+
   // --- STAFF HANDLERS ---
   const openAddStaff = () => {
     setSelectedStaff(null);
     const firstRole = allPresets[0] || { title: "Receptionist", perms: {} };
     setStaffForm({ 
-      name: "", phone: "", email: "", password: "", 
-      role: firstRole.title, status: "active", permissions: firstRole.perms || {} 
+      profileId: "",
+      name: "", 
+      phone: "", 
+      email: "", 
+      password: `Staff@${Math.floor(1000 + Math.random() * 9000)}`, 
+      role: firstRole.title, 
+      status: "active", 
+      permissions: firstRole.perms || {} 
     });
+    setShowStaffPassword(false);
+    setStaffModalOpen(true);
+  };
+
+  const openAssignRoleForStaff = (staffMember) => {
+    setSelectedStaff(null);
+    const cleanPhone = (staffMember.phone || "").replace(/\D/g, "");
+    const defaultEmail = staffMember.email || (cleanPhone ? `${cleanPhone.slice(-10)}@univo.gym` : "");
+
+    let initialRole = "Receptionist";
+    if ((staffMember.role || "").toLowerCase().includes("manager")) initialRole = "Branch Manager";
+    else if ((staffMember.role || "").toLowerCase().includes("owner")) initialRole = "Co-Owner";
+
+    const matchedPreset = allPresets.find(p => p.title.toLowerCase() === initialRole.toLowerCase()) || allPresets[0] || { title: "Receptionist", perms: {} };
+
+    setStaffForm({
+      profileId: staffMember.id,
+      name: staffMember.name || "",
+      phone: staffMember.phone || "",
+      email: defaultEmail,
+      password: `Staff@${Math.floor(1000 + Math.random() * 9000)}`,
+      role: matchedPreset.title,
+      status: "active",
+      permissions: matchedPreset.perms || {}
+    });
+    setShowStaffPassword(true);
     setStaffModalOpen(true);
   };
   
   const openEditStaff = (u) => {
     setSelectedStaff(u);
     setStaffForm({ 
+      profileId: u.profileId || "",
       name: u.name || "", 
       phone: u.phone || "", 
       email: u.email || "", 
@@ -174,6 +229,7 @@ export default function RolesPermissions() {
       status: u.status || "active", 
       permissions: u.permissions || {} 
     });
+    setShowStaffPassword(false);
     setStaffModalOpen(true);
   };
 
@@ -213,6 +269,10 @@ export default function RolesPermissions() {
       toast.error("Password must contain at least 6 characters");
       return;
     }
+    if (selectedStaff && staffForm.password && staffForm.password.length < 6) {
+      toast.error("New password must contain at least 6 characters");
+      return;
+    }
     
     setProcessing(true);
     try {
@@ -222,21 +282,27 @@ export default function RolesPermissions() {
       if (selectedStaff) {
         await updateStaffUser(selectedStaff.uid, selectedStaff.profileId, GID, {
           name: staffForm.name,
+          phone: staffForm.phone,
+          email: staffForm.email,
           role: assignedRole,
           status: staffForm.status,
-          permissions: staffForm.permissions
+          permissions: staffForm.permissions,
+          ...(staffForm.password ? { password: staffForm.password } : {})
         });
         toast.success(isOwnerRole ? "👑 Co-Owner privileges updated successfully" : "Staff permissions updated successfully");
       } else {
-        const profileId = await addStaff(GID, {
-          name: staffForm.name, phone: staffForm.phone, email: staffForm.email,
-          role: staffForm.role, salary: "0", joinDate: new Date().toISOString().split("T")[0],
-          status: staffForm.status
-        });
+        let profileId = staffForm.profileId;
+        if (!profileId) {
+          profileId = await addStaff(GID, {
+            name: staffForm.name, phone: staffForm.phone, email: staffForm.email,
+            role: staffForm.role, salary: "0", joinDate: new Date().toISOString().split("T")[0],
+            status: staffForm.status
+          });
+        }
         await createStaffUser(
-          staffForm.email, staffForm.password, assignedRole, GID, staffForm.name, profileId, staffForm.permissions
+          staffForm.email, staffForm.password, assignedRole, GID, staffForm.name, profileId, staffForm.permissions, staffForm.phone
         );
-        toast.success(isOwnerRole ? "👑 Co-Owner account provisioned with full Owner access!" : "Staff account provisioned with access");
+        toast.success(isOwnerRole ? "👑 Co-Owner account provisioned with full Owner access!" : `Login access & role assigned to ${staffForm.name}!`);
       }
       setStaffModalOpen(false);
       loadData();
@@ -245,6 +311,27 @@ export default function RolesPermissions() {
     } finally {
       setProcessing(false);
     }
+  };
+
+  const sendWhatsAppCredentials = (user) => {
+    const cleanPhone = (user.phone || "").replace(/\D/g, "");
+    if (!cleanPhone) {
+      toast.error("Phone number not available for WhatsApp");
+      return;
+    }
+    const fullPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    const loginUrl = window.location.origin;
+    const msg = encodeURIComponent(`🔐 *UNIVO GYM PORTAL ACCESS*
+
+Hi *${user.name}*,
+Aapko gym management software me *${user.role}* ka access diya gaya hai:
+
+🌐 *Login Portal:* ${loginUrl}
+👤 *Assigned Role:* ${user.role}
+📧 *Login ID / Email / Phone:* ${user.email} ${user.phone ? `or ${user.phone}` : ""}
+
+Kripya admin se password prapt karein aur login karein! 💪`);
+    window.open(`https://wa.me/${fullPhone}?text=${msg}`, "_blank");
   };
 
   // --- ROLE HANDLERS ---
@@ -523,24 +610,51 @@ export default function RolesPermissions() {
       </div>
 
       {/* ============================================================
-          SECTION 2: CONFIGURED STAFF ACCOUNTS
+          SECTION 2: STAFF & AUTHORIZATION MANAGEMENT
       ============================================================ */}
       <div className="space-y-4 pt-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <User className="w-5 h-5 text-indigo-600" /> Configured Staff Accounts ({filteredUsers.length})
+              <Users className="w-5 h-5 text-indigo-600" /> Staff & Authorization Management
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">Staff members with personalized login credentials and custom view/edit rights.</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Select any staff member from your gym directory to assign roles, set login passwords and define permissions.
+            </p>
           </div>
 
-          {/* Search & Filter controls */}
+          {/* View Switcher Tabs & Filters */}
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative min-w-[220px]">
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveViewTab("all_staff")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  activeViewTab === "all_staff"
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                👥 Gym Staff Directory ({staffDirectory.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveViewTab("active_logins")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  activeViewTab === "active_logins"
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                🔑 Active Logins ({users.length})
+              </button>
+            </div>
+
+            <div className="relative min-w-[200px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input 
                 type="text" 
-                placeholder="Search staff by name, email..."
+                placeholder="Search staff name, role..."
                 value={staffSearch}
                 onChange={e => setStaffSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-sm"
@@ -559,158 +673,342 @@ export default function RolesPermissions() {
           </div>
         </div>
 
-        {/* Staff Cards View */}
-        {loading ? (
-          <div className="py-20 text-center text-sm text-slate-400 bg-white rounded-2xl border border-slate-200">
-            <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            Loading staff authorization data...
-          </div>
-        ) : filteredUsers.length === 0 ? (
-          <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center shadow-sm">
-            <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
-              <User className="w-7 h-7" />
-            </div>
-            <h3 className="text-base font-bold text-slate-800">No Staff Accounts Found</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-5">
-              {staffSearch || statusFilter !== "all" 
-                ? "No accounts matched your search filters. Try clearing search filters." 
-                : "Create login credentials for your front desk, managers or trainers to let them access permitted pages."}
-            </p>
-            <button 
-              onClick={openAddStaff} 
-              className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold shadow hover:bg-blue-700 transition"
-            >
-              + Add First Staff Account
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {filteredUsers.map((u) => {
-              const activeCount = getActiveModulesCount(u.permissions);
-              const isActive = (u.status || "active") === "active";
-              
-              return (
-                <div 
-                  key={u.uid} 
-                  className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between"
+        {/* VIEW 1: GYM STAFF DIRECTORY (ALL STAFF MEMBERS) */}
+        {activeViewTab === "all_staff" && (
+          <div>
+            {loading ? (
+              <div className="py-20 text-center text-sm text-slate-400 bg-white rounded-2xl border border-slate-200">
+                <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                Loading staff directory...
+              </div>
+            ) : filteredStaffDirectory.length === 0 ? (
+              <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center shadow-sm">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
+                  <Users className="w-7 h-7" />
+                </div>
+                <h3 className="text-base font-bold text-slate-800">No Staff in Directory</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-5">
+                  {staffSearch || statusFilter !== "all" 
+                    ? "No staff matched your active search filters." 
+                    : "Add staff members in the Staff page to manage their role & login access here."}
+                </p>
+                <button 
+                  onClick={openAddStaff} 
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold shadow hover:bg-indigo-700 transition"
                 >
-                  <div>
-                    {/* Top Identity Row */}
-                    <div className="flex items-start justify-between gap-3 mb-4">
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-sm flex-shrink-0">
-                          {u.name?.charAt(0)?.toUpperCase() || "S"}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-bold text-slate-900 text-base truncate">{u.name}</h3>
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                              isActive 
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
-                                : "bg-slate-100 text-slate-500 border-slate-200"
-                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
-                              {isActive ? "Active" : "Inactive"}
-                            </span>
+                  + Create Direct Staff Account
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredStaffDirectory.map((s) => {
+                  const cleanPhone = (s.phone || "").replace(/\D/g, "");
+                  const linkedUser = users.find(u => 
+                    u.profileId === s.id || 
+                    (u.email && s.email && u.email.toLowerCase() === s.email.toLowerCase()) ||
+                    (u.phone && cleanPhone && u.phone.replace(/\D/g, "").slice(-10) === cleanPhone.slice(-10))
+                  );
+                  const hasLogin = Boolean(linkedUser);
+                  const isUserActive = linkedUser ? (linkedUser.status || "active") === "active" : false;
+                  const activeCount = linkedUser ? getActiveModulesCount(linkedUser.permissions) : 0;
+
+                  return (
+                    <div
+                      key={s.id}
+                      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between"
+                    >
+                      <div className="space-y-3">
+                        {/* Header: Photo / Avatar + Name + Staff Role */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            {s.photoUrl ? (
+                              <img src={s.photoUrl} alt={s.name} className="w-11 h-11 rounded-2xl object-cover border border-slate-200 shadow-2xs shrink-0" />
+                            ) : (
+                              <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-slate-800 to-indigo-700 text-white flex items-center justify-center font-black text-base shadow-2xs shrink-0">
+                                {s.name?.charAt(0)?.toUpperCase() || "S"}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <h3 className="font-bold text-slate-900 text-sm truncate">{s.name}</h3>
+                              <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 mt-0.5 truncate">
+                                {s.role || "Staff Member"}
+                              </span>
+                            </div>
                           </div>
-                          <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                            <span className="font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{u.role || "Staff"}</span>
+
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                            (s.status || "active") === "active"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : "bg-slate-100 text-slate-500 border-slate-200"
+                          }`}>
+                            {(s.status || "active") === "active" ? "Active" : "Inactive"}
+                          </span>
+                        </div>
+
+                        {/* Contact info */}
+                        <div className="text-xs text-slate-500 space-y-1 pt-1">
+                          {s.phone && <p className="truncate">📞 {s.phone}</p>}
+                          {s.email && <p className="truncate text-[11px]">✉️ {s.email}</p>}
+                        </div>
+
+                        {/* Login & Role Status Box */}
+                        <div className={`p-3 rounded-xl border text-xs ${
+                          hasLogin 
+                            ? "bg-emerald-50/70 border-emerald-200/80" 
+                            : "bg-amber-50/70 border-amber-200/80"
+                        }`}>
+                          {hasLogin ? (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-emerald-950 flex items-center gap-1">
+                                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                  Role: {linkedUser.role}
+                                </span>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                                  isUserActive ? "bg-emerald-200/70 text-emerald-900" : "bg-rose-100 text-rose-700"
+                                }`}>
+                                  {isUserActive ? "Login Active" : "Locked"}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-emerald-800 truncate">
+                                ID: <strong>{linkedUser.email}</strong> • {activeCount} Modules
+                              </p>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="font-bold text-amber-950 flex items-center gap-1">
+                                <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                                No Login Credentials Yet
+                              </p>
+                              <p className="text-[11px] text-amber-800 mt-0.5">
+                                Click below to assign role & set password.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Footer Actions */}
+                      <div className="pt-3 border-t border-slate-100 mt-3 flex items-center justify-between gap-2">
+                        {hasLogin ? (
+                          <div className="flex items-center justify-between w-full">
+                            <button
+                              type="button"
+                              onClick={() => openEditStaff(linkedUser)}
+                              className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Edit className="w-3.5 h-3.5" /> Edit Role & Perms
+                            </button>
+                            <div className="flex items-center gap-1.5">
+                              {s.phone && (
+                                <button
+                                  type="button"
+                                  onClick={() => sendWhatsAppCredentials({ ...linkedUser, phone: s.phone })}
+                                  className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                  title="Send Credentials on WhatsApp"
+                                >
+                                  <MessageCircle className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => copyDetails(linkedUser)}
+                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                title="Copy Login Credentials"
+                              >
+                                <Copy className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirm({ type: 'staff', ...linkedUser })}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                title="Revoke Login Account"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openAssignRoleForStaff(s)}
+                            className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <KeyRound className="w-3.5 h-3.5" /> + Assign Role & Password
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* VIEW 2: CONFIGURED LOGIN ACCOUNTS */}
+        {activeViewTab === "active_logins" && (
+          <div>
+            {loading ? (
+              <div className="py-20 text-center text-sm text-slate-400 bg-white rounded-2xl border border-slate-200">
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                Loading staff authorization data...
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center shadow-sm">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
+                  <User className="w-7 h-7" />
+                </div>
+                <h3 className="text-base font-bold text-slate-800">No Active Login Accounts</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-5">
+                  No accounts matched your search filters. Switch to "Gym Staff Directory" tab to grant access.
+                </p>
+                <button 
+                  onClick={openAddStaff} 
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold shadow hover:bg-blue-700 transition"
+                >
+                  + Add Staff Account
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {filteredUsers.map((u) => {
+                  const activeCount = getActiveModulesCount(u.permissions);
+                  const isActive = (u.status || "active") === "active";
+                  
+                  return (
+                    <div 
+                      key={u.uid} 
+                      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between"
+                    >
+                      <div>
+                        {/* Top Identity Row */}
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-lg shadow-sm flex-shrink-0">
+                              {u.name?.charAt(0)?.toUpperCase() || "S"}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-slate-900 text-base truncate">{u.name}</h3>
+                                <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                  isActive 
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                                    : "bg-slate-100 text-slate-500 border-slate-200"
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+                                  {isActive ? "Active" : "Inactive"}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                <span className="font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{u.role || "Staff"}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {u.phone && (
+                              <button
+                                onClick={() => sendWhatsAppCredentials(u)}
+                                className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition"
+                                title="Send Credentials on WhatsApp"
+                              >
+                                <MessageCircle className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => openEditStaff(u)} 
+                              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition"
+                              title="Edit Permissions & Status"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => setDeleteConfirm({ type: 'staff', ...u })} 
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
+                              title="Revoke & Delete Account"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Credentials Box */}
+                        <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 mb-4">
+                          <div className="flex justify-between items-center mb-2.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                              <KeyRound className="w-3 h-3 text-slate-400" /> Portal Credentials
+                            </span>
+                            <button 
+                              onClick={() => copyDetails(u)} 
+                              className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 transition cursor-pointer"
+                            >
+                              {copiedId === u.uid ? (
+                                <span className="text-emerald-600 flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> Copied!
+                                </span>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5" /> Copy Details
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div className="bg-white p-2.5 rounded-xl border border-slate-200/80">
+                              <p className="text-[10px] text-slate-400 font-medium mb-0.5">User ID / Email</p>
+                              <p className="font-bold text-slate-800 truncate select-all">{u.email}</p>
+                            </div>
+                            <div className="bg-white p-2.5 rounded-xl border border-slate-200/80">
+                              <p className="text-[10px] text-slate-400 font-medium mb-0.5">Password</p>
+                              <p className="font-mono font-bold text-slate-700 tracking-wider">••••••••••</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Permissions Summary Badges */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                            Assigned Privileges ({activeCount} of {MODULES.length})
                           </p>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-1.5">
-                        <button 
-                          onClick={() => openEditStaff(u)} 
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition"
-                          title="Edit Permissions & Status"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => setDeleteConfirm({ type: 'staff', ...u })} 
-                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
-                          title="Revoke & Delete Account"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
+                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                          {Object.keys(u.permissions || {}).map(p => {
+                            if (Array.isArray(u.permissions)) return null; 
+                            const mod = MODULES.find(m => m.id === p);
+                            const access = u.permissions[p];
+                            if (!mod || !access?.view) return null;
+                            
+                            const actions = [];
+                            if (access.create) actions.push("C");
+                            if (access.edit) actions.push("E");
+                            if (access.delete) actions.push("D");
+                            const tag = actions.length ? `(${actions.join("")})` : "";
 
-                    {/* Credentials Box */}
-                    <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-100 mb-4">
-                      <div className="flex justify-between items-center mb-2.5">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                          <KeyRound className="w-3 h-3 text-slate-400" /> Portal Credentials
-                        </span>
-                        <button 
-                          onClick={() => copyDetails(u)} 
-                          className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 transition"
-                        >
-                          {copiedId === u.uid ? (
-                            <span className="text-emerald-600 flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Copied!
-                            </span>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" /> Copy Details
-                            </>
+                            return (
+                              <span 
+                                key={p} 
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-semibold"
+                              >
+                                <Check className="w-3 h-3 text-emerald-600" /> {mod.label} 
+                                {tag && <span className="text-emerald-600 font-mono text-[10px]">{tag}</span>}
+                              </span>
+                            );
+                          })}
+                          {activeCount === 0 && (
+                            <span className="text-xs text-slate-400 italic">No page access granted yet.</span>
                           )}
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                        <div className="bg-white p-2.5 rounded-xl border border-slate-200/80">
-                          <p className="text-[10px] text-slate-400 font-medium mb-0.5">User ID / Email</p>
-                          <p className="font-bold text-slate-800 truncate select-all">{u.email}</p>
-                        </div>
-                        <div className="bg-white p-2.5 rounded-xl border border-slate-200/80">
-                          <p className="text-[10px] text-slate-400 font-medium mb-0.5">Password</p>
-                          <p className="font-mono font-bold text-slate-700 tracking-wider">••••••••••</p>
                         </div>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Permissions Summary Badges */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
-                        Assigned Privileges ({activeCount} of {MODULES.length})
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-                      {Object.keys(u.permissions || {}).map(p => {
-                        if (Array.isArray(u.permissions)) return null; 
-                        const mod = MODULES.find(m => m.id === p);
-                        const access = u.permissions[p];
-                        if (!mod || !access?.view) return null;
-                        
-                        const actions = [];
-                        if (access.create) actions.push("C");
-                        if (access.edit) actions.push("E");
-                        if (access.delete) actions.push("D");
-                        const tag = actions.length ? `(${actions.join("")})` : "";
-
-                        return (
-                          <span 
-                            key={p} 
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-[11px] font-semibold"
-                          >
-                            <Check className="w-3 h-3 text-emerald-600" /> {mod.label} 
-                            {tag && <span className="text-emerald-600 font-mono text-[10px]">{tag}</span>}
-                          </span>
-                        );
-                      })}
-                      {activeCount === 0 && (
-                        <span className="text-xs text-slate-400 italic">No page access granted yet.</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -721,11 +1019,65 @@ export default function RolesPermissions() {
       <Modal 
         isOpen={staffModalOpen} 
         onClose={() => setStaffModalOpen(false)} 
-        title={selectedStaff ? `Edit Privileges: ${selectedStaff.name}` : "Provision New Staff Account"} 
+        title={selectedStaff ? `Edit Privileges: ${selectedStaff.name}` : "Assign Role & Create Staff Login"} 
         maxWidth="max-w-4xl"
       >
         <form onSubmit={handleSaveStaff} className="space-y-6">
           
+          {/* 1-Click Link from Gym Staff Directory */}
+          {!selectedStaff && staffDirectory.length > 0 && (
+            <div className="bg-emerald-50/70 border border-emerald-200/90 p-4 rounded-2xl">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-emerald-700" />
+                  Select Staff Member from Gym Directory (1-Click Fill)
+                </label>
+                <span className="text-[11px] text-emerald-700 font-semibold">Auto-fills name, phone & email</span>
+              </div>
+              <select
+                value={staffForm.profileId || ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const found = staffDirectory.find(s => s.id === val);
+                  if (found) {
+                    const cleanPhone = (found.phone || "").replace(/\D/g, "");
+                    const defaultEmail = found.email || (cleanPhone ? `${cleanPhone.slice(-10)}@univo.gym` : "");
+                    let initialRole = "Receptionist";
+                    if ((found.role || "").toLowerCase().includes("manager")) initialRole = "Branch Manager";
+                    else if ((found.role || "").toLowerCase().includes("owner")) initialRole = "Co-Owner";
+                    const matchedPreset = allPresets.find(p => p.title.toLowerCase() === initialRole.toLowerCase()) || allPresets[0];
+
+                    setStaffForm(prev => ({
+                      ...prev,
+                      profileId: found.id,
+                      name: found.name || "",
+                      phone: found.phone || "",
+                      email: defaultEmail,
+                      role: matchedPreset?.title || prev.role,
+                      permissions: matchedPreset?.perms || prev.permissions,
+                      password: prev.password || `Staff@${Math.floor(1000 + Math.random() * 9000)}`
+                    }));
+                    setShowStaffPassword(true);
+                    toast.success(`Selected ${found.name}! Details filled.`);
+                  } else {
+                    setStaffForm(prev => ({ ...prev, profileId: "" }));
+                  }
+                }}
+                className="w-full bg-white border border-emerald-300 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 shadow-2xs"
+              >
+                <option value="">-- Choose from existing Staff Directory --</option>
+                {staffDirectory.map(s => {
+                  const isLinked = users.some(u => u.profileId === s.id || (u.email && u.email === s.email));
+                  return (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.role}) {isLinked ? "• [Already Has Account]" : "• [No Login Access]"}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
           {/* Quick Role Preset Picker */}
           <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200">
             <div className="flex items-center justify-between mb-2">
@@ -742,7 +1094,7 @@ export default function RolesPermissions() {
                     type="button" 
                     key={p.id} 
                     onClick={() => applyPresetToStaff(p)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-bold transition ${
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
                       isSelected 
                         ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20" 
                         : "bg-white border-slate-200 text-slate-700 hover:border-blue-300 hover:bg-slate-50"
@@ -794,13 +1146,13 @@ export default function RolesPermissions() {
           </div>
 
           {/* Credentials and Status Grid */}
-          <div className={`grid grid-cols-1 ${selectedStaff ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4 bg-blue-50/50 p-4 rounded-2xl border border-blue-100`}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
             <div>
               <label className="text-xs font-bold text-blue-900 uppercase tracking-wide mb-1 block">User ID / Email *</label>
               <input 
                 required 
-                type="email" 
-                placeholder="staff@gym.com" 
+                type="text" 
+                placeholder="staff@gym.com or 9876543210" 
                 value={staffForm.email} 
                 disabled={!!selectedStaff}
                 onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
@@ -808,22 +1160,44 @@ export default function RolesPermissions() {
                   selectedStaff ? "opacity-80 font-bold text-slate-800 cursor-not-allowed" : ""
                 }`} 
               />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Staff can log in with email or phone</span>
             </div>
 
-            {!selectedStaff && (
-              <div>
-                <label className="text-xs font-bold text-blue-900 uppercase tracking-wide mb-1 block">Login Password *</label>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-blue-900 uppercase tracking-wide">
+                  {selectedStaff ? "New Password (optional)" : "Login Password *"}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStaffForm(f => ({ ...f, password: `Staff@${Math.floor(1000 + Math.random() * 9000)}` }));
+                    setShowStaffPassword(true);
+                  }}
+                  className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                >
+                  <Sparkles className="w-3 h-3" /> Auto-Generate
+                </button>
+              </div>
+              <div className="relative">
                 <input 
-                  required 
-                  type="text" 
-                  placeholder="Min 6 characters" 
-                  minLength={6} 
+                  required={!selectedStaff}
+                  type={showStaffPassword ? "text" : "password"}
+                  placeholder={selectedStaff ? "Leave blank to keep current" : "Min 6 characters"} 
+                  minLength={selectedStaff ? undefined : 6} 
                   value={staffForm.password}
                   onChange={e => setStaffForm({ ...staffForm, password: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" 
+                  className="w-full bg-white border border-slate-300 rounded-xl pl-4 pr-10 py-2.5 text-sm outline-none focus:border-blue-500 font-mono" 
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowStaffPassword(!showStaffPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  {showStaffPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
-            )}
+            </div>
 
             <div>
               <label className="text-xs font-bold text-blue-900 uppercase tracking-wide mb-1 block">Account Access Status</label>
@@ -832,8 +1206,8 @@ export default function RolesPermissions() {
                 onChange={e => setStaffForm({ ...staffForm, status: e.target.value })}
                 className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 font-bold text-slate-800"
               >
-                <option value="active">Active (Permit Access)</option>
-                <option value="inactive">Inactive (Revoke Access)</option>
+                <option value="active">Active (Can Login)</option>
+                <option value="inactive">Suspended / Blocked</option>
               </select>
             </div>
           </div>

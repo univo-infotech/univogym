@@ -46,6 +46,7 @@ import { addPayment } from "../../firebase/payments";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
 import { calculateBmi, parseHeightToMeters } from "../../utils/bmi";
+import { formatDate } from "../../utils/dateUtils";
 
 const WORKOUT_SLOTS = [
   { id: "morning", label: "Morning", time: "6:00 AM - 9:00 AM", icon: Sun },
@@ -594,10 +595,10 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
           dueAmount: 0,
           paymentMode: 'cash',
           paymentType: 'full',
-          validityStart: newMember.createdAt.slice(0, 10),
-          validityEnd: newMember.expiryDate.slice(0, 10),
-          dueDate: newMember.expiryDate.slice(0, 10),
-          date: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          validityStart: formatDate(newMember.createdAt),
+          validityEnd: formatDate(newMember.expiryDate),
+          dueDate: formatDate(newMember.expiryDate),
+          date: formatDate(new Date()),
           status: 'paid',
           remarks: `Membership Registration: ${selectedPlan.name} (${planDurationMonths}M) + Facilities`
         });

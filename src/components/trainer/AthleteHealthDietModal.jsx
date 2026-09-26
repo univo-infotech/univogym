@@ -39,6 +39,7 @@ import {
   getTrainers
 } from "../../firebase/trainers";
 import { calculateBmi, parseHeightToMeters } from "../../utils/bmi";
+import { parseToDate } from "../../utils/dateUtils";
 
 const DIET_PRESETS = [
   {
@@ -237,9 +238,14 @@ export default function AthleteHealthDietModal({
   const endDate = member.ptEndDate || member.expiryDate || "N/A";
   let daysLeft = null;
   if (endDate && endDate !== "N/A") {
-    const endMs = new Date(endDate).getTime();
-    const nowMs = Date.now();
-    daysLeft = Math.ceil((endMs - nowMs) / (1000 * 60 * 60 * 24));
+    const endObj = parseToDate(endDate);
+    if (endObj) {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const endZero = new Date(endObj);
+      endZero.setHours(0, 0, 0, 0);
+      daysLeft = Math.ceil((endZero.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    }
   }
 
   // Handle Session Increment

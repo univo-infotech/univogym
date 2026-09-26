@@ -20,6 +20,7 @@ import { getTrainers } from '../../firebase/trainers';
 import { useAuth } from '../../contexts/AuthContext';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../firebase/config';
+import { parseToDate } from '../../utils/dateUtils';
 
 const BRAND_STATS = [
   { icon: Users,      label: 'Active Members',  value: '2,400+' },
@@ -97,7 +98,17 @@ export default function Login() {
           collection(db, "users"),
           where("email", "==", cleanEmail)
         );
-        const userSnap = await getDocs(userQ);
+        let userSnap = await getDocs(userQ);
+        if (userSnap.empty) {
+          const rawPhone = cleanEmail.replace(/\D/g, "");
+          if (rawPhone.length >= 10) {
+            const phoneQ = query(
+              collection(db, "users"),
+              where("phone", "==", rawPhone.slice(-10))
+            );
+            userSnap = await getDocs(phoneQ);
+          }
+        }
         if (!userSnap.empty) {
           const matchedUser = userSnap.docs.map(d => ({ uid: d.id, ...d.data() }))[0];
           if (matchedUser.password && matchedUser.password === password) {
@@ -243,14 +254,20 @@ export default function Login() {
           if (matchedMember.status === 'expired' || matchedMember.active === false) {
             isExpired = true;
           } else if (matchedMember.ptEndDate) {
-            const expTime = new Date(matchedMember.ptEndDate).getTime();
-            if (!isNaN(expTime) && expTime < Date.now()) {
-              isExpired = true;
+            const expDate = parseToDate(matchedMember.ptEndDate);
+            if (expDate) {
+              expDate.setHours(23, 59, 59, 999);
+              if (expDate.getTime() < Date.now()) {
+                isExpired = true;
+              }
             }
           } else if (matchedMember.expiryDate) {
-            const expTime = new Date(matchedMember.expiryDate).getTime();
-            if (!isNaN(expTime) && expTime < Date.now()) {
-              isExpired = true;
+            const expDate = parseToDate(matchedMember.expiryDate);
+            if (expDate) {
+              expDate.setHours(23, 59, 59, 999);
+              if (expDate.getTime() < Date.now()) {
+                isExpired = true;
+              }
             }
           }
 

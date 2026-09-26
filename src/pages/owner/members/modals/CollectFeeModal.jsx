@@ -382,8 +382,8 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
       isRenewal,
       isDueSettlement: hasPartialPaymentDue,
       validityStart: toIndianDate(validityStart),
-      validityEnd: hasPartialPaymentDue && member.expiryDate ? toIndianDate(member.expiryDate) : validityEnd,
-      dueDate: validityEnd,
+      validityEnd: hasPartialPaymentDue && member.expiryDate ? toIndianDate(member.expiryDate) : toIndianDate(validityEnd),
+      dueDate: toIndianDate(validityEnd),
       planPrice: hasPartialPaymentDue ? 0 : currentPlan.price,
       ptPlanPrice: Number(selectedPtPrice || 0),
       servicesPrice: Number(servicesTotal || 0),
@@ -905,7 +905,7 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
               Membership Validity Period ({currentPlan.durationMonths} Month duration):
             </span>
             <span className="px-3 py-1 rounded-full bg-emerald-600 text-white font-black text-[11px] shadow-xs tracking-wide">
-              {toIndianDate(validityStart)} → {validityEnd}
+              {toIndianDate(validityStart)} → {toIndianDate(validityEnd)}
             </span>
           </div>
 

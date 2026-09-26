@@ -59,6 +59,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { openWhatsApp, generateSupplementSaleReceiptMessage } from "../../utils/whatsapp";
 import { getGymSettings } from "../../utils/settings";
 import { generatePaymentReceipt } from "../../utils/pdf";
+import { formatDate, formatDateTime } from "../../utils/dateUtils";
 
 // Initial Demo Supplements if Firebase is pristine
 const DEFAULT_SUPPLEMENTS = [
@@ -505,7 +506,7 @@ export default function Stock() {
           dueAmount: 0,
           paymentMode: sellForm.paymentMode.toLowerCase(),
           paymentType: "supplement",
-          date: new Date().toLocaleDateString("en-IN"),
+          date: formatDate(new Date()),
           remarks: `Store Purchase: ${selectedProductForSale.name} x${qtyToSell} @ Rs.${unitPrice}`,
           status: "paid"
         });
@@ -538,7 +539,7 @@ export default function Stock() {
           unitPrice,
           totalAmount,
           paymentMode: sellForm.paymentMode,
-          date: new Date().toLocaleDateString("en-IN"),
+          date: formatDate(new Date()),
           trainerName: sellForm.referredByTrainerName,
           receiptLink
         });
@@ -569,7 +570,7 @@ export default function Stock() {
           unitPrice,
           totalAmount,
           paymentMode: sellForm.paymentMode,
-          date: new Date().toLocaleDateString("en-IN"),
+          date: formatDate(new Date()),
           trainerName: sellForm.referredByTrainerName,
           receiptLink
         });
@@ -597,7 +598,7 @@ export default function Stock() {
       unitPrice: sale.unitPrice || 0,
       totalAmount: sale.totalAmount || 0,
       paymentMode: sale.paymentMode || "Cash",
-      date: sale.timestamp ? new Date(sale.timestamp).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN"),
+      date: formatDate(sale.timestamp || new Date()),
       trainerName: sale.referredByTrainerName || "",
       receiptLink
     });
@@ -1282,7 +1283,7 @@ export default function Stock() {
                         <span className="uppercase tracking-wider text-teal-700 font-extrabold">
                           {eq.brand || "Commercial Grade"}
                         </span>
-                        <span>Purchased: {eq.purchaseDate || "N/A"}</span>
+                        <span>Purchased: {formatDate(eq.purchaseDate, "N/A")}</span>
                       </div>
 
                       <h4 className="text-base font-bold text-slate-900 mt-1 leading-snug">{eq.name}</h4>
@@ -1313,7 +1314,7 @@ export default function Stock() {
                       <div className="mt-3 p-3 rounded-2xl bg-slate-50 border border-slate-200/70 text-xs space-y-1">
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500">Last Serviced:</span>
-                          <span className="font-bold text-slate-800">{eq.lastServiceDate || "Not recorded"}</span>
+                          <span className="font-bold text-slate-800">{formatDate(eq.lastServiceDate, "Not recorded")}</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500">Service Interval:</span>
@@ -1628,15 +1629,7 @@ export default function Stock() {
                         </thead>
                         <tbody className="divide-y divide-slate-100 text-slate-700">
                           {filteredSales.map((sale, idx) => {
-                            const dateStr = sale.timestamp
-                              ? new Date(sale.timestamp).toLocaleDateString("en-IN", {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit"
-                                })
-                              : "Just Now";
+                            const dateStr = sale.timestamp ? formatDateTime(sale.timestamp) : "Just Now";
 
                             const hasTrainer = Boolean(sale.referredByTrainerName || sale.referredByTrainerId);
                             const commAmt = Number(sale.commissionAmount || 0);
@@ -2519,7 +2512,7 @@ export default function Stock() {
             <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
               <h4 className="text-sm font-black text-slate-900">{selectedEqForHistory.name}</h4>
               <p className="text-xs text-slate-500">
-                Purchased: {selectedEqForHistory.purchaseDate} for Rs.{" "}
+                Purchased: {formatDate(selectedEqForHistory.purchaseDate)} for Rs.{" "}
                 {Number(selectedEqForHistory.purchasePrice).toLocaleString("en-IN")}
               </p>
             </div>
@@ -2536,7 +2529,7 @@ export default function Stock() {
                   <div key={log.id || index} className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-2">
                     <div className="flex justify-between items-center text-xs">
                       <span className="font-extrabold text-slate-900 flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-teal-600" /> {log.date}
+                        <Calendar className="w-3.5 h-3.5 text-teal-600" /> {formatDate(log.date)}
                       </span>
                       <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-black border border-emerald-200">
                         Cost: Rs. {Number(log.cost).toLocaleString("en-IN")}

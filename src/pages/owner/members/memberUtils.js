@@ -7,10 +7,38 @@
 
 /** Convert Firestore Timestamp / ISO string / Date to native JS Date. Returns null if falsy. */
 export function toDate(val) {
-  if (!val) return null;
-  if (val.toDate) return val.toDate(); // Firestore Timestamp
-  if (val instanceof Date) return val;
-  return new Date(val);
+  if (!val && val !== 0) return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+  if (typeof val?.toDate === 'function') return val.toDate();
+  if (val.seconds && typeof val.seconds === 'number') return new Date(val.seconds * 1000);
+  if (typeof val === 'number') {
+    const ms = val < 1e11 ? val * 1000 : val;
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed || trimmed === '-' || trimmed === '--' || trimmed === 'N/A') return null;
+    const ddmmyyyy = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (ddmmyyyy) {
+      const d = parseInt(ddmmyyyy[1], 10);
+      const m = parseInt(ddmmyyyy[2], 10) - 1;
+      const y = parseInt(ddmmyyyy[3], 10);
+      const res = new Date(y, m, d);
+      return isNaN(res.getTime()) ? null : res;
+    }
+    const yyyymmdd = trimmed.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (yyyymmdd) {
+      const y = parseInt(yyyymmdd[1], 10);
+      const m = parseInt(yyyymmdd[2], 10) - 1;
+      const d = parseInt(yyyymmdd[3], 10);
+      const res = new Date(y, m, d);
+      return isNaN(res.getTime()) ? null : res;
+    }
+    const parsed = new Date(trimmed);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
 }
 
 /** Days from today (positive = future, negative = past). null if no date. */
@@ -22,11 +50,10 @@ export function getDaysRemaining(dateVal) {
   return Math.ceil((d - now) / (1000 * 60 * 60 * 24));
 }
 
-/** Format date as '15 Sep 2026'. Returns '—' if invalid. */
+/** Format date strictly as DD/MM/YYYY. Returns '—' if invalid. */
 export function formatDate(val) {
-  const d = toDate(val);
-  if (!d) return '—';
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  if (!val) return '—';
+  return toIndianDate(val) || '—';
 }
 
 /** Format seconds as MM:SS for countdown timer. */

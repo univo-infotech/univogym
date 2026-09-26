@@ -40,6 +40,7 @@ import { getGymSettings } from "../../utils/settings";
 import DirectAddMemberModal from "../../components/shared/DirectAddMemberModal";
 import { useAuth } from "../../contexts/AuthContext";
 import { getSessionCachedData } from "../../utils/dataCache";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function Dashboard() {
   const { gymId: currentGymId } = useAuth();
@@ -724,9 +725,7 @@ export default function Dashboard() {
 
           <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto pr-1">
             {expiringMembers.map((m) => {
-              const expFormatted = m.expiryDate
-                ? new Date(m.expiryDate?.seconds ? m.expiryDate.seconds * 1000 : m.expiryDate).toLocaleDateString("en-IN")
-                : "Soon";
+              const expFormatted = formatDate(m.expiryDate, "Soon");
               return (
                 <div key={m.id} className="py-3 flex items-center justify-between gap-2">
                   <div>

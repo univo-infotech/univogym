@@ -204,9 +204,17 @@ function cn(...classes) {
 }
 
 function formatDate(date) {
-  return new Date(date).toLocaleDateString('en-US', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  });
+  if (!date) return '';
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date)) {
+    const [y, m, d] = date.slice(0, 10).split('-');
+    return `${d}/${m}/${y}`;
+  }
+  const dObj = new Date(date);
+  if (isNaN(dObj.getTime())) return '';
+  const d = String(dObj.getDate()).padStart(2, '0');
+  const m = String(dObj.getMonth() + 1).padStart(2, '0');
+  const y = dObj.getFullYear();
+  return `${d}/${m}/${y}`;
 }
 
 function StepBar({ current, total }) {

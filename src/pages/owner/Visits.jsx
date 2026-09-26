@@ -38,6 +38,7 @@ import toast from "react-hot-toast";
 import { getVisits, addVisit, updateVisit, deleteVisit, convertVisitToMember } from "../../firebase/visits";
 import { getPlans } from "../../firebase/plans";
 import { getTrainers } from "../../firebase/trainers";
+import { formatDate } from "../../utils/dateUtils";
 import { addMember, generateInviteToken } from "../../firebase/members";
 import { addPayment } from "../../firebase/payments";
 import { getGymSettings } from "../../utils/settings";
@@ -709,7 +710,7 @@ export default function Visits() {
                     <BadgeIcon className="w-3 h-3" /> {badge.label}
                   </span>
                   <span className="text-[11px] font-bold text-slate-400">
-                    Visited: {vis.visitDate || "Today"}
+                    Visited: {formatDate(vis.visitDate, "Today")}
                   </span>
                 </div>
 
@@ -737,7 +738,7 @@ export default function Visits() {
                   <div className="flex justify-between items-center">
                     <span className="text-slate-500 font-medium">Trial / Demo:</span>
                     <span className="font-bold text-slate-800">
-                      {vis.demoDate} {vis.demoTime ? `(${vis.demoTime})` : ""}
+                      {formatDate(vis.demoDate)} {vis.demoTime ? `(${vis.demoTime})` : ""}
                     </span>
                   </div>
                   {vis.assignedTrainer && vis.assignedTrainer !== "Unassigned" && (

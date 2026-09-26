@@ -35,6 +35,7 @@ import { getGymSettings } from "../../utils/settings";
 import { openWhatsApp, formatPhone } from "../../utils/whatsapp";
 import { useAuth } from "../../contexts/AuthContext";
 import ReceiptModal from "./members/modals/ReceiptModal";
+import { formatDate, parseToDate } from "../../utils/dateUtils";
 
 // Available plans for quick selection
 const PLANS_CATALOG = [
@@ -48,45 +49,46 @@ const PLANS_CATALOG = [
 // Helper to compute date diff in days
 function getDaysRemaining(endDateStr) {
   if (!endDateStr) return null;
-  let end;
-  if (endDateStr.includes("/")) {
-    const parts = endDateStr.split("/");
-    // DD/MM/YYYY
-    end = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-  } else {
-    end = new Date(endDateStr);
-  }
+  const end = parseToDate(endDateStr);
+  if (!end) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
-  const diffTime = end.getTime() - today.getTime();
+  const endZero = new Date(end);
+  endZero.setHours(0, 0, 0, 0);
+  const diffTime = endZero.getTime() - today.getTime();
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
 // Format date to DD/MM/YYYY
 function toIndianDate(dateObj) {
-  if (!dateObj) return "";
-  const d = new Date(dateObj);
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-  return `${day}/${month}/${year}`;
+  return formatDate(dateObj, "");
 }
 
 // Convert DD/MM/YYYY to YYYY-MM-DD for date input
 function toInputDate(str) {
   if (!str) return new Date().toISOString().split("T")[0];
-  if (str.includes("/")) {
-    const [d, m, y] = str.split("/");
-    return `${y}-${m}-${d}`;
+  const d = parseToDate(str);
+  if (d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   }
   return str;
 }
 
-// Calculate end date based on start date and months
+// Calculate end date based on start date and months (safe from month length overflow)
 function calculateEndDate(startDateStr, months) {
-  const d = new Date(startDateStr);
-  d.setMonth(d.getMonth() + Number(months));
+  if (!startDateStr) return "";
+  const d = parseToDate(startDateStr);
+  if (!d) return "";
+  const originalDay = d.getDate();
+  const expectedMonth = d.getMonth() + Number(months);
+  d.setMonth(expectedMonth);
+  // Prevent overflow into next month (e.g., Jan 31 + 1 month rolling over into March)
+  if (d.getDate() !== originalDay) {
+    d.setDate(0); // Sets to last day of target month
+  }
   return toIndianDate(d);
 }
 
@@ -96,7 +98,7 @@ export default function Payments() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [slotFilter, setSlotFilter] = useState("all");
-  const [selectedMonth, setSelectedMonth] = useState("2026-09");
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [renewModalOpen, setRenewModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
 
@@ -585,7 +587,7 @@ export default function Payments() {
 
     // Send WhatsApp Bill
     if (sendWhatsApp && phone) {
-      const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${memberName}*,\nThank you for your payment!\n\n📋 *Details:* ${newRecord.planName}\n📅 *Validity:* ${newRecord.validityStart} to ${newRecord.validityEnd}\n💰 *Amount Paid:* ₹${payingNow} (${paymentMode.toUpperCase()})\n${newRecord.dueAmount > 0 ? `⚠️ *Remaining Due:* ₹${newRecord.dueAmount}\n` : "✅ *Status:* FULLY PAID\n"}\nYour official tax receipt PDF is generated. Stay fit and healthy! 💪`;
+      const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${memberName}*,\nThank you for your payment!\n\n📋 *Details:* ${newRecord.planName}\n📅 *Validity:* ${formatDate(newRecord.validityStart)} to ${formatDate(newRecord.validityEnd)}\n💰 *Amount Paid:* ₹${payingNow} (${paymentMode.toUpperCase()})\n${newRecord.dueAmount > 0 ? `⚠️ *Remaining Due:* ₹${newRecord.dueAmount}\n` : "✅ *Status:* FULLY PAID\n"}\nYour official tax receipt PDF is generated. Stay fit and healthy! 💪`;
       openWhatsApp(phone, msg);
     }
   };
@@ -977,7 +979,7 @@ export default function Payments() {
                     <td className="px-5 py-3.5">
                       <div className="space-y-0.5">
                         <p className="font-bold text-slate-800 text-[11px]">
-                          {item.validityStart} to {item.validityEnd}
+                          {formatDate(item.validityStart)} to {formatDate(item.validityEnd)}
                         </p>
                         <p className="text-[10px] text-slate-500 font-medium">{item.planName}</p>
                       </div>
@@ -1009,7 +1011,7 @@ export default function Payments() {
                     {/* Due Date & Countdown */}
                     <td className="px-5 py-3.5">
                       <div className="space-y-1">
-                        <p className="font-bold text-slate-800 text-[11px]">{item.dueDate || item.validityEnd}</p>
+                        <p className="font-bold text-slate-800 text-[11px]">{formatDate(item.dueDate || item.validityEnd)}</p>
                         {isLeft ? (
                           <span className="text-[10px] font-semibold text-slate-400">Left Gym</span>
                         ) : days !== null ? (
@@ -1112,7 +1114,7 @@ export default function Payments() {
                         {/* WhatsApp Button */}
                         <button
                           onClick={() => {
-                            const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${item.memberName}*,\nHere are your membership details:\n\n📋 *Plan:* ${item.planName}\n📅 *Validity:* ${item.validityStart} to ${item.validityEnd}\n💰 *Amount:* ₹${item.amount}\n${hasDue ? `⚠️ *Pending Due:* ₹${item.dueAmount}\n` : `✅ *Status:* ${item.dynamicStatus.toUpperCase()}\n`}\nThank you! 💪`;
+                            const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${item.memberName}*,\nHere are your membership details:\n\n📋 *Plan:* ${item.planName}\n📅 *Validity:* ${formatDate(item.validityStart)} to ${formatDate(item.validityEnd)}\n💰 *Amount:* ₹${item.amount}\n${hasDue ? `⚠️ *Pending Due:* ₹${item.dueAmount}\n` : `✅ *Status:* ${item.dynamicStatus.toUpperCase()}\n`}\nThank you! 💪`;
                             openWhatsApp(item.phone, msg);
                           }}
                           className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition"
@@ -1252,7 +1254,7 @@ export default function Payments() {
                   </div>
                   <div className="col-span-2 pt-1 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
                     <span className="text-slate-500">
-                      Validity: <strong className="text-slate-800">{item.validityEnd}</strong>
+                      Validity: <strong className="text-slate-800">{formatDate(item.validityEnd)}</strong>
                     </span>
                     {days !== null && (
                       <span>
@@ -1279,7 +1281,7 @@ export default function Payments() {
                     </button>
                     <button
                       onClick={() => {
-                        const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${item.memberName}*,\nHere are your membership details:\n\n📋 *Plan:* ${item.planName}\n📅 *Validity:* ${item.validityStart} to ${item.validityEnd}\n💰 *Amount:* ₹${item.amount}\n${hasDue ? `⚠️ *Pending Due:* ₹${item.dueAmount}\n` : `✅ *Status:* ${item.dynamicStatus.toUpperCase()}\n`}\nThank you! 💪`;
+                        const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${item.memberName}*,\nHere are your membership details:\n\n📋 *Plan:* ${item.planName}\n📅 *Validity:* ${formatDate(item.validityStart)} to ${formatDate(item.validityEnd)}\n💰 *Amount:* ₹${item.amount}\n${hasDue ? `⚠️ *Pending Due:* ₹${item.dueAmount}\n` : `✅ *Status:* ${item.dynamicStatus.toUpperCase()}\n`}\nThank you! 💪`;
                         openWhatsApp(item.phone, msg);
                       }}
                       className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition"
@@ -1482,7 +1484,7 @@ export default function Payments() {
                     Validity Period ({currentPlan.durationMonths} Month):
                   </span>
                   <span className="px-2.5 py-0.5 rounded-full bg-emerald-200/70 text-emerald-900 font-extrabold text-[11px]">
-                    {toIndianDate(validityStart)} to {validityEnd}
+                    {formatDate(validityStart)} to {formatDate(validityEnd)}
                   </span>
                 </div>
 

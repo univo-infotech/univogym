@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./config";
 import { getMembers, updateMember } from "./members";
+import { parseToDate } from "../utils/dateUtils";
 
 const DEFAULT_DEVICES = [
   {
@@ -129,7 +130,7 @@ export async function logBiometricPunch(gymId, punchInput) {
   const now = new Date();
   const nowIso = now.toISOString();
   const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
-  const dateStr = now.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const dateStr = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
 
   const allMembers = await getMembers(targetGymId);
 
@@ -198,20 +199,27 @@ export async function logBiometricPunch(gymId, punchInput) {
     accessStatus = "denied";
     denialReason = "Biometric Access Suspended by Gym Owner.";
   }
-  // 3. Expiry Check
-  else if (matchedMember.expiryDate) {
-    const expDate = new Date(matchedMember.expiryDate);
-    if (!isNaN(expDate.getTime())) {
+
+  // 3. Expiry Check (Evaluated if not already denied)
+  if (accessStatus === "granted" && matchedMember.expiryDate) {
+    const expDate = parseToDate(matchedMember.expiryDate);
+    if (expDate) {
       const todayZero = new Date();
       todayZero.setHours(0, 0, 0, 0);
-      if (expDate < todayZero) {
+      const expZero = new Date(expDate);
+      expZero.setHours(0, 0, 0, 0);
+      if (expZero < todayZero) {
         accessStatus = "denied";
-        denialReason = `Membership Expired on ${expDate.toLocaleDateString("en-IN")}. Please renew package.`;
+        const d = String(expDate.getDate()).padStart(2, "0");
+        const m = String(expDate.getMonth() + 1).padStart(2, "0");
+        const y = expDate.getFullYear();
+        denialReason = `Membership Expired on ${d}/${m}/${y}. Please renew package.`;
       }
     }
   }
-  // 4. Heavy Due Amount Check (> ₹500 and not paid)
-  else if (Number(matchedMember.dueAmount || 0) > 0 && matchedMember.status === "due") {
+
+  // 4. Due Amount Check (Evaluated if not already denied)
+  if (accessStatus === "granted" && Number(matchedMember.dueAmount || 0) > 0 && (matchedMember.status === "due" || matchedMember.dueBlocked === true)) {
     accessStatus = "denied";
     denialReason = `Pending Due Balance: ₹${Number(matchedMember.dueAmount).toLocaleString("en-IN")}. Clearance required.`;
   }

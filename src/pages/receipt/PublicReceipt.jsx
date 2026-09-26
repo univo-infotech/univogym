@@ -15,6 +15,7 @@ import {
 import { getPaymentById } from "../../firebase/payments";
 import { getGymSettings, fetchGymSettings } from "../../utils/settings";
 import { generatePaymentReceipt } from "../../utils/pdf";
+import { formatDate } from "../../utils/dateUtils";
 
 export default function PublicReceipt() {
   const { receiptId } = useParams();
@@ -208,7 +209,7 @@ export default function PublicReceipt() {
                 {payment.id || `REC-${Date.now().toString().slice(-6)}`}
               </p>
               <p className="text-[11px] text-slate-500 mt-0.5">
-                Date: {payment.date || new Date().toLocaleDateString("en-IN")}
+                Date: {formatDate(payment.date)}
               </p>
             </div>
 
@@ -260,7 +261,7 @@ export default function PublicReceipt() {
                 MEMBERSHIP VALIDITY PERIOD
               </span>
               <span className="px-2.5 py-0.5 rounded-md bg-white border border-emerald-300 text-emerald-900 font-bold text-[11px]">
-                {payment.validityStart} to {payment.validityEnd}
+                {formatDate(payment.validityStart)} to {formatDate(payment.validityEnd)}
               </span>
             </div>
             <p className="text-sm font-black text-slate-900">

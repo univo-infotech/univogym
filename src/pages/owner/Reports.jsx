@@ -48,6 +48,7 @@ import { generateFinancialStatementPDF } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
 import toast from "react-hot-toast";
+import { formatDate } from "../../utils/dateUtils";
 
 // Format DD/MM/YYYY or YYYY-MM-DD or Timestamp to ISO date string YYYY-MM-DD
 function normalizeDate(dStr) {
@@ -67,10 +68,19 @@ function normalizeDate(dStr) {
   if (s.includes("/")) {
     const parts = s.split("/");
     if (parts.length === 3) {
-      const day = parts[0].padStart(2, "0");
-      const month = parts[1].padStart(2, "0");
-      const year = parts[2];
-      return `${year}-${month}-${day}`;
+      if (parts[0].length === 4) {
+        // YYYY/MM/DD
+        const year = parts[0];
+        const month = parts[1].padStart(2, "0");
+        const day = parts[2].padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      } else {
+        // DD/MM/YYYY
+        const day = parts[0].padStart(2, "0");
+        const month = parts[1].padStart(2, "0");
+        const year = parts[2];
+        return `${year}-${month}-${day}`;
+      }
     }
   }
   return s.slice(0, 10);
@@ -286,12 +296,7 @@ export default function Reports() {
 
     if (reportMode === "daily") {
       // Exact day filter
-      periodLabel = new Date(selectedDailyDate).toLocaleDateString("en-IN", {
-        weekday: "long",
-        day: "numeric",
-        month: "short",
-        year: "numeric"
-      });
+      periodLabel = formatDate(selectedDailyDate);
       rev = unifiedRevenueItems.filter((r) => r.date === selectedDailyDate);
       exp = standardizedExpenseItems.filter((e) => e.date === selectedDailyDate);
     } else if (reportMode === "monthly") {
@@ -890,7 +895,7 @@ export default function Reports() {
                       <span className="text-xs font-black text-slate-900">
                         Rs. {item.amount.toLocaleString("en-IN")}
                       </span>
-                      <p className="text-[10px] text-slate-400 mt-0.5">{item.date}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(item.date)}</p>
                     </div>
                   </div>
 
@@ -968,7 +973,7 @@ export default function Reports() {
                     <span className="text-xs font-black text-rose-600">
                       -Rs. {item.amount.toLocaleString("en-IN")}
                     </span>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{item.date}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{formatDate(item.date)}</p>
                   </div>
                 </div>
               ))

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getTrainer, getTrainers } from "../../firebase/trainers";
+import { formatDate } from "../../utils/dateUtils";
 import { getMember, getMembers, updateMember } from "../../firebase/members";
 import { getChatRoomId, subscribeRoomMeta } from "../../firebase/chat";
 import DirectChatModal from "../../components/shared/DirectChatModal";
@@ -557,7 +558,7 @@ export default function MyTrainer() {
               <div key={n.id} className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs flex justify-between items-start">
                 <span className="text-slate-700">{n.text}</span>
                 <span className="text-[10px] text-slate-400 shrink-0 ml-2">
-                  {new Date(n.sentAt).toLocaleDateString("en-IN")}
+                  {formatDate(n.sentAt)}
                 </span>
               </div>
             ))}

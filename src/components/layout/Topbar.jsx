@@ -24,12 +24,10 @@ import {
   generatePartialDueReminderMessage,
   generateOverdueReminderMessage
 } from "../../utils/whatsapp";
+import { parseToDate, formatDate } from "../../utils/dateUtils";
 
 function toDate(val) {
-  if (!val) return null;
-  if (val.toDate) return val.toDate();
-  if (val instanceof Date) return val;
-  return new Date(val);
+  return parseToDate(val);
 }
 
 function getMemberStatus(member) {
@@ -45,12 +43,6 @@ function getMemberStatus(member) {
   if (diffDays <= 0) return 'expired';
   if (diffDays <= 3) return 'ending_soon';
   return 'active';
-}
-
-function formatDate(val) {
-  const d = toDate(val);
-  if (!d) return '—';
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export default function Topbar({ title = "Dashboard", onOpenSidebar }) {

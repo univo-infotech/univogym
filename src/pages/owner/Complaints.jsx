@@ -18,6 +18,7 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 import { getGymComplaints, replyToComplaint } from "../../firebase/complaints";
 import toast from "react-hot-toast";
+import { formatDateTime } from "../../utils/dateUtils";
 
 export default function OwnerComplaints() {
   const { gymId } = useAuth();
@@ -231,13 +232,7 @@ export default function OwnerComplaints() {
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase block">Filed On</span>
                     <span className="text-slate-600">
-                      {new Date(item.createdAt).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {formatDateTime(item.createdAt)}
                     </span>
                   </div>
                 </div>
@@ -262,10 +257,7 @@ export default function OwnerComplaints() {
                         <div className="flex items-center justify-between text-[11px] font-bold text-emerald-950">
                           <span>{r.repliedBy || "Gym Management"}</span>
                           <span className="text-emerald-700 text-[10px]">
-                            {new Date(r.repliedAt).toLocaleDateString("en-IN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                            {formatDateTime(r.repliedAt)}
                           </span>
                         </div>
                         <p className="text-slate-800 leading-relaxed font-medium">

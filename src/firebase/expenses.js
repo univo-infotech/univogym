@@ -1,6 +1,7 @@
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, where, writeBatch } from "firebase/firestore";
 import { db } from "./config";
 import { getCachedData, setCachedData } from "../utils/dataCache";
+import { parseToDate } from "../utils/dateUtils";
 
 export async function addExpense(gymId, expenseData) {
   const colRef = collection(db, `gyms/${gymId}/expenses`);
@@ -43,61 +44,39 @@ export async function getExpenses(gymId, forceRefresh = false) {
 
   // Check recurring templates and automatically create monthly entries if due
   try {
-    // 1. Auto-sync active trainers with salary > 0 into recurring expense templates
-    try {
-      const trainersSnap = await getDocs(collection(db, `gyms/${targetGymId}/trainers`));
-      const trainers = trainersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // 1. Clean up legacy salary templates from recurring bills (salaries are managed via Monthly Payroll Tracker)
+    const legacySalaryTemplates = expensesList.filter(
+      (e) =>
+        e.isRecurringTemplate === true &&
+        (e.isSalary ||
+          e.isTrainerSalary ||
+          e.category === "Trainer Salary" ||
+          e.category === "Staff Salary" ||
+          (e.title && e.title.toLowerCase().startsWith("trainer salary")) ||
+          (e.title && e.title.toLowerCase().startsWith("staff salary")))
+    );
 
-      for (const tr of trainers) {
-        const trSalary = Number(tr.salary || 0);
-        if (trSalary > 0 && tr.active !== false) {
-          const hasTemplate = expensesList.some(
-            (e) =>
-              e.isRecurringTemplate &&
-              (e.trainerId === tr.id ||
-                (e.title && (tr.name || tr.fullName) && e.title.includes(tr.name || tr.fullName)))
-          );
-
-          if (!hasTemplate) {
-            const trJoin =
-              tr.joinDate ||
-              tr.joiningDate ||
-              (tr.createdAt
-                ? new Date(tr.createdAt.toDate ? tr.createdAt.toDate() : tr.createdAt)
-                    .toISOString()
-                    .split("T")[0]
-                : new Date().toISOString().split("T")[0]);
-            const joinDay = Number(trJoin.split("-")[2]) || 1;
-            const newTpl = {
-              title: `Trainer Salary: ${tr.name || tr.fullName || "Trainer"}`,
-              category: "Trainer Salary",
-              amount: trSalary,
-              type: "monthly",
-              monthlyPaymentType: "postpaid",
-              isSalary: true,
-              isTrainerSalary: true,
-              trainerId: tr.id,
-              trainerName: tr.name || tr.fullName || "Trainer",
-              date: trJoin,
-              startDate: trJoin,
-              dayOfMonth: joinDay,
-              isRecurringTemplate: true,
-              isActive: true,
-              status: "active_recurring",
-              notes: `Monthly recurring salary for Trainer ${tr.name || tr.fullName} (Joined: ${trJoin}). Auto-bills on day ${joinDay} of every month starting next month.`,
-              createdAt: new Date().toISOString()
-            };
-            const docRef = await addDoc(colRef, newTpl);
-            expensesList.push({ id: docRef.id, ...newTpl });
-          }
+    if (legacySalaryTemplates.length > 0) {
+      for (const lt of legacySalaryTemplates) {
+        try {
+          await deleteDoc(doc(db, `gyms/${targetGymId}/expenses`, lt.id));
+        } catch (err) {
+          console.warn("Cleaned up legacy salary template:", lt.id);
         }
       }
-    } catch (trErr) {
-      console.warn("Trainer salary recurring check skipped:", trErr);
+      expensesList = expensesList.filter((e) => !legacySalaryTemplates.some((lt) => lt.id === e.id));
     }
 
+    // Only process overhead recurring templates (Rent, Electricity, etc.) - NEVER salary
     const recurringTemplates = expensesList.filter(
-      (e) => e.type === "monthly" && e.isRecurringTemplate === true && e.isActive !== false
+      (e) =>
+        e.type === "monthly" &&
+        e.isRecurringTemplate === true &&
+        e.isActive !== false &&
+        !e.isSalary &&
+        !e.isTrainerSalary &&
+        e.category !== "Trainer Salary" &&
+        e.category !== "Staff Salary"
     );
 
     if (recurringTemplates.length > 0) {
@@ -110,9 +89,11 @@ export async function getExpenses(gymId, forceRefresh = false) {
 
       for (const tpl of recurringTemplates) {
         // Find start date of template
-        const tplStartDate = tpl.startDate || tpl.date || new Date().toISOString().split("T")[0];
-        const [sYear, sMonth] = tplStartDate.split("-").map(Number);
-        const billDay = tpl.dayOfMonth || Number(tplStartDate.split("-")[2]) || 1;
+        const tplStartDate = tpl.startDate || tpl.date || todayIsoStr;
+        const parsedStart = parseToDate(tplStartDate) || now;
+        const sYear = parsedStart.getFullYear();
+        const sMonth = parsedStart.getMonth() + 1; // 1-indexed
+        const billDay = tpl.dayOfMonth ? Number(tpl.dayOfMonth) : parsedStart.getDate();
 
         // Iterate from start month up to current month (limit to last 12 months max to avoid unbounded loops)
         let curY = sYear;
