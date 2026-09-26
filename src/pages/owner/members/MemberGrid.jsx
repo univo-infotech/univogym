@@ -15,7 +15,8 @@ import {
   Eye,
   Edit,
   Trash2,
-  Dumbbell
+  Dumbbell,
+  Layers
 } from 'lucide-react';
 import { Avatar } from './MemberStatusBadge';
 import {
@@ -46,7 +47,8 @@ export default function MemberGrid({
     onEnd,
     onReceipt,
     onDelete,
-    onReactivate
+    onReactivate,
+    onAddService
   } = actionHandlers;
 
   if (members.length === 0) {
@@ -353,6 +355,14 @@ export default function MemberGrid({
               )}
 
               <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => onAddService && onAddService(m)}
+                  className="p-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 font-bold transition cursor-pointer"
+                  title="Add Gym Service / Facility"
+                >
+                  <Layers size={13} className="text-teal-600" />
+                </button>
                 <button
                   type="button"
                   onClick={() => onView(m)}

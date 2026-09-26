@@ -56,6 +56,7 @@ import { LeftModal, EndMembershipModal, DeleteConfirmModal } from './members/mod
 import InviteLinkModal from './members/modals/InviteLinkModal';
 import DirectAddMemberModal from '../../components/shared/DirectAddMemberModal';
 import ReceiptModal from './members/modals/ReceiptModal';
+import AddServiceModal from './members/modals/AddServiceModal';
 
 export default function Members() {
   const navigate = useNavigate();
@@ -85,6 +86,7 @@ export default function Members() {
   const [extendMember, setExtendMember] = useState(null);
   const [planMember, setPlanMember] = useState(null);       // Used for Fee Collect, Gym Renew & Due Balance
   const [ptAddonMember, setPtAddonMember] = useState(null);   // Used for +PT & PT Renew
+  const [serviceAddonMember, setServiceAddonMember] = useState(null); // Used for +Facility/Service Add-on
   const [editMember, setEditMember] = useState(null);
   const [leftMember, setLeftMember] = useState(null);
   const [endMember, setEndMember] = useState(null);
@@ -530,6 +532,7 @@ export default function Members() {
     onEnd: (m) => setEndMember(m),
     onDelete: (m) => setDeleteTargetMember(m),
     onAddPt: (m) => setPtAddonMember(m),
+    onAddService: (m) => setServiceAddonMember(m),
     onRestartPt: handleRestartPT,
     onReturn: (m) => setPlanMember(m),
     onReactivate: (m) => setPlanMember(m),
@@ -1363,6 +1366,23 @@ export default function Members() {
           existingMembers={members}
           onClose={() => setPtAddonMember(null)}
           onSave={handlePtAddonSuccess}
+        />
+      )}
+
+      {/* Mid-Plan Facility & Service Add-on Modal */}
+      {serviceAddonMember && (
+        <AddServiceModal
+          isOpen={Boolean(serviceAddonMember)}
+          member={serviceAddonMember}
+          gymId={gymId}
+          plans={plans}
+          onClose={() => setServiceAddonMember(null)}
+          onSave={(updatedMem) => {
+            setMembers((prev) => prev.map((m) => m.id === updatedMem.id ? { ...m, ...updatedMem } : m));
+            setServiceAddonMember(null);
+            // Refresh payments list to include new service bill
+            getAllPayments(targetGymId).then(setPayments).catch(console.warn);
+          }}
         />
       )}
 

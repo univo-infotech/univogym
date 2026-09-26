@@ -769,15 +769,15 @@ export default function Services() {
                     <button
                       type="button"
                       onClick={() => handleToggleStatus(s)}
-                      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition ${
+                      className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold transition cursor-pointer ${
                         s.isActive !== false
                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : "bg-slate-100 text-slate-500 border border-slate-200"
+                          : "bg-rose-50 text-rose-700 border border-rose-200"
                       }`}
                       title={s.isActive !== false ? "Click to Deactivate" : "Click to Activate"}
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full ${s.isActive !== false ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
-                      {s.isActive !== false ? "Active" : "Paused"}
+                      <span className={`w-1.5 h-1.5 rounded-full ${s.isActive !== false ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+                      {s.isActive !== false ? "Active" : "Inactive"}
                     </button>
                   </div>
 
@@ -873,24 +873,41 @@ export default function Services() {
                 </div>
 
                 {/* Card Footer Actions */}
-                <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+                <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+                  {/* Active / Inactive Button */}
                   <button
                     type="button"
-                    onClick={() => handleOpenEdit(s)}
-                    className="px-3.5 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-emerald-600 text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-                    title="Edit Service"
+                    onClick={() => handleToggleStatus(s)}
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                      s.isActive !== false
+                        ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                        : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
+                    }`}
+                    title={s.isActive !== false ? "Click to Deactivate" : "Click to Activate"}
                   >
-                    <Edit3 className="w-3.5 h-3.5" /> Edit
+                    <span className={`w-2 h-2 rounded-full ${s.isActive !== false ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+                    {s.isActive !== false ? "Active" : "Inactive"}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setDeleteModal(s)}
-                    className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                    title="Delete Service"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(s)}
+                      className="py-2 px-3 rounded-xl bg-slate-900 text-white hover:bg-emerald-600 text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                      title="Edit Service"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" /> Edit
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDeleteModal(s)}
+                      className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200/80 bg-white transition flex items-center justify-center shrink-0 cursor-pointer"
+                      title="Delete Service"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -1203,19 +1220,6 @@ export default function Services() {
                   onChange={(e) => setForm({ ...form, instructor: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
                 />
-              </div>
-
-              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <input
-                  type="checkbox"
-                  id="activeToggle"
-                  checked={form.isActive}
-                  onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
-                />
-                <label htmlFor="activeToggle" className="text-xs font-bold text-slate-800 cursor-pointer">
-                  Publish this facility immediately in gym services directory
-                </label>
               </div>
             </div>
           )}

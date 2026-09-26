@@ -139,3 +139,46 @@ export function generatePtAddonReceiptMessage({
   msg += `Gym floor access remains active as per your membership. Stay dedicated and crush your fitness goals! 🔥💪\n— *${gym}*`;
   return msg;
 }
+
+export function generateServiceAddonReceiptMessage({
+  memberName = "Member",
+  gymName = "",
+  serviceName = "Gym Facility",
+  category = "Amenity",
+  months = 1,
+  monthlyRate = 0,
+  startDate = "",
+  endDate = "",
+  amount = 0,
+  paidAmount = 0,
+  dueAmount = 0,
+  paymentMode = "Cash",
+  billId = "",
+  receiptLink = "",
+}) {
+  const settings = getGymSettings();
+  const gym = gymName || settings.gymName || "UNIVO GYM MANAGEMENT";
+  const dateStr = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+  let msg = `🧾 *OFFICIAL GYM SERVICE INVOICE & RECEIPT*\n*${gym}*\n\n`;
+  msg += `Dear *${memberName}*,\nYour gym facility subscription has been activated successfully! Here are your official service invoice details:\n\n`;
+  msg += `🛎️ *Service / Amenity:* ${serviceName}\n`;
+  msg += `📂 *Category:* ${category}\n`;
+  msg += `⏳ *Duration:* ${months} Month${months > 1 ? "s" : ""} (@ ₹${Number(monthlyRate).toLocaleString("en-IN")}/month)\n`;
+  if (startDate) msg += `📅 *Service Start Date:* ${startDate}\n`;
+  if (endDate) msg += `🎯 *Service Valid Till:* ${endDate}\n`;
+  msg += `💰 *Total Service Fee:* ₹${Number(amount).toLocaleString("en-IN")}\n`;
+  msg += `✅ *Amount Paid:* ₹${Number(paidAmount).toLocaleString("en-IN")} (${paymentMode.toUpperCase()})\n`;
+  if (Number(dueAmount) > 0) {
+    msg += `⚠️ *Balance Due:* ₹${Number(dueAmount).toLocaleString("en-IN")}\n`;
+  } else {
+    msg += `✨ *Payment Status:* PAID IN FULL\n`;
+  }
+  if (billId) msg += `🔖 *Invoice No:* #${billId}\n`;
+  msg += `📅 *Billing Date:* ${dateStr}\n\n`;
+  if (receiptLink) {
+    msg += `📄 *View & Download Digital Bill:*\\n${receiptLink}\\n\\n`;
+  }
+  msg += `Enjoy premium access to your gym facilities! If you need any assistance, reach out to the gym reception.\n— *${gym}*`;
+  return msg;
+}

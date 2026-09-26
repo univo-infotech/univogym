@@ -518,7 +518,7 @@ export default function EditMemberModal({ member, initialTab = 'personal', onClo
                   </label>
                   {isPersonalTrainer && (
                     <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg">
-                      Coach Schedule: {selectedTrainerObj.name}
+                      Coach Schedule: {selectedTrainerObj.name} ({selectedTrainerObj?.allowedShifts ? `${selectedTrainerObj.allowedShifts.length} Shifts Active` : `Max ${selectedTrainerObj?.maxPtPerSlot || 2} PT/Shift`})
                     </span>
                   )}
                 </div>
@@ -526,21 +526,42 @@ export default function EditMemberModal({ member, initialTab = 'personal', onClo
                   {activeSlots.map((s) => {
                     const fullText = s.time ? `${s.label} (${s.time})` : s.label;
                     const isSelected = slot === fullText || slot === s.label;
-                    const maxSlotLimit = Number(selectedTrainerObj?.maxPtPerSlot || 2);
+
+                    const slotKey = (() => {
+                      const raw = `${s.id || ''} ${s.label || ''}`.toLowerCase();
+                      if (raw.includes("morning")) return "morning";
+                      if (raw.includes("afternoon")) return "afternoon";
+                      if (raw.includes("evening")) return "evening";
+                      if (raw.includes("night")) return "night";
+                      return s.id || s.label;
+                    })();
+
+                    const isShiftAllowed = !isPersonalTrainer || !Array.isArray(selectedTrainerObj?.allowedShifts) || selectedTrainerObj.allowedShifts.length === 0 || selectedTrainerObj.allowedShifts.includes(slotKey);
+                    const maxSlotLimit = isPersonalTrainer
+                      ? Number(selectedTrainerObj?.shiftPtLimits?.[slotKey] ?? selectedTrainerObj?.maxPtPerSlot ?? 2)
+                      : 999;
 
                     const bookedAthletes = isPersonalTrainer
                       ? (trainerSlotOccupancy[fullText] || trainerSlotOccupancy[s.label] || trainerSlotOccupancy[s.time] || [])
                       : [];
                     const bookedCount = bookedAthletes.length;
-                    const isFull = bookedCount >= maxSlotLimit;
+                    const isFull = isShiftAllowed && bookedCount >= maxSlotLimit;
 
                     return (
                       <button
                         key={s.id}
                         type="button"
-                        onClick={() => setSlot(fullText)}
+                        onClick={() => {
+                          if (isPersonalTrainer && !isShiftAllowed) {
+                            toast.error(`Coach ${selectedTrainerObj?.name || 'Trainer'} is not available during ${s.label} shift.`);
+                            return;
+                          }
+                          setSlot(fullText);
+                        }}
                         className={`p-2.5 rounded-xl border text-left transition text-xs font-semibold flex flex-col justify-between cursor-pointer ${
-                          isSelected
+                          !isShiftAllowed && isPersonalTrainer
+                            ? 'bg-slate-100/70 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed'
+                            : isSelected
                             ? 'bg-amber-50 border-amber-500 text-amber-900 ring-2 ring-amber-400/20'
                             : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                         }`}
@@ -551,21 +572,29 @@ export default function EditMemberModal({ member, initialTab = 'personal', onClo
                             {isPersonalTrainer && (
                               <span
                                 className={`text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wide shrink-0 ${
-                                  bookedCount === 0
+                                  !isShiftAllowed
+                                    ? 'bg-slate-200 text-slate-600 border border-slate-300'
+                                    : bookedCount === 0
                                     ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                     : !isFull
                                     ? 'bg-amber-100 text-amber-900 border border-amber-300'
                                     : 'bg-rose-100 text-rose-900 border border-rose-300 animate-pulse'
                                 }`}
                               >
-                                {bookedCount === 0 ? `🟢 Free (0/${maxSlotLimit})` : !isFull ? `🟡 ${bookedCount}/${maxSlotLimit}` : `🔴 ${bookedCount}/${maxSlotLimit} Full`}
+                                {!isShiftAllowed
+                                  ? '⚪ Shift Off'
+                                  : bookedCount === 0
+                                  ? `🟢 Free (0/${maxSlotLimit})`
+                                  : !isFull
+                                  ? `🟡 ${bookedCount}/${maxSlotLimit}`
+                                  : `🔴 ${bookedCount}/${maxSlotLimit} Full`}
                               </span>
                             )}
                           </div>
                           {s.time && <p className="text-[10px] text-slate-500 mt-0.5">{s.time}</p>}
                         </div>
 
-                        {isPersonalTrainer && bookedCount > 0 && (
+                        {isPersonalTrainer && bookedCount > 0 && isShiftAllowed && (
                           <div className="mt-1.5 pt-1 border-t border-slate-100 text-[9.5px] text-slate-600 truncate">
                             🏋️ {bookedAthletes.join(', ')}
                           </div>
@@ -577,16 +606,39 @@ export default function EditMemberModal({ member, initialTab = 'personal', onClo
 
                 {/* Overbooking Alert Warning in EditMemberModal */}
                 {(() => {
-                  if (!isPersonalTrainer) return null;
-                  const maxSlotLimit = Number(selectedTrainerObj?.maxPtPerSlot || 2);
+                  if (!isPersonalTrainer || !selectedTrainerObj) return null;
+                  const currentSlotKey = (() => {
+                    const raw = (slot || '').toLowerCase();
+                    if (raw.includes("morning")) return "morning";
+                    if (raw.includes("afternoon")) return "afternoon";
+                    if (raw.includes("evening")) return "evening";
+                    if (raw.includes("night")) return "night";
+                    return slot;
+                  })();
+
+                  const isCurShiftAllowed = !Array.isArray(selectedTrainerObj.allowedShifts) || selectedTrainerObj.allowedShifts.length === 0 || selectedTrainerObj.allowedShifts.includes(currentSlotKey);
+                  const maxSlotLimit = Number(selectedTrainerObj?.shiftPtLimits?.[currentSlotKey] ?? selectedTrainerObj?.maxPtPerSlot ?? 2);
                   const curBooked = trainerSlotOccupancy[slot] || [];
+
+                  if (!isCurShiftAllowed) {
+                    return (
+                      <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 flex items-start gap-2 text-amber-950 animate-in fade-in duration-200">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="text-[11px] leading-tight">
+                          <strong className="font-extrabold text-amber-900">Shift Not Assigned: </strong>
+                          Coach <strong>{selectedTrainerObj.name}</strong> does not take PT sessions during this shift (<strong>{slot}</strong>). Please select one of the coach's active shifts: <strong>{(selectedTrainerObj.allowedShifts || []).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(", ")}</strong>.
+                        </div>
+                      </div>
+                    );
+                  }
+
                   if (curBooked.length >= maxSlotLimit) {
                     return (
                       <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-900 animate-in fade-in duration-200">
                         <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                         <div className="text-[11px] leading-tight">
                           <strong className="font-extrabold text-rose-800">Trainer Shift Capacity Full ({curBooked.length}/{maxSlotLimit})! </strong>
-                          Coach <strong>{selectedTrainerObj.name}</strong> ke paas is shift (<strong>{slot}</strong>) mein pehle se <strong>{curBooked.length} athletes</strong> booked hain ({curBooked.join(', ')}). Maximum capacity {maxSlotLimit} PT per shift hai.
+                          Coach <strong>{selectedTrainerObj.name}</strong> ke paas is shift (<strong>{slot}</strong>) mein pehle se <strong>{curBooked.length} athletes</strong> booked hain ({curBooked.join(', ')}). Maximum capacity {maxSlotLimit} PT for this shift hai.
                         </div>
                       </div>
                     );

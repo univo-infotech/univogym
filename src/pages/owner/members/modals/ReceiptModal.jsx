@@ -89,6 +89,12 @@ export default function ReceiptModal({
     (currentPayment.planName && currentPayment.planName.includes('Renewal'))
   );
 
+  const isServiceBill = Boolean(
+    currentPayment.isServiceOnly ||
+    currentPayment.planType === 'Service' ||
+    (currentPayment.planName && (currentPayment.planName.startsWith('Facility & Service:') || currentPayment.planName.startsWith('Gym Service:')))
+  );
+
   const coachName = currentPayment.trainerName || member?.trainerName || '';
 
   const planTitle = currentPayment.planName || (isPtBill ? `Personal Training (PT) - ${currentPayment.ptPlanName || member?.ptPlanName || '1-on-1 PT'}` : (member?.planName || 'Gym Membership Plan'));
@@ -144,7 +150,7 @@ export default function ReceiptModal({
     }
   }
 
-  const finalBasePrice = (isPtBill || isExtensionBill || isDueBill)
+  const finalBasePrice = (isPtBill || isExtensionBill || isDueBill || isServiceBill)
     ? 0
     : (basePrice > 0
         ? basePrice
@@ -178,6 +184,14 @@ export default function ReceiptModal({
       id: 'due_item',
       icon: CreditCard,
       desc: `Due Balance Settlement - ${currentPayment.planName?.replace('Due Balance Settlement - ', '') || member?.planName || 'Gym Membership'}`,
+      period: validityText,
+      amount: totalPlanPrice
+    });
+  } else if (isServiceBill) {
+    items.push({
+      id: 'service_item',
+      icon: Layers,
+      desc: currentPayment.planName || `Facility & Service - ${currentPayment.serviceName || 'Add-on Service'}`,
       period: validityText,
       amount: totalPlanPrice
     });

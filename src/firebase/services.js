@@ -130,3 +130,64 @@ export function isServiceIncludedInPlan(service, plan) {
 
   return false;
 }
+
+/**
+ * Extracts number of duration months from a membership plan
+ */
+export function getPlanDurationMonths(plan) {
+  if (!plan) return 1;
+
+  // 1. Explicit durationMonths
+  if (plan.durationMonths && Number(plan.durationMonths) > 0) {
+    return Number(plan.durationMonths);
+  }
+
+  // 2. Explicit durationDays
+  if (plan.durationDays && Number(plan.durationDays) > 0) {
+    return Math.max(1, Math.round(Number(plan.durationDays) / 30));
+  }
+
+  // 3. durationUnit + duration
+  const dUnit = (plan.durationUnit || '').toLowerCase();
+  const durVal = Number(plan.duration);
+  if (!isNaN(durVal) && durVal > 0) {
+    if (dUnit.includes('year')) return durVal * 12;
+    if (dUnit.includes('month')) return durVal;
+    if (dUnit.includes('day')) return Math.max(1, Math.round(durVal / 30));
+    // If unit is absent but number is >= 25, it's days (e.g. 30, 90, 180, 365)
+    if (durVal >= 25) {
+      return Math.max(1, Math.round(durVal / 30));
+    }
+    // If unit is absent and 1..24, it's months
+    return durVal;
+  }
+
+  // 4. Text searching in name, duration, and durationUnit
+  const str = `${plan.name || ''} ${plan.duration || ''} ${plan.durationUnit || ''}`.toLowerCase();
+  if (str.includes("12 month") || str.includes("year") || str.includes("annual") || str.includes("365")) return 12;
+  if (str.includes("6 month") || str.includes("180")) return 6;
+  if (str.includes("3 month") || str.includes("quarter") || str.includes("90")) return 3;
+  if (str.includes("2 month") || str.includes("60")) return 2;
+  if (str.includes("1 month") || str.includes("monthly") || str.includes("30")) return 1;
+
+  // 5. Regex pattern match for digit followed by month/mo
+  const match = str.match(/(\d+)\s*(month|mo\b)/i);
+  if (match && match[1]) {
+    return Number(match[1]);
+  }
+
+  return 1;
+}
+
+/**
+ * Computes service end date given start date and duration in months
+ */
+export function calculateServiceEndDate(startDate, months = 1) {
+  const dt = startDate ? new Date(startDate) : new Date();
+  const validMonths = Math.max(1, Number(months) || 1);
+  dt.setMonth(dt.getMonth() + validMonths);
+  const day = String(dt.getDate()).padStart(2, "0");
+  const month = String(dt.getMonth() + 1).padStart(2, "0");
+  const year = dt.getFullYear();
+  return `${year}-${month}-${day}`;
+}

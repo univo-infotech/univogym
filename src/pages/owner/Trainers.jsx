@@ -32,7 +32,11 @@ import {
   Clock,
   Percent,
   HandCoins,
-  TrendingUp
+  TrendingUp,
+  Sun,
+  Sunset,
+  Moon,
+  Layers
 } from "lucide-react";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
@@ -44,6 +48,13 @@ import { addExpense, getExpenses, updateExpense } from "../../firebase/expenses"
 import { useAuth } from "../../contexts/AuthContext";
 import { invalidateCache } from "../../utils/dataCache";
 import toast from "react-hot-toast";
+
+export const DEFAULT_SHIFTS_CONFIG = [
+  { id: "morning", label: "Morning", fullLabel: "Morning Shift", time: "6:00 AM - 9:00 AM", icon: Sun, color: "text-amber-500", bg: "bg-amber-50", border: "border-amber-200" },
+  { id: "afternoon", label: "Afternoon", fullLabel: "Afternoon Shift", time: "12:00 PM - 3:00 PM", icon: Sun, color: "text-orange-500", bg: "bg-orange-50", border: "border-orange-200" },
+  { id: "evening", label: "Evening", fullLabel: "Evening Shift", time: "4:00 PM - 7:00 PM", icon: Sunset, color: "text-indigo-500", bg: "bg-indigo-50", border: "border-indigo-200" },
+  { id: "night", label: "Night", fullLabel: "Night Shift", time: "7:00 PM - 10:00 PM", icon: Moon, color: "text-purple-500", bg: "bg-purple-50", border: "border-purple-200" },
+];
 
 export default function Trainers() {
   const { gymId } = useAuth();
@@ -84,7 +95,15 @@ export default function Trainers() {
     // PT Commission Deal (Percentage or Fixed amount given by trainer to owner per membership sale)
     commissionType: "percentage", // "percentage" or "fixed"
     commissionValue: 30, // e.g. 30% or ₹1500
-    // Shift / Time Slot PT Capacity (Max PT Members per Shift/Slot)
+    // Shift / Time Slot PT Capacity (Max PT Members per Shift/Slot & Allowed Shifts)
+    allowedShifts: ["morning", "evening"],
+    maxShiftsCount: 2,
+    shiftPtLimits: {
+      morning: 2,
+      afternoon: 2,
+      evening: 2,
+      night: 2,
+    },
     maxPtPerSlot: 2,
     ptPlans: [
       {
@@ -129,6 +148,14 @@ export default function Trainers() {
     certUrl: "",
     commissionType: "percentage",
     commissionValue: 30,
+    allowedShifts: ["morning", "evening"],
+    maxShiftsCount: 2,
+    shiftPtLimits: {
+      morning: 2,
+      afternoon: 2,
+      evening: 2,
+      night: 2,
+    },
     maxPtPerSlot: 2,
     ptPlans: [],
     transformations: [
@@ -320,6 +347,16 @@ export default function Trainers() {
       certUrl: trainer.certUrl || "",
       commissionType: trainer.commissionType || "percentage",
       commissionValue: trainer.commissionValue !== undefined ? trainer.commissionValue : 30,
+      allowedShifts: Array.isArray(trainer.allowedShifts) && trainer.allowedShifts.length > 0
+        ? trainer.allowedShifts
+        : ["morning", "evening"],
+      maxShiftsCount: trainer.maxShiftsCount || (Array.isArray(trainer.allowedShifts) ? trainer.allowedShifts.length : 2),
+      shiftPtLimits: trainer.shiftPtLimits || {
+        morning: trainer.maxPtPerSlot || 2,
+        afternoon: trainer.maxPtPerSlot || 2,
+        evening: trainer.maxPtPerSlot || 2,
+        night: trainer.maxPtPerSlot || 2,
+      },
       maxPtPerSlot: trainer.maxPtPerSlot !== undefined ? trainer.maxPtPerSlot : 2,
       ptPlans: Array.isArray(trainer.ptPlans) && trainer.ptPlans.length > 0
         ? trainer.ptPlans.map((p, idx) => ({
@@ -482,6 +519,9 @@ export default function Trainers() {
         certUrl: editForm.certUrl || "",
         commissionType: editForm.commissionType || "percentage",
         commissionValue: Number(editForm.commissionValue) || 0,
+        allowedShifts: Array.isArray(editForm.allowedShifts) && editForm.allowedShifts.length > 0 ? editForm.allowedShifts : ["morning", "evening"],
+        maxShiftsCount: Number(editForm.allowedShifts?.length || 2),
+        shiftPtLimits: editForm.shiftPtLimits || { morning: 2, afternoon: 2, evening: 2, night: 2 },
         maxPtPerSlot: Math.max(1, Number(editForm.maxPtPerSlot) || 2),
         ptPlans: (editForm.ptPlans || [])
           .filter((p) => p.name && p.price)
@@ -664,6 +704,9 @@ export default function Trainers() {
         certUrl: form.certUrl || "",
         commissionType: form.commissionType || "percentage",
         commissionValue: Number(form.commissionValue) || 0,
+        allowedShifts: Array.isArray(form.allowedShifts) && form.allowedShifts.length > 0 ? form.allowedShifts : ["morning", "evening"],
+        maxShiftsCount: Number(form.allowedShifts?.length || 2),
+        shiftPtLimits: form.shiftPtLimits || { morning: 2, afternoon: 2, evening: 2, night: 2 },
         maxPtPerSlot: Math.max(1, Number(form.maxPtPerSlot) || 2),
         ptPlans: (form.ptPlans || [])
           .filter((p) => p.name && p.price)
@@ -933,15 +976,34 @@ export default function Trainers() {
                 </span>
               </div>
 
-              {/* Max Shift Capacity Pill */}
-              <div className="mt-1.5 px-3 py-1.5 rounded-xl bg-amber-50/70 border border-amber-200/70 flex items-center justify-between text-[11px]">
-                <span className="font-bold text-amber-900 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-amber-600" /> Shift Capacity:
-                </span>
-                <span className="font-black text-amber-800">
-                  Max {t.maxPtPerSlot || 2} PT / Shift
-                </span>
-              </div>
+              {/* Max Shift Capacity & Assigned Shifts Pill */}
+              {(() => {
+                const allowed = Array.isArray(t.allowedShifts) && t.allowedShifts.length > 0
+                  ? t.allowedShifts
+                  : ["morning", "evening"];
+                const shiftLimits = t.shiftPtLimits || {};
+                const totalDailyCapacity = allowed.reduce((sum, sId) => {
+                  const lim = shiftLimits[sId] !== undefined ? Number(shiftLimits[sId]) : Number(t.maxPtPerSlot || 2);
+                  return sum + (lim || 0);
+                }, 0);
+                const shiftInitials = allowed.map(sId => {
+                  const cap = shiftLimits[sId] !== undefined ? shiftLimits[sId] : (t.maxPtPerSlot || 2);
+                  const initial = sId.charAt(0).toUpperCase();
+                  return `${initial}:${cap}`;
+                }).join(" • ");
+
+                return (
+                  <div className="mt-1.5 px-3 py-1.5 rounded-xl bg-amber-50/70 border border-amber-200/70 flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-amber-900 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                      {allowed.length} Shift{allowed.length > 1 ? "s" : ""}:
+                    </span>
+                    <span className="font-black text-amber-900">
+                      {shiftInitials} <span className="font-normal text-amber-700">(Max {totalDailyCapacity} PT/Day)</span>
+                    </span>
+                  </div>
+                );
+              })()}
 
               {/* Login Credentials & Quick WhatsApp Share */}
               <div className="mt-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-[11px]">
@@ -1368,67 +1430,204 @@ export default function Trainers() {
               </div>
             </div>
 
-            {/* Shift / Time Slot PT Capacity (Max PT Members per Shift/Slot) */}
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 border-2 border-amber-200/90 shadow-2xs space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-amber-100 pb-2">
+            {/* Trainer Shifts & Slot-Wise PT Capacity Rules (Owner Decision) */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 border-2 border-amber-200/90 shadow-2xs space-y-4">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-amber-100 pb-2.5">
                 <div>
                   <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-amber-600" /> Max PT Clients Per Shift / Time Slot
+                    <Clock className="w-4 h-4 text-amber-600" /> Trainer Shifts & Slot-Wise PT Capacity
                   </h4>
                   <p className="text-[11px] text-slate-600 mt-0.5">
-                    Trainer ek shift (Morning, Afternoon, Evening, Night) me maximum kitne members ko PT de sakta hai:
+                    Owner decide karega: Trainer <strong>kitni shifts</strong> karega aur <strong>kis shift me kitne PT clients</strong> le sakta hai.
                   </p>
                 </div>
                 <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 shrink-0 self-start sm:self-auto">
-                  Capacity Limit
+                  Shift & Capacity Rule
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {[
-                  { label: "1 Member", val: 1, desc: "Strict 1-on-1" },
-                  { label: "2 Members", val: 2, desc: "Standard (Recommended)" },
-                  { label: "3 Members", val: 3, desc: "Semi-Private" },
-                  { label: "4 Members", val: 4, desc: "Group PT" },
-                ].map((preset) => {
-                  const isSelected = Number(form.maxPtPerSlot || 2) === preset.val;
-                  return (
-                    <button
-                      key={preset.val}
-                      type="button"
-                      onClick={() => setForm(prev => ({ ...prev, maxPtPerSlot: preset.val }))}
-                      className={`px-3 py-2 rounded-xl text-xs font-bold border transition text-left cursor-pointer ${
-                        isSelected
-                          ? "bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/30"
-                          : "bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/50"
-                      }`}
-                    >
-                      <div>{preset.label}</div>
-                      <div className={`text-[9px] font-normal ${isSelected ? "text-amber-100" : "text-slate-400"}`}>
-                        {preset.desc}
-                      </div>
-                    </button>
-                  );
-                })}
-
-                {/* Custom Input */}
-                <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5 ml-auto">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Custom:</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={form.maxPtPerSlot || 2}
-                    onChange={(e) => setForm(prev => ({ ...prev, maxPtPerSlot: Math.max(1, Number(e.target.value) || 1) }))}
-                    className="w-14 text-xs font-black text-amber-950 focus:outline-none text-center bg-amber-50 rounded-lg py-1 border border-amber-200"
-                  />
-                  <span className="text-[10px] font-bold text-slate-500">PT / Shift</span>
+              {/* 1. Kitni Shifts Le Sakta Hai */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                    <span>1️⃣ Kitni Shifts Le Sakta Hai?</span>
+                    <span className="text-[10px] font-normal text-slate-500">(Quick Presets)</span>
+                  </label>
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-md">
+                    {form.allowedShifts?.length || 0} Shift{(form.allowedShifts?.length || 0) > 1 ? "s" : ""} Assigned
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { label: "1 Shift", shifts: ["morning"], desc: "Morning Only" },
+                    { label: "2 Shifts", shifts: ["morning", "evening"], desc: "Morning + Evening" },
+                    { label: "3 Shifts", shifts: ["morning", "afternoon", "evening"], desc: "Morn + Aft + Eve" },
+                    { label: "All 4 Shifts", shifts: ["morning", "afternoon", "evening", "night"], desc: "Full Gym Access" },
+                  ].map((preset) => {
+                    const isSelected = (form.allowedShifts || []).length === preset.shifts.length && preset.shifts.every(s => (form.allowedShifts || []).includes(s));
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, allowedShifts: preset.shifts, maxShiftsCount: preset.shifts.length }))}
+                        className={`p-2 rounded-xl text-left border transition cursor-pointer ${
+                          isSelected
+                            ? "bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/40"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/40"
+                        }`}
+                      >
+                        <div className="text-xs font-bold">{preset.label}</div>
+                        <div className={`text-[9px] ${isSelected ? "text-amber-100" : "text-slate-400"}`}>{preset.desc}</div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <p className="text-[10px] text-slate-500 italic bg-amber-50/50 p-2 rounded-xl border border-amber-100">
-                💡 Jaise hi kisi shift me is trainer ke <strong>{form.maxPtPerSlot || 2} members</strong> book ho jayenge, add member modal me wo slot automatic <strong>🔴 Busy / Full</strong> dikhayega taaki overbooking na ho.
-              </p>
+              {/* 2. Har Shift Ki PT Capacity (Us Shift Me Kitna PT Le Sakta Hai) */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1 mb-2">
+                  <span>2️⃣ Har Shift Ki PT Capacity (Us Shift Me Kitna PT Le Sakta Hai):</span>
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {DEFAULT_SHIFTS_CONFIG.map((shift) => {
+                    const Icon = shift.icon;
+                    const isAllowed = (form.allowedShifts || []).includes(shift.id);
+                    const shiftLimit = form.shiftPtLimits?.[shift.id] !== undefined ? form.shiftPtLimits[shift.id] : (form.maxPtPerSlot || 2);
+
+                    return (
+                      <div
+                        key={shift.id}
+                        className={`p-3 rounded-xl border transition-all ${
+                          isAllowed
+                            ? "bg-white border-amber-300 shadow-2xs"
+                            : "bg-slate-50/80 border-slate-200/80 opacity-75"
+                        }`}
+                      >
+                        {/* Shift Header & Toggle Switch */}
+                        <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${shift.bg} ${shift.color}`}>
+                              <Icon className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-slate-900">{shift.label}</span>
+                                <span className="text-[10px] text-slate-400">({shift.time})</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Active / Off Toggle button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setForm(prev => {
+                                const current = prev.allowedShifts || [];
+                                const next = current.includes(shift.id)
+                                  ? current.filter(id => id !== shift.id)
+                                  : [...current, shift.id];
+                                return { ...prev, allowedShifts: next, maxShiftsCount: next.length };
+                              });
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                              isAllowed
+                                ? "bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200"
+                                : "bg-slate-200 text-slate-600 border border-slate-300 hover:bg-slate-300"
+                            }`}
+                          >
+                            <Power className="w-3 h-3" />
+                            {isAllowed ? "Active Shift" : "Shift Off"}
+                          </button>
+                        </div>
+
+                        {/* Shift PT Limit Selector (Only shown if shift is Active) */}
+                        {isAllowed ? (
+                          <div className="mt-2.5 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-semibold text-slate-600">Max PT in this shift:</span>
+                              <span className="text-[10px] font-black text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                {shiftLimit} PT Clients
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              {[1, 2, 3, 4].map((num) => (
+                                <button
+                                  key={num}
+                                  type="button"
+                                  onClick={() => {
+                                    setForm(prev => ({
+                                      ...prev,
+                                      shiftPtLimits: { ...(prev.shiftPtLimits || {}), [shift.id]: num },
+                                      maxPtPerSlot: num
+                                    }));
+                                  }}
+                                  className={`flex-1 py-1 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                                    Number(shiftLimit) === num
+                                      ? "bg-amber-600 text-white border-amber-600 shadow-2xs"
+                                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-amber-50 hover:border-amber-300"
+                                  }`}
+                                >
+                                  {num} PT
+                                </button>
+                              ))}
+                              {/* Custom Number Input */}
+                              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-0.5">
+                                <span className="text-[9px] font-bold text-slate-400">Custom:</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="20"
+                                  value={shiftLimit}
+                                  onChange={(e) => {
+                                    const val = Math.max(1, Number(e.target.value) || 1);
+                                    setForm(prev => ({
+                                      ...prev,
+                                      shiftPtLimits: { ...(prev.shiftPtLimits || {}), [shift.id]: val },
+                                      maxPtPerSlot: val
+                                    }));
+                                  }}
+                                  className="w-8 text-center text-xs font-bold text-slate-800 bg-white rounded border border-slate-200 py-0.5 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-2 py-1.5 px-2 rounded-lg bg-slate-100/80 text-[10.5px] text-slate-500 italic text-center">
+                            ⛔ Shift Off — Trainer is not available during this time slot.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Live Summary Footer */}
+              {(() => {
+                const activeCount = form.allowedShifts?.length || 0;
+                const totalDailyPt = (form.allowedShifts || []).reduce((acc, sid) => {
+                  const lim = form.shiftPtLimits?.[sid] !== undefined ? Number(form.shiftPtLimits[sid]) : Number(form.maxPtPerSlot || 2);
+                  return acc + (lim || 0);
+                }, 0);
+
+                return (
+                  <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-amber-950">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>
+                        Summary: <strong>{activeCount} Active Shift{activeCount > 1 ? "s" : ""}</strong>
+                        {activeCount > 0 ? ` (${form.allowedShifts.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(", ")})` : " (None)"}
+                      </span>
+                    </div>
+                    <div className="font-bold text-amber-900 bg-amber-100/90 px-2 py-0.5 rounded-md self-start sm:self-auto border border-amber-200">
+                      Max Daily PT Capacity: <span className="font-black text-amber-950">{totalDailyPt} Athletes / Day</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Trainer PT Membership Packages (Custom Packages per Trainer) */}
@@ -1926,19 +2125,68 @@ export default function Trainers() {
               </p>
             </div>
 
-            {/* Shift PT Capacity Badge in View Modal */}
-            <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-2xl flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-600" />
-                <div>
-                  <p className="text-xs font-bold text-amber-950">Shift PT Capacity Limit</p>
-                  <p className="text-[10px] text-amber-800">Maximum PT members allowed in a single workout shift</p>
+            {/* Shift Breakdown & Slot-Wise PT Capacity in View Modal */}
+            {(() => {
+              const allowed = Array.isArray(viewTrainerModal.allowedShifts) && viewTrainerModal.allowedShifts.length > 0
+                ? viewTrainerModal.allowedShifts
+                : ["morning", "evening"];
+              const shiftLimits = viewTrainerModal.shiftPtLimits || {};
+              const totalDailyCapacity = allowed.reduce((sum, sId) => {
+                const lim = shiftLimits[sId] !== undefined ? Number(shiftLimits[sId]) : Number(viewTrainerModal.maxPtPerSlot || 2);
+                return sum + (lim || 0);
+              }, 0);
+
+              return (
+                <div className="p-4 bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 border border-amber-200/90 rounded-2xl space-y-3">
+                  <div className="flex items-center justify-between border-b border-amber-100 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                      <div>
+                        <p className="text-xs font-black text-amber-950 uppercase tracking-wider">Shift Schedule & PT Limits</p>
+                        <p className="text-[10px] text-slate-500">Allowed shifts and member capacity per slot</p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-black px-2.5 py-1 rounded-xl bg-amber-600 text-white shadow-2xs">
+                      Max {totalDailyCapacity} Athletes / Day
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {DEFAULT_SHIFTS_CONFIG.map((shift) => {
+                      const Icon = shift.icon;
+                      const isAllowed = allowed.includes(shift.id);
+                      const shiftLimit = shiftLimits[shift.id] !== undefined ? shiftLimits[shift.id] : (viewTrainerModal.maxPtPerSlot || 2);
+
+                      return (
+                        <div
+                          key={shift.id}
+                          className={`p-2.5 rounded-xl border text-left transition ${
+                            isAllowed
+                              ? "bg-white border-amber-300 shadow-2xs"
+                              : "bg-slate-50/70 border-slate-200 opacity-60"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                              <Icon className="w-3 h-3 text-amber-500" /> {shift.label}
+                            </span>
+                            <span className={`text-[8.5px] font-black px-1.5 py-0.2 rounded-full uppercase ${
+                              isAllowed ? "bg-emerald-100 text-emerald-800 border border-emerald-200" : "bg-slate-200 text-slate-600"
+                            }`}>
+                              {isAllowed ? "Active" : "Off"}
+                            </span>
+                          </div>
+                          <p className="text-[9.5px] text-slate-400">{shift.time}</p>
+                          <div className="mt-1.5 text-[10px] font-extrabold text-amber-900">
+                            {isAllowed ? `Max ${shiftLimit} PT Clients` : "Shift Closed"}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-              <span className="text-xs font-black px-3 py-1 rounded-xl bg-amber-600 text-white shadow-2xs">
-                {viewTrainerModal.maxPtPerSlot || 2} Athletes / Shift
-              </span>
-            </div>
+              );
+            })()}
 
             {/* Assigned PT Athletes / Members Card */}
             <div className="space-y-3">
@@ -2534,67 +2782,204 @@ export default function Trainers() {
             </div>
           </div>
 
-          {/* Shift / Time Slot PT Capacity (Max PT Members per Shift/Slot) (Edit) */}
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 border-2 border-amber-200/90 shadow-2xs space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-amber-100 pb-2">
+          {/* Trainer Shifts & Slot-Wise PT Capacity Rules (Edit) */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 border-2 border-amber-200/90 shadow-2xs space-y-4">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-amber-100 pb-2.5">
               <div>
                 <h4 className="text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-amber-600" /> Max PT Clients Per Shift / Time Slot
+                  <Clock className="w-4 h-4 text-amber-600" /> Trainer Shifts & Slot-Wise PT Capacity
                 </h4>
                 <p className="text-[11px] text-slate-600 mt-0.5">
-                  Trainer ek shift (Morning, Afternoon, Evening, Night) me maximum kitne members ko PT de sakta hai:
+                  Owner decide karega: Trainer <strong>kitni shifts</strong> karega aur <strong>kis shift me kitne PT clients</strong> le sakta hai.
                 </p>
               </div>
               <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 shrink-0 self-start sm:self-auto">
-                Capacity Limit
+                Shift & Capacity Rule
               </span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              {[
-                { label: "1 Member", val: 1, desc: "Strict 1-on-1" },
-                { label: "2 Members", val: 2, desc: "Standard (Recommended)" },
-                { label: "3 Members", val: 3, desc: "Semi-Private" },
-                { label: "4 Members", val: 4, desc: "Group PT" },
-              ].map((preset) => {
-                const isSelected = Number(editForm.maxPtPerSlot || 2) === preset.val;
-                return (
-                  <button
-                    key={preset.val}
-                    type="button"
-                    onClick={() => setEditForm(prev => ({ ...prev, maxPtPerSlot: preset.val }))}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition text-left cursor-pointer ${
-                      isSelected
-                        ? "bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/30"
-                        : "bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/50"
-                    }`}
-                  >
-                    <div>{preset.label}</div>
-                    <div className={`text-[9px] font-normal ${isSelected ? "text-amber-100" : "text-slate-400"}`}>
-                      {preset.desc}
-                    </div>
-                  </button>
-                );
-              })}
-
-              {/* Custom Input */}
-              <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5 ml-auto">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">Custom:</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={editForm.maxPtPerSlot || 2}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, maxPtPerSlot: Math.max(1, Number(e.target.value) || 1) }))}
-                  className="w-14 text-xs font-black text-amber-950 focus:outline-none text-center bg-amber-50 rounded-lg py-1 border border-amber-200"
-                />
-                <span className="text-[10px] font-bold text-slate-500">PT / Shift</span>
+            {/* 1. Kitni Shifts Le Sakta Hai */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                  <span>1️⃣ Kitni Shifts Le Sakta Hai?</span>
+                  <span className="text-[10px] font-normal text-slate-500">(Quick Presets)</span>
+                </label>
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-md">
+                  {editForm.allowedShifts?.length || 0} Shift{(editForm.allowedShifts?.length || 0) > 1 ? "s" : ""} Assigned
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { label: "1 Shift", shifts: ["morning"], desc: "Morning Only" },
+                  { label: "2 Shifts", shifts: ["morning", "evening"], desc: "Morning + Evening" },
+                  { label: "3 Shifts", shifts: ["morning", "afternoon", "evening"], desc: "Morn + Aft + Eve" },
+                  { label: "All 4 Shifts", shifts: ["morning", "afternoon", "evening", "night"], desc: "Full Gym Access" },
+                ].map((preset) => {
+                  const isSelected = (editForm.allowedShifts || []).length === preset.shifts.length && preset.shifts.every(s => (editForm.allowedShifts || []).includes(s));
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setEditForm(prev => ({ ...prev, allowedShifts: preset.shifts, maxShiftsCount: preset.shifts.length }))}
+                      className={`p-2 rounded-xl text-left border transition cursor-pointer ${
+                        isSelected
+                          ? "bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-400/40"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-amber-300 hover:bg-amber-50/40"
+                      }`}
+                    >
+                      <div className="text-xs font-bold">{preset.label}</div>
+                      <div className={`text-[9px] ${isSelected ? "text-amber-100" : "text-slate-400"}`}>{preset.desc}</div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            <p className="text-[10px] text-slate-500 italic bg-amber-50/50 p-2 rounded-xl border border-amber-100">
-              💡 Jaise hi kisi shift me is trainer ke <strong>{editForm.maxPtPerSlot || 2} members</strong> book ho jayenge, add member modal me wo slot automatic <strong>🔴 Busy / Full</strong> dikhayega taaki overbooking na ho.
-            </p>
+            {/* 2. Har Shift Ki PT Capacity (Us Shift Me Kitna PT Le Sakta Hai) */}
+            <div>
+              <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1 mb-2">
+                <span>2️⃣ Har Shift Ki PT Capacity (Us Shift Me Kitna PT Le Sakta Hai):</span>
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {DEFAULT_SHIFTS_CONFIG.map((shift) => {
+                  const Icon = shift.icon;
+                  const isAllowed = (editForm.allowedShifts || []).includes(shift.id);
+                  const shiftLimit = editForm.shiftPtLimits?.[shift.id] !== undefined ? editForm.shiftPtLimits[shift.id] : (editForm.maxPtPerSlot || 2);
+
+                  return (
+                    <div
+                      key={shift.id}
+                      className={`p-3 rounded-xl border transition-all ${
+                        isAllowed
+                          ? "bg-white border-amber-300 shadow-2xs"
+                          : "bg-slate-50/80 border-slate-200/80 opacity-75"
+                      }`}
+                    >
+                      {/* Shift Header & Toggle Switch */}
+                      <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${shift.bg} ${shift.color}`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-slate-900">{shift.label}</span>
+                              <span className="text-[10px] text-slate-400">({shift.time})</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Active / Off Toggle button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditForm(prev => {
+                              const current = prev.allowedShifts || [];
+                              const next = current.includes(shift.id)
+                                ? current.filter(id => id !== shift.id)
+                                : [...current, shift.id];
+                              return { ...prev, allowedShifts: next, maxShiftsCount: next.length };
+                            });
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                            isAllowed
+                              ? "bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200"
+                              : "bg-slate-200 text-slate-600 border border-slate-300 hover:bg-slate-300"
+                          }`}
+                        >
+                          <Power className="w-3 h-3" />
+                          {isAllowed ? "Active Shift" : "Shift Off"}
+                        </button>
+                      </div>
+
+                      {/* Shift PT Limit Selector (Only shown if shift is Active) */}
+                      {isAllowed ? (
+                        <div className="mt-2.5 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-semibold text-slate-600">Max PT in this shift:</span>
+                            <span className="text-[10px] font-black text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                              {shiftLimit} PT Clients
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {[1, 2, 3, 4].map((num) => (
+                              <button
+                                key={num}
+                                type="button"
+                                onClick={() => {
+                                  setEditForm(prev => ({
+                                    ...prev,
+                                    shiftPtLimits: { ...(prev.shiftPtLimits || {}), [shift.id]: num },
+                                    maxPtPerSlot: num
+                                  }));
+                                }}
+                                className={`flex-1 py-1 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                                  Number(shiftLimit) === num
+                                    ? "bg-amber-600 text-white border-amber-600 shadow-2xs"
+                                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-amber-50 hover:border-amber-300"
+                                }`}
+                              >
+                                {num} PT
+                              </button>
+                            ))}
+                            {/* Custom Number Input */}
+                            <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-1.5 py-0.5">
+                              <span className="text-[9px] font-bold text-slate-400">Custom:</span>
+                              <input
+                                type="number"
+                                min="1"
+                                max="20"
+                                value={shiftLimit}
+                                onChange={(e) => {
+                                  const val = Math.max(1, Number(e.target.value) || 1);
+                                  setEditForm(prev => ({
+                                    ...prev,
+                                    shiftPtLimits: { ...(prev.shiftPtLimits || {}), [shift.id]: val },
+                                    maxPtPerSlot: val
+                                  }));
+                                }}
+                                className="w-8 text-center text-xs font-bold text-slate-800 bg-white rounded border border-slate-200 py-0.5 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2 py-1.5 px-2 rounded-lg bg-slate-100/80 text-[10.5px] text-slate-500 italic text-center">
+                          ⛔ Shift Off — Trainer is not available during this time slot.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Live Summary Footer */}
+            {(() => {
+              const activeCount = editForm.allowedShifts?.length || 0;
+              const totalDailyPt = (editForm.allowedShifts || []).reduce((acc, sid) => {
+                const lim = editForm.shiftPtLimits?.[sid] !== undefined ? Number(editForm.shiftPtLimits[sid]) : Number(editForm.maxPtPerSlot || 2);
+                return acc + (lim || 0);
+              }, 0);
+
+              return (
+                <div className="p-2.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-amber-950">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>
+                      Summary: <strong>{activeCount} Active Shift{activeCount > 1 ? "s" : ""}</strong>
+                      {activeCount > 0 ? ` (${editForm.allowedShifts.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(", ")})` : " (None)"}
+                    </span>
+                  </div>
+                  <div className="font-bold text-amber-900 bg-amber-100/90 px-2 py-0.5 rounded-md self-start sm:self-auto border border-amber-200">
+                    Max Daily PT Capacity: <span className="font-black text-amber-950">{totalDailyPt} Athletes / Day</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Trainer PT Membership Packages (Custom Packages per Trainer) */}

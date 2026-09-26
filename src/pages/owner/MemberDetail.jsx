@@ -33,7 +33,8 @@ import {
   EyeOff,
   Copy,
   Check,
-  Edit3
+  Edit3,
+  Layers
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getMember, updateMember } from "../../firebase/members";
@@ -47,6 +48,7 @@ import { invalidateCache } from "../../utils/dataCache";
 import { calculateBmi, parseHeightToMeters } from "../../utils/bmi";
 import { toIndianDate } from "./members/memberUtils";
 import Modal from "../../components/ui/Modal";
+import AddServiceModal from "./members/modals/AddServiceModal";
 import { collection, getDocs, query } from "firebase/firestore";
 import { db } from "../../firebase/config";
 
@@ -69,6 +71,7 @@ export default function MemberDetail() {
   const [trainers, setTrainers] = useState([]);
   const [plans, setPlans] = useState([]);
   const [ptModalOpen, setPtModalOpen] = useState(false);
+  const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [settings] = useState(getGymSettings());
 
   const [ptForm, setPtForm] = useState({
@@ -143,6 +146,21 @@ export default function MemberDetail() {
     }
   };
 
+  // Resolve member's genuine email address (prioritizing valid emails with '@' over phone numbers stored in loginEmail)
+  const memberEmail = React.useMemo(() => {
+    if (!member) return "";
+    if (member.email && member.email !== "—" && member.email.includes("@")) {
+      return member.email.trim();
+    }
+    if (member.loginEmail && member.loginEmail.includes("@")) {
+      return member.loginEmail.trim();
+    }
+    if (member.email && member.email !== "—" && !/^\d+$/.test(member.email)) {
+      return member.email.trim();
+    }
+    return "";
+  }, [member]);
+
   const handleSendCredentialsWA = () => {
     if (!member) return;
     const rawPhone = (member.phone || "").replace(/\D/g, "");
@@ -151,13 +169,12 @@ export default function MemberDetail() {
       return;
     }
     const memPass = member.loginPassword || member.password || "Member@123";
-    const loginId = member.loginEmail || member.phone || "—";
     const appUrl = `${window.location.origin}/#/login`;
     const msg = `🏋️ *UNIVO GYM MEMBER PORTAL LOGIN*\n\n` +
       `Hi *${member.name || member.fullName || "Member"}*,\n` +
       `Aapke gym portal ke login credentials yeh hain:\n\n` +
       `📱 *Login ID (Phone):* ${member.phone || "—"}\n` +
-      (member.loginEmail || member.email ? `📧 *Login Email:* ${member.loginEmail || member.email}\n` : "") +
+      (memberEmail ? `📧 *Login Email:* ${memberEmail}\n` : "") +
       `🔑 *Password:* ${memPass}\n` +
       `🔗 *Login Link:* ${appUrl}\n\n` +
       `Is link par login karke aap apna workout schedule, diet chart, attendance aur fees status track kar sakte hain!`;
@@ -171,6 +188,11 @@ export default function MemberDetail() {
 
         const m = await getMember("univo_main", targetMemberId);
         if (m) {
+          // If loginEmail was erroneously saved as digits/phone while member has a valid email, auto-correct it in Firestore
+          if (m.email && m.email.includes("@") && (!m.loginEmail || !m.loginEmail.includes("@"))) {
+            updateMember("univo_main", targetMemberId, { loginEmail: m.email.trim() }).catch(() => {});
+            m.loginEmail = m.email.trim();
+          }
           setMember(m);
         } else {
           // Dynamic fallback with target ID
@@ -420,7 +442,7 @@ export default function MemberDetail() {
         dueAmount: Number(member.dueAmount || 0) + remainingDue,
         paidAmount: Number(member.paidAmount || 0) + paidNum,
         lastPaymentDate: new Date().toISOString(),
-        loginEmail: member.loginEmail || member.email || member.phone || "",
+        loginEmail: memberEmail || member.email || member.phone || "",
         loginPassword: member.loginPassword || member.password || "Member@123",
         password: member.loginPassword || member.password || "Member@123",
       };
@@ -555,10 +577,17 @@ export default function MemberDetail() {
           >
             <MessageCircle className="w-4 h-4" /> WhatsApp Chat
           </button>
+          <button
+            onClick={() => setServiceModalOpen(true)}
+            className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
+            title="Locker, Steam, Diet consultation ya koi bhi gym facility add karein"
+          >
+            <Layers className="w-4 h-4 text-teal-200" /> + Add Service
+          </button>
           {member.ptStatus !== 'active' && (
             <button
               onClick={() => setPtModalOpen(true)}
-              className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+              className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
               title="Bich month me 1-on-1 PT package aur coach add karein"
             >
               <Sparkles className="w-4 h-4 text-purple-200" /> + Add PT Package
@@ -676,15 +705,15 @@ export default function MemberDetail() {
                     </div>
                     <div
                       className="font-mono font-bold text-sm text-white tracking-wide truncate"
-                      title={member.loginEmail || member.email || "Not set"}
+                      title={memberEmail || "Not set"}
                     >
-                      {member.loginEmail || member.email || "Not set"}
+                      {memberEmail || "Not set"}
                     </div>
                   </div>
-                  {(member.loginEmail || member.email) && member.email !== "—" && (
+                  {memberEmail && (
                     <button
                       type="button"
-                      onClick={() => handleCopy(member.loginEmail || member.email, "Email")}
+                      onClick={() => handleCopy(memberEmail, "Email")}
                       className="mt-3 text-xs font-semibold text-teal-300 hover:text-white flex items-center gap-1.5 transition self-start"
                     >
                       {copiedKey === "Email" ? (
@@ -839,6 +868,135 @@ export default function MemberDetail() {
               )}
             </div>
           )}
+
+          {/* =========================================================
+              ACTIVE GYM FACILITIES & ADD-ON SERVICES (LOCKER, STEAM, DIET)
+          ========================================================= */}
+          <div className="md:col-span-2 p-5 sm:p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-600 border border-teal-200 flex items-center justify-center font-bold">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    Subscribed Facilities & Services
+                    {((member.selectedServices || member.services || []).length > 0) && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-300">
+                        {(member.selectedServices || member.services || []).length} Active
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Locker bay, Steam bath, Personalized diet chart aur gym amenities ka duration & validity tracking
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setServiceModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer self-start sm:self-auto"
+              >
+                <Plus className="w-4 h-4" /> + Add Facility / Service
+              </button>
+            </div>
+
+            {(!member.selectedServices && !member.services) || (member.selectedServices || member.services || []).length === 0 ? (
+              <div className="p-6 text-center rounded-2xl bg-slate-50 border border-dashed border-slate-200 space-y-2">
+                <p className="text-xs text-slate-500">
+                  Is member ke paas abhi koi extra add-on service (jaise Locker, Steam Bath, Diet Counseling) active nahi hai.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setServiceModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-teal-700 border border-teal-300 font-bold text-xs hover:bg-teal-50 transition cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Subscribe First Service
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {(member.selectedServices || member.services || []).map((srv, idx) => {
+                  const monthlyRate = Number(srv.monthlyRate || srv.originalPrice || srv.price || 0);
+                  const months = Number(srv.months || 1);
+                  const totalPrice = Number(srv.price || monthlyRate * months);
+                  const startStr = srv.startDate ? formatDate(srv.startDate) : formatDate(member.createdAt);
+                  const endStr = srv.endDate ? formatDate(srv.endDate) : (member.expiryDate ? formatDate(member.expiryDate) : "—");
+                  const isExp = srv.endDate && new Date(srv.endDate).getTime() < Date.now();
+
+                  return (
+                    <div
+                      key={srv.id || idx}
+                      className={`p-3.5 rounded-2xl border transition flex flex-col justify-between gap-3 ${
+                        isExp
+                          ? "bg-rose-50/60 border-rose-200"
+                          : "bg-teal-50/40 border-teal-200/80 shadow-2xs hover:border-teal-300"
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                              {srv.name}
+                            </h4>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">
+                              {srv.category || "Facility"} • {srv.billingType || "Per Month"}
+                            </span>
+                          </div>
+                          <span
+                            className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                              isExp
+                                ? "bg-rose-100 text-rose-800 border-rose-300"
+                                : srv.isIncluded
+                                ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                : "bg-teal-100 text-teal-800 border-teal-300"
+                            }`}
+                          >
+                            {isExp ? "Expired" : srv.isIncluded ? "Included Free" : "Active"}
+                          </span>
+                        </div>
+
+                        <div className="mt-2.5 pt-2 border-t border-slate-200/60 space-y-1 text-xs">
+                          <div className="flex items-center justify-between text-slate-600">
+                            <span>Duration:</span>
+                            <strong className="text-slate-900">{months} Month{months > 1 ? "s" : ""}</strong>
+                          </div>
+                          {!srv.isIncluded && (
+                            <div className="flex items-center justify-between text-slate-600">
+                              <span>Fee:</span>
+                              <strong className="text-teal-900">
+                                ₹{monthlyRate}/mo (Total ₹{totalPrice.toLocaleString("en-IN")})
+                              </strong>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between text-slate-600 pt-0.5">
+                            <span>Validity:</span>
+                            <span className="text-[11px] font-bold text-slate-800">
+                              {startStr} ➔ {endStr}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-semibold">
+                          {isExp ? "⚠️ Subscription Expired" : "✅ Facility Active"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setServiceModalOpen(true)}
+                          className="text-[11px] font-bold text-teal-700 hover:text-teal-900 hover:underline cursor-pointer"
+                        >
+                          + Renew / Extend
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-3">
             <h3 className="text-base font-bold text-slate-900">Personal Information</h3>
@@ -1434,6 +1592,20 @@ export default function MemberDetail() {
           </div>
         </div>
       </Modal>
+
+      {/* Dedicated Mid-Plan Facility & Service Add-on Modal */}
+      <AddServiceModal
+        isOpen={serviceModalOpen}
+        onClose={() => setServiceModalOpen(false)}
+        member={member}
+        gymId="univo_main"
+        plans={plans}
+        onSave={(updatedMember) => {
+          setMember(updatedMember);
+          // Reload payments so the new service bill shows up immediately in the Billing tab
+          getMemberPayments("univo_main", targetMemberId).then(setPayments).catch(console.warn);
+        }}
+      />
     </div>
   );
 }

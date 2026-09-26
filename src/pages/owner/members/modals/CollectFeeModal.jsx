@@ -12,7 +12,7 @@ import Modal from '../../../../components/ui/Modal';
 // Firebase
 import { updateMember } from '../../../../firebase/members';
 import { addPayment } from '../../../../firebase/payments';
-import { getServices, DEFAULT_SERVICES } from '../../../../firebase/services';
+import { getServices, DEFAULT_SERVICES, calculateServiceEndDate } from '../../../../firebase/services';
 
 // Utilities
 import { getGymSettings } from '../../../../utils/settings';
@@ -190,9 +190,29 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
     loadGymServices();
   }, [gymId]);
 
+  const currentPlan = PLANS_CATALOG.find((p) => p.id === selectedPlanId) || PLANS_CATALOG[0];
+  const planDurationMonths = currentPlan?.durationMonths || 1;
+
+  const getServiceCharge = (s) => {
+    const monthlyRate = Number(s.monthlyRate || s.originalPrice || s.price || 0);
+    const isMonthly = (s.billingType || "Per Month").toLowerCase().includes("month");
+    const months = Number(s.months || planDurationMonths);
+    return isMonthly ? monthlyRate * months : monthlyRate;
+  };
+
+  const updateServiceMonths = (srvId, months) => {
+    const validMonths = Math.max(1, Number(months) || 1);
+    setSelectedServices(prev => prev.map(s => {
+      if (s.id === srvId) {
+        return { ...s, months: validMonths };
+      }
+      return s;
+    }));
+  };
+
   const servicesTotal = useMemo(() => {
-    return selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
-  }, [selectedServices]);
+    return selectedServices.reduce((sum, s) => sum + getServiceCharge(s), 0);
+  }, [selectedServices, planDurationMonths]);
 
   const toggleServiceSelection = (srv) => {
     setSelectedServices((prev) => {
@@ -205,7 +225,10 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
           {
             id: srv.id,
             name: srv.name,
+            monthlyRate: Number(srv.price || 0),
+            months: planDurationMonths,
             price: Number(srv.price || 0),
+            originalPrice: Number(srv.price || 0),
             category: srv.category || "General",
             billingType: srv.billingType || "Per Month",
           },
@@ -214,7 +237,6 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
     });
   };
 
-  const currentPlan = PLANS_CATALOG.find((p) => p.id === selectedPlanId) || PLANS_CATALOG[0];
   const targetPayableTotal = hasPartialPaymentDue
     ? existingDueAmount
     : Math.max(0, currentPlan.price + Number(selectedPtPrice || 0) + Number(servicesTotal || 0) - Number(discountAmount || 0));
@@ -334,13 +356,27 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
       phone,
       slot: memberSlot,
       batch: member.batch || "Alpha Gym",
-      selectedServices: selectedServices.map((s) => ({
-        id: s.id,
-        name: s.name,
-        price: Number(s.price || 0),
-        category: s.category || "General",
-        billingType: s.billingType || "Per Month",
-      })),
+      selectedServices: selectedServices.map((s) => {
+        const monthlyRate = Number(s.monthlyRate || s.originalPrice || s.price || 0);
+        const isMonthly = (s.billingType || "Per Month").toLowerCase().includes("month");
+        const months = Number(s.months || planDurationMonths);
+        const srvTotal = isMonthly ? monthlyRate * months : monthlyRate;
+        const sStart = validityStart;
+        const sEnd = calculateServiceEndDate(sStart, isMonthly ? months : 1);
+        return {
+          id: s.id,
+          name: s.name,
+          monthlyRate,
+          months: isMonthly ? months : 1,
+          price: srvTotal,
+          originalPrice: monthlyRate,
+          category: s.category || "General",
+          billingType: s.billingType || "Per Month",
+          startDate: sStart,
+          endDate: sEnd,
+          status: "active"
+        };
+      }),
       servicesTotalPrice: servicesTotal,
       planName: billPlanName,
       isRenewal,
@@ -386,13 +422,48 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
             loginPassword: member.loginPassword || member.password || "Member@123",
             password: member.password || member.loginPassword || "Member@123",
           } : {}),
-          selectedServices: selectedServices.map((s) => ({
-            id: s.id,
-            name: s.name,
-            price: Number(s.price || 0),
-            category: s.category || "General",
-            billingType: s.billingType || "Per Month",
-          })),
+          selectedServices: selectedServices.map((s) => {
+            const monthlyRate = Number(s.monthlyRate || s.originalPrice || s.price || 0);
+            const isMonthly = (s.billingType || "Per Month").toLowerCase().includes("month");
+            const months = Number(s.months || planDurationMonths);
+            const srvTotal = isMonthly ? monthlyRate * months : monthlyRate;
+            const sStart = validityStart;
+            const sEnd = calculateServiceEndDate(sStart, isMonthly ? months : 1);
+            return {
+              id: s.id,
+              name: s.name,
+              monthlyRate,
+              months: isMonthly ? months : 1,
+              price: srvTotal,
+              originalPrice: monthlyRate,
+              category: s.category || "General",
+              billingType: s.billingType || "Per Month",
+              startDate: sStart,
+              endDate: sEnd,
+              status: "active"
+            };
+          }),
+          services: selectedServices.map((s) => {
+            const monthlyRate = Number(s.monthlyRate || s.originalPrice || s.price || 0);
+            const isMonthly = (s.billingType || "Per Month").toLowerCase().includes("month");
+            const months = Number(s.months || planDurationMonths);
+            const srvTotal = isMonthly ? monthlyRate * months : monthlyRate;
+            const sStart = validityStart;
+            const sEnd = calculateServiceEndDate(sStart, isMonthly ? months : 1);
+            return {
+              id: s.id,
+              name: s.name,
+              monthlyRate,
+              months: isMonthly ? months : 1,
+              price: srvTotal,
+              originalPrice: monthlyRate,
+              category: s.category || "General",
+              billingType: s.billingType || "Per Month",
+              startDate: sStart,
+              endDate: sEnd,
+              status: "active"
+            };
+          }),
           servicesTotalPrice: servicesTotal,
         }),
         expiryDate: newExpiryIso,
@@ -726,34 +797,100 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {availableServices.map((srv) => {
-              const isChecked = selectedServices.some((s) => s.id === srv.id || s.name === srv.name);
-              const sPrice = Number(srv.price || 0);
+              const found = selectedServices.find((s) => s.id === srv.id || s.name === srv.name);
+              const isChecked = Boolean(found);
+              const srvPrice = Number(srv.price || 0);
+              const isMonthly = (srv.billingType || "Per Month").toLowerCase().includes("month");
+              const selectedMonths = found?.months || planDurationMonths;
+              const totalCharge = isMonthly ? srvPrice * selectedMonths : srvPrice;
 
               return (
                 <div
                   key={srv.id}
-                  onClick={() => toggleServiceSelection(srv)}
-                  className={`p-2.5 rounded-xl border-2 cursor-pointer transition flex items-center justify-between gap-2 select-none ${
+                  className={`p-3 rounded-2xl border-2 transition-all flex flex-col justify-between gap-2.5 ${
                     isChecked
-                      ? 'bg-teal-50 border-teal-500 shadow-2xs'
-                      : 'bg-white border-slate-200 hover:border-teal-300 hover:bg-slate-50'
+                      ? 'bg-teal-50/70 border-teal-500 shadow-xs'
+                      : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => {}}
-                      className="w-4 h-4 rounded text-teal-600 focus:ring-teal-500 pointer-events-none"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 truncate">{srv.name}</p>
-                      <p className="text-[10px] text-slate-500 truncate">{srv.category || 'Facility'}</p>
+                  <div
+                    onClick={() => toggleServiceSelection(srv)}
+                    className="flex items-start justify-between gap-2.5 cursor-pointer select-none"
+                  >
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {}}
+                        className="mt-1 w-4 h-4 rounded text-teal-600 focus:ring-teal-500 pointer-events-none"
+                      />
+                      <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-900 block truncate">
+                          {srv.name}
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mt-0.5">
+                          {srv.category || "Service"} • ₹{srvPrice.toLocaleString("en-IN")}/{isMonthly ? "month" : "one-time"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className={`text-xs font-black block ${isChecked ? "text-teal-700" : "text-slate-900"}`}>
+                        +₹{totalCharge.toLocaleString("en-IN")}
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-semibold">
+                        {isMonthly && isChecked ? `${selectedMonths} Mo Total` : "Add-on Fee"}
+                      </span>
                     </div>
                   </div>
-                  <span className={`text-xs font-extrabold shrink-0 ${isChecked ? 'text-teal-800' : 'text-slate-700'}`}>
-                    +₹{sPrice.toLocaleString('en-IN')}
-                  </span>
+
+                  {/* If checked & monthly: show duration selector */}
+                  {isChecked && isMonthly && (
+                    <div className="pt-2 border-t border-teal-200/60 flex flex-wrap items-center justify-between gap-1.5 bg-white/80 p-2 rounded-xl">
+                      <span className="text-[10px] font-bold text-teal-900 flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-teal-600" /> Duration:
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, planDurationMonths].filter((v, idx, arr) => arr.indexOf(v) === idx && v > 0).map((mVal) => (
+                          <button
+                            key={mVal}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateServiceMonths(srv.id, mVal);
+                            }}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                              selectedMonths === mVal
+                                ? "bg-teal-600 text-white border-teal-600 shadow-2xs"
+                                : "bg-white text-slate-700 border-slate-200 hover:border-teal-400"
+                            }`}
+                          >
+                            {mVal} Mo
+                          </button>
+                        ))}
+                        {/* Custom input */}
+                        <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg px-1.5 py-0.5">
+                          <input
+                            type="number"
+                            min="1"
+                            max="24"
+                            value={selectedMonths}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const val = Math.max(1, Number(e.target.value) || 1);
+                              updateServiceMonths(srv.id, val);
+                            }}
+                            className="w-7 text-center text-[10px] font-bold text-teal-950 focus:outline-none"
+                          />
+                          <span className="text-[9px] text-slate-400 font-semibold">Mo</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-teal-800 font-semibold w-full text-right">
+                        Calculation: ₹{srvPrice}/mo × {selectedMonths} Mo = <strong>₹{totalCharge.toLocaleString("en-IN")}</strong>
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })}

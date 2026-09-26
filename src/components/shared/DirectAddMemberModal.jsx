@@ -41,7 +41,8 @@ import toast from "react-hot-toast";
 import { addMember, getMembers } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
 import { getPlans, getActivePlans } from "../../firebase/plans";
-import { getServices, DEFAULT_SERVICES, isServiceIncludedInPlan } from "../../firebase/services";
+import { getServices, DEFAULT_SERVICES, isServiceIncludedInPlan, getPlanDurationMonths, calculateServiceEndDate } from "../../firebase/services";
+import { addPayment } from "../../firebase/payments";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
 import { calculateBmi, parseHeightToMeters } from "../../utils/bmi";
@@ -233,16 +234,33 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     return availablePlans.find((p) => p.id === formData.planId) || availablePlans[0];
   }, [availablePlans, formData.planId]);
 
-  // Auto-sync services included with currentBasePlan (Default Selected for FREE)
+  // Base plan duration in months (e.g. 1 Month, 3 Months, 6 Months, 12 Months)
+  const planDurationMonths = useMemo(() => {
+    return getPlanDurationMonths(currentBasePlan);
+  }, [currentBasePlan]);
+
+  // Auto-sync services included with currentBasePlan (Default Selected for FREE) & lock duration to plan duration
   useEffect(() => {
     if (!currentBasePlan || dbServices.length === 0) return;
-    const included = dbServices.filter((srv) => isServiceIncludedInPlan(srv, currentBasePlan));
+    const durMonths = getPlanDurationMonths(currentBasePlan);
+    const included = dbServices
+      .filter((srv) => isServiceIncludedInPlan(srv, currentBasePlan))
+      .map((srv) => ({ ...srv, months: durMonths }));
 
     setSelectedServices((prev) => {
       // Keep extra services the user manually selected that are not in the new plan
-      const customAdded = prev.filter(
-        (s) => !dbServices.some((svc) => svc.id === s.id && isServiceIncludedInPlan(svc, currentBasePlan))
-      );
+      // If user did not manually pick custom months, sync duration to match new plan's duration!
+      const customAdded = prev
+        .filter(
+          (s) => !dbServices.some((svc) => svc.id === s.id && isServiceIncludedInPlan(svc, currentBasePlan))
+        )
+        .map((s) => {
+          if (!s.userCustomMonths) {
+            return { ...s, months: durMonths };
+          }
+          return s;
+        });
+
       // Combine all included services + previously custom added services
       const combined = [...included];
       customAdded.forEach((ca) => {
@@ -258,12 +276,25 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
   const basePlanPrice = Number(currentBasePlan?.price || 0);
   const ptAddonPrice = Number(formData.ptPlanPrice || 0);
 
-  // Price for a service: ₹0 if included in currentBasePlan, else regular srv.price
-  const getServiceCharge = (srv) => {
-    if (isServiceIncludedInPlan(srv, currentBasePlan)) {
+  // Price for a service: ₹0 if included in currentBasePlan, else monthly rate * chosen months
+  const getServiceCharge = (s) => {
+    if (isServiceIncludedInPlan(s, currentBasePlan)) {
       return 0; // Included free in plan
     }
-    return Number(srv.price || 0);
+    const monthlyRate = Number(s.price || 0);
+    const isMonthly = (s.billingType || "Per Month").toLowerCase().includes("month");
+    const months = Number(s.months || planDurationMonths);
+    return isMonthly ? monthlyRate * months : monthlyRate;
+  };
+
+  const updateServiceMonths = (srvId, months) => {
+    const validMonths = Math.max(1, Number(months) || 1);
+    setSelectedServices(prev => prev.map(s => {
+      if (s.id === srvId) {
+        return { ...s, months: validMonths, userCustomMonths: true };
+      }
+      return s;
+    }));
   };
 
   const servicesTotalPrice = selectedServices.reduce((sum, s) => sum + getServiceCharge(s), 0);
@@ -283,7 +314,8 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       if (exists) {
         return prev.filter((s) => s.id !== srv.id);
       } else {
-        return [...prev, srv];
+        // ALWAYS default to current gym membership plan's exact duration!
+        return [...prev, { ...srv, months: planDurationMonths, userCustomMonths: false }];
       }
     });
   };
@@ -459,20 +491,32 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       ptOwnerCommission,
       selectedServices: selectedServices.map(s => {
         const isInc = isServiceIncludedInPlan(s, currentBasePlan);
+        const monthlyRate = Number(s.price || 0);
+        const isMonthly = (s.billingType || "Per Month").toLowerCase().includes("month");
+        const months = Number(s.months || planDurationMonths);
+        const srvTotal = isInc ? 0 : (isMonthly ? monthlyRate * months : monthlyRate);
+        const joiningStr = formData.joiningDate || new Date().toISOString().split("T")[0];
+        const srvEndStr = calculateServiceEndDate(joiningStr, months);
+
         return {
           id: s.id,
           name: s.name,
-          price: isInc ? 0 : Number(s.price || 0),
-          originalPrice: Number(s.price || 0),
-          isIncluded: isInc,
           category: s.category || "General",
-          billingType: s.billingType || "Per Month"
+          billingType: s.billingType || "Per Month",
+          monthlyRate,
+          months,
+          price: srvTotal,
+          originalPrice: monthlyRate,
+          isIncluded: isInc,
+          startDate: joiningStr,
+          endDate: srvEndStr,
+          status: "active"
         };
       }),
       servicesTotalPrice,
       totalAmount: basePrice + ptPrice + servicesTotalPrice,
-      dueAmount: basePrice + ptPrice + servicesTotalPrice,
-      paidAmount: 0,
+      dueAmount: 0,
+      paidAmount: basePrice + ptPrice + servicesTotalPrice,
       trainerName: formData.trainerName,
       trainerId: selectedTrainerObj?.id || "",
       hasPersonalCoach: isPersonalTrainer,
@@ -519,6 +563,46 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       const createdId = await addMember(GID, newMember);
       if (createdId) {
         newMember.id = createdId;
+      }
+
+      // Record Combined Registration Invoice & Payment (Membership + PT + Extra Services with duration)
+      try {
+        const planDisplayName = [
+          selectedPlan?.name || 'Membership Plan',
+          formData.ptPlanName ? `PT (${formData.ptPlanName})` : '',
+          newMember.selectedServices.length > 0 ? `${newMember.selectedServices.length} Services (${newMember.selectedServices.map(s => `${s.name} ${s.months || planDurationMonths}M`).join(', ')})` : ''
+        ].filter(Boolean).join(' + ');
+
+        const totalAmt = basePrice + ptPrice + servicesTotalPrice;
+        await addPayment(GID, {
+          id: 'bill_' + Date.now(),
+          memberId: createdId || newMember.id || ('m_' + Date.now()),
+          memberName: newMember.fullName,
+          phone: newMember.phone,
+          slot: formData.preferredSlot || 'General Shift',
+          batch: 'Direct Registration • Admin',
+          planName: planDisplayName,
+          planPrice: totalAmt,
+          basePlanPrice: basePrice,
+          ptPlanName: formData.ptPlanName || '',
+          ptPlanPrice: ptPrice,
+          services: newMember.selectedServices,
+          servicesPrice: servicesTotalPrice,
+          discount: 0,
+          amount: totalAmt,
+          paidAmount: totalAmt,
+          dueAmount: 0,
+          paymentMode: 'cash',
+          paymentType: 'full',
+          validityStart: newMember.createdAt.slice(0, 10),
+          validityEnd: newMember.expiryDate.slice(0, 10),
+          dueDate: newMember.expiryDate.slice(0, 10),
+          date: new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          status: 'paid',
+          remarks: `Membership Registration: ${selectedPlan.name} (${planDurationMonths}M) + Facilities`
+        });
+      } catch (payErr) {
+        console.warn("DirectAddMember payment recording notice:", payErr);
       }
     } catch (err) {
       console.warn("Direct member recorded in offline state:", err);
@@ -1439,7 +1523,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 {isPersonalTrainer && (
                   <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg flex items-center gap-1 self-start sm:self-auto">
                     <Sparkles className="w-3 h-3 text-indigo-600" />
-                    Live Trainer Schedule: {selectedTrainerObj?.name} (Max {selectedTrainerObj?.maxPtPerSlot || 2} PT/Shift)
+                    Live Trainer Schedule: {selectedTrainerObj?.name} ({selectedTrainerObj?.allowedShifts ? `${selectedTrainerObj.allowedShifts.length} Shifts Active` : `Max ${selectedTrainerObj?.maxPtPerSlot || 2} PT/Shift`})
                   </span>
                 )}
               </div>
@@ -1449,22 +1533,44 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                   const fullText = `${s.label} (${s.time})`;
                   const isSelected = formData.preferredSlot === fullText;
                   const Icon = s.icon || Sun;
-                  const maxSlotLimit = Number(selectedTrainerObj?.maxPtPerSlot || 2);
+                  
+                  // Helper to resolve slot key (morning, afternoon, evening, night)
+                  const slotKey = (() => {
+                    const raw = `${s.id || ''} ${s.label || ''}`.toLowerCase();
+                    if (raw.includes("morning")) return "morning";
+                    if (raw.includes("afternoon")) return "afternoon";
+                    if (raw.includes("evening")) return "evening";
+                    if (raw.includes("night")) return "night";
+                    return s.id || s.label;
+                  })();
+
+                  const isShiftAllowed = !isPersonalTrainer || !Array.isArray(selectedTrainerObj?.allowedShifts) || selectedTrainerObj.allowedShifts.length === 0 || selectedTrainerObj.allowedShifts.includes(slotKey);
+                  const maxSlotLimit = isPersonalTrainer
+                    ? Number(selectedTrainerObj?.shiftPtLimits?.[slotKey] ?? selectedTrainerObj?.maxPtPerSlot ?? 2)
+                    : 999;
 
                   // Find how many athletes are booked with THIS trainer in this slot
                   const bookedAthletes = isPersonalTrainer
                     ? (trainerSlotOccupancy[fullText] || trainerSlotOccupancy[s.label] || trainerSlotOccupancy[s.time] || [])
                     : [];
                   const bookedCount = bookedAthletes.length;
-                  const isFull = bookedCount >= maxSlotLimit;
+                  const isFull = isShiftAllowed && bookedCount >= maxSlotLimit;
 
                   return (
                     <button
                       key={s.id}
                       type="button"
-                      onClick={() => setFormData({ ...formData, preferredSlot: fullText })}
+                      onClick={() => {
+                        if (isPersonalTrainer && !isShiftAllowed) {
+                          toast.error(`Coach ${selectedTrainerObj?.name || 'Trainer'} is not available during ${s.label} shift.`);
+                          return;
+                        }
+                        setFormData({ ...formData, preferredSlot: fullText });
+                      }}
                       className={`p-2 sm:p-2.5 rounded-xl text-left border transition relative flex flex-col justify-between overflow-hidden cursor-pointer ${
-                        isSelected
+                        !isShiftAllowed && isPersonalTrainer
+                          ? "bg-slate-100/70 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed"
+                          : isSelected
                           ? "bg-amber-50 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-400"
                           : "bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100"
                       }`}
@@ -1472,21 +1578,29 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       <div className="w-full">
                         <div className="flex items-center justify-between gap-1">
                           <div className="flex items-center gap-1.5 font-bold text-xs truncate">
-                            <Icon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <Icon className={`w-3.5 h-3.5 shrink-0 ${!isShiftAllowed && isPersonalTrainer ? "text-slate-400" : "text-amber-500"}`} />
                             <span className="truncate">{s.label}</span>
                           </div>
                           {/* Live Occupancy Badge for larger screens */}
                           {isPersonalTrainer && (
                             <span
                               className={`hidden md:inline-flex text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shrink-0 ${
-                                bookedCount === 0
+                                !isShiftAllowed
+                                  ? "bg-slate-200 text-slate-600 border border-slate-300"
+                                  : bookedCount === 0
                                   ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                                   : !isFull
                                   ? "bg-amber-100 text-amber-900 border border-amber-300"
                                   : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
                               }`}
                             >
-                              {bookedCount === 0 ? `🟢 Free (0/${maxSlotLimit})` : !isFull ? `🟡 ${bookedCount}/${maxSlotLimit}` : `🔴 ${bookedCount}/${maxSlotLimit} Full`}
+                              {!isShiftAllowed
+                                ? "⚪ Shift Off"
+                                : bookedCount === 0
+                                ? `🟢 Free (0/${maxSlotLimit})`
+                                : !isFull
+                                ? `🟡 ${bookedCount}/${maxSlotLimit}`
+                                : `🔴 ${bookedCount}/${maxSlotLimit} Full`}
                             </span>
                           )}
                         </div>
@@ -1496,14 +1610,22 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                           <div className="md:hidden mt-1">
                             <span
                               className={`inline-flex text-[8.5px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-tight ${
-                                bookedCount === 0
+                                !isShiftAllowed
+                                  ? "bg-slate-200 text-slate-600 border border-slate-300"
+                                  : bookedCount === 0
                                   ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                                   : !isFull
                                   ? "bg-amber-100 text-amber-900 border border-amber-300"
                                   : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
                               }`}
                             >
-                              {bookedCount === 0 ? `🟢 Free (0/${maxSlotLimit})` : !isFull ? `🟡 ${bookedCount}/${maxSlotLimit}` : `🔴 ${bookedCount}/${maxSlotLimit} Full`}
+                              {!isShiftAllowed
+                                ? "⚪ Shift Off"
+                                : bookedCount === 0
+                                ? `🟢 Free (0/${maxSlotLimit})`
+                                : !isFull
+                                ? `🟡 ${bookedCount}/${maxSlotLimit}`
+                                : `🔴 ${bookedCount}/${maxSlotLimit} Full`}
                             </span>
                           </div>
                         )}
@@ -1512,7 +1634,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       </div>
 
                       {/* Show active member names booked in this slot */}
-                      {isPersonalTrainer && bookedCount > 0 && (
+                      {isPersonalTrainer && bookedCount > 0 && isShiftAllowed && (
                         <div className="mt-1.5 pt-1 border-t border-slate-200/60 text-[9.5px] text-slate-600 truncate">
                           🏋️ {bookedAthletes.join(", ")}
                         </div>
@@ -1524,12 +1646,34 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
 
               {/* Overbooking Alert Warning */}
               {(() => {
-                if (!isPersonalTrainer) return null;
-                const maxSlotLimit = Number(selectedTrainerObj?.maxPtPerSlot || 2);
+                if (!isPersonalTrainer || !selectedTrainerObj) return null;
+                const currentSlotKey = (() => {
+                  const raw = (formData.preferredSlot || '').toLowerCase();
+                  if (raw.includes("morning")) return "morning";
+                  if (raw.includes("afternoon")) return "afternoon";
+                  if (raw.includes("evening")) return "evening";
+                  if (raw.includes("night")) return "night";
+                  return formData.preferredSlot;
+                })();
+
+                const isCurShiftAllowed = !Array.isArray(selectedTrainerObj.allowedShifts) || selectedTrainerObj.allowedShifts.length === 0 || selectedTrainerObj.allowedShifts.includes(currentSlotKey);
+                const maxSlotLimit = Number(selectedTrainerObj?.shiftPtLimits?.[currentSlotKey] ?? selectedTrainerObj?.maxPtPerSlot ?? 2);
                 const curBooked = trainerSlotOccupancy[formData.preferredSlot] || [];
                 const coachName = (selectedTrainerObj?.name || '').startsWith('Coach')
                   ? selectedTrainerObj.name
                   : `Coach ${selectedTrainerObj?.name || 'Trainer'}`;
+
+                if (!isCurShiftAllowed) {
+                  return (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 flex items-start gap-2 text-amber-950 animate-in fade-in duration-200">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="text-[11px] leading-tight">
+                        <strong className="font-extrabold text-amber-900">Shift Not Assigned: </strong>
+                        <strong>{coachName}</strong> does not take PT sessions during this shift (<strong>{formData.preferredSlot}</strong>). Please select one of the coach's active shifts: <strong>{(selectedTrainerObj.allowedShifts || []).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(", ")}</strong>.
+                      </div>
+                    </div>
+                  );
+                }
 
                 if (curBooked.length >= maxSlotLimit) {
                   return (
@@ -1537,7 +1681,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                       <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                       <div className="text-[11px] leading-tight">
                         <strong className="font-extrabold text-rose-800">Trainer Shift Capacity Full ({curBooked.length}/{maxSlotLimit}): </strong>
-                        <strong>{coachName}</strong> already has <strong>{curBooked.length} active athletes</strong> scheduled in this slot (<strong>{formData.preferredSlot}</strong>) ({curBooked.join(", ")}). Maximum allowed is {maxSlotLimit} PT per shift. Please select an alternate available time slot.
+                        <strong>{coachName}</strong> already has <strong>{curBooked.length} active athletes</strong> scheduled in this slot (<strong>{formData.preferredSlot}</strong>) ({curBooked.join(", ")}). Maximum allowed is {maxSlotLimit} PT for this shift. Please select an alternate available time slot.
                       </div>
                     </div>
                   );
@@ -1560,18 +1704,18 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 ADD-ON GYM SERVICES & AMENITIES CHECKLIST (STEAM, LOCKER, DIET)
             ========================================================== */}
             <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
+                <div className="min-w-0 flex-1">
                   <h5 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-emerald-600" />
-                    Add-on Gym Services & Facilities (Optional)
+                    <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Add-on Gym Services & Facilities (Optional)</span>
                   </h5>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     Select extra services for this member. Selected service fees will be added directly to the registration bill.
                   </p>
                 </div>
                 {selectedServices.length > 0 && (
-                  <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                  <span className="shrink-0 self-start sm:self-auto whitespace-nowrap text-[11px] font-black bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full border border-emerald-300 shadow-2xs">
                     {selectedServices.length} Selected (+₹{servicesTotalPrice.toLocaleString("en-IN")})
                   </span>
                 )}
@@ -1583,13 +1727,17 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {dbServices.map((srv) => {
                     const isIncluded = isServiceIncludedInPlan(srv, currentBasePlan);
-                    const isChecked = selectedServices.some((s) => s.id === srv.id) || isIncluded;
+                    const found = selectedServices.find((s) => s.id === srv.id);
+                    const isChecked = Boolean(found) || isIncluded;
                     const srvPrice = Number(srv.price || 0);
+                    const isMonthly = (srv.billingType || "Per Month").toLowerCase().includes("month");
+                    const selectedMonths = found?.months || planDurationMonths;
+                    const totalCharge = isIncluded ? 0 : (isMonthly ? srvPrice * selectedMonths : srvPrice);
+
                     return (
                       <div
                         key={srv.id}
-                        onClick={() => toggleServiceSelection(srv)}
-                        className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-start justify-between gap-3 select-none ${
+                        className={`p-3 rounded-2xl border-2 transition-all flex flex-col justify-between gap-2.5 ${
                           isChecked
                             ? isIncluded
                               ? "bg-emerald-50/90 border-emerald-500 shadow-xs ring-1 ring-emerald-500/20"
@@ -1597,56 +1745,109 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                             : "bg-slate-50/70 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                         }`}
                       >
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {}} // Controlled by card click
-                            className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 pointer-events-none"
-                          />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-bold text-slate-900 block truncate">
-                                {srv.name}
-                              </span>
-                              {isIncluded && (
-                                <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                  Included in Plan
+                        <div
+                          onClick={() => toggleServiceSelection(srv)}
+                          className="flex items-start justify-between gap-3 cursor-pointer select-none"
+                        >
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {}} // Controlled by card click
+                              className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 pointer-events-none"
+                            />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-bold text-slate-900 block truncate">
+                                  {srv.name}
                                 </span>
+                                {isIncluded && (
+                                  <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    Included in Plan
+                                  </span>
+                                )}
+                              </div>
+                              {srv.desc && (
+                                <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
+                                  {srv.desc}
+                                </p>
                               )}
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mt-1">
+                                {srv.category || "Service"} • ₹{srvPrice.toLocaleString("en-IN")}/{isMonthly ? "month" : "one-time"}
+                              </span>
                             </div>
-                            {srv.desc && (
-                              <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
-                                {srv.desc}
-                              </p>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            {isIncluded ? (
+                              <div>
+                                <span className="text-xs font-black text-emerald-700 block">
+                                  FREE
+                                </span>
+                                <span className="text-[10px] text-slate-400 line-through">
+                                  ₹{(srvPrice * planDurationMonths).toLocaleString("en-IN")}
+                                </span>
+                              </div>
+                            ) : (
+                              <div>
+                                <span className={`text-xs font-black block ${isChecked ? "text-teal-700" : "text-slate-900"}`}>
+                                  +₹{totalCharge.toLocaleString("en-IN")}
+                                </span>
+                                <span className="text-[9px] text-slate-400 font-semibold">
+                                  {isMonthly && isChecked ? `${selectedMonths} Mo Total` : "Add-on Fee"}
+                                </span>
+                              </div>
                             )}
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mt-1">
-                              {srv.category || "Service"} • {srv.billingType || "Per Month"}
-                            </span>
                           </div>
                         </div>
 
-                        <div className="text-right shrink-0">
-                          {isIncluded ? (
-                            <div>
-                              <span className="text-xs font-black text-emerald-700 block">
-                                FREE
-                              </span>
-                              <span className="text-[10px] text-slate-400 line-through">
-                                ₹{srvPrice.toLocaleString("en-IN")}
-                              </span>
+                        {/* If checked & monthly & not included: show duration selector so member/owner can pick 1, 2, 3 months */}
+                        {isChecked && !isIncluded && isMonthly && (
+                          <div className="pt-2 border-t border-teal-200/60 flex flex-wrap items-center justify-between gap-1.5 bg-white/70 p-2 rounded-xl">
+                            <span className="text-[10px] font-bold text-teal-900 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-teal-600" /> Service Duration:
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, planDurationMonths].filter((v, idx, arr) => arr.indexOf(v) === idx && v > 0).map((mVal) => (
+                                <button
+                                  key={mVal}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateServiceMonths(srv.id, mVal);
+                                  }}
+                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                                    selectedMonths === mVal
+                                      ? "bg-teal-600 text-white border-teal-600 shadow-2xs"
+                                      : "bg-white text-slate-700 border-slate-200 hover:border-teal-400"
+                                  }`}
+                                >
+                                  {mVal} Mo
+                                </button>
+                              ))}
+                              {/* Custom input */}
+                              <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg px-1.5 py-0.5">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="24"
+                                  value={selectedMonths}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    const val = Math.max(1, Number(e.target.value) || 1);
+                                    updateServiceMonths(srv.id, val);
+                                  }}
+                                  className="w-7 text-center text-[10px] font-bold text-teal-950 focus:outline-none"
+                                />
+                                <span className="text-[9px] text-slate-400 font-semibold">Mo</span>
+                              </div>
                             </div>
-                          ) : (
-                            <div>
-                              <span className={`text-xs font-black block ${isChecked ? "text-teal-700" : "text-slate-900"}`}>
-                                +₹{srvPrice.toLocaleString("en-IN")}
-                              </span>
-                              <span className="text-[9px] text-slate-400 font-semibold">
-                                Extra Add-on
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                            <span className="text-[10px] text-teal-800 font-semibold w-full text-right">
+                              Calculation: ₹{srvPrice}/mo × {selectedMonths} Mo = <strong>₹{totalCharge.toLocaleString("en-IN")}</strong>
+                            </span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

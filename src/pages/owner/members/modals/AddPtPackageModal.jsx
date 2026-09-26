@@ -94,7 +94,11 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
     member?.ptSlot || member?.slot || member?.preferredSlot || member?.workoutSlot || (activeSlots[0] ? `${activeSlots[0].label} (${activeSlots[0].time})` : "Morning (6:00 AM - 9:00 AM)")
   );
   const [loginEmail, setLoginEmail] = useState(
-    member?.loginEmail || member?.email || member?.phone || getPhone(member) || ""
+    (member?.email && member.email !== "—" && member.email.includes("@"))
+      ? member.email.trim()
+      : (member?.loginEmail && member.loginEmail.includes("@"))
+        ? member.loginEmail.trim()
+        : member?.email || member?.phone || getPhone(member) || ""
   );
   const [loginPassword, setLoginPassword] = useState(
     member?.loginPassword || member?.password || "Member@123"
@@ -281,7 +285,7 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
         ptDurationDays: activeDurationDays,
         ptSlot: selectedSlot,
         slot: member.slot || selectedSlot,
-        loginEmail: loginEmail.trim() || member.loginEmail || member.email || phone,
+        loginEmail: loginEmail.trim() || ((member.email && member.email.includes("@")) ? member.email : member.loginEmail) || phone,
         loginPassword: loginPassword.trim() || member.loginPassword || member.password || "Member@123",
         password: loginPassword.trim() || member.password || member.loginPassword || "Member@123",
         ptCommissionType: selectedTrainerObj?.commissionType || selectedTrainerObj?.ptCommissionType || 'percentage',
@@ -478,7 +482,7 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
             {selectedTrainerObj && (
               <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg flex items-center gap-1 self-start sm:self-auto">
                 <Sparkles className="w-3 h-3 text-indigo-600" />
-                Live Trainer Slot Schedule: {trainerName}
+                Live Trainer Slot Schedule: {trainerName} ({selectedTrainerObj?.allowedShifts ? `${selectedTrainerObj.allowedShifts.length} Shifts Active` : `Max ${selectedTrainerObj?.maxPtPerSlot || 2} PT/Shift`})
               </span>
             )}
           </div>
@@ -488,20 +492,41 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
               const fullText = `${s.label} (${s.time})`;
               const isSelected = selectedSlot === fullText || selectedSlot === s.label;
               const Icon = s.icon || Sun;
-              const maxSlotLimit = Number(selectedTrainerObj?.maxPtPerSlot || 2);
+              
+              const slotKey = (() => {
+                const raw = `${s.id || ''} ${s.label || ''}`.toLowerCase();
+                if (raw.includes("morning")) return "morning";
+                if (raw.includes("afternoon")) return "afternoon";
+                if (raw.includes("evening")) return "evening";
+                if (raw.includes("night")) return "night";
+                return s.id || s.label;
+              })();
+
+              const isShiftAllowed = !selectedTrainerObj || !Array.isArray(selectedTrainerObj?.allowedShifts) || selectedTrainerObj.allowedShifts.length === 0 || selectedTrainerObj.allowedShifts.includes(slotKey);
+              const maxSlotLimit = selectedTrainerObj
+                ? Number(selectedTrainerObj?.shiftPtLimits?.[slotKey] ?? selectedTrainerObj?.maxPtPerSlot ?? 2)
+                : 999;
 
               // Find how many athletes are booked with THIS trainer in this slot
               const bookedAthletes = trainerSlotOccupancy[fullText] || trainerSlotOccupancy[s.label] || trainerSlotOccupancy[s.time] || [];
               const bookedCount = bookedAthletes.length;
-              const isFull = bookedCount >= maxSlotLimit;
+              const isFull = isShiftAllowed && bookedCount >= maxSlotLimit;
 
               return (
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => setSelectedSlot(fullText)}
+                  onClick={() => {
+                    if (selectedTrainerObj && !isShiftAllowed) {
+                      toast.error(`Coach ${selectedTrainerObj?.name || 'Trainer'} is not available during ${s.label} shift.`);
+                      return;
+                    }
+                    setSelectedSlot(fullText);
+                  }}
                   className={`p-2 sm:p-2.5 rounded-xl border text-left transition relative flex flex-col justify-between overflow-hidden cursor-pointer ${
-                    isSelected
+                    !isShiftAllowed && selectedTrainerObj
+                      ? 'border-slate-200 bg-slate-100/70 text-slate-400 opacity-60 cursor-not-allowed'
+                      : isSelected
                       ? 'border-purple-500 bg-purple-50/90 ring-2 ring-purple-400 shadow-xs text-purple-950'
                       : 'border-slate-200 hover:border-purple-300 bg-white text-slate-700'
                   }`}
@@ -509,21 +534,29 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
                   <div className="w-full">
                     <div className="flex items-center justify-between gap-1">
                       <div className="flex items-center gap-1.5 font-bold text-xs truncate">
-                        <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-purple-600' : 'text-amber-500'}`} />
+                        <Icon className={`w-3.5 h-3.5 shrink-0 ${!isShiftAllowed && selectedTrainerObj ? 'text-slate-400' : isSelected ? 'text-purple-600' : 'text-amber-500'}`} />
                         <span className="truncate">{s.label}</span>
                       </div>
 
                       {/* Live Occupancy Badge on desktop/sm screens */}
                       <span
                         className={`hidden md:inline-flex text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tight shrink-0 ${
-                          bookedCount === 0
+                          !isShiftAllowed && selectedTrainerObj
+                            ? "bg-slate-200 text-slate-600 border border-slate-300"
+                            : bookedCount === 0
                             ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                             : !isFull
                             ? "bg-amber-100 text-amber-900 border border-amber-300"
                             : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
                         }`}
                       >
-                        {bookedCount === 0 ? `🟢 FREE (0/${maxSlotLimit})` : !isFull ? `🟡 ${bookedCount}/${maxSlotLimit}` : `🔴 ${bookedCount}/${maxSlotLimit} FULL`}
+                        {!isShiftAllowed && selectedTrainerObj
+                          ? "⚪ Shift Off"
+                          : bookedCount === 0
+                          ? `🟢 FREE (0/${maxSlotLimit})`
+                          : !isFull
+                          ? `🟡 ${bookedCount}/${maxSlotLimit}`
+                          : `🔴 ${bookedCount}/${maxSlotLimit} FULL`}
                       </span>
                     </div>
 
@@ -531,14 +564,22 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
                     <div className="md:hidden mt-1">
                       <span
                         className={`inline-flex text-[8.5px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-tight ${
-                          bookedCount === 0
+                          !isShiftAllowed && selectedTrainerObj
+                            ? "bg-slate-200 text-slate-600 border border-slate-300"
+                            : bookedCount === 0
                             ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
                             : !isFull
                             ? "bg-amber-100 text-amber-900 border border-amber-300"
                             : "bg-rose-100 text-rose-900 border border-rose-300 animate-pulse"
                         }`}
                       >
-                        {bookedCount === 0 ? `🟢 FREE (0/${maxSlotLimit})` : !isFull ? `🟡 ${bookedCount}/${maxSlotLimit}` : `🔴 ${bookedCount}/${maxSlotLimit} FULL`}
+                        {!isShiftAllowed && selectedTrainerObj
+                          ? "⚪ Shift Off"
+                          : bookedCount === 0
+                          ? `🟢 FREE (0/${maxSlotLimit})`
+                          : !isFull
+                          ? `🟡 ${bookedCount}/${maxSlotLimit}`
+                          : `🔴 ${bookedCount}/${maxSlotLimit} FULL`}
                       </span>
                     </div>
 
@@ -546,7 +587,7 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
                   </div>
 
                   {/* Show active member names booked in this slot */}
-                  {bookedCount > 0 && (
+                  {bookedCount > 0 && isShiftAllowed && (
                     <div className="mt-1.5 pt-1 border-t border-slate-200/60 text-[9.5px] text-slate-600 truncate">
                       🏋️ {bookedAthletes.join(", ")}
                     </div>
@@ -558,17 +599,41 @@ export default function AddPtPackageModal({ member, gymId, onClose, onSave, trai
 
           {/* Overbooking Alert Warning */}
           {(() => {
-            const maxSlotLimit = Number(selectedTrainerObj?.maxPtPerSlot || 2);
+            if (!selectedTrainerObj) return null;
+            const currentSlotKey = (() => {
+              const raw = (selectedSlot || '').toLowerCase();
+              if (raw.includes("morning")) return "morning";
+              if (raw.includes("afternoon")) return "afternoon";
+              if (raw.includes("evening")) return "evening";
+              if (raw.includes("night")) return "night";
+              return selectedSlot;
+            })();
+
+            const isCurShiftAllowed = !Array.isArray(selectedTrainerObj.allowedShifts) || selectedTrainerObj.allowedShifts.length === 0 || selectedTrainerObj.allowedShifts.includes(currentSlotKey);
+            const maxSlotLimit = Number(selectedTrainerObj?.shiftPtLimits?.[currentSlotKey] ?? selectedTrainerObj?.maxPtPerSlot ?? 2);
             const curBooked = trainerSlotOccupancy[selectedSlot] || 
               trainerSlotOccupancy[selectedSlot?.split(' ')[0]] || [];
             const coachCleanName = (trainerName || '').startsWith('Coach') ? trainerName : `Coach ${trainerName}`;
+
+            if (!isCurShiftAllowed) {
+              return (
+                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 flex items-start gap-2 text-amber-950 animate-in fade-in duration-200">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-[11px] leading-tight">
+                    <strong className="font-extrabold text-amber-900">Shift Not Assigned: </strong>
+                    <strong>{coachCleanName}</strong> does not take PT sessions during this shift (<strong>{selectedSlot}</strong>). Please select one of the coach's active shifts: <strong>{(selectedTrainerObj.allowedShifts || []).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(", ")}</strong>.
+                  </div>
+                </div>
+              );
+            }
+
             if (curBooked.length >= maxSlotLimit) {
               return (
                 <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-rose-900 animate-in fade-in duration-200">
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <div className="text-[11px] leading-tight">
                     <strong className="font-extrabold text-rose-800">Trainer Shift Capacity Full ({curBooked.length}/{maxSlotLimit}): </strong>
-                    <strong>{coachCleanName}</strong> already has <strong>{curBooked.length} active athletes</strong> scheduled in this slot (<strong>{selectedSlot}</strong>) ({curBooked.join(", ")}). Maximum allowed is {maxSlotLimit} PT per shift. Consider selecting an alternate available time slot.
+                    <strong>{coachCleanName}</strong> already has <strong>{curBooked.length} active athletes</strong> scheduled in this slot (<strong>{selectedSlot}</strong>) ({curBooked.join(", ")}). Maximum allowed is {maxSlotLimit} PT for this shift. Consider selecting an alternate available time slot.
                   </div>
                 </div>
               );

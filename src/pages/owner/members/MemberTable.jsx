@@ -19,7 +19,8 @@ import {
   UserX,
   PlusCircle,
   Dumbbell,
-  Phone
+  Phone,
+  Layers
 } from 'lucide-react';
 import { Avatar } from './MemberStatusBadge';
 import {
@@ -51,7 +52,8 @@ export default function MemberTable({
     onEnd,
     onReceipt,
     onDelete,
-    onReactivate
+    onReactivate,
+    onAddService
   } = actionHandlers;
 
   const getSlotIcon = (slotStr = '') => {
@@ -459,6 +461,20 @@ export default function MemberTable({
                         <p className="text-[10px] text-slate-400">
                           Joined: {joinDate}
                         </p>
+                        {((m.selectedServices || m.services || []).length > 0) && (
+                          <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                            {(m.selectedServices || m.services || []).slice(0, 2).map((s, si) => (
+                              <span key={si} className="text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-teal-50 text-teal-800 border border-teal-200" title={`${s.name} (${s.months || 1}M)`}>
+                                🛎️ {s.name} ({s.months || 1}M)
+                              </span>
+                            ))}
+                            {(m.selectedServices || m.services || []).length > 2 && (
+                              <span className="text-[9.5px] font-bold text-teal-700">
+                                +{(m.selectedServices || m.services || []).length - 2} more
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -735,6 +751,16 @@ export default function MemberTable({
                           <span className="hidden sm:inline">Receipt</span>
                         </button>
                       )}
+
+                      {/* Add Gym Facility / Service Add-on */}
+                      <button
+                        type="button"
+                        onClick={() => onAddService && onAddService(m)}
+                        className="p-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 font-bold text-xs inline-flex items-center transition shadow-2xs cursor-pointer"
+                        title="Add Gym Service / Facility (Locker, Steam, Diet)"
+                      >
+                        <Layers size={14} className="text-teal-600" />
+                      </button>
 
                       {/* Profile 360 View */}
                       <button

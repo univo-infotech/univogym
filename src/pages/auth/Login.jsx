@@ -181,13 +181,15 @@ export default function Login() {
         const inputPhone = cleanEmail.replace(/\D/g, '');
 
         const matchedMember = membersList.find((m) => {
-          const mEmail = (m.loginEmail || m.email || '').trim().toLowerCase();
+          const memberEmails = [m.email, m.loginEmail]
+            .filter(Boolean)
+            .map((e) => String(e).trim().toLowerCase());
           const mPhone = (m.phone || '').trim().replace(/\D/g, '');
           const mPass = m.loginPassword || m.password;
 
-          const isIdMatch =
-            (mEmail && mEmail === cleanEmail) ||
-            (inputPhone.length >= 10 && mPhone && mPhone.endsWith(inputPhone.slice(-10)));
+          const isEmailMatch = memberEmails.includes(cleanEmail);
+          const isPhoneMatch = inputPhone.length >= 10 && mPhone && mPhone.endsWith(inputPhone.slice(-10));
+          const isIdMatch = isEmailMatch || isPhoneMatch;
           const isPassMatch = mPass ? mPass === password : password === 'Member@123';
           return isIdMatch && isPassMatch;
         });
