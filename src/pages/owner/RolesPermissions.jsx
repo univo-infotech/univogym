@@ -24,6 +24,7 @@ const MODULES = [
   { id: "reports", label: "Reports & Analytics", desc: "Financial P&L, membership growth and exports", noEditDelete: true },
   { id: "visits", label: "Visits & Demos", desc: "Walk-in inquiries, demo sessions and follow-ups" },
   { id: "offers", label: "Offers & Broadcast", desc: "Marketing campaigns, discounts and WhatsApp SMS", noEditDelete: true },
+  { id: "customization", label: "Dashboard Customizer", desc: "Customize widgets, visibility and ordering of dashboard cards" },
   { id: "settings", label: "Gym Settings", desc: "Profile details, branding and system preferences" }
 ];
 

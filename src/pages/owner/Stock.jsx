@@ -824,11 +824,11 @@ export default function Stock() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 shrink-0">
               <Package className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Stock & Equipment Operations</h1>
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Stock & Equipment Operations</h1>
               <p className="text-slate-500 text-xs">
                 Comprehensive supplement retail store & gym machinery fleet maintenance
               </p>
@@ -837,53 +837,62 @@ export default function Stock() {
         </div>
 
         {/* Master Navigation Switcher */}
-        <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
+        <div className="flex items-center gap-1 bg-slate-100 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-200/80 shadow-inner w-full lg:w-auto overflow-x-auto scrollbar-none">
           <button
+            type="button"
             onClick={() => setActiveTab("supplements")}
-            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs font-bold transition-all flex-1 lg:flex-initial whitespace-nowrap ${
               activeTab === "supplements"
-                ? "bg-white text-emerald-700 shadow-sm border border-emerald-100"
+                ? "bg-white text-emerald-700 shadow-xs border border-emerald-100"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <ShoppingBag className="w-4 h-4" />
-            <span>Supplement & Merchandise Store</span>
+            <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
+            <span>
+              Supplements<span className="hidden sm:inline"> & Store</span>
+            </span>
             {lowStockCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black animate-pulse">
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black shrink-0 animate-pulse">
                 {lowStockCount}
               </span>
             )}
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab("equipment")}
-            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs font-bold transition-all flex-1 lg:flex-initial whitespace-nowrap ${
               activeTab === "equipment"
-                ? "bg-white text-teal-700 shadow-sm border border-teal-100"
+                ? "bg-white text-teal-700 shadow-xs border border-teal-100"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <Wrench className="w-4 h-4" />
-            <span>Gym Machines & Fleet Assets</span>
+            <Wrench className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-teal-600 shrink-0" />
+            <span>
+              Equipment<span className="hidden sm:inline"> & Machines</span>
+            </span>
             {overdueCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-black">
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-black shrink-0">
                 {overdueCount}
               </span>
             )}
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab("sales")}
-            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs font-bold transition-all flex-1 lg:flex-initial whitespace-nowrap ${
               activeTab === "sales"
-                ? "bg-white text-indigo-700 shadow-sm border border-indigo-100"
+                ? "bg-white text-indigo-700 shadow-xs border border-indigo-100"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <History className="w-4 h-4" />
-            <span>Sales & Trainer Commission</span>
+            <History className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600 shrink-0" />
+            <span>
+              Sales<span className="hidden sm:inline"> & Commission</span>
+            </span>
             {supplementSalesList.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-black">
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-black shrink-0">
                 {supplementSalesList.length}
               </span>
             )}
@@ -897,54 +906,64 @@ export default function Stock() {
       {activeTab === "supplements" && (
         <div className="space-y-6">
           {/* Top Analytics Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-500">Retail Inventory Value</p>
-                <h3 className="text-2xl font-black text-slate-900 mt-1">
-                  Rs. {totalSupplementRetailValue.toLocaleString("en-IN")}
-                </h3>
-                <p className="text-[11px] text-emerald-600 font-bold mt-1">
-                  Est. Profit: Rs. {(totalSupplementRetailValue - totalSupplementStockCost).toLocaleString("en-IN")}
-                </p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Inventory Value</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <TrendingUp className="w-6 h-6" />
+              <div className="text-base sm:text-2xl font-black text-slate-900 tracking-tight whitespace-nowrap">
+                ₹{totalSupplementRetailValue.toLocaleString("en-IN")}
               </div>
-            </div>
-
-            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-500">Total Units In Stock</p>
-                <h3 className="text-2xl font-black text-slate-900 mt-1">{totalSupplementUnits} Bottles / Boxes</h3>
-                <p className="text-[11px] text-slate-500 mt-1">{supplements.length} Unique Product SKUs</p>
-              </div>
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                <Package className="w-6 h-6" />
+              <div className="text-[10px] sm:text-[11px] text-emerald-600 font-semibold mt-1 truncate">
+                Profit: ₹{(totalSupplementRetailValue - totalSupplementStockCost).toLocaleString("en-IN")}
               </div>
             </div>
 
-            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-500">Inventory Cost Invested</p>
-                <h3 className="text-2xl font-black text-slate-900 mt-1">
-                  Rs. {totalSupplementStockCost.toLocaleString("en-IN")}
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-1">Wholesale Cost Price</p>
+            <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Total Stock</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
-                <DollarSign className="w-6 h-6" />
+              <div className="text-base sm:text-2xl font-black text-slate-900 tracking-tight whitespace-nowrap">
+                {totalSupplementUnits} Units
+              </div>
+              <div className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1 truncate">
+                {supplements.length} Unique SKUs
               </div>
             </div>
 
-            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-500">Low Stock Re-order Alert</p>
-                <h3 className="text-2xl font-black text-rose-600 mt-1">{lowStockCount} Products</h3>
-                <p className="text-[11px] text-rose-500 font-medium mt-1">Requires immediate restocking</p>
+            <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Cost Invested</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                <AlertTriangle className="w-6 h-6" />
+              <div className="text-base sm:text-2xl font-black text-slate-900 tracking-tight whitespace-nowrap">
+                ₹{totalSupplementStockCost.toLocaleString("en-IN")}
+              </div>
+              <div className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1 truncate">
+                Wholesale Cost
+              </div>
+            </div>
+
+            <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Low Stock Alert</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
+              </div>
+              <div className="text-base sm:text-2xl font-black text-rose-600 tracking-tight whitespace-nowrap">
+                {lowStockCount} Products
+              </div>
+              <div className="text-[10px] sm:text-[11px] text-rose-500 font-medium mt-1 truncate">
+                {lowStockCount > 0 ? "Needs Restocking" : "Stock Healthy"}
               </div>
             </div>
           </div>
@@ -1133,54 +1152,64 @@ export default function Stock() {
       {activeTab === "equipment" && (
         <div className="space-y-6">
           {/* Top Asset & Maintenance Analytics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-500">Gym Machinery Capital Value</p>
-                <h3 className="text-2xl font-black text-slate-900 mt-1">
-                  Rs. {totalEquipmentAssetsValue.toLocaleString("en-IN")}
-                </h3>
-                <p className="text-[11px] text-teal-600 font-bold mt-1">Total Fixed Machine Asset</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Capital Value</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                  <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
-                <Layers className="w-6 h-6" />
+              <div className="text-base sm:text-2xl font-black text-slate-900 tracking-tight whitespace-nowrap">
+                ₹{totalEquipmentAssetsValue.toLocaleString("en-IN")}
               </div>
-            </div>
-
-            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-500">Operational Health</p>
-                <h3 className="text-2xl font-black text-emerald-600 mt-1">
-                  {operationalCount} / {equipmentList.length} Units
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-1">In Peak Working Condition</p>
-              </div>
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <CheckCircle2 className="w-6 h-6" />
+              <div className="text-[10px] sm:text-[11px] text-teal-600 font-medium mt-1 truncate">
+                Total Fixed Assets
               </div>
             </div>
 
-            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-500">Maintenance Spent (History)</p>
-                <h3 className="text-2xl font-black text-slate-900 mt-1">
-                  Rs. {totalRepairSpent.toLocaleString("en-IN")}
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-1">All Recorded Repairs & Greasing</p>
+            <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Machine Health</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                <Wrench className="w-6 h-6" />
+              <div className="text-base sm:text-2xl font-black text-emerald-600 tracking-tight whitespace-nowrap">
+                {operationalCount} / {equipmentList.length}
+              </div>
+              <div className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1 truncate">
+                Peak Condition
               </div>
             </div>
 
-            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-500">Service Due / Overdue</p>
-                <h3 className="text-2xl font-black text-amber-600 mt-1">{overdueCount} Machines</h3>
-                <p className="text-[11px] text-amber-600 font-medium mt-1">Needs inspection or lube</p>
+            <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Repairs Spent</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                  <Wrench className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                <AlertTriangle className="w-6 h-6" />
+              <div className="text-base sm:text-2xl font-black text-slate-900 tracking-tight whitespace-nowrap">
+                ₹{totalRepairSpent.toLocaleString("en-IN")}
+              </div>
+              <div className="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-1 truncate">
+                Past Maintenance
+              </div>
+            </div>
+
+            <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1 mb-1.5">
+                <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Service Due</span>
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </div>
+              </div>
+              <div className="text-base sm:text-2xl font-black text-amber-600 tracking-tight whitespace-nowrap">
+                {overdueCount} Machines
+              </div>
+              <div className="text-[10px] sm:text-[11px] text-amber-600 font-medium mt-1 truncate">
+                {overdueCount > 0 ? "Requires Service" : "All Serviced"}
               </div>
             </div>
           </div>
@@ -1435,64 +1464,64 @@ export default function Stock() {
             return (
               <>
                 {/* 4 Stat Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500">Gross Sales Revenue</p>
-                      <h3 className="text-2xl font-black text-slate-900 mt-1">
-                        Rs. {totalRetailSales.toLocaleString("en-IN")}
-                      </h3>
-                      <p className="text-[11px] text-emerald-600 font-bold mt-1">
-                        {totalItemsSold} Product Units Sold
-                      </p>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                  <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                      <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Gross Sales</span>
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                        <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </div>
                     </div>
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
-                      <TrendingUp className="w-6 h-6" />
+                    <div className="text-base sm:text-2xl font-black text-slate-900 tracking-tight whitespace-nowrap">
+                      ₹{totalRetailSales.toLocaleString("en-IN")}
                     </div>
-                  </div>
-
-                  <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500">Trainer Commissions</p>
-                      <h3 className="text-2xl font-black text-amber-600 mt-1">
-                        Rs. {totalCommissions.toLocaleString("en-IN")}
-                      </h3>
-                      <p className="text-[11px] text-amber-700 font-bold mt-1">
-                        {trainerStatsList.length} Trainers Benefited
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-xs">
-                      <HandCoins className="w-6 h-6" />
+                    <div className="text-[10px] sm:text-[11px] text-emerald-600 font-semibold mt-1 truncate">
+                      {totalItemsSold} Units Sold
                     </div>
                   </div>
 
-                  <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500">Net Gym Retail Revenue</p>
-                      <h3 className="text-2xl font-black text-teal-700 mt-1">
-                        Rs. {netGymProfit.toLocaleString("en-IN")}
-                      </h3>
-                      <p className="text-[11px] text-teal-600 font-bold mt-1">
-                        After Trainer Cut Deductions
-                      </p>
+                  <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                      <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Coach Cuts</span>
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                        <HandCoins className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </div>
                     </div>
-                    <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center shadow-xs">
-                      <DollarSign className="w-6 h-6" />
+                    <div className="text-base sm:text-2xl font-black text-amber-600 tracking-tight whitespace-nowrap">
+                      ₹{totalCommissions.toLocaleString("en-IN")}
+                    </div>
+                    <div className="text-[10px] sm:text-[11px] text-amber-700 font-medium mt-1 truncate">
+                      {trainerStatsList.length} Trainers Benefited
                     </div>
                   </div>
 
-                  <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500">Total Transactions</p>
-                      <h3 className="text-2xl font-black text-indigo-900 mt-1">
-                        {supplementSalesList.length}
-                      </h3>
-                      <p className="text-[11px] text-indigo-600 font-bold mt-1">
-                        Orders Logged in Ledger
-                      </p>
+                  <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                      <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Gym Retained</span>
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+                        <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </div>
                     </div>
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-xs">
-                      <ShoppingBag className="w-6 h-6" />
+                    <div className="text-base sm:text-2xl font-black text-teal-700 tracking-tight whitespace-nowrap">
+                      ₹{netGymProfit.toLocaleString("en-IN")}
+                    </div>
+                    <div className="text-[10px] sm:text-[11px] text-teal-600 font-medium mt-1 truncate">
+                      Net Retained
+                    </div>
+                  </div>
+
+                  <div className="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between">
+                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                      <span className="text-[11px] sm:text-xs font-bold text-slate-500 truncate">Total Orders</span>
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                        <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </div>
+                    </div>
+                    <div className="text-base sm:text-2xl font-black text-indigo-900 tracking-tight whitespace-nowrap">
+                      {supplementSalesList.length}
+                    </div>
+                    <div className="text-[10px] sm:text-[11px] text-indigo-600 font-medium mt-1 truncate">
+                      Logged in Ledger
                     </div>
                   </div>
                 </div>
@@ -1848,7 +1877,7 @@ export default function Stock() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700">Current Stock (Qty)</label>
               <input
@@ -1961,7 +1990,7 @@ export default function Stock() {
             </div>
 
             {/* Customer / Buyer Name & Phone */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold text-slate-700">Buyer Name</label>
                 <input
@@ -2328,7 +2357,7 @@ export default function Stock() {
           </div>
 
           {/* Service Intervals */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-700">Last Servicing Date</label>
               <input
@@ -2380,21 +2409,23 @@ export default function Stock() {
       <Modal
         isOpen={serviceModalOpen}
         onClose={() => setServiceModalOpen(false)}
-        title="Log Machine Maintenance & Repair"
+        title="Log Machine Service & Repair"
       >
         {selectedEqForService && (
           <form onSubmit={handleSaveRepairLog} className="space-y-4 text-slate-800">
-            <div className="p-3 bg-teal-50 rounded-2xl border border-teal-200 text-xs">
-              <span className="font-bold text-teal-900">Logging service for:</span>
-              <h4 className="text-sm font-black text-teal-950 mt-0.5">{selectedEqForService.name}</h4>
-              <p className="text-teal-700">
-                Brand: {selectedEqForService.brand} • Type: {selectedEqForService.type}
+            <div className="p-3 bg-teal-50/80 rounded-2xl border border-teal-200/90 text-xs">
+              <span className="font-bold text-teal-800">Logging service for:</span>
+              <h4 className="text-sm font-black text-teal-950 mt-0.5 break-words">{selectedEqForService.name}</h4>
+              <p className="text-teal-700 flex flex-wrap items-center gap-1.5 mt-0.5 text-[11px] font-medium">
+                <span>Brand: <strong className="text-teal-900">{selectedEqForService.brand || "Standard"}</strong></span>
+                <span>•</span>
+                <span>Type: <strong className="text-teal-900">{selectedEqForService.type}</strong></span>
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-slate-700">Repair / Service Date *</label>
+                <label className="text-xs font-bold text-slate-700">Repair Date *</label>
                 <input
                   required
                   type="date"
@@ -2404,7 +2435,7 @@ export default function Stock() {
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-700">Repair Cost Incurred (Rs.) *</label>
+                <label className="text-xs font-bold text-slate-700">Repair Cost (₹) *</label>
                 <input
                   required
                   type="number"
@@ -2416,9 +2447,9 @@ export default function Stock() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-slate-700">Technician / Mechanic Name</label>
+                <label className="text-xs font-bold text-slate-700">Technician Name</label>
                 <input
                   type="text"
                   placeholder="e.g. Ramesh Mechanic"
@@ -2462,36 +2493,39 @@ export default function Stock() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-bold text-slate-700">Condition After Service</label>
-                <select
-                  value={repairForm.condition}
-                  onChange={(e) => setRepairForm({ ...repairForm, condition: e.target.value })}
-                  className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900"
-                >
-                  <option>Operational</option>
-                  <option>Needs Maintenance</option>
-                  <option>Under Breakdown</option>
-                </select>
-              </div>
-              <div className="flex items-center pt-5">
-                <input
-                  type="checkbox"
-                  id="addExpPnl"
-                  checked={repairForm.addExpenseToPnl}
-                  onChange={(e) => setRepairForm({ ...repairForm, addExpenseToPnl: e.target.checked })}
-                  className="w-4 h-4 text-teal-600 rounded border-slate-300"
-                />
-                <label htmlFor="addExpPnl" className="ml-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                  Sync repair cost to Gym Expense Tracker
-                </label>
-              </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700">Condition After Service</label>
+              <select
+                value={repairForm.condition}
+                onChange={(e) => setRepairForm({ ...repairForm, condition: e.target.value })}
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-semibold"
+              >
+                <option>Operational</option>
+                <option>Needs Maintenance</option>
+                <option>Under Breakdown</option>
+              </select>
+            </div>
+
+            <div
+              onClick={() => setRepairForm({ ...repairForm, addExpenseToPnl: !repairForm.addExpenseToPnl })}
+              className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200 cursor-pointer transition select-none"
+            >
+              <input
+                type="checkbox"
+                id="addExpPnl"
+                checked={repairForm.addExpenseToPnl}
+                onChange={(e) => setRepairForm({ ...repairForm, addExpenseToPnl: e.target.checked })}
+                onClick={(e) => e.stopPropagation()}
+                className="w-4 h-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500 cursor-pointer"
+              />
+              <label htmlFor="addExpPnl" className="text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                Sync repair cost to Gym Expense Tracker
+              </label>
             </div>
 
             <button
               type="submit"
-              className="w-full py-3 rounded-2xl bg-gradient-to-r from-teal-600 to-cyan-700 text-white font-black text-sm shadow-md transition"
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-teal-600 to-cyan-700 hover:from-teal-500 hover:to-cyan-600 text-white font-black text-sm shadow-md transition active:scale-[0.99]"
             >
               Record Maintenance & Reset Service Due
             </button>

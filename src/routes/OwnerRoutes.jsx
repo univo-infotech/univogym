@@ -18,6 +18,7 @@ import Reports from "../pages/owner/Reports";
 import Visits from "../pages/owner/Visits";
 import Offers from "../pages/owner/Offers";
 import Settings from "../pages/owner/Settings";
+import Customization from "../pages/owner/Customization";
 import RolesPermissions from "../pages/owner/RolesPermissions";
 import BeforeAfter from "../pages/trainer/BeforeAfter";
 import OwnerComplaints from "../pages/owner/Complaints";
@@ -59,6 +60,7 @@ export default function OwnerRoutes() {
         <Route path="before-after" element={<BeforeAfter />} />
         <Route path="transformations" element={<BeforeAfter />} />
         <Route path="settings" element={<PermissionRoute moduleId="settings"><Settings /></PermissionRoute>} />
+        <Route path="customization" element={<Customization />} />
         
         {/* Roles config is strictly owner only */}
         <Route path="roles" element={role === 'owner' ? <RolesPermissions /> : <Navigate to="/unauthorized" replace />} />

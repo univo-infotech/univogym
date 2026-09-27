@@ -9,8 +9,13 @@ const DEFAULT_SETTINGS = {
   address: "Main Branch, Univo Fitness Centre",
   whatsappWelcome: "💪 *Welcome to {gym_name}!*\n\nHi {name},\nYour membership for *{plan}* has been successfully activated.\n\nThank you for choosing us! Let's get stronger together! 🔥",
   whatsappReminder: "⚠️ *Gym Renewal Reminder*\n\nHi {name},\nYour membership for *{plan}* is expiring on *{expiry}*.\nPending/Renewal Amount: ₹{amount}.\n\nRenew today to maintain your workout consistency! 💪\n— {gym_name}",
+  whatsappOverdue: "🚨 *Membership Overdue Alert - {gym_name}*\n\nHi {name},\nYour gym membership for *{plan}* has ended *{days} days ago* and is currently overdue.\n\n💵 *Renewal Amount: ₹{amount}*\n\nPlease renew today at the reception to restart your workout sessions and retain your slot! 🔥",
+  whatsappPartialDue: "⚠️ *Payment Reminder - {gym_name}*\n\nHi {name},\nThis is a friendly reminder regarding your pending fee balance for *{plan}*.\n\n💰 *Remaining Due: ₹{amount}*\n\nPlease clear your balance at the gym reception or via UPI.\nThank you! Keep training hard! 💪\n— {gym_name}",
   whatsappPtReminder: "✨ *Personal Training (PT) Renewal Reminder*\n\nHi {name},\nYour 1-on-1 Personal Training package with *{trainer}* ({plan}) is expiring on *{expiry}*.\nRenewal Amount: ₹{amount}.\n\nRenew your PT package today to keep achieving your personal transformation goals! 🎯🔥\n— {gym_name}",
-  whatsappReceipt: "🧾 *Payment Receipt - {gym_name}*\n\nMember: {name}\nPlan: {plan}\nPaid: ₹{amount}\nDate: {date}\n\nThank you for training with us!",
+  whatsappReceipt: "🧾 *Payment Receipt - {gym_name}*\n\nMember: {name}\nPlan: {plan}\nPaid Amount: ₹{amount}\nDate: {date}\n\nThank you for training with us! Keep crushing your workouts! 💪",
+  whatsappInvite: "💪 *Welcome to {gym_name}!*\n\nPlease complete your membership registration form, photo upload & liability waiver using this direct link:\n\n🔗 {link}\n\n⚠️ *Important:* This secure registration link expires in 10 minutes.\nLet's get stronger together! 🔥",
+  whatsappBirthday: "🎂 *Happy Birthday, {name}!* 🎉\n\nWishing you a fantastic year of strength, good health, and fitness gains! Have a wonderful day ahead! 💪✨\n— Team {gym_name}",
+  whatsappVisitFollowup: "👋 *Hello {name}! - {gym_name}*\n\nThank you for visiting us! We would love to have you as part of our fitness family.\n\nSpecial joining offers are active this week for *{plan}*. Feel free to reply here if you have any questions! 🔥",
   ownerSignatureName: "Authorized Signatory",
   ownerSignatureTitle: "Gym Manager / Owner",
   logoUrl: "/logo-icon.png",
@@ -20,7 +25,33 @@ const DEFAULT_SETTINGS = {
     { id: "afternoon", label: "Afternoon", time: "12:00 PM - 3:00 PM", iconName: "Sun" },
     { id: "evening", label: "Evening", time: "4:00 PM - 7:00 PM", iconName: "Sunset" },
     { id: "night", label: "Night", time: "7:00 PM - 10:00 PM", iconName: "Moon" }
-  ]
+  ],
+  dashboardLayout: {
+    sectionsOrder: [
+      "banner",
+      "quick_jump",
+      "kpi_stats",
+      "pnl_strip",
+      "charts_row",
+      "recent_members",
+      "equipment_status"
+    ],
+    visibleSections: {
+      banner: true,
+      quick_jump: true,
+      kpi_stats: true,
+      pnl_strip: true,
+      charts_row: true,
+      recent_members: true,
+      equipment_status: true
+    },
+    visibleKpis: {
+      active_members: true,
+      net_revenue: true,
+      renewals_due: true,
+      walkins: true
+    }
+  }
 };
 
 // In-memory runtime cache (No localStorage!)
@@ -35,7 +66,18 @@ function normalizeSettings(data) {
     ...data,
     workoutSlots: Array.isArray(data.workoutSlots) && data.workoutSlots.length > 0
       ? data.workoutSlots
-      : DEFAULT_SETTINGS.workoutSlots
+      : DEFAULT_SETTINGS.workoutSlots,
+    dashboardLayout: {
+      sectionsOrder: Array.isArray(data.dashboardLayout?.sectionsOrder) && data.dashboardLayout.sectionsOrder.length > 0
+        ? data.dashboardLayout.sectionsOrder
+        : DEFAULT_SETTINGS.dashboardLayout.sectionsOrder,
+      visibleSections: typeof data.dashboardLayout?.visibleSections === "object" && data.dashboardLayout?.visibleSections !== null
+        ? { ...DEFAULT_SETTINGS.dashboardLayout.visibleSections, ...data.dashboardLayout.visibleSections }
+        : DEFAULT_SETTINGS.dashboardLayout.visibleSections,
+      visibleKpis: typeof data.dashboardLayout?.visibleKpis === "object" && data.dashboardLayout?.visibleKpis !== null
+        ? { ...DEFAULT_SETTINGS.dashboardLayout.visibleKpis, ...data.dashboardLayout.visibleKpis }
+        : DEFAULT_SETTINGS.dashboardLayout.visibleKpis
+    }
   };
 }
 

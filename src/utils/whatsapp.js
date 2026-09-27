@@ -18,45 +18,94 @@ export function generateMemberInviteMessage(gymName, token, baseUrl = window.loc
   const settings = getGymSettings();
   const actualGym = gymName || settings.gymName || "UNIVO GYM MANAGEMENT";
   const link = `${baseUrl}/#/register/univo_main/${token}`;
-  return `💪 *Welcome to ${actualGym}!*\n\nPlease complete your membership registration form, photo upload & liability waiver using this direct link:\n\n🔗 ${link}\n\n⚠️ *Important:* This secure registration link expires in 5 minutes.\nLet's get stronger together! 🔥`;
+  const template = settings.whatsappInvite || "💪 *Welcome to {gym_name}!*\n\nPlease complete your membership registration form, photo upload & liability waiver using this direct link:\n\n🔗 {link}\n\n⚠️ *Important:* This secure registration link expires in 10 minutes.\nLet's get stronger together! 🔥";
+  return template
+    .replace(/{gym_name}/g, actualGym)
+    .replace(/{link}/g, link);
 }
 
 export function generateRenewalReminderMessage(memberName, planName, expiryDate, amount) {
   const settings = getGymSettings();
-  let template = settings.whatsappReminder;
+  const template = settings.whatsappReminder || "⚠️ *Gym Renewal Reminder*\n\nHi {name},\nYour membership for *{plan}* is expiring on *{expiry}*.\nPending/Renewal Amount: ₹{amount}.\n\nRenew today to maintain your workout consistency! 💪\n— {gym_name}";
   return template
-    .replace("{name}", memberName || "Athlete")
-    .replace("{plan}", planName || "Gym Plan")
-    .replace("{expiry}", formatDate(expiryDate) || "upcoming date")
-    .replace("{amount}", amount || "0")
-    .replace("{gym_name}", settings.gymName);
+    .replace(/{name}/g, memberName || "Athlete")
+    .replace(/{plan}/g, planName || "Gym Plan")
+    .replace(/{expiry}/g, formatDate(expiryDate) || "upcoming date")
+    .replace(/{amount}/g, amount || "0")
+    .replace(/{due_amount}/g, amount || "0")
+    .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
 }
 
 export function generatePtRenewalReminderMessage(memberName, ptPlanName, trainerName, expiryDate, amount) {
   const settings = getGymSettings();
-  let template = settings.whatsappPtReminder || "✨ *Personal Training (PT) Renewal Reminder*\n\nHi {name},\nYour 1-on-1 Personal Training package with *{trainer}* ({plan}) is expiring on *{expiry}*.\nRenewal Amount: ₹{amount}.\n\nRenew your PT package today to keep achieving your personal transformation goals! 🎯🔥\n— {gym_name}";
+  const template = settings.whatsappPtReminder || "✨ *Personal Training (PT) Renewal Reminder*\n\nHi {name},\nYour 1-on-1 Personal Training package with *{trainer}* ({plan}) is expiring on *{expiry}*.\nRenewal Amount: ₹{amount}.\n\nRenew your PT package today to keep achieving your personal transformation goals! 🎯🔥\n— {gym_name}";
   return template
-    .replace("{name}", memberName || "Athlete")
-    .replace("{trainer}", trainerName || "Personal Trainer")
-    .replace("{plan}", ptPlanName || "1-on-1 PT Plan")
-    .replace("{expiry}", formatDate(expiryDate) || "upcoming date")
-    .replace("{amount}", amount || "0")
-    .replace("{gym_name}", settings.gymName);
+    .replace(/{name}/g, memberName || "Athlete")
+    .replace(/{trainer}/g, trainerName || "Personal Trainer")
+    .replace(/{plan}/g, ptPlanName || "1-on-1 PT Plan")
+    .replace(/{expiry}/g, formatDate(expiryDate) || "upcoming date")
+    .replace(/{amount}/g, amount || "0")
+    .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
 }
 
 export function generatePartialDueReminderMessage(memberName, dueAmount, planName) {
   const settings = getGymSettings();
-  return `⚠️ *Payment Reminder - ${settings.gymName}*\n\nHi ${memberName || "Athlete"},\nThis is a friendly reminder regarding your pending fee balance for *${planName || "Membership"}*.\n\n💰 *Remaining Due: ₹${dueAmount}*\n\nPlease clear your balance at the gym reception or via UPI.\nThank you! Keep training hard! 💪`;
+  const template = settings.whatsappPartialDue || "⚠️ *Payment Reminder - {gym_name}*\n\nHi {name},\nThis is a friendly reminder regarding your pending fee balance for *{plan}*.\n\n💰 *Remaining Due: ₹{amount}*\n\nPlease clear your balance at the gym reception or via UPI.\nThank you! Keep training hard! 💪\n— {gym_name}";
+  return template
+    .replace(/{name}/g, memberName || "Athlete")
+    .replace(/{plan}/g, planName || "Membership")
+    .replace(/{amount}/g, dueAmount || "0")
+    .replace(/{due_amount}/g, dueAmount || "0")
+    .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
 }
 
 export function generateOverdueReminderMessage(memberName, planName, daysOverdue, amount) {
   const settings = getGymSettings();
-  return `🚨 *Membership Overdue Alert - ${settings.gymName}*\n\nHi ${memberName || "Athlete"},\nYour gym membership for *${planName || "Membership"}* has ended *${daysOverdue || "few"} days ago* and is currently overdue.\n\n💵 *Renewal Amount: ₹${amount || "2,500"}*\n\nPlease renew today at the reception to restart your workout sessions and retain your slot! 🔥`;
+  const template = settings.whatsappOverdue || "🚨 *Membership Overdue Alert - {gym_name}*\n\nHi {name},\nYour gym membership for *{plan}* has ended *{days} days ago* and is currently overdue.\n\n💵 *Renewal Amount: ₹{amount}*\n\nPlease renew today at the reception to restart your workout sessions and retain your slot! 🔥";
+  return template
+    .replace(/{name}/g, memberName || "Athlete")
+    .replace(/{plan}/g, planName || "Membership")
+    .replace(/{days}/g, daysOverdue || "few")
+    .replace(/{amount}/g, amount || "0")
+    .replace(/{due_amount}/g, amount || "0")
+    .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
 }
 
 export function generatePaymentReceiptMessage(memberName, amount, planName, date) {
   const settings = getGymSettings();
-  return `🧾 *Payment Confirmation - ${settings.gymName}*\n\nHi ${memberName},\nWe have successfully received your payment of *₹${amount}* for *${planName}* on ${formatDate(date || new Date())}.\n\nThank you for choosing us! Keep crushing your workouts! 💪`;
+  const template = settings.whatsappReceipt || "🧾 *Payment Receipt - {gym_name}*\n\nMember: {name}\nPlan: {plan}\nPaid Amount: ₹{amount}\nDate: {date}\n\nThank you for training with us! Keep crushing your workouts! 💪";
+  return template
+    .replace(/{name}/g, memberName || "Athlete")
+    .replace(/{plan}/g, planName || "Membership")
+    .replace(/{amount}/g, amount || "0")
+    .replace(/{date}/g, formatDate(date || new Date()))
+    .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
+}
+
+export function generateWelcomeMessage(memberName, planName) {
+  const settings = getGymSettings();
+  const template = settings.whatsappWelcome || "💪 *Welcome to {gym_name}!*\n\nHi {name},\nYour membership for *{plan}* has been successfully activated.\n\nThank you for choosing us! Let's get stronger together! 🔥";
+  return template
+    .replace(/{name}/g, memberName || "Athlete")
+    .replace(/{plan}/g, planName || "Membership")
+    .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
+}
+
+export function generateBirthdayMessage(memberName) {
+  const settings = getGymSettings();
+  const template = settings.whatsappBirthday || "🎂 *Happy Birthday, {name}!* 🎉\n\nWishing you a fantastic year of strength, good health, and fitness gains! Have a wonderful day ahead! 💪✨\n— Team {gym_name}";
+  return template
+    .replace(/{name}/g, memberName || "Athlete")
+    .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
+}
+
+export function generateVisitFollowupMessage(name, planName) {
+  const settings = getGymSettings();
+  const template = settings.whatsappVisitFollowup || "👋 *Hello {name}! - {gym_name}*\n\nThank you for visiting us! We would love to have you as part of our fitness family.\n\nSpecial joining offers are active this week for *{plan}*. Feel free to reply here if you have any questions! 🔥";
+  return template
+    .replace(/{name}/g, name || "Friend")
+    .replace(/{plan}/g, planName || "Fitness Plan")
+    .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
 }
 
 export function generateSupplementSaleReceiptMessage({

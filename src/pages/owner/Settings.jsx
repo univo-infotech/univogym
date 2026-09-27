@@ -21,12 +21,7 @@ import {
   RefreshCw,
   AlertTriangle,
   Flame,
-  Calendar,
-  Clock,
-  Sun,
-  Sunset,
-  Moon,
-  Plus
+  Calendar
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
@@ -192,13 +187,13 @@ export default function Settings() {
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* 1. Official Gym Logo Card */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <ImageIcon className="w-5 h-5 text-indigo-600" />
-              Official Gym Logo
+              <ImageIcon className="w-5 h-5 text-indigo-600 shrink-0" />
+              <span>Official Gym Logo</span>
             </h3>
-            <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+            <span className="self-start sm:self-auto text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200 px-3 py-1 rounded-full whitespace-nowrap">
               Appears on PDF Receipts & Navigation
             </span>
           </div>
@@ -258,23 +253,23 @@ export default function Settings() {
         </div>
 
         {/* 2. Official Bill Receipt Signature & Authority Card */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <FileSignature className="w-5 h-5 text-emerald-600" />
-              Official Bill Signature & Stamp
+              <FileSignature className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>Official Bill Signature & Stamp</span>
             </h3>
-            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+            <span className="self-start sm:self-auto text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full whitespace-nowrap">
               Embedded on Official Tax Receipts
             </span>
           </div>
 
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 leading-relaxed">
             Configure the authorized signature and title stamped onto all computer-generated tax receipts and membership invoices.
           </p>
 
           {/* Signatory Name & Designation Inputs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="text-xs font-bold text-slate-700">Authorized Signatory Name *</label>
               <input
@@ -283,7 +278,7 @@ export default function Settings() {
                 value={settings.ownerSignatureName}
                 onChange={(e) => setSettings({ ...settings, ownerSignatureName: e.target.value })}
                 placeholder="e.g. Manish Sharma (Authorized Signatory)"
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
               />
             </div>
             <div>
@@ -294,42 +289,44 @@ export default function Settings() {
                 value={settings.ownerSignatureTitle}
                 onChange={(e) => setSettings({ ...settings, ownerSignatureTitle: e.target.value })}
                 placeholder="e.g. Gym Owner / Managing Director"
-                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
               />
             </div>
           </div>
 
           {/* Signature Capture Mode Toggle */}
           <div className="pt-2">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-3">
               <button
                 type="button"
                 onClick={() => setSignatureMode("draw")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
                   signatureMode === "draw"
-                    ? "bg-indigo-600 text-white shadow-xs"
+                    ? "bg-indigo-600 text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                <PenTool className="w-3.5 h-3.5" /> Draw Digital Signature
+                <PenTool className="w-3.5 h-3.5 shrink-0" />
+                <span>Draw Digital Signature</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setSignatureMode("upload")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
                   signatureMode === "upload"
-                    ? "bg-indigo-600 text-white shadow-xs"
+                    ? "bg-indigo-600 text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                <Upload className="w-3.5 h-3.5" /> Upload Scanned Signature / Seal
+                <Upload className="w-3.5 h-3.5 shrink-0" />
+                <span>Upload Scanned Signature / Seal</span>
               </button>
             </div>
 
             {/* Mode 1: Draw Digital Signature Canvas */}
             {signatureMode === "draw" && (
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 border border-slate-200">
                 <SignaturePad
                   onSave={handleCanvasSignatureSave}
                   onClear={handleClearSignature}
@@ -340,7 +337,7 @@ export default function Settings() {
 
             {/* Mode 2: Upload Scanned Signature Image */}
             {signatureMode === "upload" && (
-              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-3">
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-3">
                 <input
                   ref={signatureInputRef}
                   type="file"
@@ -352,7 +349,7 @@ export default function Settings() {
                   <div className="w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center">
                     <Upload className="w-6 h-6" />
                   </div>
-                  <h4 className="text-xs font-bold text-slate-800">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-800">
                     Upload image of your physical signature or round gym seal
                   </h4>
                   <p className="text-[11px] text-slate-500">
@@ -361,7 +358,7 @@ export default function Settings() {
                   <button
                     type="button"
                     onClick={() => signatureInputRef.current?.click()}
-                    className="mt-1 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs"
+                    className="mt-1 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer"
                   >
                     <Upload className="w-3.5 h-3.5" /> Select Signature Image
                   </button>
@@ -371,25 +368,25 @@ export default function Settings() {
           </div>
 
           {/* Live Invoice Preview Box */}
-          <div className="p-4 rounded-2xl bg-slate-900 text-white space-y-2 mt-4">
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-900 text-white space-y-2 mt-4">
             <div className="flex items-center justify-between text-xs border-b border-slate-800 pb-2">
               <span className="font-bold text-emerald-400 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> Live Receipt Preview (Signature Stamp)
+                <Sparkles className="w-3.5 h-3.5 shrink-0" /> Live Receipt Preview (Signature Stamp)
               </span>
               {settings.signatureUrl && (
                 <button
                   type="button"
                   onClick={handleClearSignature}
-                  className="text-rose-400 hover:text-rose-300 text-[11px] font-bold flex items-center gap-1"
+                  className="text-rose-400 hover:text-rose-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
                 >
                   <Trash2 className="w-3 h-3" /> Remove Signature
                 </button>
               )}
             </div>
 
-            <div className="flex items-center justify-between py-3 px-2">
+            <div className="flex flex-col sm:flex-row items-center justify-around gap-4 py-3 px-2">
               {/* Official Seal Simulation */}
-              <div className="w-20 h-20 rounded-full border-2 border-dashed border-emerald-500/80 flex flex-col items-center justify-center text-center p-1">
+              <div className="w-20 h-20 shrink-0 rounded-full border-2 border-dashed border-emerald-500/80 flex flex-col items-center justify-center text-center p-1">
                 <span className="text-[8px] font-extrabold text-emerald-400 uppercase tracking-widest">VERIFIED</span>
                 <CheckCircle className="w-4 h-4 text-emerald-400 my-0.5" />
                 <span className="text-[7px] text-emerald-300 font-bold uppercase truncate max-w-[65px]">
@@ -398,7 +395,7 @@ export default function Settings() {
               </div>
 
               {/* Signatory line preview */}
-              <div className="text-center w-52 space-y-1">
+              <div className="text-center w-full sm:w-52 max-w-xs space-y-1">
                 {settings.signatureUrl ? (
                   <div className="h-12 flex items-end justify-center">
                     <img
@@ -468,151 +465,7 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* 4. Preferred Workout Time Slots Management */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-500" /> Preferred Workout Time Slots (Member Batches)
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Owner yahan apne gym ke hisab se custom workout slots (Morning, Afternoon, Evening, Night ya custom time) create aur manage kar sakte hain. Yehi slots Direct Add Member aur Online Member Registration dono jagah dikhenge.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const newSlot = {
-                  id: "slot_" + Date.now(),
-                  label: "Custom Slot",
-                  time: "5:00 PM - 6:30 PM",
-                  iconName: "Sun"
-                };
-                setSettings((prev) => ({
-                  ...prev,
-                  workoutSlots: [...(prev.workoutSlots || []), newSlot]
-                }));
-              }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-300 font-bold text-xs hover:bg-amber-100 transition shadow-2xs"
-            >
-              <Plus className="w-4 h-4 text-amber-700" />
-              Add New Slot
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            {(settings.workoutSlots || []).map((slot, index) => {
-              const IconComponent =
-                slot.iconName === "Sunset" ? Sunset : slot.iconName === "Moon" ? Moon : Sun;
-
-              return (
-                <div
-                  key={slot.id || index}
-                  className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200 hover:border-amber-300 transition space-y-2.5 shadow-2xs"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="p-1.5 rounded-lg bg-amber-100/70 text-amber-700">
-                        <IconComponent className="w-4 h-4" />
-                      </span>
-                      <span className="text-xs font-bold text-slate-700">Slot #{index + 1}</span>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      {/* Icon selector dropdown */}
-                      <select
-                        value={slot.iconName || "Sun"}
-                        onChange={(e) => {
-                          const updated = [...(settings.workoutSlots || [])];
-                          updated[index] = { ...updated[index], iconName: e.target.value };
-                          setSettings({ ...settings, workoutSlots: updated });
-                        }}
-                        className="text-[11px] bg-white border border-slate-200 rounded-lg px-2 py-1 font-semibold text-slate-700 focus:outline-none focus:border-amber-500"
-                        title="Select icon style"
-                      >
-                        <option value="Sun">☀️ Sun (Day / Morning)</option>
-                        <option value="Sunset">🌅 Sunset (Evening)</option>
-                        <option value="Moon">🌙 Moon (Night)</option>
-                      </select>
-
-                      {/* Delete button (minimum 1 slot remains) */}
-                      {(settings.workoutSlots || []).length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = (settings.workoutSlots || []).filter((_, idx) => idx !== index);
-                            setSettings({ ...settings, workoutSlots: updated });
-                          }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                          title="Delete this slot"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Slot Name / Title</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Morning Batch"
-                        value={slot.label}
-                        onChange={(e) => {
-                          const updated = [...(settings.workoutSlots || [])];
-                          updated[index] = { ...updated[index], label: e.target.value };
-                          setSettings({ ...settings, workoutSlots: updated });
-                        }}
-                        className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Time Range</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 6:00 AM - 9:00 AM"
-                        value={slot.time}
-                        onChange={(e) => {
-                          const updated = [...(settings.workoutSlots || [])];
-                          updated[index] = { ...updated[index], time: e.target.value };
-                          setSettings({ ...settings, workoutSlots: updated });
-                        }}
-                        className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 font-semibold focus:outline-none focus:border-amber-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center justify-between pt-1">
-            <p className="text-[11px] text-slate-400">
-              💡 Tip: Slot change karne ke baad neeche "Save All Settings" button dabayein.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setSettings((prev) => ({
-                  ...prev,
-                  workoutSlots: [
-                    { id: "morning", label: "Morning", time: "6:00 AM - 9:00 AM", iconName: "Sun" },
-                    { id: "afternoon", label: "Afternoon", time: "12:00 PM - 3:00 PM", iconName: "Sun" },
-                    { id: "evening", label: "Evening", time: "4:00 PM - 7:00 PM", iconName: "Sunset" },
-                    { id: "night", label: "Night", time: "7:00 PM - 10:00 PM", iconName: "Moon" }
-                  ]
-                }));
-                toast.success("Reset slots to default Morning, Afternoon, Evening, Night.");
-              }}
-              className="text-[11px] text-indigo-600 font-bold hover:underline"
-            >
-              Reset to Defaults
-            </button>
-          </div>
-        </div>
-
-        {/* 5. WhatsApp Reminder Templates */}
+        {/* 4. WhatsApp Reminder Templates */}
         <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">

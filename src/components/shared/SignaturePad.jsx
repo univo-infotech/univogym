@@ -48,20 +48,20 @@ export default function SignaturePad({ onSave, currentSignature = null, onClear 
 
   return (
     <div className="space-y-3 w-full" ref={containerRef}>
-      <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-1">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-            <PenTool className="w-4 h-4 text-indigo-600" /> Draw Digital Signature
+            <PenTool className="w-4 h-4 text-indigo-600 shrink-0" /> Draw Digital Signature
           </span>
           {saved && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1 whitespace-nowrap">
               <Check className="w-3 h-3 text-emerald-600" /> Signature Captured
             </span>
           )}
         </div>
 
         {/* Ink Colors Selection */}
-        <div className="flex items-center gap-2 bg-slate-100/80 px-2.5 py-1 rounded-xl border border-slate-200">
+        <div className="flex items-center gap-2 bg-slate-100/90 px-2.5 py-1 rounded-xl border border-slate-200 self-start sm:self-auto">
           <span className="text-[11px] font-semibold text-slate-500">Ink Color:</span>
           <button
             type="button"

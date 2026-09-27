@@ -258,42 +258,94 @@ export default function PhotoCaptureInput({
       {/* Main Container */}
       {value ? (
         /* ACTIVE PHOTO PREVIEW CARD */
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className={`relative overflow-hidden border-2 border-emerald-500 shadow-sm bg-slate-100 flex-shrink-0 ${shapeClasses}`}>
+        aspectRatio === "wide" ? (
+          /* WIDE PREVIEW LAYOUT (Used for Machine & Equipment Photos) */
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative overflow-hidden border-2 border-emerald-500 rounded-xl shadow-sm bg-slate-100 w-full sm:w-44 h-36 sm:h-28 shrink-0">
               <img src={value} alt="Preview" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => onChange("")}
+                className="absolute top-2 right-2 p-1.5 rounded-lg bg-white/95 hover:bg-white text-rose-600 shadow-md backdrop-blur-xs transition sm:hidden"
+                title="Remove photo"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </div>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-slate-900 truncate">Photo Captured</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Ready for profile & records</p>
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
+
+            <div className="flex-1 min-w-0 flex flex-col justify-between gap-2">
+              <div>
+                <p className="text-xs font-bold text-slate-900">Photo Attached</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Ready for profile & records</p>
+              </div>
+
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-[11px] font-bold transition shadow-sm"
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold transition shadow-2xs whitespace-nowrap"
                 >
-                  Upload File
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload File</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleOpenCamera}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-emerald-700 hover:bg-emerald-50 text-[11px] font-bold transition shadow-sm"
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-xs font-bold transition shadow-2xs whitespace-nowrap"
                 >
-                  Retake Camera
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Retake Camera</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange("")}
+                  className="hidden sm:flex p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition shrink-0 ml-auto"
+                  title="Remove photo"
+                >
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
           </div>
+        ) : (
+          /* STANDARD PREVIEW LAYOUT (Used for Circular / Square Member & Staff Avatars) */
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`relative overflow-hidden border-2 border-emerald-500 shadow-sm bg-slate-100 shrink-0 ${shapeClasses}`}>
+                <img src={value} alt="Preview" className="w-full h-full object-cover" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-900 truncate">Photo Captured</p>
+                <p className="text-[11px] text-slate-400 mt-0.5 truncate">Ready for profile & records</p>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-[11px] font-bold transition shadow-2xs whitespace-nowrap"
+                  >
+                    Upload File
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenCamera}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-emerald-700 hover:bg-emerald-50 text-[11px] font-bold transition shadow-2xs whitespace-nowrap"
+                  >
+                    Retake Camera
+                  </button>
+                </div>
+              </div>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition flex-shrink-0"
-            title="Remove photo"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition shrink-0"
+              title="Remove photo"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        )
       ) : (
         /* DUAL OPTION SELECTION CARDS (UPLOAD & CAMERA) */
         <div className="space-y-2">

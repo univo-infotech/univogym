@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search,
   UserPlus,
@@ -70,9 +70,18 @@ export default function Members() {
   const [loading, setLoading] = useState(false);
 
   // View, search, and tab state
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
   const [view, setView] = useState(() => (typeof window !== 'undefined' && window.innerWidth < 768 ? 'grid' : 'table'));
   const [search, setSearch] = useState('');
-  const [filterTab, setFilterTab] = useState('active');
+  const [filterTab, setFilterTab] = useState(() => urlTab || 'active');
+
+  // Synchronize when URL tab changes (e.g. from Dashboard click)
+  useEffect(() => {
+    if (urlTab && urlTab !== filterTab) {
+      setFilterTab(urlTab);
+    }
+  }, [urlTab]);
   const [dueSubFilter, setDueSubFilter] = useState('all');
   const [endingSoonSubFilter, setEndingSoonSubFilter] = useState('all');
   const [expiredSubFilter, setExpiredSubFilter] = useState('all');

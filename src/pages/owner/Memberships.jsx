@@ -33,7 +33,10 @@ import {
   CheckSquare,
   Gift,
   Coins,
-  Users
+  Users,
+  Sun,
+  Sunset,
+  Moon
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
@@ -41,6 +44,7 @@ import { getPlans, addPlan, updatePlan, deletePlan } from "../../firebase/plans"
 import { getTrainers } from "../../firebase/trainers";
 import { getServices, DEFAULT_SERVICES } from "../../firebase/services";
 import { useAuth } from "../../contexts/AuthContext";
+import { fetchGymSettings, getGymSettings, saveGymSettings } from "../../utils/settings";
 import toast from "react-hot-toast";
 
 // --- Color Themes Configuration --------------------------------
@@ -238,6 +242,11 @@ export default function Memberships() {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Master Tab Switcher: "plans" | "slots"
+  const [activeMainTab, setActiveMainTab] = useState("plans");
+  const [workoutSlots, setWorkoutSlots] = useState([]);
+  const [savingSlots, setSavingSlots] = useState(false);
+
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDurationFilter, setSelectedDurationFilter] = useState("all");
@@ -336,6 +345,69 @@ export default function Memberships() {
   useEffect(() => {
     loadPlans();
   }, [currentGymId]);
+
+  // Load gym workout slots from settings
+  useEffect(() => {
+    fetchGymSettings(currentGymId)
+      .then((settings) => {
+        if (settings?.workoutSlots && Array.isArray(settings.workoutSlots) && settings.workoutSlots.length > 0) {
+          setWorkoutSlots(settings.workoutSlots);
+        } else {
+          setWorkoutSlots([
+            { id: "morning", label: "Morning", time: "6:00 AM - 9:00 AM", iconName: "Sun" },
+            { id: "afternoon", label: "Afternoon", time: "12:00 PM - 3:00 PM", iconName: "Sun" },
+            { id: "evening", label: "Evening", time: "4:00 PM - 7:00 PM", iconName: "Sunset" },
+            { id: "night", label: "Night", time: "7:00 PM - 10:00 PM", iconName: "Moon" }
+          ]);
+        }
+      })
+      .catch(() => {
+        setWorkoutSlots([
+          { id: "morning", label: "Morning", time: "6:00 AM - 9:00 AM", iconName: "Sun" },
+          { id: "afternoon", label: "Afternoon", time: "12:00 PM - 3:00 PM", iconName: "Sun" },
+          { id: "evening", label: "Evening", time: "4:00 PM - 7:00 PM", iconName: "Sunset" },
+          { id: "night", label: "Night", time: "7:00 PM - 10:00 PM", iconName: "Moon" }
+        ]);
+      });
+  }, [currentGymId]);
+
+  // Add new workout slot
+  const handleAddNewSlot = () => {
+    const newSlot = {
+      id: "slot_" + Date.now(),
+      label: "Custom Batch",
+      time: "5:00 PM - 6:30 PM",
+      iconName: "Sun"
+    };
+    setWorkoutSlots((prev) => [...prev, newSlot]);
+    toast.success("New batch slot added! Click 'Save Time Slots' to apply.");
+  };
+
+  // Save workout slots to Firestore
+  const handleSaveWorkoutSlots = async () => {
+    setSavingSlots(true);
+    try {
+      const currentSettings = getGymSettings();
+      await saveGymSettings({ ...currentSettings, workoutSlots }, currentGymId);
+      toast.success("Workout time slots & member batches saved successfully!");
+    } catch (err) {
+      toast.error("Failed to save workout slots: " + (err.message || "Error"));
+    } finally {
+      setSavingSlots(false);
+    }
+  };
+
+  // Reset workout slots to defaults
+  const handleResetWorkoutSlots = () => {
+    const defaults = [
+      { id: "morning", label: "Morning", time: "6:00 AM - 9:00 AM", iconName: "Sun" },
+      { id: "afternoon", label: "Afternoon", time: "12:00 PM - 3:00 PM", iconName: "Sun" },
+      { id: "evening", label: "Evening", time: "4:00 PM - 7:00 PM", iconName: "Sunset" },
+      { id: "night", label: "Night", time: "7:00 PM - 10:00 PM", iconName: "Moon" }
+    ];
+    setWorkoutSlots(defaults);
+    toast.success("Reset to default slots. Click 'Save Time Slots' to apply.");
+  };
 
   // Open Create Modal for Regular Gym Package
   const handleOpenCreate = () => {
@@ -588,29 +660,100 @@ export default function Memberships() {
       ============================================================ */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20 shrink-0">
-            <Tag className="w-5 h-5" />
+          <div className={`w-10 h-10 sm:w-11 sm:h-11 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0 ${
+            activeMainTab === "plans"
+              ? "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/20"
+              : "bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/20"
+          }`}>
+            {activeMainTab === "plans" ? <Tag className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
-              Membership Packages & Plans
+              {activeMainTab === "plans" ? "Membership Packages & Plans" : "Preferred Workout Time Slots"}
             </h1>
             <p className="text-slate-500 text-xs mt-0.5">
-              Configure gym tiers, pricing, access timings, pause rules & athlete perks
+              {activeMainTab === "plans"
+                ? "Configure gym tiers, pricing, access timings, pause rules & athlete perks"
+                : "Manage custom workout batches (Morning, Afternoon, Evening, Night) for members"}
             </p>
           </div>
         </div>
 
-        <button
-          onClick={handleOpenCreate}
-          className="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition duration-200 shrink-0 cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Gym Package</span>
-        </button>
+        {activeMainTab === "plans" ? (
+          <button
+            onClick={handleOpenCreate}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition duration-200 shrink-0 cursor-pointer active:scale-95"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Gym Package</span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleAddNewSlot}
+              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-md shadow-amber-500/20 flex items-center justify-center gap-2 transition duration-200 shrink-0 cursor-pointer active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Slot</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveWorkoutSlots}
+              disabled={savingSlots}
+              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition duration-200 shrink-0 cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>{savingSlots ? "Saving..." : "Save Slots"}</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ============================================================
+          MASTER TAB SWITCHER
+      ============================================================ */}
+      <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/80 overflow-x-auto scrollbar-none">
+        <button
+          type="button"
+          onClick={() => setActiveMainTab("plans")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeMainTab === "plans"
+              ? "bg-white text-emerald-800 shadow-sm border border-slate-200/60"
+              : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+          }`}
+        >
+          <Tag className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>Membership Packages & Plans</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+            activeMainTab === "plans" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200/70 text-slate-600"
+          }`}>
+            {plans.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMainTab("slots")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeMainTab === "slots"
+              ? "bg-white text-amber-800 shadow-sm border border-slate-200/60"
+              : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+          }`}
+        >
+          <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>Workout Time Slots (Batches)</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+            activeMainTab === "slots" ? "bg-amber-100 text-amber-800" : "bg-slate-200/70 text-slate-600"
+          }`}>
+            {workoutSlots.length}
+          </span>
+        </button>
+      </div>
+
+      {activeMainTab === "plans" && (
+        <>
+          {/* ============================================================
           FILTER & CONTROLS BAR (CLEAN & RESPONSIVE)
       ============================================================ */}
       <div className="p-3 sm:p-4 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-3">
@@ -898,6 +1041,157 @@ export default function Memberships() {
               </div>
             );
           })}
+        </div>
+      )}
+        </>
+      )}
+
+      {/* ============================================================
+          TAB 2: WORKOUT TIME SLOTS (MEMBER BATCHES)
+      ============================================================ */}
+      {activeMainTab === "slots" && (
+        <div className="p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4 sm:space-y-5">
+          {/* Card Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold mb-2">
+                <Clock className="w-3.5 h-3.5 text-amber-600" /> Member Batches & Timings
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-slate-900">
+                Gym Workout Time Slots (Member Batches)
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                Yahan apne gym ke custom workout batches (Morning, Afternoon, Evening, Night) create aur manage karein. Yehi slots Direct Add Member aur Online Member Registration dono jagah live dikhenge.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddNewSlot}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs transition shadow-xs cursor-pointer shrink-0 self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4 text-amber-700" />
+              <span>Add New Slot</span>
+            </button>
+          </div>
+
+          {/* Slots Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {workoutSlots.map((slot, index) => {
+              const IconComponent =
+                slot.iconName === "Sunset" ? Sunset : slot.iconName === "Moon" ? Moon : Sun;
+
+              return (
+                <div
+                  key={slot.id || index}
+                  className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-slate-50/90 border border-slate-200/90 hover:border-amber-300 hover:shadow-sm transition space-y-3 overflow-hidden"
+                >
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="p-1.5 sm:p-2 rounded-xl bg-amber-100/80 text-amber-800 shrink-0">
+                        <IconComponent className="w-4 h-4" />
+                      </span>
+                      <span className="text-xs font-black text-slate-800">Slot #{index + 1}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {/* Icon selector dropdown */}
+                      <select
+                        value={slot.iconName || "Sun"}
+                        onChange={(e) => {
+                          const updated = [...workoutSlots];
+                          updated[index] = { ...updated[index], iconName: e.target.value };
+                          setWorkoutSlots(updated);
+                        }}
+                        className="text-xs bg-white border border-slate-200 rounded-xl px-2 py-1.5 font-semibold text-slate-700 focus:outline-none focus:border-amber-500 cursor-pointer shadow-2xs min-w-0 max-w-[115px] sm:max-w-none truncate"
+                        title="Select icon style"
+                      >
+                        <option value="Sun">☀️ Morning</option>
+                        <option value="Sunset">🌅 Evening</option>
+                        <option value="Moon">🌙 Night</option>
+                      </select>
+
+                      {/* Delete button (minimum 1 slot remains) */}
+                      {workoutSlots.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = workoutSlots.filter((_, idx) => idx !== index);
+                            setWorkoutSlots(updated);
+                            toast.success("Slot removed. Click 'Save Time Slots' to apply.");
+                          }}
+                          className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer shrink-0"
+                          title="Delete this slot"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                        Slot Name / Title
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Morning Batch"
+                        value={slot.label}
+                        onChange={(e) => {
+                          const updated = [...workoutSlots];
+                          updated[index] = { ...updated[index], label: e.target.value };
+                          setWorkoutSlots(updated);
+                        }}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                        Time Range
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 6:00 AM - 9:00 AM"
+                        value={slot.time}
+                        onChange={(e) => {
+                          const updated = [...workoutSlots];
+                          updated[index] = { ...updated[index], time: e.target.value };
+                          setWorkoutSlots(updated);
+                        }}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-semibold focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Bottom Actions Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
+            <p className="text-xs text-slate-500 text-center sm:text-left">
+              💡 <strong>Tip:</strong> Changes karne ke baad <strong>"Save Time Slots"</strong> dabayein taaki sabhi registration forms par update ho jaye.
+            </p>
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={handleResetWorkoutSlots}
+                className="text-xs font-bold text-slate-600 hover:text-slate-900 hover:underline px-2 py-1.5 cursor-pointer"
+              >
+                Reset to Defaults
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveWorkoutSlots}
+                disabled={savingSlots}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Check className="w-4 h-4" />
+                <span>{savingSlots ? "Saving..." : "Save Time Slots"}</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

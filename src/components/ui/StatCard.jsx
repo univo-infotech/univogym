@@ -1,7 +1,17 @@
-﻿import React from "react";
+import React from "react";
 import clsx from "clsx";
 
-export default function StatCard({ title, value, change, changeType = "up", icon, color = "green" }) {
+export default function StatCard({ 
+  title, 
+  value, 
+  change, 
+  changeType = "up", 
+  icon, 
+  color = "green",
+  onClick,
+  className,
+  footerAction
+}) {
   const colorMap = {
     green: "bg-emerald-50/50 text-emerald-700 border-emerald-200/80 shadow-emerald-500/5",
     teal: "bg-teal-50/50 text-teal-700 border-teal-200/80 shadow-teal-500/5",
@@ -21,16 +31,44 @@ export default function StatCard({ title, value, change, changeType = "up", icon
   };
 
   return (
-    <div className={clsx("p-5 rounded-2xl border bg-white shadow-sm transition-all hover:shadow-md", colorMap[color] || colorMap.green)}>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{title}</span>
-        {icon && <div className={clsx("p-2.5 rounded-xl", iconBgMap[color] || "bg-slate-100 text-slate-700")}>{icon}</div>}
+    <div 
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(e); } } : undefined}
+      className={clsx(
+        "p-5 rounded-2xl border bg-white shadow-sm transition-all text-left flex flex-col justify-between",
+        onClick && "cursor-pointer hover:shadow-md hover:scale-[1.015] active:scale-[0.99] group focus:outline-none focus:ring-2 focus:ring-emerald-500",
+        colorMap[color] || colorMap.green,
+        className
+      )}
+    >
+      <div>
+        <div className="flex items-center justify-between mb-3 gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 group-hover:text-slate-800 transition flex items-center gap-1.5 truncate">
+            {title}
+          </span>
+          {icon && (
+            <div className={clsx("p-2.5 rounded-xl transition group-hover:scale-110 shrink-0", iconBgMap[color] || "bg-slate-100 text-slate-700")}>
+              {icon}
+            </div>
+          )}
+        </div>
+        <div className="text-2xl font-extrabold text-slate-900 mb-1 group-hover:text-emerald-950 transition">{value}</div>
       </div>
-      <div className="text-2xl font-extrabold text-slate-900 mb-1">{value}</div>
-      {change && (
-        <span className={clsx("text-xs font-semibold", changeType === "up" ? "text-emerald-600" : "text-rose-600")}>
-          {change}
-        </span>
+      {(change || footerAction) && (
+        <div className={clsx("text-xs font-semibold min-h-[28px] flex items-center justify-between gap-2 mt-2 pt-1", changeType === "up" ? "text-emerald-600" : "text-rose-600")}>
+          <span className="truncate">{change}</span>
+          {footerAction ? (
+            <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+              {footerAction}
+            </div>
+          ) : onClick ? (
+            <span className="text-[11px] font-bold text-slate-400 group-hover:text-emerald-600 transition ml-1 shrink-0">
+              View →
+            </span>
+          ) : null}
+        </div>
       )}
     </div>
   );

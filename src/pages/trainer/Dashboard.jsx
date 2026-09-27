@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Dumbbell,
   Users,
@@ -35,6 +36,7 @@ import toast from "react-hot-toast";
 import { formatDate } from "../../utils/dateUtils";
 
 export default function TrainerDashboard() {
+  const navigate = useNavigate();
   const { gymId, profileId, user } = useAuth();
   const [members, setMembers] = useState([]);
   const [trainerProfile, setTrainerProfile] = useState(null);
@@ -313,38 +315,42 @@ export default function TrainerDashboard() {
         <StatCard
           title="My Assigned Athletes"
           value={members.length}
-          change={`${activeCount} Active`}
+          change={`${activeCount} Active • View Athletes`}
           changeType="up"
           icon={<Users className="w-5 h-5 text-teal-600" />}
           color="teal"
+          onClick={() => navigate("/trainer/members")}
         />
         <StatCard
           title="Active Diet Plans"
           value={dietChartsCount}
-          change="Custom Nutrition"
+          change="Custom Nutrition • View Athletes"
           changeType="up"
           icon={<Apple className="w-5 h-5 text-emerald-600" />}
           color="green"
+          onClick={() => navigate("/trainer/members")}
         />
         <StatCard
           title="Completed Sessions"
           value={members.reduce((acc, m) => acc + Number(m.ptCompletedSessions || 0), 0)}
-          change="Logged Drills"
+          change="Logged Drills • Attendance"
           changeType="up"
           icon={<Dumbbell className="w-5 h-5 text-indigo-600" />}
           color="blue"
+          onClick={() => navigate("/trainer/attendance")}
         />
         <StatCard
           title="Trainer Total Earnings"
           value={`₹${financialSummary.totalTrainerEarnings.toLocaleString("en-IN")}`}
           change={
             financialSummary.baseSalary > 0
-              ? `₹${financialSummary.baseSalary.toLocaleString("en-IN")} Base + PT`
-              : `₹${financialSummary.pendingPayout.toLocaleString("en-IN")} Pending`
+              ? `₹${financialSummary.baseSalary.toLocaleString("en-IN")} Base + PT • Reports`
+              : `₹${financialSummary.pendingPayout.toLocaleString("en-IN")} Pending • Reports`
           }
           changeType="up"
           icon={<IndianRupee className="w-5 h-5 text-amber-600" />}
           color="orange"
+          onClick={() => navigate("/trainer/reports")}
         />
       </div>
 

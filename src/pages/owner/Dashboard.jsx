@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   Users, 
   DollarSign, 
@@ -17,7 +18,8 @@ import {
   Check,
   QrCode,
   Copy,
-  Sparkles
+  Sparkles,
+  SlidersHorizontal
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -36,13 +38,14 @@ import { getExpenses } from "../../firebase/expenses";
 import { getVisits } from "../../firebase/visits";
 import { getPlans } from "../../firebase/plans";
 import { openWhatsApp, generateMemberInviteMessage, generateRenewalReminderMessage } from "../../utils/whatsapp";
-import { getGymSettings } from "../../utils/settings";
+import { getGymSettings, fetchGymSettings, subscribeGymSettings, DEFAULT_SETTINGS } from "../../utils/settings";
 import DirectAddMemberModal from "../../components/shared/DirectAddMemberModal";
 import { useAuth } from "../../contexts/AuthContext";
 import { getSessionCachedData } from "../../utils/dataCache";
 import { formatDate } from "../../utils/dateUtils";
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { gymId: currentGymId } = useAuth();
   const gymId = currentGymId || "univo_main";
 
@@ -73,7 +76,13 @@ export default function Dashboard() {
   const [linkCountdown, setLinkCountdown] = useState(600);
 
   useEffect(() => {
-    setSettings(getGymSettings());
+    fetchGymSettings(gymId).then((data) => {
+      if (data) setSettings(data);
+    });
+    const unsub = subscribeGymSettings(gymId, (data) => {
+      if (data) setSettings(data);
+    });
+
     async function loadData() {
       try {
         const [m, p, s, v, pl, tr, sups, exps] = await Promise.all([
@@ -105,7 +114,17 @@ export default function Dashboard() {
       }
     }
     loadData();
+
+    return () => {
+      if (unsub) unsub();
+    };
   }, [gymId]);
+
+  // Customizable layout settings
+  const dashboardLayout = settings?.dashboardLayout || DEFAULT_SETTINGS.dashboardLayout;
+  const sectionsOrder = dashboardLayout.sectionsOrder || DEFAULT_SETTINGS.dashboardLayout.sectionsOrder;
+  const visibleSections = dashboardLayout.visibleSections || DEFAULT_SETTINGS.dashboardLayout.visibleSections;
+  const visibleKpis = dashboardLayout.visibleKpis || DEFAULT_SETTINGS.dashboardLayout.visibleKpis;
 
   const totalMembers = members.length;
   // Real active members (status !== 'left' and status !== 'inactive')
@@ -312,269 +331,519 @@ export default function Dashboard() {
     toast.success(`WhatsApp reminder sent to ${m.fullName || m.name}!`);
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Top Banner & Quick Action Buttons */}
-      <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-lg relative overflow-hidden">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-wider bg-white/20 px-3 py-1 rounded-full text-white backdrop-blur-md">
-              Gym Owner Portal • {settings.gymName}
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold mt-2">
-              Welcome back, Manager! ⚡
-            </h1>
-            <p className="text-emerald-100 text-xs sm:text-sm mt-1 max-w-xl">
-              {settings.tagline} • All-in-one smart dashboard
-            </p>
-          </div>
+  // Dynamic Section Renderers for Customizer
+  const renderBanner = () => (
+    <div key="banner" className="p-6 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-lg relative overflow-hidden">
+      <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-wider bg-white/20 px-3 py-1 rounded-full text-white backdrop-blur-md">
+            Gym Owner Portal • {settings.gymName}
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold mt-2">
+            Welcome back, Manager! ⚡
+          </h1>
+          <p className="text-emerald-100 text-xs sm:text-sm mt-1 max-w-xl">
+            {settings.tagline} • Click any metric to jump directly to its dedicated manager
+          </p>
+        </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
-            <button
-              onClick={() => {
-                setGeneratedLink("");
-                setInvitePhone("");
-                setInviteModalOpen(true);
-              }}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white text-emerald-800 text-xs sm:text-sm font-bold shadow-md hover:bg-emerald-50 transition"
-            >
-              <Share2 className="w-4 h-4 text-emerald-600" /> Share 10-Min WhatsApp Link
-            </button>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+          <button
+            onClick={() => {
+              setGeneratedLink("");
+              setInvitePhone("");
+              setInviteModalOpen(true);
+            }}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white text-emerald-800 text-xs sm:text-sm font-bold shadow-md hover:bg-emerald-50 transition"
+          >
+            <Share2 className="w-4 h-4 text-emerald-600" /> Share 10-Min WhatsApp Link
+          </button>
 
-            <button
-              onClick={() => setDirectAddOpen(true)}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-950/40 text-white border border-white/30 text-xs sm:text-sm font-bold backdrop-blur-md hover:bg-emerald-950/60 transition"
-            >
-              <UserPlus className="w-4 h-4" /> Add Member Directly
-            </button>
-          </div>
+          <button
+            onClick={() => setDirectAddOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-950/40 text-white border border-white/30 text-xs sm:text-sm font-bold backdrop-blur-md hover:bg-emerald-950/60 transition"
+          >
+            <UserPlus className="w-4 h-4" /> Add Member Directly
+          </button>
         </div>
       </div>
+    </div>
+  );
 
-      {/* KPI Stats Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+  const renderQuickJump = () => (
+    <div key="quick_jump" className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none text-xs">
+      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+        ⚡ Quick Jump:
+      </span>
+      <button
+        onClick={() => navigate("/owner/members")}
+        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-emerald-500 hover:text-emerald-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+      >
+        <Users className="w-3.5 h-3.5 text-emerald-600" /> Members
+      </button>
+      <button
+        onClick={() => navigate("/owner/payments")}
+        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-teal-500 hover:text-teal-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+      >
+        <DollarSign className="w-3.5 h-3.5 text-teal-600" /> Payments & Fees
+      </button>
+      <button
+        onClick={() => navigate("/owner/attendance")}
+        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-blue-500 hover:text-blue-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+      >
+        <Calendar className="w-3.5 h-3.5 text-blue-600" /> Attendance
+      </button>
+      <button
+        onClick={() => navigate("/owner/offers")}
+        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-indigo-500 hover:text-indigo-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+      >
+        <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Offers & Broadcast
+      </button>
+      <button
+        onClick={() => navigate("/owner/visits")}
+        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-cyan-500 hover:text-cyan-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+      >
+        <UserPlus className="w-3.5 h-3.5 text-cyan-600" /> Visits & Leads
+      </button>
+      <button
+        onClick={() => navigate("/owner/expenses")}
+        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-rose-500 hover:text-rose-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+      >
+        <AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Expenses
+      </button>
+      <button
+        onClick={() => navigate("/owner/stock")}
+        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-slate-500 hover:text-slate-900 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+      >
+        <Wrench className="w-3.5 h-3.5 text-slate-600" /> Stock & Equipment
+      </button>
+      <button
+        onClick={() => navigate("/owner/reports")}
+        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-purple-500 hover:text-purple-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+      >
+        <TrendingUp className="w-3.5 h-3.5 text-purple-600" /> Reports & Analytics
+      </button>
+      <button
+        onClick={() => navigate("/owner/customization")}
+        className="shrink-0 px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 hover:border-indigo-500 hover:text-indigo-900 font-bold text-indigo-700 shadow-xs transition flex items-center gap-1.5"
+        title="Customize which sections appear on your dashboard and their order"
+      >
+        <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" /> Customize Layout 🎨
+      </button>
+    </div>
+  );
+
+  const renderKpiStats = () => {
+    const kpiCards = [];
+    if (visibleKpis.active_members !== false) {
+      kpiCards.push(
         <StatCard
+          key="active_members"
           title="Active Members"
           value={activeMembers}
-          change="+14% this month"
-          icon={<Users className="w-5 h-5" />}
+          change="+14% this month • View active members"
+          icon={<Users className="w-5 h-5 text-emerald-600" />}
           color="green"
+          onClick={() => navigate("/owner/members?tab=active")}
         />
+      );
+    }
+    if (visibleKpis.net_revenue !== false) {
+      kpiCards.push(
         <StatCard
+          key="net_revenue"
           title="Gym Net Revenue"
           value={`₹${totalNetRevenue.toLocaleString("en-IN")}`}
-          change={`Gross ₹${totalGrossRevenue.toLocaleString("en-IN")} • Trainer -₹${totalTrainerLiability.toLocaleString("en-IN")}`}
+          change={`Net ₹${totalNetRevenue.toLocaleString("en-IN")} • View payments`}
           icon={<DollarSign className="w-5 h-5 text-teal-600" />}
           color="teal"
+          onClick={() => navigate("/owner/payments")}
         />
-        <div 
-          onClick={() => setRenewalsModalOpen(true)}
-          className="cursor-pointer transition hover:scale-[1.02]"
-        >
-          <StatCard
-            title="Renewals Due (Click to Remind)"
-            value={`${expiringMembers.length} Members`}
-            change="Click to WhatsApp remind"
-            icon={<Bell className="w-5 h-5 text-amber-600" />}
-            color="orange"
-          />
-        </div>
+      );
+    }
+    if (visibleKpis.renewals_due !== false) {
+      kpiCards.push(
         <StatCard
+          key="renewals_due"
+          title="Renewals Due"
+          value={`${expiringMembers.length} Members`}
+          change="Expiring this week"
+          icon={<Bell className="w-5 h-5 text-amber-600" />}
+          color="orange"
+          onClick={() => navigate("/owner/members?tab=ending_soon")}
+          footerAction={
+            <button
+              type="button"
+              onClick={() => setRenewalsModalOpen(true)}
+              className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-[11px] font-extrabold flex items-center gap-1 shadow-xs transition"
+              title="Quick WhatsApp Reminder Blast Modal"
+            >
+              <MessageCircle className="w-3 h-3" /> Quick Blast
+            </button>
+          }
+        />
+      );
+    }
+    if (visibleKpis.walkins !== false) {
+      kpiCards.push(
+        <StatCard
+          key="walkins"
           title="Walk-ins & Trials"
           value={`${visits.length} Enquiries`}
-          change="4 trials scheduled today"
-          icon={<UserPlus className="w-5 h-5" />}
+          change="View visits & trial leads"
+          icon={<UserPlus className="w-5 h-5 text-blue-600" />}
           color="blue"
+          onClick={() => navigate("/owner/visits")}
         />
-      </div>
+      );
+    }
 
-      {/* Financial P&L Strip: Sab kuch hatne ke baad Net Profit */}
-      <div className="p-4 rounded-3xl bg-gradient-to-r from-teal-950 via-slate-900 to-emerald-950 text-white shadow-sm border border-teal-900/50">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10 text-xs">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-400" />
-            <span className="font-extrabold tracking-wide uppercase text-[11px] text-emerald-300">
-              Live Financial P&L Summary (Net Profit After Commission & Expenses)
-            </span>
-          </div>
-          <span className="text-[11px] text-slate-300">
-            Real-time calculations across Membership Fees, Supplements & Trainer Commissions
+    if (kpiCards.length === 0) return null;
+
+    const colsClass =
+      kpiCards.length === 1
+        ? "grid grid-cols-1 gap-5"
+        : kpiCards.length === 2
+        ? "grid grid-cols-1 sm:grid-cols-2 gap-5"
+        : kpiCards.length === 3
+        ? "grid grid-cols-1 sm:grid-cols-3 gap-5"
+        : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5";
+
+    return (
+      <div key="kpi_stats" className={colsClass}>
+        {kpiCards}
+      </div>
+    );
+  };
+
+  const renderPnlStrip = () => (
+    <div key="pnl_strip" className="p-4 rounded-3xl bg-gradient-to-r from-teal-950 via-slate-900 to-emerald-950 text-white shadow-sm border border-teal-900/50">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10 text-xs">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-emerald-400" />
+          <span className="font-extrabold tracking-wide uppercase text-[11px] text-emerald-300">
+            Live Financial P&L Summary (Net Profit After Commission & Expenses)
           </span>
         </div>
+        <span className="text-[11px] text-slate-300">
+          Click any section below to inspect details
+        </span>
+      </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 pt-3 text-center">
-          <div className="p-2.5 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block truncate">Gross Inflow</span>
-            <span className="text-sm sm:text-base lg:text-lg font-black text-white mt-0.5 block truncate">
-              ₹{totalGrossRevenue.toLocaleString("en-IN")}
-            </span>
-            <span className="text-[10px] text-slate-400">Total collected</span>
-          </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 pt-3 text-center">
+        <div 
+          onClick={() => navigate("/owner/payments")}
+          className="p-2.5 rounded-2xl bg-white/5 border border-white/10 cursor-pointer hover:bg-white/15 hover:scale-[1.02] transition group"
+          title="Click to view all Payments"
+        >
+          <span className="text-[10px] uppercase font-bold text-slate-400 group-hover:text-white flex items-center justify-center gap-1 truncate">
+            Gross Inflow <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
+          </span>
+          <span className="text-sm sm:text-base lg:text-lg font-black text-white mt-0.5 block truncate">
+            ₹{totalGrossRevenue.toLocaleString("en-IN")}
+          </span>
+          <span className="text-[10px] text-slate-400 group-hover:text-emerald-300">View payments →</span>
+        </div>
 
-          <div className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20">
-            <span className="text-[10px] uppercase font-bold text-amber-400 block truncate">Trainer Cuts</span>
-            <span className="text-sm sm:text-base lg:text-lg font-black text-amber-300 mt-0.5 block truncate">
-              -₹{totalTrainerLiability.toLocaleString("en-IN")}
-            </span>
-            <span className="text-[10px] text-amber-200/70">PT & Store share</span>
-          </div>
+        <div 
+          onClick={() => navigate("/owner/trainers")}
+          className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 cursor-pointer hover:bg-amber-500/20 hover:scale-[1.02] transition group"
+          title="Click to view Trainers & Commissions"
+        >
+          <span className="text-[10px] uppercase font-bold text-amber-400 group-hover:text-amber-200 flex items-center justify-center gap-1 truncate">
+            Trainer Cuts <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
+          </span>
+          <span className="text-sm sm:text-base lg:text-lg font-black text-amber-300 mt-0.5 block truncate">
+            -₹{totalTrainerLiability.toLocaleString("en-IN")}
+          </span>
+          <span className="text-[10px] text-amber-200/70 group-hover:text-amber-200">View trainers →</span>
+        </div>
 
-          <div className="p-2.5 rounded-2xl bg-teal-500/10 border border-teal-500/20">
-            <span className="text-[10px] uppercase font-bold text-teal-300 block truncate">Gym Net Rev</span>
-            <span className="text-sm sm:text-base lg:text-lg font-black text-teal-200 mt-0.5 block truncate">
-              ₹{totalNetRevenue.toLocaleString("en-IN")}
-            </span>
-            <span className="text-[10px] text-teal-300/70">Retained revenue</span>
-          </div>
+        <div 
+          onClick={() => navigate("/owner/payments")}
+          className="p-2.5 rounded-2xl bg-teal-500/10 border border-teal-500/20 cursor-pointer hover:bg-teal-500/20 hover:scale-[1.02] transition group"
+          title="Click to view Retained Net Revenue"
+        >
+          <span className="text-[10px] uppercase font-bold text-teal-300 group-hover:text-white flex items-center justify-center gap-1 truncate">
+            Gym Net Rev <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
+          </span>
+          <span className="text-sm sm:text-base lg:text-lg font-black text-teal-200 mt-0.5 block truncate">
+            ₹{totalNetRevenue.toLocaleString("en-IN")}
+          </span>
+          <span className="text-[10px] text-teal-300/70 group-hover:text-teal-200">View ledger →</span>
+        </div>
 
-          <div className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/20">
-            <span className="text-[10px] uppercase font-bold text-rose-300 block truncate">Overhead Costs</span>
-            <span className="text-sm sm:text-base lg:text-lg font-black text-rose-300 mt-0.5 block truncate">
-              -₹{totalExpensesAmount.toLocaleString("en-IN")}
-            </span>
-            <span className="text-[10px] text-rose-200/70">Bills, rent & upkeep</span>
-          </div>
+        <div 
+          onClick={() => navigate("/owner/expenses")}
+          className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 cursor-pointer hover:bg-rose-500/20 hover:scale-[1.02] transition group"
+          title="Click to view Overhead Expenses"
+        >
+          <span className="text-[10px] uppercase font-bold text-rose-300 group-hover:text-rose-100 flex items-center justify-center gap-1 truncate">
+            Overhead Costs <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
+          </span>
+          <span className="text-sm sm:text-base lg:text-lg font-black text-rose-300 mt-0.5 block truncate">
+            -₹{totalExpensesAmount.toLocaleString("en-IN")}
+          </span>
+          <span className="text-[10px] text-rose-200/70 group-hover:text-rose-100">View expenses →</span>
+        </div>
 
-          <div className="p-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 col-span-2 sm:col-span-1">
-            <span className="text-[10px] uppercase font-bold text-emerald-300 block truncate">Net Operating Profit</span>
-            <span className="text-base sm:text-lg font-black text-emerald-300 mt-0.5 block truncate">
-              ₹{netOperatingProfit.toLocaleString("en-IN")}
-            </span>
-            <span className="text-[10px] text-emerald-200 font-semibold">Owner Take-Home</span>
+        <div 
+          onClick={() => navigate("/owner/reports")}
+          className="p-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 col-span-2 sm:col-span-1 cursor-pointer hover:bg-emerald-500/30 hover:scale-[1.02] transition group"
+          title="Click to view Financial Reports & P&L"
+        >
+          <span className="text-[10px] uppercase font-bold text-emerald-300 group-hover:text-emerald-100 flex items-center justify-center gap-1 truncate">
+            Net Operating Profit <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
+          </span>
+          <span className="text-base sm:text-lg font-black text-emerald-300 mt-0.5 block truncate">
+            ₹{netOperatingProfit.toLocaleString("en-IN")}
+          </span>
+          <span className="text-[10px] text-emerald-200 font-semibold group-hover:underline">View P&L report →</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderChartsRow = () => (
+    <div key="charts_row" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Weekly Revenue Graph */}
+      <div className="lg:col-span-2 p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-600" /> Revenue Growth Trend
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">Weekly net revenue breakdown retained by gym</p>
           </div>
+          <button
+            onClick={() => navigate("/owner/reports")}
+            className="text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-200/60 transition flex items-center gap-1"
+          >
+            Detailed Reports <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={revenueData}>
+              <defs>
+                <linearGradient id="revGradLight" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#0d9488" stopOpacity={0.25}/>
+                  <stop offset="95%" stopColor="#0d9488" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} />
+              <YAxis stroke="#94a3b8" fontSize={12} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                formatter={(val) => [`₹${Number(val).toLocaleString("en-IN")}`, "Gym Net Revenue"]}
+              />
+              <Area type="monotone" dataKey="revenue" stroke="#0d9488" strokeWidth={3} fillOpacity={1} fill="url(#revGradLight)" />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Graphical Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Weekly Revenue Graph */}
-        <div className="lg:col-span-2 p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-emerald-600" /> Revenue Growth Trend
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">Weekly net revenue breakdown retained by gym</p>
-            </div>
-          </div>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueData}>
-                <defs>
-                  <linearGradient id="revGradLight" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0d9488" stopOpacity={0.25}/>
-                    <stop offset="95%" stopColor="#0d9488" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} />
-                <YAxis stroke="#94a3b8" fontSize={12} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
-                  formatter={(val) => [`₹${Number(val).toLocaleString("en-IN")}`, "Gym Net Revenue"]}
-                />
-                <Area type="monotone" dataKey="revenue" stroke="#0d9488" strokeWidth={3} fillOpacity={1} fill="url(#revGradLight)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Payment Modes Pie Chart */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex flex-col justify-between">
+      {/* Payment Modes Pie Chart */}
+      <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex flex-col justify-between">
+        <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-slate-900">Payment Modes Split</h3>
             <p className="text-xs text-slate-500 mt-0.5">UPI, Cash, Bank and Partial payments</p>
           </div>
-          <div className="h-52 my-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={paymentModesData}
-                  innerRadius={55}
-                  outerRadius={78}
-                  paddingAngle={6}
-                  dataKey="value"
-                >
-                  {paymentModesData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-100">
-            {paymentModesData.map(item => (
-              <div key={item.name} className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></span>
-                <span className="text-xs font-semibold text-slate-600">{item.name} ({item.value}%)</span>
-              </div>
-            ))}
-          </div>
+          <button
+            onClick={() => navigate("/owner/payments")}
+            className="text-xs font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-xl border border-teal-200/60 transition flex items-center gap-1"
+          >
+            Payments <ArrowRight className="w-3 h-3" />
+          </button>
+        </div>
+        <div className="h-52 my-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={paymentModesData}
+                innerRadius={55}
+                outerRadius={78}
+                paddingAngle={6}
+                dataKey="value"
+              >
+                {paymentModesData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-100">
+          {paymentModesData.map(item => (
+            <div key={item.name} className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></span>
+              <span className="text-xs font-semibold text-slate-600">{item.name} ({item.value}%)</span>
+            </div>
+          ))}
         </div>
       </div>
+    </div>
+  );
 
-      {/* Recent Members & Equipment Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Members */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Recently Enrolled Members</h3>
-              <p className="text-xs text-slate-500">Live athletes registered in gym system</p>
+  const renderRecentMembers = () => (
+    <div key="recent_members_card" className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-bold text-slate-900">Recently Enrolled Members</h3>
+          <p className="text-xs text-slate-500">Live athletes registered in gym system</p>
+        </div>
+        <button
+          onClick={() => navigate("/owner/members")}
+          className="text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full border border-emerald-200/60 transition flex items-center gap-1"
+        >
+          View All ({members.length}) <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      <div className="divide-y divide-slate-100">
+        {members.slice(0, 4).map((m) => (
+          <div 
+            key={m.id} 
+            onClick={() => navigate(`/owner/members/${m.id}`)}
+            className="py-3 px-2 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-emerald-50/40 transition group"
+            title={`Click to open ${m.fullName || m.name}'s profile`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition">
+                {m.name?.[0] || "M"}
+              </div>
+              <div>
+                <h5 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition flex items-center gap-1">
+                  {m.fullName || m.name}
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition" />
+                </h5>
+                <p className="text-xs text-slate-400">{m.phone} • {m.planName}</p>
+              </div>
             </div>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200/60">
-              {members.length} Total
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                m.status === "active" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"
+              }`}>
+                {m.status?.toUpperCase()}
+              </span>
+              <span className="text-[11px] font-bold text-slate-400 group-hover:text-emerald-600 transition hidden sm:inline">
+                Profile →
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderEquipmentStatus = () => (
+    <div key="equipment_status_card" className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-bold text-slate-900">Equipment & Service Status</h3>
+          <p className="text-xs text-slate-500">Machine maintenance and safety tracker</p>
+        </div>
+        <button
+          onClick={() => navigate("/owner/stock")}
+          className="text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full border border-slate-200 transition flex items-center gap-1"
+        >
+          Stock & Equipment <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {stockItems.slice(0, 4).map((item) => (
+          <div 
+            key={item.id} 
+            onClick={() => navigate("/owner/stock")}
+            className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between cursor-pointer hover:bg-slate-100/80 hover:border-emerald-300 transition group"
+            title="Click to view equipment in Stock manager"
+          >
+            <div>
+              <h5 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition flex items-center gap-1">
+                {item.name}
+                <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition" />
+              </h5>
+              <p className="text-xs text-slate-400">Category: {item.type} • Last service: {item.lastServiceDate}</p>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-white text-emerald-700 border border-emerald-200 shadow-sm flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> {item.condition}
             </span>
           </div>
-
-          <div className="divide-y divide-slate-100">
-            {members.slice(0, 4).map((m) => (
-              <div key={m.id} className="py-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center">
-                    {m.name?.[0] || "M"}
-                  </div>
-                  <div>
-                    <h5 className="text-sm font-bold text-slate-900">{m.fullName || m.name}</h5>
-                    <p className="text-xs text-slate-400">{m.phone} • {m.planName}</p>
-                  </div>
-                </div>
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
-                  m.status === "active" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"
-                }`}>
-                  {m.status?.toUpperCase()}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Equipment & Machine Alerts */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Equipment & Service Status</h3>
-              <p className="text-xs text-slate-500">Machine maintenance and safety tracker</p>
-            </div>
-            <Wrench className="w-4 h-4 text-slate-400" />
-          </div>
-
-          <div className="space-y-3">
-            {stockItems.map((item) => (
-              <div key={item.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between">
-                <div>
-                  <h5 className="text-sm font-bold text-slate-900">{item.name}</h5>
-                  <p className="text-xs text-slate-400">Category: {item.type} • Last service: {item.lastServiceDate}</p>
-                </div>
-                <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-white text-emerald-700 border border-emerald-200 shadow-sm flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> {item.condition}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
+    </div>
+  );
+
+  // Filter sections that are toggled active by user
+  const activeSections = useMemo(() => {
+    return sectionsOrder.filter((id) => visibleSections[id] !== false);
+  }, [sectionsOrder, visibleSections]);
+
+  return (
+    <div className="space-y-6">
+      {/* Dynamic User-Customized Dashboard Layout */}
+      {(() => {
+        const elements = [];
+        let i = 0;
+        while (i < activeSections.length) {
+          const sec = activeSections[i];
+          const nextSec = activeSections[i + 1];
+
+          // If recent_members and equipment_status are adjacent in order, render side-by-side
+          if (
+            (sec === "recent_members" && nextSec === "equipment_status") ||
+            (sec === "equipment_status" && nextSec === "recent_members")
+          ) {
+            elements.push(
+              <div key={`${sec}_${nextSec}`} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {sec === "recent_members" ? renderRecentMembers() : renderEquipmentStatus()}
+                {nextSec === "recent_members" ? renderRecentMembers() : renderEquipmentStatus()}
+              </div>
+            );
+            i += 2;
+          } else {
+            switch (sec) {
+              case "banner":
+                elements.push(renderBanner());
+                break;
+              case "quick_jump":
+                elements.push(renderQuickJump());
+                break;
+              case "kpi_stats":
+                elements.push(renderKpiStats());
+                break;
+              case "pnl_strip":
+                elements.push(renderPnlStrip());
+                break;
+              case "charts_row":
+                elements.push(renderChartsRow());
+                break;
+              case "recent_members":
+                elements.push(
+                  <div key="recent_members" className="w-full">
+                    {renderRecentMembers()}
+                  </div>
+                );
+                break;
+              case "equipment_status":
+                elements.push(
+                  <div key="equipment_status" className="w-full">
+                    {renderEquipmentStatus()}
+                  </div>
+                );
+                break;
+              default:
+                break;
+            }
+            i++;
+          }
+        }
+        return elements;
+      })()}
 
       {/* Modal 1: WhatsApp 10-Min Invite Link */}
       <Modal
@@ -727,32 +996,60 @@ export default function Dashboard() {
             {expiringMembers.map((m) => {
               const expFormatted = formatDate(m.expiryDate, "Soon");
               return (
-                <div key={m.id} className="py-3 flex items-center justify-between gap-2">
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900">{m.fullName || m.name}</h4>
+                <div key={m.id} className="py-3 flex items-center justify-between gap-2 hover:bg-slate-50 px-2 rounded-xl transition">
+                  <div 
+                    onClick={() => {
+                      setRenewalsModalOpen(false);
+                      navigate(`/owner/members/${m.id}`);
+                    }}
+                    className="cursor-pointer group flex-1"
+                    title="Click to view full member profile"
+                  >
+                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 flex items-center gap-1 transition">
+                      {m.fullName || m.name}
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition" />
+                    </h4>
                     <p className="text-xs text-slate-500">{m.planName} • Expiring: <span className="font-bold text-amber-600">{expFormatted}</span></p>
                     <p className="text-xs text-emerald-700 font-semibold">Renewal Fee: ₹{m.renewalFee || "2,500"}</p>
                   </div>
                   <button
                     onClick={() => handleSendReminder(m)}
-                    className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition"
+                    className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition shrink-0"
                   >
-                    <MessageCircle className="w-4 h-4 text-emerald-600" /> Send Reminder
+                    <MessageCircle className="w-4 h-4 text-emerald-600" /> Remind
                   </button>
                 </div>
               );
             })}
           </div>
 
-          <div className="pt-2 border-t border-slate-100">
+          <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={() => {
+                setRenewalsModalOpen(false);
+                navigate("/owner/members?tab=ending_soon");
+              }}
+              className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
+            >
+              📋 Open in Members Page
+            </button>
+            <button
+              onClick={() => {
+                setRenewalsModalOpen(false);
+                navigate("/owner/offers");
+              }}
+              className="flex-1 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs transition"
+            >
+              📢 Broadcast via Offers
+            </button>
             <button
               onClick={() => {
                 expiringMembers.forEach(m => handleSendReminder(m));
                 toast.success("Broadcast initiated for all expiring members!");
               }}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-xs shadow-sm"
+              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-xs shadow-sm hover:from-amber-600 hover:to-orange-600 transition"
             >
-              🚀 Send WhatsApp Reminders to All Expiring
+              🚀 Send WA Reminders to All
             </button>
           </div>
         </div>

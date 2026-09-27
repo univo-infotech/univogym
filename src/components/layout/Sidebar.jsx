@@ -23,7 +23,9 @@ import {
   Menu,
   ShieldCheck,
   ShieldAlert,
-  ShoppingBag
+  ShoppingBag,
+  Megaphone,
+  SlidersHorizontal
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getGymSettings } from "../../utils/settings";
@@ -38,14 +40,16 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
     { id: "members", to: "/owner/members", label: "Members", icon: Users },
     { id: "attendance", to: "/owner/attendance", label: "Biometric & Attendance", icon: CheckSquare },
     { id: "trainers", to: "/owner/trainers", label: "Trainers", icon: Dumbbell },
-    { id: "staff", to: "/owner/staff", label: "Staff", icon: UserCheck },
+    { id: "staff", to: "/owner/staff", label: "Staff & Salary Manage", icon: UserCheck },
     { id: "memberships", to: "/owner/memberships", label: "Memberships & Plans", icon: CreditCard },
     { id: "services", to: "/owner/services", label: "Services", icon: Star },
     { id: "stock", to: "/owner/stock", label: "Stock & Equipment", icon: Package },
     { id: "expenses", to: "/owner/expenses", label: "Expenses & Utility", icon: DollarSign },
     { id: "reports", to: "/owner/reports", label: "Reports (Daily/Monthly)", icon: BarChart2 },
     { id: "visits", to: "/owner/visits", label: "Visit & Demo", icon: CalendarCheck },
+    { id: "offers", to: "/owner/offers", label: "Offers & Broadcast", icon: Megaphone },
     { id: "complaints", to: "/owner/complaints", label: "Complaints", icon: ShieldAlert },
+    { id: "customization", to: "/owner/customization", label: "Customization", icon: SlidersHorizontal },
     { id: "settings", to: "/owner/settings", label: "Settings", icon: Settings },
     { id: "roles", to: "/owner/roles", label: "Roles & Permissions", icon: ShieldCheck },
   ];

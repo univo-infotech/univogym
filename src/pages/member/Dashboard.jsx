@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { CreditCard, Dumbbell, Calendar, Flame, CheckCircle2, MessageCircle, ArrowRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import StatCard from "../../components/ui/StatCard";
 import { useAuth } from "../../contexts/AuthContext";
 import { getMember, getMembers } from "../../firebase/members";
 import { formatDate } from "../../utils/dateUtils";
 
 export default function MemberDashboard() {
+  const navigate = useNavigate();
   const { gymId, profileId, user } = useAuth();
   const GID = gymId || "univo_main";
 
@@ -82,17 +83,54 @@ export default function MemberDashboard() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Workout Streak" value="14 Days" icon={<Flame className="w-5 h-5 text-amber-600" />} color="orange" />
-        <StatCard title="Days Attended (Month)" value="18 / 26" icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />} color="green" />
-        <StatCard title="Plan Expiry" value={member?.validityEnd ? formatDate(member.validityEnd) : "30 Days Left"} icon={<Calendar className="w-5 h-5 text-teal-600" />} color="teal" />
-        <StatCard title="Assigned PT Coach" value={coachName} icon={<Dumbbell className="w-5 h-5 text-blue-600" />} color="blue" />
+        <StatCard 
+          title="Workout Streak" 
+          value="14 Days" 
+          change="View Attendance History" 
+          icon={<Flame className="w-5 h-5 text-amber-600" />} 
+          color="orange" 
+          onClick={() => navigate("/member/attendance")}
+        />
+        <StatCard 
+          title="Days Attended (Month)" 
+          value="18 / 26" 
+          change="Check Attendance Records" 
+          icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />} 
+          color="green" 
+          onClick={() => navigate("/member/attendance")}
+        />
+        <StatCard 
+          title="Plan Expiry" 
+          value={member?.validityEnd ? formatDate(member.validityEnd) : "30 Days Left"} 
+          change="View Membership Details" 
+          icon={<Calendar className="w-5 h-5 text-teal-600" />} 
+          color="teal" 
+          onClick={() => navigate("/member/plan")}
+        />
+        <StatCard 
+          title="Assigned PT Coach" 
+          value={coachName} 
+          change="Chat & Workouts" 
+          icon={<Dumbbell className="w-5 h-5 text-blue-600" />} 
+          color="blue" 
+          onClick={() => navigate("/member/trainer")}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-emerald-600" /> Active Membership & Training
-          </h3>
+        <div 
+          onClick={() => navigate("/member/plan")}
+          className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4 cursor-pointer hover:border-emerald-300 transition group"
+          title="Click to view full membership plan"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-emerald-600" /> Active Membership & Training
+            </h3>
+            <span className="text-xs font-bold text-emerald-600 group-hover:translate-x-0.5 transition flex items-center gap-1">
+              My Plan →
+            </span>
+          </div>
           <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-base font-bold text-slate-900">{planName}</span>
