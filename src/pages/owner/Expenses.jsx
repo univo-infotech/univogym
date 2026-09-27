@@ -402,36 +402,37 @@ export default function Expenses() {
   }, [currentMonthExpenses]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto pb-12">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500 to-red-700 flex items-center justify-center text-white shadow-md shadow-rose-500/20">
-              <Receipt className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                Expenses & Overhead Manager 🧾
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 sm:gap-4 p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/80 shadow-xs">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-rose-500 to-rose-700 flex items-center justify-center text-white shadow-md shadow-rose-500/20 shrink-0">
+            <Receipt className="w-5 h-5 sm:w-6 sm:h-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
+                Expenses & Overhead Manager
               </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Automated monthly bills (Rent, Electricity) & one-time gym expenses tracking.
-              </p>
+              <span className="text-base sm:text-xl shrink-0">🧾</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-bold shrink-0">
+                <Calendar className="w-3 h-3 text-emerald-600" />
+                <span>Today: {formatDate(new Date())}</span>
+              </span>
             </div>
+            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+              Automated monthly bills (Rent, Electricity) & one-time gym expenses tracking.
+            </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-extrabold shadow-2xs">
-            <Calendar className="w-4 h-4 text-emerald-600" />
-            <span>Today: {formatDate(new Date())}</span>
-          </div>
-
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
           <button
             type="button"
             onClick={() => syncActiveSalaries(true)}
             disabled={syncingSalaries}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 font-extrabold text-xs shadow-2xs transition disabled:opacity-50"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl sm:rounded-2xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold text-xs shadow-2xs transition disabled:opacity-50 whitespace-nowrap"
             title="Auto-sync active staff & trainers salaries for this month"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-teal-600 ${syncingSalaries ? "animate-spin" : ""}`} />
@@ -441,129 +442,115 @@ export default function Expenses() {
           <Button
             icon={<Plus className="w-4 h-4" />}
             onClick={() => setModalOpen(true)}
-            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs shadow-md shadow-emerald-500/20 px-5 py-2.5 rounded-2xl shrink-0"
+            className="flex-1 sm:flex-none flex items-center justify-center bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md shadow-emerald-500/20 px-4 sm:px-5 py-2.5 rounded-xl sm:rounded-2xl shrink-0 whitespace-nowrap"
           >
-            Add Expense / Fixed Bill
+            + Add Expense
           </Button>
         </div>
       </div>
 
-      {/* Staff & Trainer Automation Notice */}
-      <div className="p-4 bg-gradient-to-r from-teal-50/80 via-emerald-50/50 to-white border border-teal-200/80 rounded-3xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-700 shadow-2xs">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <Users className="w-4 h-4" />
-          </div>
-          <div>
-            <p className="font-bold text-slate-900">
-              Staff & Trainer Payroll Automation
-            </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              Active Trainers ({activeTrainers.length}) aur Active Staff ({activeStaff.length}) ki monthly salary expense me automatically include hoti hai. Inactive karne par salary add hona band ho jata hai.
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => syncActiveSalaries(true)}
-          className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] shadow-xs transition self-start sm:self-auto shrink-0 flex items-center gap-1"
-        >
-          <RefreshCw className={`w-3 h-3 ${syncingSalaries ? "animate-spin" : ""}`} /> Sync Active Salaries
-        </button>
-      </div>
 
-      {/* KPI Stats Cards (4 Columns) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+      {/* KPI Stats Cards (2 Columns on mobile, 4 on desktop) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Total This Month */}
-        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-100">
-              Current Month Incurred
+        <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2 sm:px-2.5 py-0.5 rounded-full border border-rose-100 truncate">
+              Month Total
             </span>
-            <div className="text-xl font-black text-slate-900 mt-2">
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+              <TrendingDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </div>
+          </div>
+          <div className="mt-2 sm:mt-3">
+            <div className="text-base sm:text-xl font-black text-slate-900">
               ₹{totalThisMonthAmount.toLocaleString("en-IN")}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Billed for {new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
+            <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">
+              {new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" })}
             </p>
-          </div>
-          <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-            <TrendingDown className="w-5 h-5" />
           </div>
         </div>
 
         {/* Active Payroll Budget */}
-        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-100 flex items-center gap-1 w-fit">
-              <Users className="w-3 h-3 text-teal-600" /> Active Payroll
+        <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-teal-700 bg-teal-50 px-2 sm:px-2.5 py-0.5 rounded-full border border-teal-100 truncate flex items-center gap-1">
+              <Users className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-teal-600 shrink-0" /> Payroll
             </span>
-            <div className="text-xl font-black text-teal-700 mt-2">
-              ₹{totalMonthlyPayroll.toLocaleString("en-IN")}
-              <span className="text-xs text-slate-400 font-normal">/mo</span>
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+              <Dumbbell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              {activeStaff.length} Staff + {activeTrainers.length} Trainers Active
-            </p>
           </div>
-          <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
-            <Dumbbell className="w-5 h-5" />
+          <div className="mt-2 sm:mt-3">
+            <div className="text-base sm:text-xl font-black text-teal-700">
+              ₹{totalMonthlyPayroll.toLocaleString("en-IN")}
+              <span className="text-[10px] sm:text-xs text-slate-400 font-normal">/mo</span>
+            </div>
+            <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">
+              {activeStaff.length + activeTrainers.length} Active Staff/Trainers
+            </p>
           </div>
         </div>
 
         {/* Monthly Fixed Recurring Budget */}
-        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100 flex items-center gap-1 w-fit">
-              <Repeat className="w-3 h-3 text-purple-600" /> Fixed Recurring
+        <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-purple-700 bg-purple-50 px-2 sm:px-2.5 py-0.5 rounded-full border border-purple-100 truncate flex items-center gap-1">
+              <Repeat className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-purple-600 shrink-0" /> Fixed Bills
             </span>
-            <div className="text-xl font-black text-purple-700 mt-2">
-              ₹{recurringActiveMonthlyTotal.toLocaleString("en-IN")}
-              <span className="text-xs text-slate-400 font-normal">/mo</span>
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+              <Repeat className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
+          </div>
+          <div className="mt-2 sm:mt-3">
+            <div className="text-base sm:text-xl font-black text-purple-700">
+              ₹{recurringActiveMonthlyTotal.toLocaleString("en-IN")}
+              <span className="text-[10px] sm:text-xs text-slate-400 font-normal">/mo</span>
+            </div>
+            <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">
               {recurringTemplates.filter((t) => t.isActive !== false).length} Active Fixed Bill(s)
             </p>
-          </div>
-          <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-            <Repeat className="w-5 h-5" />
           </div>
         </div>
 
         {/* One-time Overhead this month */}
-        <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
-              One-Time Spends
+        <div className="p-3.5 sm:p-5 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2 sm:px-2.5 py-0.5 rounded-full border border-blue-100 truncate">
+              One-Time
             </span>
-            <div className="text-xl font-black text-slate-900 mt-2">
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </div>
+          </div>
+          <div className="mt-2 sm:mt-3">
+            <div className="text-base sm:text-xl font-black text-slate-900">
               ₹{oneTimeThisMonthAmount.toLocaleString("en-IN")}
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Repairs, supplies & non-recurring
+            <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">
+              Repairs & Supplies
             </p>
-          </div>
-          <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-            <Calendar className="w-6 h-6" />
           </div>
         </div>
       </div>
 
       {/* RECURRING EXPENSES HIGHLIGHT CONTAINER (Auto-Pilot Bills) */}
-      <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-50/70 via-teal-50/40 to-white border border-emerald-200/80 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-              <Repeat className="w-5 h-5" />
+      <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-br from-emerald-50/70 via-teal-50/40 to-white border border-emerald-200/80 shadow-2xs space-y-3 sm:space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center gap-2.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0 mt-0.5 sm:mt-0">
+              <Repeat className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
-                Automated Monthly Fixed Bills (No Re-entry Required)
+              <h2 className="text-sm sm:text-base font-black text-slate-900 flex flex-wrap items-center gap-1.5">
+                <span>Automated Monthly Fixed Bills</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                   Auto-Pilot Active
                 </span>
               </h2>
-              <p className="text-xs text-slate-600 mt-0.5">
+              <p className="text-[11px] sm:text-xs text-slate-600 mt-0.5">
                 Ek baar rent, electricity bill ya fixed kharche add karo. Har naya month shuru hote hi system automatic record bana dega!
               </p>
             </div>
@@ -573,7 +560,7 @@ export default function Expenses() {
               setForm((prev) => ({ ...prev, type: "monthly", autoMonthlyRecur: true }));
               setModalOpen(true);
             }}
-            className="text-xs font-black text-emerald-700 hover:text-emerald-800 flex items-center gap-1 bg-white px-3.5 py-2 rounded-xl border border-emerald-200 shadow-2xs self-start sm:self-auto transition"
+            className="w-full sm:w-auto justify-center text-xs font-black text-emerald-700 hover:text-emerald-800 flex items-center gap-1 bg-white px-3.5 py-2 rounded-xl border border-emerald-200 shadow-2xs self-start sm:self-auto transition"
           >
             <Plus className="w-3.5 h-3.5" /> Setup New Fixed Bill
           </button>
@@ -598,19 +585,21 @@ export default function Expenses() {
                     isActive ? "border-emerald-200/90" : "border-slate-200 opacity-60 bg-slate-50/50"
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`p-2 rounded-xl border ${catObj.color}`}>
+                  {/* Card Header: Icon + Title + Status Badges */}
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${catObj.color}`}>
                         <IconComp className="w-4 h-4" />
                       </div>
-                      <div>
-                        <h3 className="text-sm font-black text-slate-900 truncate max-w-[150px]">{t.title}</h3>
-                        <span className="text-[10px] text-slate-400 font-semibold">{t.category}</span>
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-black text-slate-900 capitalize truncate">{t.title}</h3>
+                        <p className="text-[11px] text-slate-400 font-medium truncate">{t.category}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
+
+                    <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0">
                       <span
-                        className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${
                           (t.monthlyPaymentType || "advance") === "advance"
                             ? "bg-amber-50 text-amber-800 border-amber-200"
                             : "bg-blue-50 text-blue-800 border-blue-200"
@@ -619,9 +608,9 @@ export default function Expenses() {
                         {(t.monthlyPaymentType || "advance") === "advance" ? "⚡ Advance" : "🗓️ Postpaid"}
                       </span>
                       <span
-                        className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border whitespace-nowrap ${
                           isActive
-                            ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                             : "bg-slate-100 text-slate-600 border-slate-200"
                         }`}
                       >
@@ -630,20 +619,24 @@ export default function Expenses() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                  {/* Amount & Schedule */}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                     <div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">Fixed Amount</span>
-                      <p className="text-base font-black text-rose-600">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                        Fixed Amount
+                      </span>
+                      <p className="text-base sm:text-lg font-black text-rose-600 leading-tight">
                         ₹{Number(t.amount).toLocaleString("en-IN")}
                         <span className="text-xs text-slate-400 font-normal">/mo</span>
                       </p>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                        {(t.monthlyPaymentType || "advance") === "advance" ? "Billed in Advance ⚡" : "Billed After Month 🗓️"}
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                        Cycle Date
                       </span>
-                      <p className="text-xs font-black text-slate-800">
-                        Day {t.dayOfMonth || 1} of Month
+                      <p className="text-xs font-bold text-slate-800 flex items-center justify-end gap-1">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        Day {t.dayOfMonth || 1} of month
                       </p>
                     </div>
                   </div>
@@ -654,20 +647,23 @@ export default function Expenses() {
                       (e) => !e.isRecurringTemplate && (e.templateId === t.id || (e.title && e.title.toLowerCase() === t.title.toLowerCase())) && (e.date || "").startsWith(currentMonthKey)
                     );
                     return (
-                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-500 font-medium">Current Month Status:</span>
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-slate-500 font-medium text-[11px] whitespace-nowrap">This Month:</span>
                           {thisMonthInstance ? (
-                            <span className="font-extrabold text-emerald-700 flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="font-extrabold text-emerald-700 flex items-center gap-1.5 text-[11px] whitespace-nowrap">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                               Billed: {formatDate(thisMonthInstance.date)}
                               {formatDate(thisMonthInstance.date) === formatDate(new Date()) && (
-                                <span className="text-[9px] px-1 py-0.2 bg-emerald-100 text-emerald-800 rounded font-black border border-emerald-300">Today</span>
+                                <span className="text-[9px] px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded font-black border border-emerald-300">
+                                  Today
+                                </span>
                               )}
                             </span>
                           ) : (
-                            <span className="font-bold text-amber-700 flex items-center gap-1">
-                              <Clock className="w-3.5 h-3.5 text-amber-600" /> Scheduled Day {t.dayOfMonth || 1}
+                            <span className="font-bold text-amber-700 flex items-center gap-1.5 text-[11px] whitespace-nowrap">
+                              <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              Scheduled Day {t.dayOfMonth || 1}
                             </span>
                           )}
                         </div>
@@ -676,14 +672,14 @@ export default function Expenses() {
                   })()}
 
                   {/* Actions (Pause/Resume & Delete) */}
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
                     <button
                       type="button"
                       onClick={() => handleToggleRecurring(t.id, isActive)}
-                      className={`font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg transition ${
+                      className={`font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition ${
                         isActive
-                          ? "text-amber-700 bg-amber-50 hover:bg-amber-100"
-                          : "text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                          ? "text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200"
+                          : "text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200"
                       }`}
                       title={isActive ? "Pause auto-monthly billing" : "Resume auto-monthly billing"}
                     >
@@ -701,10 +697,10 @@ export default function Expenses() {
                     <button
                       type="button"
                       onClick={() => handleDelete(t.id, t.title)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
                       title="Delete Recurring Rule"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -715,11 +711,11 @@ export default function Expenses() {
       </div>
 
       {/* FILTER & TAB CONTROLS */}
-      <div className="p-3 bg-white rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl overflow-x-auto">
+      <div className="p-2.5 sm:p-3 bg-white rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-3">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl overflow-x-auto scrollbar-none max-w-full">
           <button
             onClick={() => setActiveTab("all")}
-            className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap ${
+            className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap ${
               activeTab === "all"
                 ? "bg-white text-emerald-700 shadow-xs border border-emerald-100"
                 : "text-slate-600 hover:text-slate-900"
@@ -729,17 +725,17 @@ export default function Expenses() {
           </button>
           <button
             onClick={() => setActiveTab("salaries")}
-            className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "salaries"
                 ? "bg-white text-teal-700 shadow-xs border border-teal-100"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <Users className="w-3.5 h-3.5 text-teal-600" /> 👥 Salaries & Payroll ({salariesCount})
+            <Users className="w-3.5 h-3.5 text-teal-600" /> Salaries ({salariesCount})
           </button>
           <button
             onClick={() => setActiveTab("monthly_templates")}
-            className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "monthly_templates"
                 ? "bg-white text-emerald-700 shadow-xs border border-emerald-100"
                 : "text-slate-600 hover:text-slate-900"
@@ -749,43 +745,43 @@ export default function Expenses() {
           </button>
           <button
             onClick={() => setActiveTab("monthly_advance")}
-            className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "monthly_advance"
                 ? "bg-white text-amber-700 shadow-xs border border-amber-100"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <Zap className="w-3.5 h-3.5 text-amber-600" /> ⚡ Advance Monthly ({advanceCount})
+            <Zap className="w-3.5 h-3.5 text-amber-600" /> Advance ({advanceCount})
           </button>
           <button
             onClick={() => setActiveTab("monthly_postpaid")}
-            className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "monthly_postpaid"
                 ? "bg-white text-blue-700 shadow-xs border border-blue-100"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <Clock className="w-3.5 h-3.5 text-blue-600" /> 🗓️ Postpaid Bills ({postpaidCount})
+            <Clock className="w-3.5 h-3.5 text-blue-600" /> Postpaid ({postpaidCount})
           </button>
           <button
             onClick={() => setActiveTab("onetime")}
-            className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap ${
+            className={`px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-extrabold transition whitespace-nowrap ${
               activeTab === "onetime"
                 ? "bg-white text-emerald-700 shadow-xs border border-emerald-100"
                 : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            One-Time Only ({onetimeCount})
+            One-Time ({onetimeCount})
           </button>
         </div>
 
         {/* Category Filter Dropdown */}
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <span className="text-xs font-bold text-slate-500">Category:</span>
+        <div className="flex items-center justify-between md:justify-start gap-2 pt-1 md:pt-0 border-t md:border-t-0 border-slate-100">
+          <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Category:</span>
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="bg-slate-50 border border-slate-200 text-xs font-extrabold text-slate-800 rounded-xl px-3 py-1.5 outline-none cursor-pointer"
+            className="bg-slate-50 border border-slate-200 text-xs font-extrabold text-slate-800 rounded-xl px-3 py-1.5 outline-none cursor-pointer flex-1 md:flex-none"
           >
             <option value="all">All Categories</option>
             {CATEGORIES.map((c) => (
@@ -797,14 +793,14 @@ export default function Expenses() {
         </div>
       </div>
 
-      {/* DETAILED EXPENSES LEDGER TABLE */}
-      <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-2xs">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-            <Receipt className="w-4 h-4 text-emerald-600" /> Expenses Ledger History
+      {/* DETAILED EXPENSES LEDGER TABLE & MOBILE CARDS */}
+      <div className="overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white shadow-2xs">
+        <div className="p-3.5 sm:p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <h3 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2">
+            <Receipt className="w-4 h-4 text-emerald-600 shrink-0" /> Expenses Ledger History
           </h3>
           <span className="text-xs font-extrabold text-slate-500">
-            Showing {filteredExpenses.length} record(s)
+            {filteredExpenses.length} record(s)
           </span>
         </div>
 
@@ -816,135 +812,222 @@ export default function Expenses() {
             No expenses found for the selected filter.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-600">
-              <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 font-black border-b border-slate-200">
-                <tr>
-                  <th className="px-5 py-3.5">Date</th>
-                  <th className="px-5 py-3.5">Title / Notes</th>
-                  <th className="px-5 py-3.5">Category</th>
-                  <th className="px-5 py-3.5">Type & Automation</th>
-                  <th className="px-5 py-3.5 text-right">Amount (₹)</th>
-                  <th className="px-5 py-3.5 text-center">Status</th>
-                  <th className="px-5 py-3.5 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {filteredExpenses.map((exp) => {
-                  const cat = CATEGORIES.find((c) => c.id === exp.category) || CATEGORIES[7];
-                  const IconComp = cat.icon;
+          <>
+            {/* MOBILE CARDS VIEW (Clean responsive card layout for screens < md) */}
+            <div className="block md:hidden divide-y divide-slate-100">
+              {filteredExpenses.map((exp) => {
+                const cat = CATEGORIES.find((c) => c.id === exp.category) || CATEGORIES[7];
+                const IconComp = cat.icon;
+                const isToday = formatDate(exp.date) === formatDate(new Date());
 
-                  return (
-                    <tr key={exp.id} className="hover:bg-slate-50/80 transition">
-                      <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-slate-900">{formatDate(exp.date)}</span>
-                          {formatDate(exp.date) === formatDate(new Date()) && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
-                              Today
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <p className="font-bold text-slate-900 capitalize">{exp.title}</p>
+                return (
+                  <div key={exp.id} className="p-3.5 space-y-2 hover:bg-slate-50/80 transition">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-900">{formatDate(exp.date)}</span>
+                        {isToday && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            Today
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-black text-rose-600">
+                          ₹{Number(exp.amount).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-slate-900 text-xs sm:text-sm capitalize leading-snug">
+                          {exp.title}
+                        </p>
                         {exp.notes && (
-                          <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-xs">
+                          <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2">
                             {exp.notes}
                           </p>
                         )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[11px] font-bold ${cat.color}`}>
-                          <IconComp className="w-3 h-3" /> {exp.category}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
+                      </div>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold shrink-0 ${cat.color}`}>
+                        <IconComp className="w-2.5 h-2.5" /> {exp.category}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {exp.category === "Staff Salary" || (exp.isSalary && !exp.isTrainerSalary) ? (
-                          <span className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-extrabold text-[11px] shadow-2xs">
-                            <Users className="w-3.5 h-3.5 text-emerald-600" /> 👥 Staff Payroll
+                          <span className="inline-flex items-center gap-1 text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md font-bold text-[10px]">
+                            <Users className="w-3 h-3 text-emerald-600" /> Staff Payroll
                           </span>
                         ) : exp.category === "Trainer Salary" || exp.isTrainerSalary ? (
-                          <span className="inline-flex items-center gap-1.5 text-teal-800 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-lg font-extrabold text-[11px] shadow-2xs">
-                            <Dumbbell className="w-3.5 h-3.5 text-teal-600" /> 🏋️ Trainer Payroll
+                          <span className="inline-flex items-center gap-1 text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md font-bold text-[10px]">
+                            <Dumbbell className="w-3 h-3 text-teal-600" /> Trainer Payroll
                           </span>
                         ) : exp.isRecurringTemplate ? (
-                          <span
-                            className={`inline-flex items-center gap-1 font-extrabold text-[11px] px-2.5 py-0.5 rounded-md border ${
-                              (exp.monthlyPaymentType || "advance") === "advance"
-                                ? "text-amber-700 bg-amber-50 border-amber-200"
-                                : "text-blue-700 bg-blue-50 border-blue-200"
-                            }`}
-                          >
-                            {(exp.monthlyPaymentType || "advance") === "advance" ? (
-                              <>
-                                <Zap className="w-3 h-3 text-amber-600" /> ⚡ Advance Rule (Day {exp.dayOfMonth || 1})
-                              </>
-                            ) : (
-                              <>
-                                <Clock className="w-3 h-3 text-blue-600" /> 🗓️ Postpaid Rule (Day {exp.dayOfMonth || 1})
-                              </>
-                            )}
+                          <span className="inline-flex items-center gap-1 text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-bold text-[10px]">
+                            <Repeat className="w-3 h-3 text-amber-600" /> Fixed Rule
                           </span>
                         ) : exp.type === "monthly" || exp.isRecurringInstance ? (
-                          <span
-                            className={`inline-flex items-center gap-1 font-bold text-[11px] px-2.5 py-1 rounded-lg border shadow-2xs ${
-                              (exp.monthlyPaymentType || "advance") === "advance"
-                                ? "text-amber-800 bg-amber-50/90 border-amber-200"
-                                : "text-blue-800 bg-blue-50/90 border-blue-200"
-                            }`}
-                          >
-                            {(exp.monthlyPaymentType || "advance") === "advance" ? (
-                              <>
-                                <Zap className="w-3 h-3 text-amber-600" /> ⚡ Monthly: Advance
-                              </>
-                            ) : (
-                              <>
-                                <Clock className="w-3 h-3 text-blue-600" /> 🗓️ Monthly: Postpaid
-                              </>
+                          <span className="inline-flex items-center gap-1 text-blue-800 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md font-bold text-[10px]">
+                            <Clock className="w-3 h-3 text-blue-600" /> Monthly Bill
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md text-[10px] font-medium">
+                            One-Time
+                          </span>
+                        )}
+
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          {exp.status || "Paid"}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(exp.id, exp.title)}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                        title="Delete expense"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* DESKTOP TABLE VIEW (For screens >= md) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-600">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500 font-black border-b border-slate-200">
+                  <tr>
+                    <th className="px-5 py-3.5">Date</th>
+                    <th className="px-5 py-3.5">Title / Notes</th>
+                    <th className="px-5 py-3.5">Category</th>
+                    <th className="px-5 py-3.5">Type & Automation</th>
+                    <th className="px-5 py-3.5 text-right">Amount (₹)</th>
+                    <th className="px-5 py-3.5 text-center">Status</th>
+                    <th className="px-5 py-3.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {filteredExpenses.map((exp) => {
+                    const cat = CATEGORIES.find((c) => c.id === exp.category) || CATEGORIES[7];
+                    const IconComp = cat.icon;
+
+                    return (
+                      <tr key={exp.id} className="hover:bg-slate-50/80 transition">
+                        <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-900">{formatDate(exp.date)}</span>
+                            {formatDate(exp.date) === formatDate(new Date()) && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                                Today
+                              </span>
                             )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <p className="font-bold text-slate-900 capitalize">{exp.title}</p>
+                          {exp.notes && (
+                            <p className="text-[11px] text-slate-400 mt-0.5 truncate max-w-xs">
+                              {exp.notes}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[11px] font-bold ${cat.color}`}>
+                            <IconComp className="w-3 h-3" /> {exp.category}
                           </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md text-[11px] font-semibold">
-                            {exp.type === "onetime" ? "🏷️ One-Time Cost" : "✍️ Manual Entry"}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 font-black text-rose-600 text-sm text-right whitespace-nowrap">
-                        ₹{Number(exp.amount).toLocaleString("en-IN")}
-                      </td>
-                      <td className="px-5 py-3.5 text-center whitespace-nowrap">
-                        {exp.isRecurringTemplate ? (
-                          <span
-                            className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full border ${
-                              exp.isActive !== false
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : "bg-slate-100 text-slate-600 border-slate-200"
-                            }`}
+                        </td>
+                        <td className="px-5 py-3.5 whitespace-nowrap">
+                          {exp.category === "Staff Salary" || (exp.isSalary && !exp.isTrainerSalary) ? (
+                            <span className="inline-flex items-center gap-1.5 text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-extrabold text-[11px] shadow-2xs">
+                              <Users className="w-3.5 h-3.5 text-emerald-600" /> 👥 Staff Payroll
+                            </span>
+                          ) : exp.category === "Trainer Salary" || exp.isTrainerSalary ? (
+                            <span className="inline-flex items-center gap-1.5 text-teal-800 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-lg font-extrabold text-[11px] shadow-2xs">
+                              <Dumbbell className="w-3.5 h-3.5 text-teal-600" /> 🏋️ Trainer Payroll
+                            </span>
+                          ) : exp.isRecurringTemplate ? (
+                            <span
+                              className={`inline-flex items-center gap-1 font-extrabold text-[11px] px-2.5 py-0.5 rounded-md border ${
+                                (exp.monthlyPaymentType || "advance") === "advance"
+                                  ? "text-amber-700 bg-amber-50 border-amber-200"
+                                  : "text-blue-700 bg-blue-50 border-blue-200"
+                              }`}
+                            >
+                              {(exp.monthlyPaymentType || "advance") === "advance" ? (
+                                <>
+                                  <Zap className="w-3 h-3 text-amber-600" /> ⚡ Advance Rule (Day {exp.dayOfMonth || 1})
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="w-3 h-3 text-blue-600" /> 🗓️ Postpaid Rule (Day {exp.dayOfMonth || 1})
+                                </>
+                              )}
+                            </span>
+                          ) : exp.type === "monthly" || exp.isRecurringInstance ? (
+                            <span
+                              className={`inline-flex items-center gap-1 font-bold text-[11px] px-2.5 py-1 rounded-lg border shadow-2xs ${
+                                (exp.monthlyPaymentType || "advance") === "advance"
+                                  ? "text-amber-800 bg-amber-50/90 border-amber-200"
+                                  : "text-blue-800 bg-blue-50/90 border-blue-200"
+                              }`}
+                            >
+                              {(exp.monthlyPaymentType || "advance") === "advance" ? (
+                                <>
+                                  <Zap className="w-3 h-3 text-amber-600" /> ⚡ Monthly: Advance
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="w-3 h-3 text-blue-600" /> 🗓️ Monthly: Postpaid
+                                </>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md text-[11px] font-semibold">
+                              {exp.type === "onetime" ? "🏷️ One-Time Cost" : "✍️ Manual Entry"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 font-black text-rose-600 text-sm text-right whitespace-nowrap">
+                          ₹{Number(exp.amount).toLocaleString("en-IN")}
+                        </td>
+                        <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                          {exp.isRecurringTemplate ? (
+                            <span
+                              className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                                exp.isActive !== false
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-slate-100 text-slate-600 border-slate-200"
+                              }`}
+                            >
+                              {exp.isActive !== false ? "Active" : "Paused"}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Settled
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          <button
+                            onClick={() => handleDelete(exp.id, exp.title)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                            title="Delete Record"
                           >
-                            {exp.isActive !== false ? "Active" : "Paused"}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Settled
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <button
-                          onClick={() => handleDelete(exp.id, exp.title)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                          title="Delete Record"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
