@@ -34,6 +34,7 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
   const navigate = useNavigate();
   const { logoutUser, permissions } = useAuth();
   const settings = getGymSettings();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const ownerLinks = [
     { id: "dashboard", to: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -97,12 +98,12 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
 
       {/* Sidebar Drawer */}
       <aside
-        className={`fixed lg:static top-0 bottom-0 left-0 z-50 w-72 lg:w-64 bg-white border-r border-slate-200 flex flex-col h-screen shrink-0 shadow-xl lg:shadow-none transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:sticky top-0 bottom-0 left-0 z-50 w-72 lg:w-64 bg-white border-r border-slate-200 flex flex-col h-[100dvh] max-h-[100dvh] lg:h-screen shrink-0 shadow-2xl lg:shadow-none transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
         {/* Brand Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <img
               src={settings.logoUrl || "/logo-icon.png"}
@@ -126,7 +127,7 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1 overscroll-contain">
           {links.map((link) => {
             const Icon = link.icon;
             return (
@@ -149,20 +150,69 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
           })}
         </nav>
 
-        {/* Footer Profile / Logout */}
-        <div className="p-4 border-t border-slate-100">
+        {/* Footer Profile / Logout - Fixed at bottom */}
+        <div className="p-3.5 border-t border-slate-200 bg-white shrink-0 z-10 shadow-[0_-4px_12px_rgba(0,0,0,0.04)] pb-[max(0.875rem,env(safe-area-inset-bottom))]">
           <button
-            onClick={() => {
-              logoutUser?.();
-              navigate("/login");
-            }}
-            className="flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl text-sm font-semibold text-rose-600 hover:bg-rose-50 transition"
+            type="button"
+            onClick={() => setShowLogoutConfirm(true)}
+            className="flex items-center justify-center gap-2.5 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold text-rose-600 hover:text-white bg-rose-50/80 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 transition shadow-xs cursor-pointer active:scale-98"
           >
             <LogOut className="w-4 h-4 shrink-0" />
             <span>Log Out</span>
           </button>
         </div>
       </aside>
+
+      {/* Logout Confirmation Validation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="relative w-full max-w-sm bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-2xl p-5 sm:p-6 text-slate-800 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <LogOut className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 leading-tight">
+                  Confirm Logout
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Are you sure you want to end your session?
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+              You will need to re-enter your login credentials to access your account again.
+            </p>
+
+            <div className="flex items-center gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowLogoutConfirm(false);
+                  onClose?.();
+                  try {
+                    if (logoutUser) await logoutUser();
+                  } catch (e) {
+                    console.warn("Logout error:", e);
+                  }
+                  navigate("/login", { replace: true });
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/20 transition cursor-pointer"
+              >
+                Yes, Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

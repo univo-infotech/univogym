@@ -19,7 +19,15 @@ import {
   QrCode,
   Copy,
   Sparkles,
-  SlidersHorizontal
+  SlidersHorizontal,
+  CreditCard,
+  Fingerprint,
+  Activity,
+  Receipt,
+  Target,
+  XCircle,
+  AlertCircle,
+  UserCheck
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -37,7 +45,15 @@ import { getStock, getSupplementSales } from "../../firebase/stock";
 import { getExpenses } from "../../firebase/expenses";
 import { getVisits } from "../../firebase/visits";
 import { getPlans } from "../../firebase/plans";
-import { openWhatsApp, generateMemberInviteMessage, generateRenewalReminderMessage } from "../../utils/whatsapp";
+import { getBiometricPunches } from "../../firebase/attendance";
+import { 
+  openWhatsApp, 
+  generateMemberInviteMessage, 
+  generateRenewalReminderMessage,
+  generatePartialDueReminderMessage,
+  generatePaymentReceiptMessage,
+  generateDemoEndingTodayMessage 
+} from "../../utils/whatsapp";
 import { getGymSettings, fetchGymSettings, subscribeGymSettings, DEFAULT_SETTINGS } from "../../utils/settings";
 import DirectAddMemberModal from "../../components/shared/DirectAddMemberModal";
 import { useAuth } from "../../contexts/AuthContext";
@@ -57,6 +73,7 @@ export default function Dashboard() {
   const [expenses, setExpenses] = useState(() => getSessionCachedData(`expenses_${gymId}`) || []);
   const [visits, setVisits] = useState(() => getSessionCachedData(`visits_${gymId}`) || []);
   const [plans, setPlans] = useState(() => getSessionCachedData(`plans_${gymId}`) || []);
+  const [punches, setPunches] = useState(() => getSessionCachedData(`punches_${gymId}`) || []);
   const [settings, setSettings] = useState(getGymSettings());
 
   // Modals
@@ -85,7 +102,7 @@ export default function Dashboard() {
 
     async function loadData() {
       try {
-        const [m, p, s, v, pl, tr, sups, exps] = await Promise.all([
+        const [m, p, s, v, pl, tr, sups, exps, pu] = await Promise.all([
           getMembers(gymId),
           getAllPayments(gymId),
           getStock(gymId),
@@ -93,7 +110,8 @@ export default function Dashboard() {
           getPlans(gymId),
           getTrainers(gymId),
           getSupplementSales(gymId),
-          getExpenses(gymId)
+          getExpenses(gymId),
+          getBiometricPunches(gymId).catch(() => [])
         ]);
 
         if (pl && pl.length > 0) {
@@ -108,6 +126,7 @@ export default function Dashboard() {
         setTrainersList(tr || []);
         setSupplementSales(sups || []);
         setExpenses(exps || []);
+        setPunches(pu || []);
         if (tr && tr.length > 0) setSelectedTrainerId(tr[0].id);
       } catch (err) {
         console.error("Dashboard load data error:", err);
@@ -305,6 +324,87 @@ export default function Dashboard() {
     return result;
   }, [allRevenueItems]);
 
+  // Urgent expiring members (expiring within next 3 days: diffDays >= 0 && diffDays <= 3)
+  const urgentExpiringMembers = useMemo(() => {
+    const now = new Date();
+    return members
+      .filter((m) => {
+        if (m.status === "left" || m.status === "inactive") return false;
+        if (!m.expiryDate) return false;
+        const exp = new Date(m.expiryDate?.seconds ? m.expiryDate.seconds * 1000 : m.expiryDate);
+        if (isNaN(exp.getTime())) return false;
+        const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 3;
+      })
+      .map((m) => {
+        const exp = new Date(m.expiryDate?.seconds ? m.expiryDate.seconds * 1000 : m.expiryDate);
+        const diffDays = Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+        return { ...m, diffDays };
+      })
+      .sort((a, b) => a.diffDays - b.diffDays);
+  }, [members]);
+
+  // Pending balance dues (members with positive unpaid balance)
+  const pendingDuesMembers = useMemo(() => {
+    return members
+      .filter((m) => m.status !== "left" && m.status !== "inactive" && Number(m.dueAmount || 0) > 0)
+      .sort((a, b) => Number(b.dueAmount || 0) - Number(a.dueAmount || 0));
+  }, [members]);
+
+  const totalPendingDuesAmount = useMemo(() => {
+    return pendingDuesMembers.reduce((sum, m) => sum + Number(m.dueAmount || 0), 0);
+  }, [pendingDuesMembers]);
+
+  // Today's date representations
+  const todayStr = useMemo(() => {
+    const now = new Date();
+    return now.toISOString().split("T")[0]; // YYYY-MM-DD
+  }, []);
+
+  // Today's payments & collections
+  const todayPayments = useMemo(() => {
+    const now = new Date();
+    const dayNum = String(now.getDate()).padStart(2, "0");
+    const monthNum = String(now.getMonth() + 1).padStart(2, "0");
+    const indianDateStr = `${dayNum}/${monthNum}/${now.getFullYear()}`;
+
+    return payments.filter((p) => {
+      const pDate = String(p.date || p.createdAt || "");
+      return pDate.includes(todayStr) || pDate.includes(indianDateStr);
+    });
+  }, [payments, todayStr]);
+
+  const todayCollectionTotal = useMemo(() => {
+    return todayPayments.reduce((sum, p) => sum + Number(p.paidAmount || p.amount || 0), 0);
+  }, [todayPayments]);
+
+  // Today's biometric punches & live check-ins
+  const todayPunches = useMemo(() => {
+    const now = new Date();
+    const dayNum = String(now.getDate()).padStart(2, "0");
+    const monthNum = String(now.getMonth() + 1).padStart(2, "0");
+    const indianDateStr = `${dayNum}/${monthNum}/${now.getFullYear()}`;
+
+    return punches.filter((p) => {
+      const pDate = String(p.date || p.timestamp || p.createdAt || "");
+      return pDate.includes(todayStr) || pDate.includes(indianDateStr);
+    });
+  }, [punches, todayStr]);
+
+  // Active prospective leads & demo trials
+  const pendingVisits = useMemo(() => {
+    return visits
+      .filter((v) => v.status !== "converted" && v.status !== "lost")
+      .slice(0, 6);
+  }, [visits]);
+
+  // Sorted recent payments stream
+  const sortedRecentPayments = useMemo(() => {
+    return [...payments]
+      .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0))
+      .slice(0, 6);
+  }, [payments]);
+
   const handleGenerateLink = async () => {
     if (!invitePhone.trim()) {
       toast.error("Enter WhatsApp phone number first!");
@@ -326,20 +426,57 @@ export default function Dashboard() {
 
   const handleSendReminder = (m) => {
     const rawNum = (m.phone || "").replace(/\D/g, "");
-    const msg = generateRenewalReminderMessage(m.fullName || m.name, m.planName, m.expiryDate || "soon", m.renewalFee || "2500");
+    const msg = generateRenewalReminderMessage(m.fullName || m.name, m.planName, m.expiryDate || "soon", m.renewalFee || "2500", m.diffDays);
     openWhatsApp(rawNum, msg);
     toast.success(`WhatsApp reminder sent to ${m.fullName || m.name}!`);
   };
 
+  const handleSendDueReminder = (m) => {
+    if (!m.phone) {
+      toast.error("No phone number recorded for this member.");
+      return;
+    }
+    const msg = generatePartialDueReminderMessage(m.fullName || m.name, m.dueAmount, m.planName);
+    openWhatsApp(m.phone, msg);
+    toast.success(`Due reminder sent via WhatsApp to ${m.fullName || m.name}!`);
+  };
+
+  const handleSendReceipt = (p) => {
+    const member = members.find((m) => (p.memberId && m.id === p.memberId) || (m.name && m.name === p.memberName));
+    const phone = p.phone || member?.phone || "";
+    const name = p.memberName || member?.fullName || member?.name || "Athlete";
+    const amount = p.paidAmount || p.amount || 0;
+    const plan = p.planName || member?.planName || "Gym Plan";
+    const date = p.date || p.createdAt || new Date();
+
+    if (!phone) {
+      toast.error("No phone number found for this payment record.");
+      return;
+    }
+    const msg = generatePaymentReceiptMessage(name, amount, plan, date);
+    openWhatsApp(phone, msg);
+    toast.success(`Receipt sent via WhatsApp to ${name}!`);
+  };
+
+  const handleFollowUpLead = (v) => {
+    if (!v.phone) {
+      toast.error("No phone number recorded for this lead.");
+      return;
+    }
+    const msg = generateDemoEndingTodayMessage(v.name, v.interestedPlan || "Gym Membership", settings.gymName);
+    openWhatsApp(v.phone, msg);
+    toast.success(`Follow-up sent via WhatsApp to ${v.name}!`);
+  };
+
   // Dynamic Section Renderers for Customizer
   const renderBanner = () => (
-    <div key="banner" className="p-6 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-lg relative overflow-hidden">
+    <div key="banner" className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white shadow-lg relative overflow-hidden">
       <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider bg-white/20 px-3 py-1 rounded-full text-white backdrop-blur-md">
+          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-white/20 px-2.5 sm:px-3 py-1 rounded-full text-white backdrop-blur-md inline-block">
             Gym Owner Portal • {settings.gymName}
           </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold mt-2">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold mt-2 leading-tight">
             Welcome back, Manager! ⚡
           </h1>
           <p className="text-emerald-100 text-xs sm:text-sm mt-1 max-w-xl">
@@ -347,23 +484,23 @@ export default function Dashboard() {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 w-full md:w-auto">
           <button
             onClick={() => {
               setGeneratedLink("");
               setInvitePhone("");
               setInviteModalOpen(true);
             }}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white text-emerald-800 text-xs sm:text-sm font-bold shadow-md hover:bg-emerald-50 transition"
+            className="flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl sm:rounded-2xl bg-white text-emerald-800 text-xs sm:text-sm font-bold shadow-md hover:bg-emerald-50 active:scale-98 transition"
           >
-            <Share2 className="w-4 h-4 text-emerald-600" /> Share 10-Min WhatsApp Link
+            <Share2 className="w-4 h-4 text-emerald-600 shrink-0" /> Share 10-Min WhatsApp Link
           </button>
 
           <button
             onClick={() => setDirectAddOpen(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-950/40 text-white border border-white/30 text-xs sm:text-sm font-bold backdrop-blur-md hover:bg-emerald-950/60 transition"
+            className="flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-xl sm:rounded-2xl bg-emerald-950/40 text-white border border-white/30 text-xs sm:text-sm font-bold backdrop-blur-md hover:bg-emerald-950/60 active:scale-98 transition"
           >
-            <UserPlus className="w-4 h-4" /> Add Member Directly
+            <UserPlus className="w-4 h-4 shrink-0" /> Add Member Directly
           </button>
         </div>
       </div>
@@ -371,61 +508,61 @@ export default function Dashboard() {
   );
 
   const renderQuickJump = () => (
-    <div key="quick_jump" className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none text-xs">
-      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+    <div key="quick_jump" className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1.5 scrollbar-none text-xs -mx-1 px-1 touch-pan-x">
+      <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1 pr-0.5">
         ⚡ Quick Jump:
       </span>
       <button
         onClick={() => navigate("/owner/members")}
-        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-emerald-500 hover:text-emerald-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+        className="shrink-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-emerald-500 hover:text-emerald-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
       >
         <Users className="w-3.5 h-3.5 text-emerald-600" /> Members
       </button>
       <button
         onClick={() => navigate("/owner/payments")}
-        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-teal-500 hover:text-teal-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+        className="shrink-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-teal-500 hover:text-teal-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
       >
         <DollarSign className="w-3.5 h-3.5 text-teal-600" /> Payments & Fees
       </button>
       <button
         onClick={() => navigate("/owner/attendance")}
-        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-blue-500 hover:text-blue-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+        className="shrink-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-blue-500 hover:text-blue-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
       >
         <Calendar className="w-3.5 h-3.5 text-blue-600" /> Attendance
       </button>
       <button
         onClick={() => navigate("/owner/offers")}
-        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-indigo-500 hover:text-indigo-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+        className="shrink-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-indigo-500 hover:text-indigo-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
       >
         <Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Offers & Broadcast
       </button>
       <button
         onClick={() => navigate("/owner/visits")}
-        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-cyan-500 hover:text-cyan-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+        className="shrink-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-cyan-500 hover:text-cyan-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
       >
         <UserPlus className="w-3.5 h-3.5 text-cyan-600" /> Visits & Leads
       </button>
       <button
         onClick={() => navigate("/owner/expenses")}
-        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-rose-500 hover:text-rose-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+        className="shrink-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-rose-500 hover:text-rose-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
       >
         <AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Expenses
       </button>
       <button
         onClick={() => navigate("/owner/stock")}
-        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-slate-500 hover:text-slate-900 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+        className="shrink-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-slate-500 hover:text-slate-900 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
       >
         <Wrench className="w-3.5 h-3.5 text-slate-600" /> Stock & Equipment
       </button>
       <button
         onClick={() => navigate("/owner/reports")}
-        className="shrink-0 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-purple-500 hover:text-purple-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
+        className="shrink-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-purple-500 hover:text-purple-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
       >
         <TrendingUp className="w-3.5 h-3.5 text-purple-600" /> Reports & Analytics
       </button>
       <button
         onClick={() => navigate("/owner/customization")}
-        className="shrink-0 px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 hover:border-indigo-500 hover:text-indigo-900 font-bold text-indigo-700 shadow-xs transition flex items-center gap-1.5"
+        className="shrink-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 hover:border-indigo-500 hover:text-indigo-900 font-bold text-indigo-700 shadow-xs transition flex items-center gap-1.5"
         title="Customize which sections appear on your dashboard and their order"
       >
         <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" /> Customize Layout 🎨
@@ -497,17 +634,58 @@ export default function Dashboard() {
         />
       );
     }
+    if (visibleKpis.today_collection !== false) {
+      kpiCards.push(
+        <StatCard
+          key="today_collection"
+          title="Today's Collection"
+          value={`₹${todayCollectionTotal.toLocaleString("en-IN")}`}
+          change={`${todayPayments.length} transaction${todayPayments.length === 1 ? "" : "s"} today`}
+          icon={<DollarSign className="w-5 h-5 text-emerald-600" />}
+          color="green"
+          onClick={() => navigate("/owner/payments")}
+        />
+      );
+    }
+    if (visibleKpis.pending_dues !== false) {
+      kpiCards.push(
+        <StatCard
+          key="pending_dues"
+          title="Pending Dues"
+          value={`₹${totalPendingDuesAmount.toLocaleString("en-IN")}`}
+          change={`${pendingDuesMembers.length} member${pendingDuesMembers.length === 1 ? "" : "s"} with balance`}
+          icon={<AlertTriangle className="w-5 h-5 text-rose-600" />}
+          color="red"
+          onClick={() => navigate("/owner/members?tab=due")}
+        />
+      );
+    }
+    if (visibleKpis.today_punches !== false) {
+      kpiCards.push(
+        <StatCard
+          key="today_punches"
+          title="Today's Check-ins"
+          value={`${todayPunches.length} Punches`}
+          change="Live turnstile & attendance"
+          icon={<Fingerprint className="w-5 h-5 text-purple-600" />}
+          color="purple"
+          onClick={() => navigate("/owner/attendance")}
+        />
+      );
+    }
 
     if (kpiCards.length === 0) return null;
 
     const colsClass =
       kpiCards.length === 1
-        ? "grid grid-cols-1 gap-5"
+        ? "grid grid-cols-1 gap-3.5 sm:gap-5"
         : kpiCards.length === 2
-        ? "grid grid-cols-1 sm:grid-cols-2 gap-5"
+        ? "grid grid-cols-2 gap-3 sm:gap-5"
         : kpiCards.length === 3
-        ? "grid grid-cols-1 sm:grid-cols-3 gap-5"
-        : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5";
+        ? "grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-5"
+        : kpiCards.length === 4
+        ? "grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5"
+        : "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5";
 
     return (
       <div key="kpi_stats" className={colsClass}>
@@ -517,112 +695,112 @@ export default function Dashboard() {
   };
 
   const renderPnlStrip = () => (
-    <div key="pnl_strip" className="p-4 rounded-3xl bg-gradient-to-r from-teal-950 via-slate-900 to-emerald-950 text-white shadow-sm border border-teal-900/50">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10 text-xs">
+    <div key="pnl_strip" className="p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-teal-950 via-slate-900 to-emerald-950 text-white shadow-sm border border-teal-900/50">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 sm:pb-3 border-b border-white/10 text-xs">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-emerald-400" />
-          <span className="font-extrabold tracking-wide uppercase text-[11px] text-emerald-300">
+          <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="font-extrabold tracking-wide uppercase text-[10px] sm:text-[11px] text-emerald-300">
             Live Financial P&L Summary (Net Profit After Commission & Expenses)
           </span>
         </div>
-        <span className="text-[11px] text-slate-300">
+        <span className="text-[10px] sm:text-[11px] text-slate-300 hidden sm:inline">
           Click any section below to inspect details
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 pt-3 text-center">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 pt-3 text-center">
         <div 
           onClick={() => navigate("/owner/payments")}
-          className="p-2.5 rounded-2xl bg-white/5 border border-white/10 cursor-pointer hover:bg-white/15 hover:scale-[1.02] transition group"
+          className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10 cursor-pointer hover:bg-white/15 hover:scale-[1.02] active:scale-[0.98] transition group"
           title="Click to view all Payments"
         >
-          <span className="text-[10px] uppercase font-bold text-slate-400 group-hover:text-white flex items-center justify-center gap-1 truncate">
+          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-400 group-hover:text-white flex items-center justify-center gap-1 truncate">
             Gross Inflow <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
           </span>
-          <span className="text-sm sm:text-base lg:text-lg font-black text-white mt-0.5 block truncate">
+          <span className="text-xs sm:text-base lg:text-lg font-black text-white mt-0.5 block truncate">
             ₹{totalGrossRevenue.toLocaleString("en-IN")}
           </span>
-          <span className="text-[10px] text-slate-400 group-hover:text-emerald-300">View payments →</span>
+          <span className="text-[9px] sm:text-[10px] text-slate-400 group-hover:text-emerald-300">View payments →</span>
         </div>
 
         <div 
           onClick={() => navigate("/owner/trainers")}
-          className="p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 cursor-pointer hover:bg-amber-500/20 hover:scale-[1.02] transition group"
+          className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-amber-500/10 border border-amber-500/20 cursor-pointer hover:bg-amber-500/20 hover:scale-[1.02] active:scale-[0.98] transition group"
           title="Click to view Trainers & Commissions"
         >
-          <span className="text-[10px] uppercase font-bold text-amber-400 group-hover:text-amber-200 flex items-center justify-center gap-1 truncate">
+          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-amber-400 group-hover:text-amber-200 flex items-center justify-center gap-1 truncate">
             Trainer Cuts <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
           </span>
-          <span className="text-sm sm:text-base lg:text-lg font-black text-amber-300 mt-0.5 block truncate">
+          <span className="text-xs sm:text-base lg:text-lg font-black text-amber-300 mt-0.5 block truncate">
             -₹{totalTrainerLiability.toLocaleString("en-IN")}
           </span>
-          <span className="text-[10px] text-amber-200/70 group-hover:text-amber-200">View trainers →</span>
+          <span className="text-[9px] sm:text-[10px] text-amber-200/70 group-hover:text-amber-200">View trainers →</span>
         </div>
 
         <div 
           onClick={() => navigate("/owner/payments")}
-          className="p-2.5 rounded-2xl bg-teal-500/10 border border-teal-500/20 cursor-pointer hover:bg-teal-500/20 hover:scale-[1.02] transition group"
+          className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-teal-500/10 border border-teal-500/20 cursor-pointer hover:bg-teal-500/20 hover:scale-[1.02] active:scale-[0.98] transition group"
           title="Click to view Retained Net Revenue"
         >
-          <span className="text-[10px] uppercase font-bold text-teal-300 group-hover:text-white flex items-center justify-center gap-1 truncate">
+          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-teal-300 group-hover:text-white flex items-center justify-center gap-1 truncate">
             Gym Net Rev <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
           </span>
-          <span className="text-sm sm:text-base lg:text-lg font-black text-teal-200 mt-0.5 block truncate">
+          <span className="text-xs sm:text-base lg:text-lg font-black text-teal-200 mt-0.5 block truncate">
             ₹{totalNetRevenue.toLocaleString("en-IN")}
           </span>
-          <span className="text-[10px] text-teal-300/70 group-hover:text-teal-200">View ledger →</span>
+          <span className="text-[9px] sm:text-[10px] text-teal-300/70 group-hover:text-teal-200">View ledger →</span>
         </div>
 
         <div 
           onClick={() => navigate("/owner/expenses")}
-          className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 cursor-pointer hover:bg-rose-500/20 hover:scale-[1.02] transition group"
+          className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-rose-500/10 border border-rose-500/20 cursor-pointer hover:bg-rose-500/20 hover:scale-[1.02] active:scale-[0.98] transition group"
           title="Click to view Overhead Expenses"
         >
-          <span className="text-[10px] uppercase font-bold text-rose-300 group-hover:text-rose-100 flex items-center justify-center gap-1 truncate">
+          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-rose-300 group-hover:text-rose-100 flex items-center justify-center gap-1 truncate">
             Overhead Costs <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
           </span>
-          <span className="text-sm sm:text-base lg:text-lg font-black text-rose-300 mt-0.5 block truncate">
+          <span className="text-xs sm:text-base lg:text-lg font-black text-rose-300 mt-0.5 block truncate">
             -₹{totalExpensesAmount.toLocaleString("en-IN")}
           </span>
-          <span className="text-[10px] text-rose-200/70 group-hover:text-rose-100">View expenses →</span>
+          <span className="text-[9px] sm:text-[10px] text-rose-200/70 group-hover:text-rose-100">View expenses →</span>
         </div>
 
         <div 
           onClick={() => navigate("/owner/reports")}
-          className="p-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 col-span-2 sm:col-span-1 cursor-pointer hover:bg-emerald-500/30 hover:scale-[1.02] transition group"
+          className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-emerald-500/20 border border-emerald-400/40 col-span-2 sm:col-span-3 lg:col-span-1 cursor-pointer hover:bg-emerald-500/30 hover:scale-[1.02] active:scale-[0.98] transition group"
           title="Click to view Financial Reports & P&L"
         >
-          <span className="text-[10px] uppercase font-bold text-emerald-300 group-hover:text-emerald-100 flex items-center justify-center gap-1 truncate">
+          <span className="text-[9px] sm:text-[10px] uppercase font-bold text-emerald-300 group-hover:text-emerald-100 flex items-center justify-center gap-1 truncate">
             Net Operating Profit <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
           </span>
-          <span className="text-base sm:text-lg font-black text-emerald-300 mt-0.5 block truncate">
+          <span className="text-sm sm:text-base lg:text-lg font-black text-emerald-300 mt-0.5 block truncate">
             ₹{netOperatingProfit.toLocaleString("en-IN")}
           </span>
-          <span className="text-[10px] text-emerald-200 font-semibold group-hover:underline">View P&L report →</span>
+          <span className="text-[9px] sm:text-[10px] text-emerald-200 font-semibold group-hover:underline">View P&L report →</span>
         </div>
       </div>
     </div>
   );
 
   const renderChartsRow = () => (
-    <div key="charts_row" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div key="charts_row" className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
       {/* Weekly Revenue Graph */}
-      <div className="lg:col-span-2 p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
+      <div className="lg:col-span-2 p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/80 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 mb-4 sm:mb-6">
           <div>
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-emerald-600" /> Revenue Growth Trend
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">Weekly net revenue breakdown retained by gym</p>
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">Weekly net revenue breakdown retained by gym</p>
           </div>
           <button
             onClick={() => navigate("/owner/reports")}
-            className="text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-200/60 transition flex items-center gap-1"
+            className="self-start sm:self-auto text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl border border-emerald-200/60 transition flex items-center gap-1"
           >
             Detailed Reports <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div className="h-64">
+        <div className="h-56 sm:h-64 -ml-3 sm:ml-0">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={revenueData}>
               <defs>
@@ -632,10 +810,10 @@ export default function Dashboard() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} />
-              <YAxis stroke="#94a3b8" fontSize={12} />
+              <XAxis dataKey="day" stroke="#94a3b8" fontSize={11} tickLine={false} />
+              <YAxis stroke="#94a3b8" fontSize={11} width={38} tickLine={false} />
               <Tooltip 
-                contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "12px" }}
                 formatter={(val) => [`₹${Number(val).toLocaleString("en-IN")}`, "Gym Net Revenue"]}
               />
               <Area type="monotone" dataKey="revenue" stroke="#0d9488" strokeWidth={3} fillOpacity={1} fill="url(#revGradLight)" />
@@ -645,42 +823,42 @@ export default function Dashboard() {
       </div>
 
       {/* Payment Modes Pie Chart */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm flex flex-col justify-between">
-        <div className="flex items-center justify-between">
+      <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/80 shadow-sm flex flex-col justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="text-base font-bold text-slate-900">Payment Modes Split</h3>
-            <p className="text-xs text-slate-500 mt-0.5">UPI, Cash, Bank and Partial payments</p>
+            <h3 className="text-sm sm:text-base font-bold text-slate-900">Payment Modes Split</h3>
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">UPI, Cash, Bank and Partial payments</p>
           </div>
           <button
             onClick={() => navigate("/owner/payments")}
-            className="text-xs font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-xl border border-teal-200/60 transition flex items-center gap-1"
+            className="self-start sm:self-auto text-xs font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 px-2.5 py-1 rounded-xl border border-teal-200/60 transition flex items-center gap-1"
           >
             Payments <ArrowRight className="w-3 h-3" />
           </button>
         </div>
-        <div className="h-52 my-2">
+        <div className="h-44 sm:h-52 my-2">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={paymentModesData}
-                innerRadius={55}
-                outerRadius={78}
-                paddingAngle={6}
+                innerRadius={50}
+                outerRadius={72}
+                paddingAngle={5}
                 dataKey="value"
               >
                 {paymentModesData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} />
+              <Tooltip contentStyle={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", fontSize: "12px" }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-100">
+        <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-100">
           {paymentModesData.map(item => (
-            <div key={item.name} className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></span>
-              <span className="text-xs font-semibold text-slate-600">{item.name} ({item.value}%)</span>
+            <div key={item.name} className="flex items-center gap-1.5 sm:gap-2">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }}></span>
+              <span className="text-[11px] sm:text-xs font-semibold text-slate-600 truncate">{item.name} ({item.value}%)</span>
             </div>
           ))}
         </div>
@@ -689,15 +867,15 @@ export default function Dashboard() {
   );
 
   const renderRecentMembers = () => (
-    <div key="recent_members_card" className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-4">
-      <div className="flex items-center justify-between">
+    <div key="recent_members_card" className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-slate-900">Recently Enrolled Members</h3>
-          <p className="text-xs text-slate-500">Live athletes registered in gym system</p>
+          <h3 className="text-sm sm:text-base font-bold text-slate-900">Recently Enrolled Members</h3>
+          <p className="text-[11px] sm:text-xs text-slate-500">Live athletes registered in gym system</p>
         </div>
         <button
           onClick={() => navigate("/owner/members")}
-          className="text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full border border-emerald-200/60 transition flex items-center gap-1"
+          className="self-start sm:self-auto text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full border border-emerald-200/60 transition flex items-center gap-1 shrink-0"
         >
           View All ({members.length}) <ChevronRight className="w-3.5 h-3.5" />
         </button>
@@ -708,23 +886,23 @@ export default function Dashboard() {
           <div 
             key={m.id} 
             onClick={() => navigate(`/owner/members/${m.id}`)}
-            className="py-3 px-2 rounded-2xl flex items-center justify-between cursor-pointer hover:bg-emerald-50/40 transition group"
+            className="py-3 px-1.5 sm:px-2 rounded-2xl flex items-center justify-between gap-2 cursor-pointer hover:bg-emerald-50/40 transition group"
             title={`Click to open ${m.fullName || m.name}'s profile`}
           >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center justify-center group-hover:scale-105 transition shrink-0">
                 {m.name?.[0] || "M"}
               </div>
-              <div>
-                <h5 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition flex items-center gap-1">
+              <div className="min-w-0 flex-1">
+                <h5 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition truncate flex items-center gap-1">
                   {m.fullName || m.name}
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition" />
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition shrink-0" />
                 </h5>
-                <p className="text-xs text-slate-400">{m.phone} • {m.planName}</p>
+                <p className="text-[11px] sm:text-xs text-slate-400 truncate">{m.phone} • {m.planName}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+            <div className="flex items-center gap-2 shrink-0 ml-2">
+              <span className={`text-[10px] sm:text-xs px-2 sm:px-2.5 py-0.5 rounded-full font-bold ${
                 m.status === "active" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"
               }`}>
                 {m.status?.toUpperCase()}
@@ -740,15 +918,15 @@ export default function Dashboard() {
   );
 
   const renderEquipmentStatus = () => (
-    <div key="equipment_status_card" className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-4">
-      <div className="flex items-center justify-between">
+    <div key="equipment_status_card" className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h3 className="text-base font-bold text-slate-900">Equipment & Service Status</h3>
-          <p className="text-xs text-slate-500">Machine maintenance and safety tracker</p>
+          <h3 className="text-sm sm:text-base font-bold text-slate-900">Equipment & Service Status</h3>
+          <p className="text-[11px] sm:text-xs text-slate-500">Machine maintenance and safety tracker</p>
         </div>
         <button
           onClick={() => navigate("/owner/stock")}
-          className="text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full border border-slate-200 transition flex items-center gap-1"
+          className="self-start sm:self-auto text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full border border-slate-200 transition flex items-center gap-1 shrink-0"
         >
           Stock & Equipment <ChevronRight className="w-3.5 h-3.5" />
         </button>
@@ -759,17 +937,17 @@ export default function Dashboard() {
           <div 
             key={item.id} 
             onClick={() => navigate("/owner/stock")}
-            className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between cursor-pointer hover:bg-slate-100/80 hover:border-emerald-300 transition group"
+            className="p-3 sm:p-3.5 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-between gap-2.5 cursor-pointer hover:bg-slate-100/80 hover:border-emerald-300 transition group"
             title="Click to view equipment in Stock manager"
           >
-            <div>
-              <h5 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition flex items-center gap-1">
+            <div className="min-w-0 flex-1">
+              <h5 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition truncate flex items-center gap-1">
                 {item.name}
-                <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition" />
+                <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition shrink-0" />
               </h5>
-              <p className="text-xs text-slate-400">Category: {item.type} • Last service: {item.lastServiceDate}</p>
+              <p className="text-[11px] sm:text-xs text-slate-400 truncate">Category: {item.type} • Last service: {item.lastServiceDate}</p>
             </div>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-white text-emerald-700 border border-emerald-200 shadow-sm flex items-center gap-1">
+            <span className="text-[10px] sm:text-xs font-bold px-2 sm:px-2.5 py-1 rounded-xl bg-white text-emerald-700 border border-emerald-200 shadow-sm flex items-center gap-1 shrink-0 ml-2">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> {item.condition}
             </span>
           </div>
@@ -778,13 +956,466 @@ export default function Dashboard() {
     </div>
   );
 
+  const renderUrgentRenewals = () => (
+    <div key="urgent_renewals" className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-amber-200/80 shadow-sm space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-600 shrink-0" /> Urgent Plan Expiries
+            </h3>
+            <span className="text-[10px] sm:text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+              {urgentExpiringMembers.length} (≤ 3 Days)
+            </span>
+          </div>
+          <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">High-priority renewals needing immediate follow-up</p>
+        </div>
+        <button
+          onClick={() => navigate("/owner/members?tab=ending_soon")}
+          className="self-start sm:self-auto text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-full border border-amber-200/70 transition flex items-center gap-1 shrink-0"
+        >
+          View All <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {urgentExpiringMembers.length === 0 ? (
+        <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-center">
+          <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+          <p className="text-xs font-bold text-slate-700">No Members Expiring in Next 3 Days</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">All active athlete plans are running smoothly.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {urgentExpiringMembers.slice(0, 4).map((m) => {
+            const isToday = m.diffDays === 0;
+            const isTomorrow = m.diffDays === 1;
+            return (
+              <div 
+                key={m.id}
+                className="py-3 px-1.5 sm:px-2 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-amber-50/40 transition group"
+              >
+                <div 
+                  onClick={() => navigate(`/owner/members/${m.id}`)}
+                  className="flex items-center gap-2.5 sm:gap-3 cursor-pointer flex-1 min-w-0"
+                  title="Click to view member profile"
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                    isToday ? "bg-rose-100 text-rose-700" : isTomorrow ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"
+                  }`}>
+                    {m.fullName?.[0] || m.name?.[0] || "M"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h5 className="text-sm font-bold text-slate-900 group-hover:text-amber-700 transition truncate flex items-center gap-1">
+                      {m.fullName || m.name}
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-amber-600 transition shrink-0" />
+                    </h5>
+                    <p className="text-[11px] sm:text-xs text-slate-400 truncate">
+                      {m.planName || "General Plan"} • Fee: ₹{m.renewalFee || m.planPrice || "2,500"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                  <span className={`text-[10px] sm:text-[11px] font-extrabold px-2.5 py-1 rounded-xl border ${
+                    isToday
+                      ? "bg-rose-50 text-rose-700 border-rose-200 animate-pulse"
+                      : isTomorrow
+                      ? "bg-amber-50 text-amber-800 border-amber-200"
+                      : "bg-slate-100 text-slate-700 border-slate-200"
+                  }`}>
+                    {isToday ? "🚨 Ends Today" : isTomorrow ? "⚠️ Ends Tomorrow" : `⏳ In ${m.diffDays} Days`}
+                  </span>
+                  <button
+                    onClick={() => handleSendReminder(m)}
+                    className="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition text-[11px] font-bold flex items-center gap-1 shrink-0"
+                    title="Send WhatsApp renewal reminder"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" /> Remind
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderPendingDues = () => (
+    <div key="pending_dues" className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-rose-200/80 shadow-sm space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-rose-600 shrink-0" /> Outstanding Balances & Dues
+            </h3>
+            <span className="text-[10px] sm:text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
+              ₹{totalPendingDuesAmount.toLocaleString("en-IN")} Total
+            </span>
+          </div>
+          <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">Pending fee dues awaiting collection</p>
+        </div>
+        <button
+          onClick={() => navigate("/owner/members?tab=due")}
+          className="self-start sm:self-auto text-xs font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-full border border-rose-200/70 transition flex items-center gap-1 shrink-0"
+        >
+          View Dues ({pendingDuesMembers.length}) <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {pendingDuesMembers.length === 0 ? (
+        <div className="p-6 rounded-2xl bg-emerald-50/50 border border-emerald-100 text-center">
+          <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+          <p className="text-xs font-bold text-emerald-900">Zero Outstanding Dues!</p>
+          <p className="text-[11px] text-emerald-700 mt-0.5">All active gym members have cleared their fee accounts.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {pendingDuesMembers.slice(0, 4).map((m) => (
+            <div 
+              key={m.id}
+              className="py-3 px-1.5 sm:px-2 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-rose-50/30 transition group"
+            >
+              <div 
+                onClick={() => navigate(`/owner/members/${m.id}`)}
+                className="flex items-center gap-2.5 sm:gap-3 cursor-pointer flex-1 min-w-0"
+                title="Click to view member profile"
+              >
+                <div className="w-9 h-9 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-xs shrink-0">
+                  {m.fullName?.[0] || m.name?.[0] || "M"}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h5 className="text-sm font-bold text-slate-900 group-hover:text-rose-700 transition truncate flex items-center gap-1">
+                    {m.fullName || m.name}
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-rose-600 transition shrink-0" />
+                  </h5>
+                  <p className="text-[11px] sm:text-xs text-slate-400 truncate">
+                    {m.phone || "No phone"} • {m.planName || "Gym Plan"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                <span className="text-[11px] sm:text-xs font-black px-2.5 py-1 rounded-xl bg-rose-50 text-rose-700 border border-rose-200">
+                  Due: ₹{Number(m.dueAmount || 0).toLocaleString("en-IN")}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleSendDueReminder(m)}
+                    className="p-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
+                    title="Send WhatsApp payment due reminder"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => navigate("/owner/payments")}
+                    className="px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold shadow-xs transition"
+                  >
+                    Collect
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderTodayAttendance = () => (
+    <div key="today_attendance" className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-blue-200/80 shadow-sm space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <Fingerprint className="w-4 h-4 text-blue-600 shrink-0" /> Today's Live Attendance & Punches
+            </h3>
+            <span className="text-[10px] sm:text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+              {todayPunches.length} Today
+            </span>
+          </div>
+          <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">Real-time biometric turnstile check-ins</p>
+        </div>
+        <button
+          onClick={() => navigate("/owner/attendance")}
+          className="self-start sm:self-auto text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full border border-blue-200/70 transition flex items-center gap-1 shrink-0"
+        >
+          Turnstile Monitor <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {todayPunches.length === 0 ? (
+        <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-center">
+          <Activity className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+          <p className="text-xs font-bold text-slate-700">No Check-ins Logged Yet Today</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Biometric turnstile and door readers are online and ready.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {todayPunches.slice(0, 4).map((p) => {
+            const isGranted = p.status === "granted";
+            return (
+              <div 
+                key={p.id}
+                onClick={() => navigate("/owner/attendance")}
+                className="py-3 px-1.5 sm:px-2 rounded-2xl flex items-center justify-between gap-2.5 hover:bg-blue-50/40 transition cursor-pointer group"
+                title="Click to view live turnstile attendance logs"
+              >
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                    isGranted ? "bg-blue-100 text-blue-700" : "bg-rose-100 text-rose-700"
+                  }`}>
+                    {p.memberName?.[0] || "A"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h5 className="text-sm font-bold text-slate-900 group-hover:text-blue-700 transition truncate flex items-center gap-1">
+                      {p.memberName || "Gym Member"}
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-600 transition shrink-0" />
+                    </h5>
+                    <p className="text-[11px] sm:text-xs text-slate-400 truncate">
+                      {p.deviceName || "Main Gate"} • {p.time || formatDate(p.timestamp || p.createdAt, "Today")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0 ml-2">
+                  <span className={`text-[10px] sm:text-[11px] font-extrabold px-2 sm:px-2.5 py-1 rounded-xl border flex items-center gap-1 ${
+                    isGranted
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-rose-50 text-rose-700 border-rose-200"
+                  }`}>
+                    {isGranted ? (
+                      <>
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Granted
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-3 h-3 text-rose-600" /> {p.reason || "Denied"}
+                      </>
+                    )}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderTodayDemos = () => (
+    <div key="today_demos" className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-teal-200/80 shadow-sm space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <Target className="w-4 h-4 text-teal-600 shrink-0" /> Walk-in Leads & Demo Trials Board
+            </h3>
+            <span className="text-[10px] sm:text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+              {pendingVisits.length} In Pipeline
+            </span>
+          </div>
+          <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">Prospects to follow up and convert to memberships</p>
+        </div>
+        <button
+          onClick={() => navigate("/owner/visits")}
+          className="self-start sm:self-auto text-xs font-bold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-full border border-teal-200/70 transition flex items-center gap-1 shrink-0"
+        >
+          Visits Board <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {pendingVisits.length === 0 ? (
+        <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-center">
+          <UserPlus className="w-8 h-8 text-teal-500 mx-auto mb-2" />
+          <p className="text-xs font-bold text-slate-700">No Pending Trial Inquiries</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Add new walk-in visitors to start tracking demo sessions.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {pendingVisits.slice(0, 4).map((v) => (
+            <div 
+              key={v.id}
+              className="py-3 px-1.5 sm:px-2 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-teal-50/40 transition group"
+            >
+              <div 
+                onClick={() => navigate("/owner/visits")}
+                className="flex items-center gap-2.5 sm:gap-3 cursor-pointer flex-1 min-w-0"
+                title="Click to view visit lead card"
+              >
+                <div className="w-9 h-9 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-xs shrink-0">
+                  {v.name?.[0] || "L"}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h5 className="text-sm font-bold text-slate-900 group-hover:text-teal-700 transition truncate flex items-center gap-1">
+                    {v.name}
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-teal-600 transition shrink-0" />
+                  </h5>
+                  <p className="text-[11px] sm:text-xs text-slate-400 truncate">
+                    Interested: {v.interestedPlan || "General Membership"} • {v.source || "Walk-in"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                <span className="text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 border border-slate-200">
+                  {v.status === "demo_scheduled" ? "Demo Scheduled" : v.status === "demo_done" ? "Demo Completed" : "New Lead"}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleFollowUpLead(v)}
+                    className="p-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
+                    title="Follow up via WhatsApp"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => navigate("/owner/visits")}
+                    className="px-2.5 py-1 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-bold shadow-xs transition"
+                  >
+                    Convert
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderRecentPayments = () => (
+    <div key="recent_payments" className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-emerald-200/80 shadow-sm space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-emerald-600 shrink-0" /> Latest Payments & Receipts Stream
+            </h3>
+            <span className="text-[10px] sm:text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+              ₹{todayCollectionTotal.toLocaleString("en-IN")} Today
+            </span>
+          </div>
+          <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">Recent collections, membership renewals & purchases</p>
+        </div>
+        <button
+          onClick={() => navigate("/owner/payments")}
+          className="self-start sm:self-auto text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full border border-emerald-200/70 transition flex items-center gap-1 shrink-0"
+        >
+          All Payments <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {sortedRecentPayments.length === 0 ? (
+        <div className="p-6 rounded-2xl bg-slate-50 border border-slate-100 text-center">
+          <Receipt className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+          <p className="text-xs font-bold text-slate-700">No Payments Recorded Yet</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Collect member fees to see real-time payment transactions here.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {sortedRecentPayments.slice(0, 4).map((p) => {
+            const member = members.find((m) => (p.memberId && m.id === p.memberId) || (m.name && m.name === p.memberName));
+            const memberName = p.memberName || member?.fullName || member?.name || "Athlete";
+            const amount = Number(p.paidAmount || p.amount || 0);
+            const mode = (p.paymentMode || "cash").toUpperCase();
+
+            return (
+              <div 
+                key={p.id}
+                className="py-3 px-1.5 sm:px-2 rounded-2xl flex items-center justify-between gap-2 hover:bg-emerald-50/40 transition group"
+              >
+                <div 
+                  onClick={() => navigate("/owner/payments")}
+                  className="flex items-center gap-2.5 sm:gap-3 cursor-pointer flex-1 min-w-0"
+                  title="Click to open Payments ledger"
+                >
+                  <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0">
+                    {memberName[0] || "P"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h5 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition truncate flex items-center gap-1">
+                      {memberName}
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 transition shrink-0" />
+                    </h5>
+                    <p className="text-[11px] sm:text-xs text-slate-400 truncate">
+                      {p.planName || member?.planName || "Membership"} • {formatDate(p.date || p.createdAt, "Recent")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-2">
+                  <span className="text-[9px] sm:text-[10px] font-black px-1.5 sm:px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 uppercase">
+                    {mode}
+                  </span>
+                  <span className="text-xs sm:text-sm font-black text-emerald-600">
+                    +₹{amount.toLocaleString("en-IN")}
+                  </span>
+                  <button
+                    onClick={() => handleSendReceipt(p)}
+                    className="p-1.5 rounded-xl bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300 transition"
+                    title="Send WhatsApp payment receipt"
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   // Filter sections that are toggled active by user
   const activeSections = useMemo(() => {
     return sectionsOrder.filter((id) => visibleSections[id] !== false);
   }, [sectionsOrder, visibleSections]);
 
+  // Distinguish card-type widgets (which look best side-by-side) from full-width hero widgets
+  const isCardSection = (id) => [
+    "urgent_renewals",
+    "pending_dues",
+    "today_attendance",
+    "today_demos",
+    "recent_payments",
+    "recent_members",
+    "equipment_status"
+  ].includes(id);
+
+  const renderSection = (id) => {
+    switch (id) {
+      case "banner":
+        return renderBanner();
+      case "quick_jump":
+        return renderQuickJump();
+      case "kpi_stats":
+        return renderKpiStats();
+      case "pnl_strip":
+        return renderPnlStrip();
+      case "urgent_renewals":
+        return renderUrgentRenewals();
+      case "pending_dues":
+        return renderPendingDues();
+      case "today_attendance":
+        return renderTodayAttendance();
+      case "today_demos":
+        return renderTodayDemos();
+      case "recent_payments":
+        return renderRecentPayments();
+      case "charts_row":
+        return renderChartsRow();
+      case "recent_members":
+        return renderRecentMembers();
+      case "equipment_status":
+        return renderEquipmentStatus();
+      default:
+        return null;
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 max-w-full overflow-hidden">
       {/* Dynamic User-Customized Dashboard Layout */}
       {(() => {
         const elements = [];
@@ -793,52 +1424,25 @@ export default function Dashboard() {
           const sec = activeSections[i];
           const nextSec = activeSections[i + 1];
 
-          // If recent_members and equipment_status are adjacent in order, render side-by-side
-          if (
-            (sec === "recent_members" && nextSec === "equipment_status") ||
-            (sec === "equipment_status" && nextSec === "recent_members")
-          ) {
+          // If two card sections are consecutive in order, pair them side-by-side in a 2-col responsive grid
+          if (isCardSection(sec) && nextSec && isCardSection(nextSec)) {
             elements.push(
-              <div key={`${sec}_${nextSec}`} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {sec === "recent_members" ? renderRecentMembers() : renderEquipmentStatus()}
-                {nextSec === "recent_members" ? renderRecentMembers() : renderEquipmentStatus()}
+              <div key={`${sec}_${nextSec}`} className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                {renderSection(sec)}
+                {renderSection(nextSec)}
               </div>
             );
             i += 2;
+          } else if (isCardSection(sec)) {
+            elements.push(
+              <div key={sec} className="w-full">
+                {renderSection(sec)}
+              </div>
+            );
+            i++;
           } else {
-            switch (sec) {
-              case "banner":
-                elements.push(renderBanner());
-                break;
-              case "quick_jump":
-                elements.push(renderQuickJump());
-                break;
-              case "kpi_stats":
-                elements.push(renderKpiStats());
-                break;
-              case "pnl_strip":
-                elements.push(renderPnlStrip());
-                break;
-              case "charts_row":
-                elements.push(renderChartsRow());
-                break;
-              case "recent_members":
-                elements.push(
-                  <div key="recent_members" className="w-full">
-                    {renderRecentMembers()}
-                  </div>
-                );
-                break;
-              case "equipment_status":
-                elements.push(
-                  <div key="equipment_status" className="w-full">
-                    {renderEquipmentStatus()}
-                  </div>
-                );
-                break;
-              default:
-                break;
-            }
+            const el = renderSection(sec);
+            if (el) elements.push(el);
             i++;
           }
         }
@@ -855,7 +1459,7 @@ export default function Dashboard() {
           <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-950">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
             <p className="leading-relaxed text-[11px] text-emerald-900">
-              Owner sirf Name aur WhatsApp number daalega. Member link ya <strong>QR Code scan</strong> karke photo, plan, trainer aur digital waiver khud bharega!
+              Enter member name and WhatsApp number. The member will scan the <strong>QR Code</strong> or click the 10-minute link to upload their photo, pick their plan, and sign their waiver directly!
             </p>
           </div>
 
@@ -996,25 +1600,25 @@ export default function Dashboard() {
             {expiringMembers.map((m) => {
               const expFormatted = formatDate(m.expiryDate, "Soon");
               return (
-                <div key={m.id} className="py-3 flex items-center justify-between gap-2 hover:bg-slate-50 px-2 rounded-xl transition">
+                <div key={m.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-slate-50 px-2 rounded-xl transition">
                   <div 
                     onClick={() => {
                       setRenewalsModalOpen(false);
                       navigate(`/owner/members/${m.id}`);
                     }}
-                    className="cursor-pointer group flex-1"
+                    className="cursor-pointer group flex-1 min-w-0"
                     title="Click to view full member profile"
                   >
                     <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-700 flex items-center gap-1 transition">
                       {m.fullName || m.name}
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition" />
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition shrink-0" />
                     </h4>
-                    <p className="text-xs text-slate-500">{m.planName} • Expiring: <span className="font-bold text-amber-600">{expFormatted}</span></p>
-                    <p className="text-xs text-emerald-700 font-semibold">Renewal Fee: ₹{m.renewalFee || "2,500"}</p>
+                    <p className="text-[11px] sm:text-xs text-slate-500">{m.planName} • Expiring: <span className="font-bold text-amber-600">{expFormatted}</span></p>
+                    <p className="text-[11px] sm:text-xs text-emerald-700 font-semibold">Renewal Fee: ₹{m.renewalFee || "2,500"}</p>
                   </div>
                   <button
                     onClick={() => handleSendReminder(m)}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition shrink-0"
+                    className="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition shrink-0"
                   >
                     <MessageCircle className="w-4 h-4 text-emerald-600" /> Remind
                   </button>

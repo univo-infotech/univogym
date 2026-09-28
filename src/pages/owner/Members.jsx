@@ -413,14 +413,15 @@ export default function Members() {
               ...(updatedFields || {}),
               status: 'left',
               active: false,
-              leftReason: reason,
+              leftAt: new Date().toISOString(),
+              leftReason: reason || 'Marked as Left',
               trainerName: 'Unassigned (Left Gym)',
               trainerId: '',
               ptSlot: null,
               preferredTime: null,
               ptShift: null,
               memberPortalAccess: false,
-              ...(hasPt(m) ? { ptStatus: 'ended' } : {})
+              ...(hasPt(m) ? { ptStatus: 'ended', ptEndedAt: new Date().toISOString() } : {})
             }
           : m
       )
@@ -1395,6 +1396,16 @@ export default function Members() {
         />
       )}
 
+      {/* Left Member Modal */}
+      {leftMember && (
+        <LeftModal
+          member={leftMember}
+          gymId={gymId}
+          onClose={() => setLeftMember(null)}
+          onSave={handleLeftSuccess}
+        />
+      )}
+
       {/* End PT Membership Modal */}
       {endMember && (
         <EndMembershipModal
@@ -1405,13 +1416,14 @@ export default function Members() {
         />
       )}
 
-      {/* Delete Member Confirmation Modal */}
+      {/* Delete Member Confirmation Modal (Options: Left, Delete, Cancel) */}
       {deleteTargetMember && (
         <DeleteConfirmModal
           member={deleteTargetMember}
           gymId={gymId}
           onClose={() => setDeleteTargetMember(null)}
           onConfirm={handleDeleteSuccess}
+          onLeft={handleLeftSuccess}
         />
       )}
 

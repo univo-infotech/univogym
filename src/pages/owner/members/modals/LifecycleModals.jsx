@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogOut, Sparkles, CheckCircle, UserX } from 'lucide-react';
+import { LogOut, Sparkles, CheckCircle, UserX, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { updateMember, deleteMember } from '../../../../firebase/members';
 import Modal from '../../../../components/ui/Modal';
@@ -94,7 +94,7 @@ export function LeftModal({ member, gymId, onClose, onSave }) {
           <div className='text-xs'>
             <p className='font-bold text-slate-900'>Mark {getName(member)} as Left?</p>
             <p className='text-slate-600 mt-0.5 leading-relaxed'>
-              Inka Gym Membership chhoot gaya hai. Yeh member Active list se hat kar <strong>🚪 Left</strong> filter tab me chala jayega. Aap jab chahe wapas reactivate kar sakte hain.
+              This member has discontinued their gym membership. They will be moved to the <strong>🚪 Left</strong> tab. You can reactivate or rejoin them anytime while preserving all payment history.
             </p>
           </div>
         </div>
@@ -257,7 +257,7 @@ export function EndMembershipModal({ member, gymId, onClose, onSave }) {
         {isBoth && (
           <div className='p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2'>
             <p className='text-xs font-bold text-slate-800'>
-              Kisko End Karna Chahte Hain?
+              Select Membership to End:
             </p>
             <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
               <button
@@ -271,10 +271,10 @@ export function EndMembershipModal({ member, gymId, onClose, onSave }) {
               >
                 <div className='flex items-center gap-1.5 font-bold text-xs'>
                   <Sparkles className='w-4 h-4 text-purple-600' />
-                  <span>✨ Sirf PT End Karein</span>
+                  <span>✨ End PT Only</span>
                 </div>
                 <p className='text-[11px] text-purple-800/80 mt-1 leading-snug'>
-                  Gym Membership <strong>Active</strong> rahegi ({member.planName || 'Gym'}). Member Active list me hi rahega.
+                  Gym Membership stays <strong>Active</strong> ({member.planName || 'Gym'}). Member remains on active roster.
                 </p>
               </button>
 
@@ -289,10 +289,10 @@ export function EndMembershipModal({ member, gymId, onClose, onSave }) {
               >
                 <div className='flex items-center gap-1.5 font-bold text-xs'>
                   <LogOut className='w-4 h-4 text-rose-600' />
-                  <span>🚪 Gym + PT Dono End</span>
+                  <span>🚪 End Both Gym & PT</span>
                 </div>
                 <p className='text-[11px] text-rose-800/80 mt-1 leading-snug'>
-                  Gym aur PT dono end ho jayenge. Member End tab me chala jayega.
+                  Both Gym and PT memberships will end. Member will move to the Ended tab.
                 </p>
               </button>
             </div>
@@ -303,9 +303,9 @@ export function EndMembershipModal({ member, gymId, onClose, onSave }) {
           <div className='p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-2.5'>
             <CheckCircle className='w-4.5 h-4.5 text-emerald-600 flex-shrink-0 mt-0.5' />
             <div className='text-xs'>
-              <p className='font-bold text-emerald-950'>Gym Membership Active Rahegi 🏋️</p>
+              <p className='font-bold text-emerald-950'>Gym Membership Remains Active 🏋️</p>
               <p className='text-emerald-800/90 mt-0.5 leading-relaxed'>
-                {getName(member)} ka sirf 1-on-1 PT package complete hoga. Inka <strong>{member.planName || 'Gym Plan'}</strong> active rahega aur workout continue rahega.
+                Only {getName(member)}'s 1-on-1 PT package will be completed. Their <strong>{member.planName || 'Gym Plan'}</strong> remains active and workouts continue.
               </p>
             </div>
           </div>
@@ -315,7 +315,7 @@ export function EndMembershipModal({ member, gymId, onClose, onSave }) {
             <div className='text-xs'>
               <p className='font-bold text-purple-950'>End Full Membership for {getName(member)}?</p>
               <p className='text-purple-800/90 mt-0.5 leading-relaxed'>
-                Yeh member Active list se hat kar <strong>🛑 End</strong> filter tab me chala jayega.
+                This member will be removed from the Active list and moved to the <strong>🛑 End</strong> tab.
               </p>
             </div>
           </div>
@@ -383,20 +383,68 @@ export function EndMembershipModal({ member, gymId, onClose, onSave }) {
   );
 }
 
-export function DeleteConfirmModal({ member, gymId, onClose, onConfirm }) {
-  const [loading, setLoading] = useState(false);
+export function DeleteConfirmModal({ member, gymId, onClose, onConfirm, onLeft }) {
+  const [loadingAction, setLoadingAction] = useState(null); // 'left' | 'delete' | null
 
-  const handleDelete = async () => {
-    setLoading(true);
+  const handleMarkAsLeft = async () => {
+    setLoadingAction('left');
     try {
-      await deleteMember(gymId || 'univo_main', member.id);
-      toast.success(`${getName(member)} permanently deleted`);
-      onConfirm(member.id);
+      const finalReason = 'Marked as Left during member removal';
+      const updatedFields = {
+        status: 'left',
+        active: false,
+        leftAt: new Date().toISOString(),
+        leftReason: finalReason,
+        previousTrainerId: member.trainerId || null,
+        previousTrainerName: member.trainerName || member.personalTrainer || null,
+        previousPtSlot: member.ptSlot || member.preferredTime || member.slot || null,
+        trainerId: '',
+        trainerName: 'Unassigned (Left Gym)',
+        personalTrainer: 'Unassigned (Left Gym)',
+        ptSlot: null,
+        preferredTime: null,
+        ptShift: null,
+        memberPortalAccess: false,
+        ...(hasPt(member)
+          ? {
+              ptStatus: 'ended',
+              ptEndedAt: new Date().toISOString(),
+              ptEndReason: `Gym Left: ${finalReason}`,
+            }
+          : {}),
+      };
+
+      await updateMember(gymId || 'univo_main', member.id, updatedFields);
+      broadcastForceLogout(member.id);
+
+      toast.success(`${getName(member)} marked as Left. History preserved!`);
+      if (onLeft) {
+        onLeft(member.id, finalReason, updatedFields);
+      }
       onClose();
     } catch (err) {
+      console.error('Error marking member as left:', err);
+      toast.error('Failed to update member status');
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleDeletePermanently = async () => {
+    setLoadingAction('delete');
+    try {
+      await deleteMember(gymId || 'univo_main', member.id);
+      broadcastForceLogout(member.id);
+      toast.success(`${getName(member)} permanently deleted.`);
+      if (onConfirm) {
+        onConfirm(member.id);
+      }
+      onClose();
+    } catch (err) {
+      console.error('Error deleting member:', err);
       toast.error('Failed to delete member');
     } finally {
-      setLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -404,29 +452,85 @@ export function DeleteConfirmModal({ member, gymId, onClose, onConfirm }) {
     <Modal
       isOpen={true}
       onClose={onClose}
-      title="🗑️ Delete Member"
-      maxWidth="max-w-sm"
+      title="🗑️ Remove Member"
+      maxWidth="max-w-md"
     >
-      <div className='space-y-4 text-slate-800'>
-        <p className='text-xs text-slate-600 leading-relaxed'>
-          Are you sure you want to permanently delete <strong>{getName(member)}</strong>? This action cannot be undone.
+      <div className="space-y-4 text-slate-800">
+        <p className="text-xs text-slate-600 leading-relaxed">
+          Please select an option for <strong>{getName(member)}</strong>:
         </p>
 
-        <div className='flex items-center gap-2 pt-2'>
+        {/* 1. Mark as Left Card */}
+        <div className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100/80 transition space-y-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-slate-700 text-white">
+                <LogOut className="w-4 h-4" />
+              </span>
+              <div>
+                <h4 className="text-xs font-bold text-slate-900">
+                  Option 1: Mark as Left (Recommended)
+                </h4>
+                <p className="text-[11px] text-slate-500">
+                  Safely archive member while preserving all history
+                </p>
+              </div>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-600 leading-relaxed">
+            Preserves past payments, tax invoices, and attendance logs for gym accounting. Frees assigned trainer shifts, revokes portal access, and moves the member to the <strong>Left</strong> tab. Can be rejoined anytime.
+          </p>
           <button
-            type='button'
+            type="button"
+            onClick={handleMarkAsLeft}
+            disabled={loadingAction !== null}
+            className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition disabled:opacity-50 cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>{loadingAction === 'left' ? 'Marking as Left...' : '🚪 Mark as Left'}</span>
+          </button>
+        </div>
+
+        {/* 2. Permanent Delete Card */}
+        <div className="p-3.5 rounded-2xl border border-rose-200 bg-rose-50/50 hover:bg-rose-50 transition space-y-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-rose-600 text-white">
+                <Trash2 className="w-4 h-4" />
+              </span>
+              <div>
+                <h4 className="text-xs font-bold text-rose-900">
+                  Option 2: Delete Permanently
+                </h4>
+                <p className="text-[11px] text-rose-700/80">
+                  Irreversible permanent removal
+                </p>
+              </div>
+            </div>
+          </div>
+          <p className="text-[11px] text-rose-800/80 leading-relaxed">
+            Completely wipes this member profile from the database. This action cannot be undone.
+          </p>
+          <button
+            type="button"
+            onClick={handleDeletePermanently}
+            disabled={loadingAction !== null}
+            className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition disabled:opacity-50 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>{loadingAction === 'delete' ? 'Deleting...' : '🗑️ Delete Permanently'}</span>
+          </button>
+        </div>
+
+        {/* 3. Cancel Button */}
+        <div className="pt-1">
+          <button
+            type="button"
             onClick={onClose}
-            className='flex-1 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-bold'
+            disabled={loadingAction !== null}
+            className="w-full py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs transition cursor-pointer"
           >
             Cancel
-          </button>
-          <button
-            type='button'
-            onClick={handleDelete}
-            disabled={loading}
-            className='flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold disabled:opacity-50'
-          >
-            {loading ? 'Deleting...' : 'Delete Permanently'}
           </button>
         </div>
       </div>

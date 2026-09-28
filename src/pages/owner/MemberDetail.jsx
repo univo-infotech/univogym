@@ -43,7 +43,7 @@ import { getTrainers } from "../../firebase/trainers";
 import { getPlans } from "../../firebase/plans";
 import { generatePaymentReceipt } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
-import { openWhatsApp, generatePtAddonReceiptMessage } from "../../utils/whatsapp";
+import { openWhatsApp, generatePtAddonReceiptMessage, generateMemberLoginMessage } from "../../utils/whatsapp";
 import { invalidateCache } from "../../utils/dataCache";
 import { calculateBmi, parseHeightToMeters } from "../../utils/bmi";
 import { toIndianDate } from "./members/memberUtils";
@@ -165,14 +165,13 @@ export default function MemberDetail() {
     }
     const memPass = member.loginPassword || member.password || "Member@123";
     const appUrl = `${window.location.origin}/#/login`;
-    const msg = `🏋️ *UNIVO GYM MEMBER PORTAL LOGIN*\n\n` +
-      `Hi *${member.name || member.fullName || "Member"}*,\n` +
-      `Aapke gym portal ke login credentials yeh hain:\n\n` +
-      `📱 *Login ID (Phone):* ${member.phone || "—"}\n` +
-      (memberEmail ? `📧 *Login Email:* ${memberEmail}\n` : "") +
-      `🔑 *Password:* ${memPass}\n` +
-      `🔗 *Login Link:* ${appUrl}\n\n` +
-      `Is link par login karke aap apna workout schedule, diet chart, attendance aur fees status track kar sakte hain!`;
+    const msg = generateMemberLoginMessage(
+      member.name || member.fullName || "Member",
+      member.phone || "—",
+      memPass,
+      appUrl,
+      settings?.gymName
+    );
     openWhatsApp(rawPhone, msg);
   };
 

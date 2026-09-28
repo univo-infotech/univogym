@@ -30,7 +30,8 @@ import {
   Gift,
   UserCheck,
   Smartphone,
-  PhoneCall
+  PhoneCall,
+  Flame
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -63,12 +64,12 @@ const ALL_DASHBOARD_SECTIONS = [
   {
     id: "kpi_stats",
     label: "Key Performance Metric Cards (KPIs)",
-    shortLabel: "4 KPI Cards",
+    shortLabel: "KPI Metric Cards",
     category: "Overview",
     color: "from-amber-600 to-orange-700",
     badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
     icon: LayoutGrid,
-    desc: "4 High-level business cards: Active Members, Gym Net Revenue, Renewals Due (with Quick WhatsApp blast), and Walk-in Leads."
+    desc: "Essential business cards: Active Members, Today's Collection, Gym Net Revenue, Renewals Due, Pending Dues, and Walk-in Leads."
   },
   {
     id: "pnl_strip",
@@ -79,6 +80,56 @@ const ALL_DASHBOARD_SECTIONS = [
     badgeColor: "bg-teal-100 text-teal-800 border-teal-200",
     icon: DollarSign,
     desc: "Detailed ledger strip: Gross Inflow, Coach/Trainer Cuts, Gym Retained Revenue, Overhead Costs, and Net Operating Take-Home Profit."
+  },
+  {
+    id: "urgent_renewals",
+    label: "Urgent Plan Expiries & Renewal Reminders",
+    shortLabel: "Urgent Renewals",
+    category: "Members",
+    color: "from-amber-600 to-rose-600",
+    badgeColor: "bg-amber-100 text-amber-900 border-amber-200",
+    icon: Clock,
+    desc: "Live list of athletes expiring in the next 3 days or today, with countdown badges, plan prices, and 1-Click WhatsApp reminder buttons."
+  },
+  {
+    id: "pending_dues",
+    label: "Outstanding Fee Balances & Dues Feed",
+    shortLabel: "Pending Dues",
+    category: "Financials",
+    color: "from-rose-600 to-red-700",
+    badgeColor: "bg-rose-100 text-rose-900 border-rose-200",
+    icon: AlertTriangle,
+    desc: "Athletes with partial payments and pending fee balances, with total gym dues counter and direct Collect Fee & WhatsApp alert buttons."
+  },
+  {
+    id: "today_attendance",
+    label: "Today's Live Floor Attendance & Punch Feed",
+    shortLabel: "Live Attendance",
+    category: "Operations",
+    color: "from-teal-600 to-cyan-700",
+    badgeColor: "bg-teal-100 text-teal-900 border-teal-200",
+    icon: CheckCircle2,
+    desc: "Today's total gym check-ins, morning vs evening breakdown, and live stream of athletes who scanned in at the entrance."
+  },
+  {
+    id: "today_demos",
+    label: "Walk-in Leads & Demo Trials Action Board",
+    shortLabel: "Demo & Leads",
+    category: "Leads",
+    color: "from-blue-600 to-indigo-700",
+    badgeColor: "bg-blue-100 text-blue-900 border-blue-200",
+    icon: UserCheck,
+    desc: "Today's scheduled trial workouts, expiring trial demos, with 1-click WhatsApp follow-up and Convert to Member shortcuts."
+  },
+  {
+    id: "recent_payments",
+    label: "Latest Fee Payments & Tax Receipts Stream",
+    shortLabel: "Recent Payments",
+    category: "Financials",
+    color: "from-emerald-600 to-teal-700",
+    badgeColor: "bg-emerald-100 text-emerald-900 border-emerald-200",
+    icon: FileText,
+    desc: "Live ledger stream of fees collected today with member names, payment modes (UPI/Cash/Bank/Split), and 1-click Receipt PDF button."
   },
   {
     id: "charts_row",
@@ -116,31 +167,135 @@ const ALL_DASHBOARD_SECTIONS = [
 const PRESET_TEMPLATES = [
   {
     id: "default",
-    name: "⚡ Standard Owner Overview",
-    desc: "Balanced default layout with Banner, Quick Jump, KPI Cards, P&L, Charts, and Feeds.",
-    order: ["banner", "quick_jump", "kpi_stats", "pnl_strip", "charts_row", "recent_members", "equipment_status"],
-    visible: { banner: true, quick_jump: true, kpi_stats: true, pnl_strip: true, charts_row: true, recent_members: true, equipment_status: true }
+    name: "⚡ Standard Complete Overview",
+    desc: "Full overview with Banner, Shortcuts, KPIs, P&L, Renewals, Dues, Attendance, Demos, Payments, and Charts.",
+    order: [
+      "banner",
+      "quick_jump",
+      "kpi_stats",
+      "pnl_strip",
+      "urgent_renewals",
+      "pending_dues",
+      "today_attendance",
+      "today_demos",
+      "recent_payments",
+      "charts_row",
+      "recent_members",
+      "equipment_status"
+    ],
+    visible: {
+      banner: true,
+      quick_jump: true,
+      kpi_stats: true,
+      pnl_strip: true,
+      urgent_renewals: true,
+      pending_dues: true,
+      today_attendance: true,
+      today_demos: true,
+      recent_payments: true,
+      charts_row: true,
+      recent_members: true,
+      equipment_status: true
+    }
   },
   {
     id: "finance_first",
-    name: "💰 Finance & Profit First",
-    desc: "Prioritizes cashflow: Live P&L Strip and Revenue Charts placed right at the very top.",
-    order: ["pnl_strip", "charts_row", "kpi_stats", "quick_jump", "banner", "recent_members", "equipment_status"],
-    visible: { banner: true, quick_jump: true, kpi_stats: true, pnl_strip: true, charts_row: true, recent_members: true, equipment_status: true }
+    name: "💰 Cashflow & Revenue First",
+    desc: "Prioritizes incoming revenue: Pending Dues, Recent Payments, P&L Strip and Charts placed at the top.",
+    order: [
+      "pnl_strip",
+      "pending_dues",
+      "recent_payments",
+      "urgent_renewals",
+      "charts_row",
+      "kpi_stats",
+      "quick_jump",
+      "banner",
+      "today_attendance",
+      "today_demos",
+      "recent_members",
+      "equipment_status"
+    ],
+    visible: {
+      banner: true,
+      quick_jump: true,
+      kpi_stats: true,
+      pnl_strip: true,
+      urgent_renewals: true,
+      pending_dues: true,
+      today_attendance: true,
+      today_demos: true,
+      recent_payments: true,
+      charts_row: true,
+      recent_members: true,
+      equipment_status: true
+    }
   },
   {
     id: "members_ops",
-    name: "👥 Athletes & Operations First",
-    desc: "Focuses on daily gym crowd: KPI Cards & Recent Members at top, charts below.",
-    order: ["kpi_stats", "recent_members", "quick_jump", "pnl_strip", "banner", "charts_row", "equipment_status"],
-    visible: { banner: true, quick_jump: true, kpi_stats: true, pnl_strip: true, charts_row: true, recent_members: true, equipment_status: true }
+    name: "👥 Operations & Floor First",
+    desc: "Focuses on daily gym floor: Live Attendance, Urgent Renewals, Demo Leads, and Recent Members at top.",
+    order: [
+      "kpi_stats",
+      "today_attendance",
+      "urgent_renewals",
+      "today_demos",
+      "recent_members",
+      "quick_jump",
+      "pending_dues",
+      "pnl_strip",
+      "recent_payments",
+      "banner",
+      "charts_row",
+      "equipment_status"
+    ],
+    visible: {
+      banner: true,
+      quick_jump: true,
+      kpi_stats: true,
+      pnl_strip: true,
+      urgent_renewals: true,
+      pending_dues: true,
+      today_attendance: true,
+      today_demos: true,
+      recent_payments: true,
+      charts_row: true,
+      recent_members: true,
+      equipment_status: true
+    }
   },
   {
     id: "minimal_speed",
-    name: "🚀 Minimal & Fast View",
-    desc: "Streamlined layout: Only Navigation, KPI Cards, and P&L for ultra-fast daily management.",
-    order: ["quick_jump", "kpi_stats", "pnl_strip", "banner", "recent_members", "charts_row", "equipment_status"],
-    visible: { banner: false, quick_jump: true, kpi_stats: true, pnl_strip: true, charts_row: false, recent_members: true, equipment_status: false }
+    name: "🚀 Minimal & Essential View",
+    desc: "Ultra-fast daily view: Only Quick Jump, KPI Cards, Urgent Renewals, and Pending Dues.",
+    order: [
+      "quick_jump",
+      "kpi_stats",
+      "urgent_renewals",
+      "pending_dues",
+      "pnl_strip",
+      "banner",
+      "today_attendance",
+      "today_demos",
+      "recent_payments",
+      "charts_row",
+      "recent_members",
+      "equipment_status"
+    ],
+    visible: {
+      banner: false,
+      quick_jump: true,
+      kpi_stats: true,
+      pnl_strip: false,
+      urgent_renewals: true,
+      pending_dues: true,
+      today_attendance: false,
+      today_demos: false,
+      recent_payments: false,
+      charts_row: false,
+      recent_members: false,
+      equipment_status: false
+    }
   }
 ];
 
@@ -148,11 +303,11 @@ const PRESET_TEMPLATES = [
 const ALL_WHATSAPP_TEMPLATES = [
   {
     id: "whatsappReminder",
-    name: "Pre-Expiry Renewal Reminder",
-    category: "fee",
-    categoryLabel: "Fee & Expiry",
-    trigger: "Sent 1 to 7 days before member's membership plan expires",
-    badge: "Pre-Expiry Alert",
+    name: "Ending Soon: Gym Membership Renewal (3, 2, 1 Days & Today)",
+    category: "ending_soon",
+    categoryLabel: "Ending Soon (Gym)",
+    trigger: "Sent 3 days, 2 days, 1 day before expiry, and on the day of expiry (today)",
+    badge: "Ending Soon (3 to 0 Days)",
     badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
     icon: Clock,
     defaultText: DEFAULT_SETTINGS.whatsappReminder,
@@ -160,6 +315,8 @@ const ALL_WHATSAPP_TEMPLATES = [
       { key: "{name}", label: "Member Name", desc: "e.g. Rahul Sharma" },
       { key: "{plan}", label: "Plan Name", desc: "e.g. 3 Months Fitness Pro" },
       { key: "{expiry}", label: "Expiry Date", desc: "e.g. 05 Oct 2026" },
+      { key: "{days_left}", label: "Days Left Text", desc: "e.g. in 3 days / tomorrow / today" },
+      { key: "{days}", label: "Days Number", desc: "e.g. 3 / 2 / 1 / 0" },
       { key: "{amount}", label: "Renewal Amount", desc: "e.g. 3,500" },
       { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
     ],
@@ -167,32 +324,158 @@ const ALL_WHATSAPP_TEMPLATES = [
       "{name}": "Rahul Sharma",
       "{plan}": "3 Months Fitness Pro",
       "{expiry}": "05 Oct 2026",
+      "{days_left}": "in 3 days",
+      "{days}": "3",
       "{amount}": "3,500",
       "{gym_name}": "UNIVO FITNESS CENTRE"
     }
   },
   {
-    id: "whatsappOverdue",
-    name: "Overdue & Expired Membership Alert",
-    category: "fee",
-    categoryLabel: "Fee & Expiry",
-    trigger: "Sent after membership has expired and renewal fee is overdue",
-    badge: "Post-Expiry / Overdue",
+    id: "whatsappPtReminder",
+    name: "Ending Soon: Personal Training (PT) Renewal (3, 2, 1 Days & Today)",
+    category: "ending_soon",
+    categoryLabel: "Ending Soon (PT)",
+    trigger: "Sent 3 days, 2 days, 1 day before PT package expiry, and on the day of expiry (today)",
+    badge: "PT Ending Soon (3 to 0 Days)",
+    badgeColor: "bg-indigo-100 text-indigo-800 border-indigo-200",
+    icon: Sparkles,
+    defaultText: DEFAULT_SETTINGS.whatsappPtReminder,
+    variables: [
+      { key: "{name}", label: "Member Name", desc: "e.g. Vikram" },
+      { key: "{trainer}", label: "Trainer Name", desc: "e.g. Coach Aryan" },
+      { key: "{plan}", label: "PT Plan", desc: "e.g. 1-on-1 Transformation PT" },
+      { key: "{expiry}", label: "Expiry Date", desc: "e.g. 08 Oct 2026" },
+      { key: "{days_left}", label: "Days Left Text", desc: "e.g. in 2 days / tomorrow / today" },
+      { key: "{days}", label: "Days Number", desc: "e.g. 2" },
+      { key: "{amount}", label: "Renewal Amount", desc: "e.g. 6,000" },
+      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
+    ],
+    sampleData: {
+      "{name}": "Vikram Malhotra",
+      "{trainer}": "Coach Aryan",
+      "{plan}": "1-on-1 Transformation PT",
+      "{expiry}": "08 Oct 2026",
+      "{days_left}": "in 2 days",
+      "{days}": "2",
+      "{amount}": "6,000",
+      "{gym_name}": "UNIVO FITNESS CENTRE"
+    }
+  },
+  {
+    id: "whatsappExpired",
+    name: "Expired: Gym Membership Expired Alert (Day 1 & Day 2)",
+    category: "expired",
+    categoryLabel: "Expired (Day 1-2)",
+    trigger: "Sent daily on Day 1 and Day 2 immediately after gym membership expiration",
+    badge: "Expired (Day 1 & 2)",
+    badgeColor: "bg-red-100 text-red-800 border-red-200",
+    icon: AlertTriangle,
+    defaultText: DEFAULT_SETTINGS.whatsappExpired,
+    variables: [
+      { key: "{name}", label: "Member Name", desc: "e.g. Rohit Mehra" },
+      { key: "{plan}", label: "Plan Name", desc: "e.g. 3 Months Fitness Pro" },
+      { key: "{expiry}", label: "Expiry Date", desc: "e.g. 27 Sep 2026" },
+      { key: "{days_expired}", label: "Days Expired Phrase", desc: "e.g. yesterday (1 day ago) / 2 days ago" },
+      { key: "{days}", label: "Days Count", desc: "e.g. 1 / 2" },
+      { key: "{amount}", label: "Renewal Amount", desc: "e.g. 3,500" },
+      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
+    ],
+    sampleData: {
+      "{name}": "Rohit Mehra",
+      "{plan}": "3 Months Fitness Pro",
+      "{expiry}": "27 Sep 2026",
+      "{days_expired}": "yesterday (1 day ago)",
+      "{days}": "1",
+      "{amount}": "3,500",
+      "{gym_name}": "UNIVO FITNESS CENTRE"
+    }
+  },
+  {
+    id: "whatsappPtExpired",
+    name: "Expired: Personal Training (PT) Expired Alert (Day 1 & Day 2)",
+    category: "expired",
+    categoryLabel: "Expired (Day 1-2)",
+    trigger: "Sent daily on Day 1 and Day 2 immediately after PT package expiration",
+    badge: "PT Expired (Day 1 & 2)",
     badgeColor: "bg-rose-100 text-rose-800 border-rose-200",
+    icon: AlertTriangle,
+    defaultText: DEFAULT_SETTINGS.whatsappPtExpired,
+    variables: [
+      { key: "{name}", label: "Member Name", desc: "e.g. Simran Kaur" },
+      { key: "{trainer}", label: "Trainer Name", desc: "e.g. Coach Aryan" },
+      { key: "{plan}", label: "PT Plan", desc: "e.g. Personal Training 20 Sessions" },
+      { key: "{expiry}", label: "Expiry Date", desc: "e.g. 27 Sep 2026" },
+      { key: "{days_expired}", label: "Days Expired Phrase", desc: "e.g. yesterday (1 day ago) / 2 days ago" },
+      { key: "{days}", label: "Days Count", desc: "e.g. 1 / 2" },
+      { key: "{amount}", label: "Renewal Amount", desc: "e.g. 5,000" },
+      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
+    ],
+    sampleData: {
+      "{name}": "Simran Kaur",
+      "{trainer}": "Coach Aryan",
+      "{plan}": "Personal Training 20 Sessions",
+      "{expiry}": "27 Sep 2026",
+      "{days_expired}": "2 days ago",
+      "{days}": "2",
+      "{amount}": "5,000",
+      "{gym_name}": "UNIVO FITNESS CENTRE"
+    }
+  },
+  {
+    id: "whatsappOverdue",
+    name: "Overdue: Gym Membership Overdue Notice (Day 3+ Overdue)",
+    category: "overdue",
+    categoryLabel: "Overdue (Day 3+)",
+    trigger: "Sent starting Day 3 after membership expiration and beyond",
+    badge: "Overdue (Day 3+)",
+    badgeColor: "bg-rose-100 text-rose-900 border-rose-300",
     icon: AlertTriangle,
     defaultText: DEFAULT_SETTINGS.whatsappOverdue,
     variables: [
       { key: "{name}", label: "Member Name", desc: "e.g. Amit Verma" },
       { key: "{plan}", label: "Plan Name", desc: "e.g. Monthly Standard" },
-      { key: "{days}", label: "Days Overdue", desc: "e.g. 3" },
+      { key: "{expiry}", label: "Expired Date", desc: "e.g. 24 Sep 2026" },
+      { key: "{days_overdue}", label: "Days Overdue Text", desc: "e.g. 5 days / 3 days" },
+      { key: "{days}", label: "Days Count", desc: "e.g. 5" },
       { key: "{amount}", label: "Renewal Amount", desc: "e.g. 1,500" },
       { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
     ],
     sampleData: {
       "{name}": "Amit Verma",
       "{plan}": "Monthly Standard",
-      "{days}": "3",
+      "{expiry}": "24 Sep 2026",
+      "{days_overdue}": "5 days",
+      "{days}": "5",
       "{amount}": "1,500",
+      "{gym_name}": "UNIVO FITNESS CENTRE"
+    }
+  },
+  {
+    id: "whatsappPtOverdue",
+    name: "Overdue: Personal Training (PT) Overdue Notice (Day 3+ Overdue)",
+    category: "overdue",
+    categoryLabel: "Overdue (Day 3+)",
+    trigger: "Sent starting Day 3 after PT package expiration and beyond",
+    badge: "PT Overdue (Day 3+)",
+    badgeColor: "bg-purple-100 text-purple-900 border-purple-300",
+    icon: AlertTriangle,
+    defaultText: DEFAULT_SETTINGS.whatsappPtOverdue,
+    variables: [
+      { key: "{name}", label: "Member Name", desc: "e.g. Sameer Khan" },
+      { key: "{trainer}", label: "Trainer Name", desc: "e.g. Coach Aryan" },
+      { key: "{plan}", label: "PT Plan", desc: "e.g. 1-on-1 PT Gold" },
+      { key: "{days_overdue}", label: "Days Overdue Text", desc: "e.g. 4 days / 3 days" },
+      { key: "{days}", label: "Days Count", desc: "e.g. 4" },
+      { key: "{amount}", label: "Renewal Amount", desc: "e.g. 6,000" },
+      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
+    ],
+    sampleData: {
+      "{name}": "Sameer Khan",
+      "{trainer}": "Coach Aryan",
+      "{plan}": "1-on-1 PT Gold",
+      "{days_overdue}": "4 days",
+      "{days}": "4",
+      "{amount}": "6,000",
       "{gym_name}": "UNIVO FITNESS CENTRE"
     }
   },
@@ -218,33 +501,6 @@ const ALL_WHATSAPP_TEMPLATES = [
       "{plan}": "6 Months Transformation",
       "{amount}": "2,000",
       "{due_amount}": "2,000",
-      "{gym_name}": "UNIVO FITNESS CENTRE"
-    }
-  },
-  {
-    id: "whatsappPtReminder",
-    name: "Personal Training (PT) Expiry Reminder",
-    category: "fee",
-    categoryLabel: "Fee & Expiry",
-    trigger: "Sent when member's 1-on-1 personal coaching package is expiring",
-    badge: "PT Expiry Alert",
-    badgeColor: "bg-indigo-100 text-indigo-800 border-indigo-200",
-    icon: Sparkles,
-    defaultText: DEFAULT_SETTINGS.whatsappPtReminder,
-    variables: [
-      { key: "{name}", label: "Member Name", desc: "e.g. Vikram" },
-      { key: "{trainer}", label: "Trainer Name", desc: "e.g. Coach Aryan" },
-      { key: "{plan}", label: "PT Plan", desc: "e.g. 1-on-1 Transformation PT" },
-      { key: "{expiry}", label: "Expiry Date", desc: "e.g. 08 Oct 2026" },
-      { key: "{amount}", label: "Renewal Amount", desc: "e.g. 6,000" },
-      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
-    ],
-    sampleData: {
-      "{name}": "Vikram Malhotra",
-      "{trainer}": "Coach Aryan",
-      "{plan}": "1-on-1 Transformation PT",
-      "{expiry}": "08 Oct 2026",
-      "{amount}": "6,000",
       "{gym_name}": "UNIVO FITNESS CENTRE"
     }
   },
@@ -333,13 +589,57 @@ const ALL_WHATSAPP_TEMPLATES = [
     }
   },
   {
-    id: "whatsappVisitFollowup",
-    name: "Walk-in Lead & Trial Session Follow-up",
-    category: "engagement",
-    categoryLabel: "Engagement & Leads",
-    trigger: "Sent to follow up with walk-in visitors and trial inquiries",
-    badge: "Lead Follow-up",
+    id: "whatsappDemoEndingToday",
+    name: "Demo: Trial Session Ending Today Alert",
+    category: "demo",
+    categoryLabel: "Demo & Leads",
+    trigger: "Sent on the day of the trial workout session (ending today)",
+    badge: "Demo Ending Today",
+    badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
+    icon: Clock,
+    defaultText: DEFAULT_SETTINGS.whatsappDemoEndingToday,
+    variables: [
+      { key: "{name}", label: "Candidate Name", desc: "e.g. Rahul Sharma" },
+      { key: "{plan}", label: "Fitness Program", desc: "e.g. Fat Loss & Strength" },
+      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
+    ],
+    sampleData: {
+      "{name}": "Rahul Sharma",
+      "{plan}": "Fat Loss & Strength",
+      "{gym_name}": "UNIVO FITNESS CENTRE"
+    }
+  },
+  {
+    id: "whatsappDemoEnded",
+    name: "Demo: Trial Session Ended / Completed Follow-up",
+    category: "demo",
+    categoryLabel: "Demo & Leads",
+    trigger: "Sent after the demo session has finished to enroll the prospect",
+    badge: "Demo Completed",
     badgeColor: "bg-cyan-100 text-cyan-800 border-cyan-200",
+    icon: Sparkles,
+    defaultText: DEFAULT_SETTINGS.whatsappDemoEnded,
+    variables: [
+      { key: "{name}", label: "Candidate Name", desc: "e.g. Kavita Rao" },
+      { key: "{plan}", label: "Fitness Program", desc: "e.g. Personal Training & Diet" },
+      { key: "{trainer}", label: "Trainer Name", desc: "e.g. Coach Sneha" },
+      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
+    ],
+    sampleData: {
+      "{name}": "Kavita Rao",
+      "{plan}": "Personal Training & Diet",
+      "{trainer}": "Coach Sneha",
+      "{gym_name}": "UNIVO FITNESS CENTRE"
+    }
+  },
+  {
+    id: "whatsappVisitFollowup",
+    name: "Walk-in Lead & General Visit Follow-up",
+    category: "demo",
+    categoryLabel: "Demo & Leads",
+    trigger: "Sent to follow up with walk-in visitors and general inquiries",
+    badge: "Visit Follow-up",
+    badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
     icon: PhoneCall,
     defaultText: DEFAULT_SETTINGS.whatsappVisitFollowup,
     variables: [
@@ -350,6 +650,178 @@ const ALL_WHATSAPP_TEMPLATES = [
     sampleData: {
       "{name}": "Anil Kumar",
       "{plan}": "Strength & Conditioning",
+      "{gym_name}": "UNIVO FITNESS CENTRE"
+    }
+  },
+  {
+    id: "whatsappMemberLogin",
+    name: "Member Portal App Login ID & Password",
+    category: "onboarding",
+    categoryLabel: "Welcome & Onboarding",
+    trigger: "Sent when sharing member login credentials for athlete portal/app",
+    badge: "App Login Credentials",
+    badgeColor: "bg-indigo-100 text-indigo-800 border-indigo-200",
+    icon: Smartphone,
+    defaultText: DEFAULT_SETTINGS.whatsappMemberLogin,
+    variables: [
+      { key: "{name}", label: "Member Name", desc: "e.g. Rahul Sharma" },
+      { key: "{phone}", label: "Login ID / Phone", desc: "e.g. 9876543210" },
+      { key: "{password}", label: "Password", desc: "e.g. Rahul@2026" },
+      { key: "{link}", label: "Login Portal Link", desc: "Portal web address" },
+      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
+    ],
+    sampleData: {
+      "{name}": "Rahul Sharma",
+      "{phone}": "9876543210",
+      "{password}": "Rahul@2026",
+      "{link}": "https://univogym.com/#/login",
+      "{gym_name}": "UNIVO FITNESS CENTRE"
+    }
+  },
+  {
+    id: "whatsappExtension",
+    name: "Membership Validity Extension Confirmation (+Days)",
+    category: "receipts",
+    categoryLabel: "Receipts & Invoices",
+    trigger: "Sent after adding bonus or paid extension days to a membership",
+    badge: "Plan Extended Notice",
+    badgeColor: "bg-teal-100 text-teal-800 border-teal-200",
+    icon: Clock,
+    defaultText: DEFAULT_SETTINGS.whatsappExtension,
+    variables: [
+      { key: "{name}", label: "Member Name", desc: "e.g. Vikas Patel" },
+      { key: "{extra_days}", label: "Added Days", desc: "e.g. 15" },
+      { key: "{expiry}", label: "New Expiry Date", desc: "e.g. 20 Nov 2026" },
+      { key: "{amount}", label: "Extension Fee", desc: "e.g. 800" },
+      { key: "{mode}", label: "Payment Mode", desc: "e.g. CASH / UPI" },
+      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
+    ],
+    sampleData: {
+      "{name}": "Vikas Patel",
+      "{extra_days}": "15",
+      "{expiry}": "20 Nov 2026",
+      "{amount}": "800",
+      "{mode}": "UPI",
+      "{gym_name}": "UNIVO FITNESS CENTRE"
+    }
+  },
+  {
+    id: "whatsappPtInvoice",
+    name: "Personal Training (PT) Package Invoice & Receipt",
+    category: "receipts",
+    categoryLabel: "Receipts & Invoices",
+    trigger: "Sent when enrolling or renewing a Personal Training transformation package",
+    badge: "PT Official Invoice",
+    badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
+    icon: Sparkles,
+    defaultText: DEFAULT_SETTINGS.whatsappPtInvoice,
+    variables: [
+      { key: "{name}", label: "Member Name", desc: "e.g. Rohit Mehra" },
+      { key: "{trainer}", label: "Coach Name", desc: "e.g. Coach Aryan" },
+      { key: "{plan}", label: "PT Plan Name", desc: "e.g. 20 Sessions Muscle Gain" },
+      { key: "{expiry}", label: "Valid Till", desc: "e.g. 15 Nov 2026" },
+      { key: "{duration}", label: "Duration Days", desc: "e.g. 30" },
+      { key: "{amount}", label: "Total PT Fee", desc: "e.g. 6,000" },
+      { key: "{paid}", label: "Paid Amount", desc: "e.g. 6,000" },
+      { key: "{due_text}", label: "Due Status", desc: "e.g. Status: FULLY PAID" },
+      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
+    ],
+    sampleData: {
+      "{name}": "Rohit Mehra",
+      "{trainer}": "Coach Aryan",
+      "{plan}": "20 Sessions Muscle Gain",
+      "{expiry}": "15 Nov 2026",
+      "{duration}": "30",
+      "{amount}": "6,000",
+      "{paid}": "6,000",
+      "{due_text}": "✨ Status: FULLY PAID",
+      "{gym_name}": "UNIVO FITNESS CENTRE"
+    }
+  },
+  {
+    id: "whatsappServiceInvoice",
+    name: "Gym Facility / Amenity Service Invoice (Locker, Sauna, Zumba)",
+    category: "receipts",
+    categoryLabel: "Receipts & Invoices",
+    trigger: "Sent when a member subscribes to Lockers, Steam Bath, Sauna, or Diet Consultation",
+    badge: "Facility Amenity Bill",
+    badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
+    icon: FileText,
+    defaultText: DEFAULT_SETTINGS.whatsappServiceInvoice,
+    variables: [
+      { key: "{name}", label: "Member Name", desc: "e.g. Pooja Sharma" },
+      { key: "{service}", label: "Service Name", desc: "e.g. Locker #24" },
+      { key: "{category}", label: "Category", desc: "e.g. Premium Locker" },
+      { key: "{duration}", label: "Duration", desc: "e.g. 3 Months" },
+      { key: "{expiry}", label: "Valid Till", desc: "e.g. 31 Dec 2026" },
+      { key: "{amount}", label: "Total Fee", desc: "e.g. 1,500" },
+      { key: "{paid}", label: "Paid Amount", desc: "e.g. 1,500" },
+      { key: "{due_text}", label: "Due Status", desc: "e.g. Status: FULLY PAID" },
+      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
+    ],
+    sampleData: {
+      "{name}": "Pooja Sharma",
+      "{service}": "Locker #24",
+      "{category}": "Premium Locker",
+      "{duration}": "3 Months",
+      "{expiry}": "31 Dec 2026",
+      "{amount}": "1,500",
+      "{paid}": "1,500",
+      "{due_text}": "✨ Status: FULLY PAID",
+      "{gym_name}": "UNIVO FITNESS CENTRE"
+    }
+  },
+  {
+    id: "whatsappSupplementInvoice",
+    name: "Supplement Store Digital Tax Invoice & Bill",
+    category: "receipts",
+    categoryLabel: "Receipts & Invoices",
+    trigger: "Sent when selling Whey Protein, Creatine, Pre-workout, or gym merchandise from the store",
+    badge: "Store Product Bill",
+    badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    icon: DollarSign,
+    defaultText: DEFAULT_SETTINGS.whatsappSupplementInvoice,
+    variables: [
+      { key: "{name}", label: "Customer Name", desc: "e.g. Kunal Sen" },
+      { key: "{item}", label: "Product Name", desc: "e.g. Gold Whey Isolate 2kg" },
+      { key: "{brand}", label: "Brand", desc: "e.g. Optimum Nutrition" },
+      { key: "{quantity}", label: "Quantity", desc: "e.g. 1 Unit" },
+      { key: "{amount}", label: "Total Paid", desc: "e.g. 4,800" },
+      { key: "{mode}", label: "Payment Mode", desc: "e.g. UPI" },
+      { key: "{date}", label: "Billing Date", desc: "e.g. 29 Sep 2026" },
+      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
+    ],
+    sampleData: {
+      "{name}": "Kunal Sen",
+      "{item}": "Gold Whey Isolate 2kg",
+      "{brand}": "Optimum Nutrition",
+      "{quantity}": "1 Unit",
+      "{amount}": "4,800",
+      "{mode}": "UPI",
+      "{date}": "29 Sep 2026",
+      "{gym_name}": "UNIVO FITNESS CENTRE"
+    }
+  },
+  {
+    id: "whatsappInactive",
+    name: "Absent / Inactive Member Follow-up (7+ Days Inactivity)",
+    category: "engagement",
+    categoryLabel: "Engagement & Retention",
+    trigger: "Sent to active members who have not checked in for their workouts in 7 or more days",
+    badge: "We Miss You Alert",
+    badgeColor: "bg-amber-100 text-amber-900 border-amber-300",
+    icon: Flame,
+    defaultText: DEFAULT_SETTINGS.whatsappInactive,
+    variables: [
+      { key: "{name}", label: "Member Name", desc: "e.g. Ankit Roy" },
+      { key: "{days_absent}", label: "Days Absent", desc: "e.g. 8" },
+      { key: "{plan}", label: "Plan Name", desc: "e.g. 3 Months Transformation" },
+      { key: "{gym_name}", label: "Gym Name", desc: "e.g. UNIVO FITNESS CENTRE" }
+    ],
+    sampleData: {
+      "{name}": "Ankit Roy",
+      "{days_absent}": "8",
+      "{plan}": "3 Months Transformation",
       "{gym_name}": "UNIVO FITNESS CENTRE"
     }
   }
@@ -575,6 +1047,14 @@ export default function Customization() {
   // Filtered templates for Tab 2
   const filteredTemplates = ALL_WHATSAPP_TEMPLATES.filter((tpl) => {
     if (whatsappFilter === "all") return true;
+    if (whatsappFilter === "ending_soon") return tpl.category === "ending_soon";
+    if (whatsappFilter === "expired") return tpl.category === "expired";
+    if (whatsappFilter === "overdue") return tpl.category === "overdue";
+    if (whatsappFilter === "fee") return tpl.category === "fee";
+    if (whatsappFilter === "demo") return tpl.category === "demo";
+    if (whatsappFilter === "onboarding") return tpl.category === "onboarding";
+    if (whatsappFilter === "receipts") return tpl.category === "receipts";
+    if (whatsappFilter === "engagement") return tpl.category === "engagement";
     return tpl.category === whatsappFilter;
   });
 
@@ -823,7 +1303,7 @@ export default function Customization() {
                               ? "bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed"
                               : "bg-white hover:bg-slate-100 text-slate-800 border-slate-200 shadow-xs"
                           }`}
-                          title="Move Up (Pehla aayega)"
+                          title="Move Up (Appear higher)"
                         >
                           <ArrowUp className="w-4 h-4" />
                           <span className="text-[11px] hidden md:inline">Up</span>
@@ -839,7 +1319,7 @@ export default function Customization() {
                               ? "bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed"
                               : "bg-white hover:bg-slate-100 text-slate-800 border-slate-200 shadow-xs"
                           }`}
-                          title="Move Down (Baad me aayega)"
+                          title="Move Down (Appear lower)"
                         >
                           <ArrowDown className="w-4 h-4" />
                           <span className="text-[11px] hidden md:inline">Down</span>
@@ -979,10 +1459,14 @@ export default function Customization() {
               <span className="text-slate-400 text-[11px] uppercase tracking-wider shrink-0 mr-1">Filter Messages:</span>
               {[
                 { id: "all", label: "All Templates", count: ALL_WHATSAPP_TEMPLATES.length },
-                { id: "fee", label: "💳 Fee Expiry & Balance Dues", count: ALL_WHATSAPP_TEMPLATES.filter(t => t.category === "fee").length },
-                { id: "onboarding", label: "🌟 Welcome & Invite Link", count: ALL_WHATSAPP_TEMPLATES.filter(t => t.category === "onboarding").length },
-                { id: "receipts", label: "🧾 Payment Receipts", count: ALL_WHATSAPP_TEMPLATES.filter(t => t.category === "receipts").length },
-                { id: "engagement", label: "🎯 Birthday & Leads", count: ALL_WHATSAPP_TEMPLATES.filter(t => t.category === "engagement").length }
+                { id: "ending_soon", label: "⏳ Ending Soon (Gym & PT)", count: ALL_WHATSAPP_TEMPLATES.filter(t => t.category === "ending_soon").length },
+                { id: "expired", label: "🚨 Expired (Day 1-2)", count: ALL_WHATSAPP_TEMPLATES.filter(t => t.category === "expired").length },
+                { id: "overdue", label: "⛔ Overdue (Day 3+)", count: ALL_WHATSAPP_TEMPLATES.filter(t => t.category === "overdue").length },
+                { id: "fee", label: "💳 Partial Balance", count: ALL_WHATSAPP_TEMPLATES.filter(t => t.category === "fee").length },
+                { id: "demo", label: "🎯 Demo & Leads", count: ALL_WHATSAPP_TEMPLATES.filter(t => t.category === "demo").length },
+                { id: "engagement", label: "🎂 Birthday & Inactivity", count: ALL_WHATSAPP_TEMPLATES.filter(t => t.category === "engagement").length },
+                { id: "receipts", label: "🧾 Receipts & Invoices", count: ALL_WHATSAPP_TEMPLATES.filter(t => t.category === "receipts").length },
+                { id: "onboarding", label: "🌟 Welcome & App Login", count: ALL_WHATSAPP_TEMPLATES.filter(t => t.category === "onboarding").length }
               ].map((cat) => (
                 <button
                   key={cat.id}

@@ -6,7 +6,7 @@ import { updateMember } from '../../../../firebase/members';
 import { addPayment } from '../../../../firebase/payments';
 import { toDate, formatDate, toIndianDate, getMembershipRemainingDays } from '../memberUtils';
 import { getGymSettings } from '../../../../utils/settings';
-import { openWhatsApp } from '../../../../utils/whatsapp';
+import { openWhatsApp, generateExtensionMessage } from '../../../../utils/whatsapp';
 
 export default function ExtendModal({ member, onClose, onSave, gymId }) {
   const [extraDays, setExtraDays] = useState(10);
@@ -144,7 +144,16 @@ export default function ExtendModal({ member, onClose, onSave, gymId }) {
 
       // 3. WhatsApp notification
       if (sendWhatsApp && phone) {
-        const msg = `📅 *Gym Membership Extended - ${settings.gymName || 'UNIVO GYM'}*\n\nHello *${memberName}*,\nYour gym membership has been extended by *+${extraDays} Days*!\n\n🗓️ *New Expiry Date:* ${newExpiryFormatted}\n💰 *Extension Fee:* ₹${totalFee} ${isPayLater ? '(Pay Later)' : `(Paid via ${paymentMode.toUpperCase()})`}\n\nKeep up the fitness momentum! Stay active and fit! 💪🏋️`;
+        const modeText = isPayLater ? "Pay Later" : `Paid via ${paymentMode.toUpperCase()}`;
+        const msg = generateExtensionMessage(
+          memberName,
+          member.planName || "Membership",
+          extraDays,
+          newEndDate,
+          totalFee,
+          modeText,
+          settings?.gymName
+        );
         openWhatsApp(phone, msg);
       }
 

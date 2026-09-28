@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Settings as SettingsIcon,
   Bell,
@@ -21,7 +22,8 @@ import {
   RefreshCw,
   AlertTriangle,
   Flame,
-  Calendar
+  Calendar,
+  ArrowRight
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
@@ -32,6 +34,7 @@ import { load6MonthDummyData, clearAllGymData } from "../../firebase/seedData";
 import { useAuth } from "../../contexts/AuthContext";
 
 export default function Settings() {
+  const navigate = useNavigate();
   const { gymId: authGymId, logoutUser } = useAuth();
   const gymId = authGymId || "univo_main";
   const [settings, setSettings] = useState(getGymSettings());
@@ -181,7 +184,7 @@ export default function Settings() {
           Gym Settings & Custom Branding
         </h1>
         <p className="text-slate-500 text-xs mt-1">
-          Customize your official Gym Logo, Digital Signature Stamp, Bill Authority, and WhatsApp Reminders.
+          Customize your official Gym Logo, Digital Signature Stamp, Bill Authority, and Facility Details.
         </p>
       </div>
 
@@ -465,59 +468,39 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* 4. WhatsApp Reminder Templates */}
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-emerald-600" /> 🏋️ WhatsApp Gym Renewal Reminder Notification Template
-            </h3>
-            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-              Gym Membership
-            </span>
+        {/* WhatsApp Notification Navigation Banner */}
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-emerald-600 text-white">
+                <MessageSquare className="w-4 h-4" />
+              </span>
+              <h4 className="text-sm font-bold text-slate-900">
+                WhatsApp Notifications & Custom Messages
+              </h4>
+            </div>
+            <p className="text-xs text-slate-600 max-w-xl">
+              All 14+ automated WhatsApp notification templates (Gym/PT Renewals, Expiries, Overdues, Demo Alerts, Birthdays, Inactive Check-ins, and Invoices) are centrally managed in Customization.
+            </p>
           </div>
-          <p className="text-xs text-slate-500">
-            Dynamic Variables: {"{name}"} = Member Name, {"{plan}"} = Plan Name, {"{expiry}"} = Expiry Date, {"{amount}"} = Renewal Price, {"{gym_name}"} = Gym Name
-          </p>
-          <textarea
-            rows={4}
-            value={settings.whatsappReminder}
-            onChange={(e) => setSettings({ ...settings, whatsappReminder: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-indigo-500"
-          />
+          <button
+            type="button"
+            onClick={() => navigate("/owner/customization")}
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition whitespace-nowrap self-start sm:self-auto flex items-center gap-1.5 cursor-pointer"
+          >
+            <span>Open Customization</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
-          <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-purple-600" /> ✨ WhatsApp PT (Personal Training) Renewal Reminder Template
-            </h3>
-            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
-              Personal Training
-            </span>
-          </div>
-          <p className="text-xs text-slate-500">
-            Dynamic Variables: {"{name}"} = Member Name, {"{trainer}"} = Coach/Trainer Name, {"{plan}"} = PT Plan, {"{expiry}"} = Expiry Date, {"{amount}"} = Renewal Price, {"{gym_name}"} = Gym Name
-          </p>
-          <textarea
-            rows={4}
-            value={settings.whatsappPtReminder || "✨ *Personal Training (PT) Renewal Reminder*\n\nHi {name},\nYour 1-on-1 Personal Training package with *{trainer}* ({plan}) is expiring on *{expiry}*.\nRenewal Amount: ₹{amount}.\n\nRenew your PT package today to keep achieving your personal transformation goals! 🎯🔥\n— {gym_name}"}
-            onChange={(e) => setSettings({ ...settings, whatsappPtReminder: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-purple-500"
-          />
-
-          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 pt-3 border-t border-slate-100">
-            <MessageSquare className="w-5 h-5 text-teal-600" /> WhatsApp Welcome Message
-          </h3>
-          <textarea
-            rows={4}
-            value={settings.whatsappWelcome}
-            onChange={(e) => setSettings({ ...settings, whatsappWelcome: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-indigo-500"
-          />
-
+        {/* Save Button */}
+        <div className="flex justify-end">
           <button
             type="submit"
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:opacity-95 text-white font-black text-sm shadow-md transition"
+            disabled={saving}
+            className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:opacity-95 text-white font-black text-sm shadow-md transition disabled:opacity-50 cursor-pointer"
           >
-            Save All Settings, Logo & Signature
+            {saving ? "Saving Changes..." : "Save Gym Profile, Logo & Signature"}
           </button>
         </div>
       </form>
@@ -537,7 +520,7 @@ export default function Settings() {
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Yahan se aap 6 month ka pura realistic gym data (Members, Payments, Expenses, Equipment, Supplements) ek click me load kar sakte hain ya pura database clean/delete kar sakte hain.
+              Load 6 months of realistic gym data (Members, Payments, Expenses, Equipment, Supplements) in one click or reset and wipe the database.
             </p>
           </div>
 

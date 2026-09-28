@@ -24,26 +24,48 @@ export function generateMemberInviteMessage(gymName, token, baseUrl = window.loc
     .replace(/{link}/g, link);
 }
 
-export function generateRenewalReminderMessage(memberName, planName, expiryDate, amount) {
+export function getDaysLeftPhrase(daysLeft) {
+  if (daysLeft === undefined || daysLeft === null) return "soon";
+  const num = Number(daysLeft);
+  if (num === 0) return "today";
+  if (num === 1) return "tomorrow (in 1 day)";
+  if (num === 2) return "in 2 days";
+  if (num === 3) return "in 3 days";
+  if (num > 0) return `in ${num} days`;
+  if (num === -1) return "yesterday";
+  return `${Math.abs(num)} days ago`;
+}
+
+export function generateRenewalReminderMessage(memberName, planName, expiryDate, amount, daysLeft = null) {
   const settings = getGymSettings();
-  const template = settings.whatsappReminder || "⚠️ *Gym Renewal Reminder*\n\nHi {name},\nYour membership for *{plan}* is expiring on *{expiry}*.\nPending/Renewal Amount: ₹{amount}.\n\nRenew today to maintain your workout consistency! 💪\n— {gym_name}";
+  const template = settings.whatsappReminder || "⚠️ *Gym Membership Ending Soon - {gym_name}*\n\nHi {name},\nYour membership for *{plan}* is ending {days_left} (on *{expiry}*).\nRenewal Amount: ₹{amount}.\n\nRenew today to maintain your workout consistency without disruption! 💪🔥\n— {gym_name}";
+  const daysPhrase = getDaysLeftPhrase(daysLeft);
+  const daysNumber = daysLeft !== null && daysLeft !== undefined ? String(daysLeft) : daysPhrase;
+
   return template
     .replace(/{name}/g, memberName || "Athlete")
     .replace(/{plan}/g, planName || "Gym Plan")
     .replace(/{expiry}/g, formatDate(expiryDate) || "upcoming date")
+    .replace(/{days_left}/g, daysPhrase)
+    .replace(/{days}/g, daysNumber)
     .replace(/{amount}/g, amount || "0")
     .replace(/{due_amount}/g, amount || "0")
     .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
 }
 
-export function generatePtRenewalReminderMessage(memberName, ptPlanName, trainerName, expiryDate, amount) {
+export function generatePtRenewalReminderMessage(memberName, ptPlanName, trainerName, expiryDate, amount, daysLeft = null) {
   const settings = getGymSettings();
-  const template = settings.whatsappPtReminder || "✨ *Personal Training (PT) Renewal Reminder*\n\nHi {name},\nYour 1-on-1 Personal Training package with *{trainer}* ({plan}) is expiring on *{expiry}*.\nRenewal Amount: ₹{amount}.\n\nRenew your PT package today to keep achieving your personal transformation goals! 🎯🔥\n— {gym_name}";
+  const template = settings.whatsappPtReminder || "✨ *Personal Training (PT) Ending Soon - {gym_name}*\n\nHi {name},\nYour 1-on-1 Personal Training package with *Coach {trainer}* ({plan}) is ending {days_left} (on *{expiry}*).\nRenewal Amount: ₹{amount}.\n\nRenew your PT package today to keep achieving your personal transformation goals! 🎯🔥\n— {gym_name}";
+  const daysPhrase = getDaysLeftPhrase(daysLeft);
+  const daysNumber = daysLeft !== null && daysLeft !== undefined ? String(daysLeft) : daysPhrase;
+
   return template
     .replace(/{name}/g, memberName || "Athlete")
     .replace(/{trainer}/g, trainerName || "Personal Trainer")
     .replace(/{plan}/g, ptPlanName || "1-on-1 PT Plan")
     .replace(/{expiry}/g, formatDate(expiryDate) || "upcoming date")
+    .replace(/{days_left}/g, daysPhrase)
+    .replace(/{days}/g, daysNumber)
     .replace(/{amount}/g, amount || "0")
     .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
 }
@@ -59,13 +81,82 @@ export function generatePartialDueReminderMessage(memberName, dueAmount, planNam
     .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
 }
 
-export function generateOverdueReminderMessage(memberName, planName, daysOverdue, amount) {
+export function getDaysExpiredPhrase(daysExpired) {
+  const num = Math.abs(Number(daysExpired || 1));
+  if (num === 1) return "yesterday (1 day ago)";
+  return `${num} days ago`;
+}
+
+export function getDaysOverduePhrase(daysOverdue) {
+  const num = Math.abs(Number(daysOverdue || 3));
+  return `${num} days`;
+}
+
+export function generateExpiredMessage(memberName, planName, expiryDate, amount, daysExpired = 1) {
   const settings = getGymSettings();
-  const template = settings.whatsappOverdue || "🚨 *Membership Overdue Alert - {gym_name}*\n\nHi {name},\nYour gym membership for *{plan}* has ended *{days} days ago* and is currently overdue.\n\n💵 *Renewal Amount: ₹{amount}*\n\nPlease renew today at the reception to restart your workout sessions and retain your slot! 🔥";
+  const template = settings.whatsappExpired || "🚨 *Gym Membership Expired - {gym_name}*\n\nHi {name},\nYour gym membership for *{plan}* has expired {days_expired} (on *{expiry}*).\nRenewal Amount: ₹{amount}.\n\nRenew your membership today to restart your workout sessions and keep your fitness journey going! 💪🔥\n— {gym_name}";
+  const daysPhrase = getDaysExpiredPhrase(daysExpired);
+  const daysNumber = String(Math.abs(Number(daysExpired || 1)));
+
   return template
     .replace(/{name}/g, memberName || "Athlete")
-    .replace(/{plan}/g, planName || "Membership")
-    .replace(/{days}/g, daysOverdue || "few")
+    .replace(/{plan}/g, planName || "Gym Plan")
+    .replace(/{expiry}/g, formatDate(expiryDate) || "recent date")
+    .replace(/{days_expired}/g, daysPhrase)
+    .replace(/{days}/g, daysNumber)
+    .replace(/{amount}/g, amount || "0")
+    .replace(/{due_amount}/g, amount || "0")
+    .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
+}
+
+export function generatePtExpiredMessage(memberName, ptPlanName, trainerName, expiryDate, amount, daysExpired = 1) {
+  const settings = getGymSettings();
+  const template = settings.whatsappPtExpired || "🚨 *Personal Training (PT) Expired - {gym_name}*\n\nHi {name},\nYour 1-on-1 Personal Training package with *Coach {trainer}* ({plan}) has expired {days_expired} (on *{expiry}*).\nRenewal Amount: ₹{amount}.\n\nPlease renew your PT package today so you don't miss your training slots with Coach {trainer}! 🎯🔥\n— {gym_name}";
+  const daysPhrase = getDaysExpiredPhrase(daysExpired);
+  const daysNumber = String(Math.abs(Number(daysExpired || 1)));
+
+  return template
+    .replace(/{name}/g, memberName || "Athlete")
+    .replace(/{trainer}/g, trainerName || "Personal Trainer")
+    .replace(/{plan}/g, ptPlanName || "1-on-1 PT Plan")
+    .replace(/{expiry}/g, formatDate(expiryDate) || "recent date")
+    .replace(/{days_expired}/g, daysPhrase)
+    .replace(/{days}/g, daysNumber)
+    .replace(/{amount}/g, amount || "0")
+    .replace(/{due_amount}/g, amount || "0")
+    .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
+}
+
+export function generateOverdueReminderMessage(memberName, planName, daysOverdue, amount, expiryDate = null) {
+  const settings = getGymSettings();
+  const template = settings.whatsappOverdue || "⛔ *Membership Overdue Notice - {gym_name}*\n\nHi {name},\nYour gym membership for *{plan}* has ended and is now *{days_overdue} overdue* (ended on *{expiry}*).\nOutstanding Renewal Amount: ₹{amount}.\n\nPlease clear your renewal today at the reception or via UPI to reactivate your access! 🔥\n— {gym_name}";
+  const daysPhrase = getDaysOverduePhrase(daysOverdue);
+  const daysNumber = String(Math.abs(Number(daysOverdue || 3)));
+
+  return template
+    .replace(/{name}/g, memberName || "Athlete")
+    .replace(/{plan}/g, planName || "Gym Membership")
+    .replace(/{expiry}/g, expiryDate ? formatDate(expiryDate) : "recent date")
+    .replace(/{days_overdue}/g, daysPhrase)
+    .replace(/{days}/g, daysNumber)
+    .replace(/{amount}/g, amount || "0")
+    .replace(/{due_amount}/g, amount || "0")
+    .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
+}
+
+export function generatePtOverdueReminderMessage(memberName, ptPlanName, trainerName, daysOverdue, amount, expiryDate = null) {
+  const settings = getGymSettings();
+  const template = settings.whatsappPtOverdue || "⛔ *Personal Training (PT) Overdue Notice - {gym_name}*\n\nHi {name},\nYour 1-on-1 Personal Training package with *Coach {trainer}* ({plan}) is now *{days_overdue} overdue*.\nRenewal Amount: ₹{amount}.\n\nPlease renew today at the gym desk to secure your coaching slot with Coach {trainer}! 🎯🔥\n— {gym_name}";
+  const daysPhrase = getDaysOverduePhrase(daysOverdue);
+  const daysNumber = String(Math.abs(Number(daysOverdue || 3)));
+
+  return template
+    .replace(/{name}/g, memberName || "Athlete")
+    .replace(/{trainer}/g, trainerName || "Personal Trainer")
+    .replace(/{plan}/g, ptPlanName || "1-on-1 PT Plan")
+    .replace(/{expiry}/g, expiryDate ? formatDate(expiryDate) : "recent date")
+    .replace(/{days_overdue}/g, daysPhrase)
+    .replace(/{days}/g, daysNumber)
     .replace(/{amount}/g, amount || "0")
     .replace(/{due_amount}/g, amount || "0")
     .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
@@ -99,6 +190,25 @@ export function generateBirthdayMessage(memberName) {
     .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
 }
 
+export function generateDemoEndingTodayMessage(name, planName, gymName = null) {
+  const settings = getGymSettings();
+  const template = settings.whatsappDemoEndingToday || "⏳ *Demo Session Ending Today - {gym_name}*\n\nHi {name}!\nYour free trial workout / demo session at *{gym_name}* is ending today!\n\nWe hope you had a great workout experience with us. Enroll today to take advantage of our exclusive member joining discount! 💪🔥\n— {gym_name}";
+  return template
+    .replace(/{name}/g, name || "Friend")
+    .replace(/{plan}/g, planName || "Fitness Plan")
+    .replace(/{gym_name}/g, gymName || settings.gymName || "UNIVO GYM");
+}
+
+export function generateDemoEndedMessage(name, planName, trainerName = null, gymName = null) {
+  const settings = getGymSettings();
+  const template = settings.whatsappDemoEnded || "🎯 *Demo Session Completed - {gym_name}*\n\nHi {name}!\nYour demo trial session at *{gym_name}* has ended.\n\nDon't let your fitness momentum break! Join our gym family today and start your journey towards your fitness goal ({plan}). Reply here to secure your special joining offer! 💪🔥\n— {gym_name}";
+  return template
+    .replace(/{name}/g, name || "Friend")
+    .replace(/{plan}/g, planName || "Fitness Plan")
+    .replace(/{trainer}/g, trainerName || "Coach")
+    .replace(/{gym_name}/g, gymName || settings.gymName || "UNIVO GYM");
+}
+
 export function generateVisitFollowupMessage(name, planName) {
   const settings = getGymSettings();
   const template = settings.whatsappVisitFollowup || "👋 *Hello {name}! - {gym_name}*\n\nThank you for visiting us! We would love to have you as part of our fitness family.\n\nSpecial joining offers are active this week for *{plan}*. Feel free to reply here if you have any questions! 🔥";
@@ -106,6 +216,41 @@ export function generateVisitFollowupMessage(name, planName) {
     .replace(/{name}/g, name || "Friend")
     .replace(/{plan}/g, planName || "Fitness Plan")
     .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
+}
+
+export function generateMemberLoginMessage(memberName, phone, password, portalUrl = null, gymName = null) {
+  const settings = getGymSettings();
+  const url = portalUrl || `${window.location.origin}/#/login`;
+  const template = settings.whatsappMemberLogin || "🏋️ *Member Portal Login Credentials - {gym_name}*\n\nHi {name},\nHere are your member portal login credentials:\n\n📱 *Login Phone / ID:* {phone}\n🔑 *Password:* {password}\n🔗 *Portal Link:* {link}\n\nLog in anytime to view your plan validity, attendance record, and workout progress! 💪🔥\n— {gym_name}";
+  return template
+    .replace(/{name}/g, memberName || "Member")
+    .replace(/{phone}/g, phone || "—")
+    .replace(/{password}/g, password || "Member@123")
+    .replace(/{link}/g, url)
+    .replace(/{gym_name}/g, gymName || settings.gymName || "UNIVO GYM");
+}
+
+export function generateExtensionMessage(memberName, planName, extraDays, newExpiry, totalFee, paymentMode = "Cash", gymName = null) {
+  const settings = getGymSettings();
+  const template = settings.whatsappExtension || "📅 *Gym Membership Extended - {gym_name}*\n\nHello {name},\nYour gym membership has been extended by *+{extra_days} Days*!\n\n🗓️ *New Expiry Date:* {expiry}\n💰 *Extension Fee:* ₹{amount} ({mode})\n\nKeep up the fitness consistency! Stay active and fit! 💪🔥\n— {gym_name}";
+  return template
+    .replace(/{name}/g, memberName || "Athlete")
+    .replace(/{plan}/g, planName || "Gym Plan")
+    .replace(/{extra_days}/g, extraDays || "0")
+    .replace(/{expiry}/g, formatDate(newExpiry))
+    .replace(/{amount}/g, totalFee || "0")
+    .replace(/{mode}/g, (paymentMode || "Cash").toUpperCase())
+    .replace(/{gym_name}/g, gymName || settings.gymName || "UNIVO GYM");
+}
+
+export function generateInactiveMemberMessage(memberName, daysAbsent, planName, gymName = null) {
+  const settings = getGymSettings();
+  const template = settings.whatsappInactive || "🔥 *We Miss You at the Gym! - {gym_name}*\n\nHi {name},\nWe noticed that you haven't checked in for your workouts in the past *{days_absent} days*!\n\nConsistency is the key to achieving your fitness goals with *{plan}*. Come in today for an energizing workout session! 💪🔥\n— Team {gym_name}";
+  return template
+    .replace(/{name}/g, memberName || "Athlete")
+    .replace(/{days_absent}/g, daysAbsent || "7")
+    .replace(/{plan}/g, planName || "your membership")
+    .replace(/{gym_name}/g, gymName || settings.gymName || "UNIVO GYM");
 }
 
 export function generateSupplementSaleReceiptMessage({

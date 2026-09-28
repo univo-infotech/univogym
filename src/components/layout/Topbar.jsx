@@ -16,33 +16,141 @@ import {
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { getMembers, updateMember } from "../../firebase/members";
+import { getVisits, updateVisit } from "../../firebase/visits";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   openWhatsApp,
   generateRenewalReminderMessage,
   generatePtRenewalReminderMessage,
+  generateExpiredMessage,
+  generatePtExpiredMessage,
+  generateOverdueReminderMessage,
+  generatePtOverdueReminderMessage,
   generatePartialDueReminderMessage,
-  generateOverdueReminderMessage
+  generateDemoEndingTodayMessage,
+  generateDemoEndedMessage,
+  generateVisitFollowupMessage,
+  generateBirthdayMessage,
+  generateInactiveMemberMessage
 } from "../../utils/whatsapp";
 import { parseToDate, formatDate } from "../../utils/dateUtils";
 
-function toDate(val) {
-  return parseToDate(val);
+function getDayDiff(dateVal) {
+  const d = parseToDate(dateVal);
+  if (!d) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const target = new Date(d);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target - now) / (1000 * 60 * 60 * 24));
 }
 
-function getMemberStatus(member) {
-  if (member.status === 'left') return 'left';
-  if (member.active === false) return 'inactive';
+// Helper to check if member is PT
+const isPtMember = (m) =>
+  (!!m.isPt ||
+    !!m.ptPlanName ||
+    (m.trainerName &&
+      m.trainerName !== 'Unassigned' &&
+      m.trainerName !== 'General Floor Trainer (Included)' &&
+      m.trainerName !== 'No Trainer')) &&
+  m.ptStatus !== 'ended';
 
-  const expiry = toDate(member.expiryDate);
-  if (!expiry) return member.status || 'active';
-  const now = new Date();
-  const diffDays = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+// Detailed notice calculation for Gym and PT
+function getMemberNotice(m) {
+  const isPt = isPtMember(m);
+  const gymDiff = m.expiryDate ? getDayDiff(m.expiryDate) : null;
+  const ptDate = m.ptEndDate || m.ptExpiryDate || (isPt ? m.expiryDate : null);
+  const ptDiff = ptDate ? getDayDiff(ptDate) : null;
+  const due = Number(m.dueAmount || 0);
 
-  if (diffDays < -3) return 'overdue';
-  if (diffDays <= 0) return 'expired';
-  if (diffDays <= 3) return 'ending_soon';
-  return 'active';
+  // Ending soon: 3 days, 2 days, 1 day, 0 days (today)
+  const isGymEndingSoon = gymDiff !== null && gymDiff >= 0 && gymDiff <= 3;
+  const isPtEndingSoon = isPt && ptDiff !== null && ptDiff >= 0 && ptDiff <= 3;
+  const isEndingSoon = isGymEndingSoon || isPtEndingSoon;
+
+  // Expired: Day 1 (-1) and Day 2 (-2)
+  const isGymExpired = gymDiff !== null && gymDiff >= -2 && gymDiff < 0;
+  const isPtExpired = isPt && ptDiff !== null && ptDiff >= -2 && ptDiff < 0;
+  const isExpired = isGymExpired || isPtExpired;
+
+  // Overdue: Day 3+ (<= -3)
+  const isGymOverdue = gymDiff !== null && gymDiff <= -3;
+  const isPtOverdue = isPt && ptDiff !== null && ptDiff <= -3;
+  const isOverdue = isGymOverdue || isPtOverdue;
+
+  const isPartial = due > 0;
+
+  // Birthday Check (dob / dateOfBirth / birthDate)
+  let isBirthday = false;
+  const bDateStr = m.dob || m.dateOfBirth || m.birthDate;
+  if (bDateStr) {
+    const bDate = parseToDate(bDateStr);
+    if (bDate) {
+      const today = new Date();
+      isBirthday = bDate.getDate() === today.getDate() && bDate.getMonth() === today.getMonth();
+    }
+  }
+
+  // Inactive 7+ Days Check (Only for active athletes)
+  let daysAbsent = null;
+  if (m.status !== 'left' && m.status !== 'ended') {
+    const lastSeen = m.lastAttendanceDate || m.lastVisitDate || m.lastCheckIn || m.joinDate;
+    if (lastSeen) {
+      const d = parseToDate(lastSeen);
+      if (d) {
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        const target = new Date(d);
+        target.setHours(0, 0, 0, 0);
+        const diffDays = Math.round((now - target) / (1000 * 60 * 60 * 24));
+        if (diffDays >= 7) {
+          daysAbsent = diffDays;
+        }
+      }
+    }
+  }
+  const isInactive = daysAbsent !== null;
+
+  const isActionable =
+    m.status !== 'left' &&
+    m.status !== 'ended' &&
+    (isPartial || isEndingSoon || isExpired || isOverdue || isBirthday || isInactive);
+
+  return {
+    isPt,
+    gymDiff,
+    ptDiff,
+    due,
+    isGymEndingSoon,
+    isPtEndingSoon,
+    isEndingSoon,
+    isGymExpired,
+    isPtExpired,
+    isExpired,
+    isGymOverdue,
+    isPtOverdue,
+    isOverdue,
+    isPartial,
+    isBirthday,
+    isInactive,
+    daysAbsent,
+    isActionable
+  };
+}
+
+function getDemoNotice(v) {
+  const todayStr = new Date().toISOString().split("T")[0];
+  const targetDate = v.demoEndDate || v.demoDate;
+  const diff = targetDate ? getDayDiff(targetDate) : null;
+  const isEndingToday = diff === 0 || (v.demoEndDate === todayStr) || (v.demoDate === todayStr && !v.demoEndDate);
+  const isEnded = v.status === "demo_done" || (diff !== null && diff < 0);
+  const isActionable = isEndingToday || isEnded;
+  return {
+    isEndingToday,
+    isEnded,
+    isActionable,
+    diff
+  };
 }
 
 export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
@@ -50,11 +158,14 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
   const navigate = useNavigate();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [members, setMembers] = useState([]);
+  const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("all"); // 'all', 'partial', 'ending_soon', 'expired', 'overdue'
+  const [activeTab, setActiveTab] = useState("all"); // 'all', 'ending_soon', 'expired', 'overdue', 'birthday', 'inactive', 'demo', 'gym', 'pt', 'partial'
   const dropdownRef = useRef(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = async () => {
+    setShowLogoutConfirm(false);
     localStorage.removeItem("univo_trainer_session");
     localStorage.removeItem("univo_member_session");
     if (logoutUser) await logoutUser();
@@ -72,12 +183,16 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fetch members to calculate live notices
+  // Fetch members and visits to calculate live notices
   useEffect(() => {
     async function load() {
       try {
-        const data = await getMembers(gymId || "univo_main");
-        setMembers(data || []);
+        const [mData, vData] = await Promise.all([
+          getMembers(gymId || "univo_main"),
+          getVisits(gymId || "univo_main")
+        ]);
+        setMembers(mData || []);
+        setVisits(vData || []);
       } catch (e) {
         console.warn("Topbar notifications load warning:", e);
       }
@@ -85,81 +200,181 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
     load();
   }, [gymId, notificationsOpen]);
 
-  // Helper to check if member is PT
-  const isPtMember = (m) =>
-    (!!m.isPt ||
-      !!m.ptPlanName ||
-      (m.trainerName &&
-        m.trainerName !== 'Unassigned' &&
-        m.trainerName !== 'General Floor Trainer (Included)' &&
-        m.trainerName !== 'No Trainer')) &&
-    m.ptStatus !== 'ended';
+  // Demo Action List
+  const demoActionList = visits
+    .filter((v) => v.status !== "converted" && v.status !== "lost")
+    .map((v) => ({ ...v, demoNotice: getDemoNotice(v), isDemo: true }))
+    .filter((v) => v.demoNotice.isActionable);
 
-  // Candidates for reminder
-  const isPartial = (m) => Number(m.dueAmount || 0) > 0 && m.status !== 'left' && m.status !== 'ended';
-  const isEndingSoon = (m) => getMemberStatus(m) === 'ending_soon';
-  const isExpired = (m) => getMemberStatus(m) === 'expired';
-  const isOverdue = (m) => getMemberStatus(m) === 'overdue';
-  const isActionable = (m) => m.status !== 'left' && m.status !== 'ended' && (isPartial(m) || isEndingSoon(m) || isExpired(m) || isOverdue(m));
+  // Candidates & Counts
+  const memberActionList = members.filter((m) => getMemberNotice(m).isActionable);
+  const totalActionCount = memberActionList.length + demoActionList.length;
+  const endingSoonCount = members.filter((m) => getMemberNotice(m).isEndingSoon && m.status !== 'left' && m.status !== 'ended').length;
+  const expiredCount = members.filter((m) => getMemberNotice(m).isExpired && m.status !== 'left' && m.status !== 'ended').length;
+  const overdueCount = members.filter((m) => getMemberNotice(m).isOverdue && m.status !== 'left' && m.status !== 'ended').length;
+  const birthdayCount = members.filter((m) => getMemberNotice(m).isBirthday && m.status !== 'left' && m.status !== 'ended').length;
+  const inactiveCount = members.filter((m) => getMemberNotice(m).isInactive && m.status !== 'left' && m.status !== 'ended').length;
+  const demoCount = demoActionList.length;
+  const gymActionCount = members.filter((m) => {
+    const n = getMemberNotice(m);
+    return n.isActionable && (!m.ptPlanName || m.ptStatus === 'ended');
+  }).length;
+  const ptActionCount = members.filter((m) => {
+    const n = getMemberNotice(m);
+    return n.isActionable && n.isPt;
+  }).length;
+  const partialCount = members.filter((m) => getMemberNotice(m).isPartial && m.status !== 'left' && m.status !== 'ended').length;
 
-  const totalActionCount = members.filter(isActionable).length;
-  const gymActionCount = members.filter((m) => isActionable(m) && (!m.ptPlanName || m.ptStatus === 'ended')).length;
-  const ptActionCount = members.filter((m) => isActionable(m) && isPtMember(m)).length;
-
-  const notificationList = members.filter((m) => {
-    if (m.status === 'left' || m.status === 'ended') return false;
-    if (activeTab === 'gym') return (!m.ptPlanName || m.ptStatus === 'ended') && isActionable(m);
-    if (activeTab === 'pt') return isPtMember(m) && isActionable(m);
-    if (activeTab === 'partial') return isPartial(m);
-    if (activeTab === 'ending_soon') return isEndingSoon(m);
-    if (activeTab === 'expired') return isExpired(m);
-    if (activeTab === 'overdue') return isOverdue(m);
-    return isActionable(m);
-  });
+  let notificationList = [];
+  if (activeTab === "demo") {
+    notificationList = demoActionList;
+  } else if (activeTab === "all") {
+    notificationList = [...memberActionList, ...demoActionList];
+  } else {
+    notificationList = members.filter((m) => {
+      const n = getMemberNotice(m);
+      if (!n.isActionable) return false;
+      if (activeTab === 'ending_soon') return n.isEndingSoon;
+      if (activeTab === 'expired') return n.isExpired;
+      if (activeTab === 'overdue') return n.isOverdue;
+      if (activeTab === 'birthday') return n.isBirthday;
+      if (activeTab === 'inactive') return n.isInactive;
+      if (activeTab === 'gym') return (!m.ptPlanName || m.ptStatus === 'ended');
+      if (activeTab === 'pt') return n.isPt;
+      if (activeTab === 'partial') return n.isPartial;
+      return true;
+    });
+  }
 
   const sentCount = notificationList.filter((m) => !!m.lastReminderSent).length;
   const pendingCount = notificationList.length - sentCount;
 
   const handleSendReminder = async (m) => {
+    // If Demo Lead
+    if (m.isDemo) {
+      const rawNum = (m.phone || '').replace(/\D/g, '');
+      if (!rawNum) {
+        toast.error(`Phone number missing for ${m.name}`);
+        return;
+      }
+      let msg = '';
+      if (m.demoNotice.isEndingToday) {
+        msg = generateDemoEndingTodayMessage(m.name, m.interestedIn);
+      } else if (m.demoNotice.isEnded) {
+        msg = generateDemoEndedMessage(m.name, m.interestedIn, m.assignedTrainer);
+      } else {
+        msg = generateVisitFollowupMessage(m.name, m.interestedIn);
+      }
+      openWhatsApp(rawNum, msg);
+      const nowIso = new Date().toISOString();
+      setVisits((prev) =>
+        prev.map((item) => (item.id === m.id ? { ...item, lastReminderSent: nowIso } : item))
+      );
+      try {
+        await updateVisit(gymId || "univo_main", m.id, { lastReminderSent: nowIso });
+      } catch (e) {
+        console.warn("Could not save lastReminderSent for visit:", e);
+      }
+      toast.success(`WhatsApp reminder sent to ${m.name}!`);
+      return;
+    }
+
     const rawNum = (m.phone || '').replace(/\D/g, '');
     if (!rawNum) {
       toast.error(`Phone number missing for ${m.name || m.fullName}`);
       return;
     }
 
-    const stat = getMemberStatus(m);
+    const n = getMemberNotice(m);
     let msg = '';
-    const expiry = toDate(m.expiryDate);
-    const diff = expiry ? Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24)) : 0;
 
-    if (Number(m.dueAmount || 0) > 0) {
+    // 0. Birthday Greeting
+    if (n.isBirthday && (activeTab === 'birthday' || (!n.isEndingSoon && !n.isExpired && !n.isOverdue && !n.isPartial))) {
+      msg = generateBirthdayMessage(m.name || m.fullName);
+    }
+    // 0.1 Inactive Member Follow-up
+    else if (n.isInactive && (activeTab === 'inactive' || (!n.isEndingSoon && !n.isExpired && !n.isOverdue && !n.isPartial))) {
+      msg = generateInactiveMemberMessage(m.name || m.fullName, n.daysAbsent, m.planName);
+    }
+    // 1. Partial Due
+    else if (n.isPartial && (activeTab === 'partial' || (!n.isEndingSoon && !n.isExpired && !n.isOverdue))) {
       msg = generatePartialDueReminderMessage(
         m.name || m.fullName,
         m.dueAmount,
         m.ptPlanName ? `${m.planName || 'Gym'} + PT (${m.ptPlanName})` : (m.planName || 'Gym Plan')
       );
-    } else if (isPtMember(m) && (activeTab === 'pt' || !m.planName || m.ptPlanName)) {
-      // PT-specific WhatsApp reminder template
+    }
+    // 2. Ending Soon (PT)
+    else if (n.isPtEndingSoon && (activeTab === 'pt' || !n.isGymEndingSoon || !m.planName)) {
       msg = generatePtRenewalReminderMessage(
         m.name || m.fullName,
         m.ptPlanName || '1-on-1 PT Plan',
         m.trainerName || 'Assigned Coach',
-        formatDate(m.expiryDate),
-        m.ptPlanPrice || (Number(m.planPrice || 0) + Number(m.ptPlanPrice || 0)) || '2,500'
+        formatDate(m.ptEndDate || m.ptExpiryDate || m.expiryDate),
+        m.ptPlanPrice || '2,500',
+        n.ptDiff
       );
-    } else if (stat === 'overdue') {
-      msg = generateOverdueReminderMessage(
-        m.name || m.fullName,
-        m.planName || 'Gym Plan',
-        Math.abs(diff),
-        m.planPrice || '2,500'
-      );
-    } else {
+    }
+    // 3. Ending Soon (Gym)
+    else if (n.isGymEndingSoon) {
       msg = generateRenewalReminderMessage(
         m.name || m.fullName,
         m.planName || 'Gym Plan',
         formatDate(m.expiryDate),
-        m.planPrice || '2,500'
+        m.planPrice || '2,500',
+        n.gymDiff
+      );
+    }
+    // 4. Expired Day 1 & 2 (PT)
+    else if (n.isPtExpired && (activeTab === 'pt' || !n.isGymExpired || !m.planName)) {
+      msg = generatePtExpiredMessage(
+        m.name || m.fullName,
+        m.ptPlanName || '1-on-1 PT Plan',
+        m.trainerName || 'Assigned Coach',
+        formatDate(m.ptEndDate || m.ptExpiryDate || m.expiryDate),
+        m.ptPlanPrice || '2,500',
+        Math.abs(n.ptDiff)
+      );
+    }
+    // 5. Expired Day 1 & 2 (Gym)
+    else if (n.isGymExpired) {
+      msg = generateExpiredMessage(
+        m.name || m.fullName,
+        m.planName || 'Gym Plan',
+        formatDate(m.expiryDate),
+        m.planPrice || '2,500',
+        Math.abs(n.gymDiff)
+      );
+    }
+    // 6. Overdue Day 3+ (PT)
+    else if (n.isPtOverdue && (activeTab === 'pt' || !n.isGymOverdue || !m.planName)) {
+      msg = generatePtOverdueReminderMessage(
+        m.name || m.fullName,
+        m.ptPlanName || '1-on-1 PT Plan',
+        m.trainerName || 'Assigned Coach',
+        Math.abs(n.ptDiff),
+        m.ptPlanPrice || '2,500',
+        m.ptEndDate || m.ptExpiryDate || m.expiryDate
+      );
+    }
+    // 7. Overdue Day 3+ (Gym)
+    else if (n.isGymOverdue) {
+      msg = generateOverdueReminderMessage(
+        m.name || m.fullName,
+        m.planName || 'Gym Plan',
+        Math.abs(n.gymDiff),
+        m.planPrice || '2,500',
+        m.expiryDate
+      );
+    }
+    // Fallback
+    else {
+      msg = generateRenewalReminderMessage(
+        m.name || m.fullName,
+        m.planName || 'Gym Plan',
+        formatDate(m.expiryDate),
+        m.planPrice || '2,500',
+        n.gymDiff
       );
     }
 
@@ -253,12 +468,15 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
               <div className="mt-3 flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
                 {[
                   { key: "all", label: `All (${totalActionCount})` },
+                  { key: "ending_soon", label: `⏳ Ending Soon (${endingSoonCount})` },
+                  { key: "expired", label: `🚨 Expired (${expiredCount})` },
+                  { key: "overdue", label: `⛔ Overdue (${overdueCount})` },
+                  { key: "birthday", label: `🎂 Birthday (${birthdayCount})` },
+                  { key: "inactive", label: `🏃 Inactive (${inactiveCount})` },
+                  { key: "demo", label: `🎯 Demo (${demoCount})` },
                   { key: "gym", label: `🏋️ Gym (${gymActionCount})` },
                   { key: "pt", label: `✨ PT (${ptActionCount})` },
-                  { key: "partial", label: "Partial Due" },
-                  { key: "ending_soon", label: "Ending Soon" },
-                  { key: "expired", label: "Expired" },
-                  { key: "overdue", label: "Overdue" },
+                  { key: "partial", label: `Partial Due (${partialCount})` },
                 ].map((t) => (
                   <button
                     key={t.key}
@@ -278,12 +496,62 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
               <div className="mt-3 divide-y divide-slate-100 max-h-[320px] overflow-y-auto pr-1">
                 {notificationList.length === 0 ? (
                   <div className="py-8 text-center text-slate-400 text-xs">
-                    🎉 Sabhi members up-to-date hain! Koi reminder pending nahi hai.
+                    🎉 All members and demo trials are up to date! No pending alerts.
                   </div>
                 ) : (
                   notificationList.map((m) => {
-                    const stat = getMemberStatus(m);
-                    const isDue = Number(m.dueAmount || 0) > 0;
+                    if (m.isDemo) {
+                      const sentTime = m.lastReminderSent ? new Date(m.lastReminderSent) : null;
+                      return (
+                        <div key={m.id} className="py-2.5 flex items-center justify-between gap-2.5 hover:bg-slate-50/70 px-1 rounded-lg transition">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-900 text-xs truncate">
+                                {m.name}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-cyan-50 text-cyan-800 border border-cyan-200">
+                                🎯 Demo Lead
+                              </span>
+                              {m.demoNotice?.isEndingToday ? (
+                                <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-100 text-amber-900 border border-amber-200">
+                                  ⏳ Demo Ends Today!
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-cyan-100 text-cyan-900 border border-cyan-300">
+                                  🎯 Demo Ended
+                                </span>
+                              )}
+                              {m.lastReminderSent ? (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9.5px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                  Sent {sentTime ? sentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today'}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9.5px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                                  <Clock className="w-2.5 h-2.5 text-amber-600" />
+                                  Not Sent
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500">
+                              <span>Program: <strong className="text-slate-700">{m.interestedIn || 'General Fitness'}</strong></span>
+                              {m.demoDate && <span>• Demo Date: {formatDate(m.demoDate)}</span>}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleSendReminder(m)}
+                            className="px-2.5 py-1.5 rounded-lg font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 shadow-sm transition shrink-0 cursor-pointer"
+                            title="Send WhatsApp Message"
+                          >
+                            <Send className="w-3 h-3" />
+                            <span>Send</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    const n = getMemberNotice(m);
+                    const isDue = n.due > 0;
                     const sentTime = m.lastReminderSent ? new Date(m.lastReminderSent) : null;
                     const hasPt = !!m.ptPlanName || isPtMember(m);
                     const hasBoth = !!m.ptPlanName && !!m.planName;
@@ -309,6 +577,56 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
                                 🏋️ Gym
                               </span>
                             )}
+
+                            {/* Exact Ending Soon Countdown Badge (3, 2, 1 Days or Today) */}
+                            {(() => {
+                              if (n.isPtEndingSoon && (activeTab === 'pt' || !n.isGymEndingSoon)) {
+                                const d = n.ptDiff;
+                                if (d === 0) return <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-rose-100 text-rose-800 border border-rose-200">🚨 PT Ends Today!</span>;
+                                if (d === 1) return <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-orange-100 text-orange-800 border border-orange-200">⚠️ PT Ends Tomorrow</span>;
+                                if (d === 2) return <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-100 text-amber-800 border border-amber-200">⏳ PT Ends in 2 Days</span>;
+                                if (d === 3) return <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-50 text-amber-800 border border-amber-200">⏳ PT Ends in 3 Days</span>;
+                              }
+                              if (n.isGymEndingSoon) {
+                                const d = n.gymDiff;
+                                if (d === 0) return <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-rose-100 text-rose-800 border border-rose-200">🚨 Ends Today!</span>;
+                                if (d === 1) return <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-orange-100 text-orange-800 border border-orange-200">⚠️ Ends Tomorrow</span>;
+                                if (d === 2) return <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-100 text-amber-800 border border-amber-200">⏳ Ends in 2 Days</span>;
+                                if (d === 3) return <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-50 text-amber-800 border border-amber-200">⏳ Ends in 3 Days</span>;
+                              }
+                              if (n.isPtExpired && (activeTab === 'pt' || !n.isGymExpired)) {
+                                const d = Math.abs(n.ptDiff);
+                                return <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-rose-100 text-rose-900 border border-rose-200">🚨 PT Expired (Day {d})</span>;
+                              }
+                              if (n.isGymExpired) {
+                                const d = Math.abs(n.gymDiff);
+                                return <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-rose-100 text-rose-900 border border-rose-200">🚨 Expired (Day {d})</span>;
+                              }
+                              if (n.isPtOverdue && (activeTab === 'pt' || !n.isGymOverdue)) {
+                                const d = Math.abs(n.ptDiff);
+                                return <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-red-100 text-red-900 border border-red-300">⛔ PT Overdue ({d}d)</span>;
+                              }
+                               if (n.isGymOverdue) {
+                                const d = Math.abs(n.gymDiff);
+                                return <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-red-100 text-red-900 border border-red-300">⛔ Overdue ({d}d)</span>;
+                              }
+                              return null;
+                            })()}
+
+                            {/* Birthday Badge */}
+                            {n.isBirthday && (
+                              <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-pink-100 text-pink-900 border border-pink-300">
+                                🎂 Birthday Today! 🎉
+                              </span>
+                            )}
+
+                            {/* Inactive Member Badge */}
+                            {n.isInactive && (
+                              <span className="px-1.5 py-0.5 rounded text-[9.5px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                                🏃 Absent ({n.daysAbsent}d)
+                              </span>
+                            )}
+
                             {/* Live Delivery Status Indicator */}
                             {m.lastReminderSent ? (
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9.5px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -328,9 +646,13 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
                             <span>•</span>
                             {isDue ? (
                               <span className="font-bold text-amber-700">Due: ₹{m.dueAmount}</span>
+                            ) : n.isBirthday ? (
+                              <span className="font-bold text-pink-600">🎂 Birthday Wishes Pending</span>
+                            ) : n.isInactive ? (
+                              <span className="font-bold text-amber-600">🏃 Inactive for {n.daysAbsent} days</span>
                             ) : (
-                              <span className={stat === 'overdue' ? 'font-bold text-red-600' : 'font-semibold text-amber-700'}>
-                                {stat === 'overdue' ? 'Overdue Plan' : `Exp: ${formatDate(m.expiryDate)}`}
+                              <span className={n.isOverdue ? 'font-bold text-red-600' : 'font-semibold text-amber-700'}>
+                                {n.isOverdue ? 'Overdue Plan' : `Exp: ${formatDate(m.ptEndDate || m.ptExpiryDate || m.expiryDate)}`}
                               </span>
                             )}
                           </p>
@@ -343,7 +665,7 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
                               ? "bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200"
                               : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
                           }`}
-                          title={m.lastReminderSent ? "Click to resend reminder on WhatsApp" : "Send reminder on WhatsApp"}
+                          title={m.lastReminderSent ? "Click to resend reminder on WhatsApp in 1 click" : "1-Click Send reminder on WhatsApp"}
                         >
                           <MessageSquare className="w-3.5 h-3.5" />
                           <span>{m.lastReminderSent ? "Resend" : "WhatsApp"}</span>
@@ -374,8 +696,8 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
           {/* Direct Logout Button */}
           <button
             type="button"
-            onClick={handleLogout}
-            className="p-2 rounded-xl text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 transition flex items-center gap-1 text-xs font-bold shadow-xs active:scale-95 ml-1"
+            onClick={() => setShowLogoutConfirm(true)}
+            className="p-2 rounded-xl text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 transition flex items-center gap-1 text-xs font-bold shadow-xs active:scale-95 ml-1 cursor-pointer"
             title="Log Out of your account"
           >
             <LogOut className="w-4 h-4" />
@@ -383,6 +705,48 @@ export default function Topbar({ title = "Dashboard", onOpenSidebar }) {
           </button>
         </div>
       </div>
+
+      {/* Logout Confirmation Validation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="relative w-full max-w-sm bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-2xl p-5 sm:p-6 text-slate-800 space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <LogOut className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 leading-tight">
+                  Confirm Logout
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Are you sure you want to end your session?
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+              You will need to re-enter your login credentials to access your account again.
+            </p>
+
+            <div className="flex items-center gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-bold text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/20 transition cursor-pointer"
+              >
+                Yes, Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

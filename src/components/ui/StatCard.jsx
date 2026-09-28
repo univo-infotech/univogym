@@ -37,34 +37,34 @@ export default function StatCard({
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(e); } } : undefined}
       className={clsx(
-        "p-5 rounded-2xl border bg-white shadow-sm transition-all text-left flex flex-col justify-between",
+        "p-3.5 sm:p-5 rounded-xl sm:rounded-2xl border bg-white shadow-sm transition-all text-left flex flex-col justify-between",
         onClick && "cursor-pointer hover:shadow-md hover:scale-[1.015] active:scale-[0.99] group focus:outline-none focus:ring-2 focus:ring-emerald-500",
         colorMap[color] || colorMap.green,
         className
       )}
     >
       <div>
-        <div className="flex items-center justify-between mb-3 gap-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 group-hover:text-slate-800 transition flex items-center gap-1.5 truncate">
+        <div className="flex items-center justify-between mb-2 sm:mb-3 gap-2">
+          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 group-hover:text-slate-800 transition flex items-center gap-1.5 truncate">
             {title}
           </span>
           {icon && (
-            <div className={clsx("p-2.5 rounded-xl transition group-hover:scale-110 shrink-0", iconBgMap[color] || "bg-slate-100 text-slate-700")}>
+            <div className={clsx("p-2 sm:p-2.5 rounded-lg sm:rounded-xl transition group-hover:scale-110 shrink-0", iconBgMap[color] || "bg-slate-100 text-slate-700")}>
               {icon}
             </div>
           )}
         </div>
-        <div className="text-2xl font-extrabold text-slate-900 mb-1 group-hover:text-emerald-950 transition">{value}</div>
+        <div className="text-xl sm:text-2xl font-extrabold text-slate-900 mb-0.5 sm:mb-1 group-hover:text-emerald-950 transition truncate">{value}</div>
       </div>
       {(change || footerAction) && (
-        <div className={clsx("text-xs font-semibold min-h-[28px] flex items-center justify-between gap-2 mt-2 pt-1", changeType === "up" ? "text-emerald-600" : "text-rose-600")}>
+        <div className={clsx("text-[11px] sm:text-xs font-semibold min-h-[24px] sm:min-h-[28px] flex items-center justify-between gap-1.5 sm:gap-2 mt-2 pt-1", changeType === "up" ? "text-emerald-600" : "text-rose-600")}>
           <span className="truncate">{change}</span>
           {footerAction ? (
             <div onClick={(e) => e.stopPropagation()} className="shrink-0">
               {footerAction}
             </div>
           ) : onClick ? (
-            <span className="text-[11px] font-bold text-slate-400 group-hover:text-emerald-600 transition ml-1 shrink-0">
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 group-hover:text-emerald-600 transition ml-1 shrink-0">
               View →
             </span>
           ) : null}

@@ -44,6 +44,12 @@ import { addPayment } from "../../firebase/payments";
 import { getGymSettings } from "../../utils/settings";
 import { useAuth } from "../../contexts/AuthContext";
 import { getSessionCachedData } from "../../utils/dataCache";
+import {
+  openWhatsApp,
+  generateDemoEndingTodayMessage,
+  generateDemoEndedMessage,
+  generateVisitFollowupMessage
+} from "../../utils/whatsapp";
 
 // Initial Mock Enquiries if database is pristine
 const DEFAULT_VISITS = [
@@ -168,6 +174,12 @@ export default function Visits() {
   const [notInterestedModalOpen, setNotInterestedModalOpen] = useState(false);
   const [selectedVisitForStatus, setSelectedVisitForStatus] = useState(null);
   const [notInterestedReason, setNotInterestedReason] = useState("");
+
+  // WhatsApp Follow-up Modal State
+  const [whatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
+  const [selectedVisitForWhatsApp, setSelectedVisitForWhatsApp] = useState(null);
+  const [whatsAppType, setWhatsAppType] = useState("ending_today"); // "ending_today" | "ended" | "visit"
+  const [customWhatsAppMsg, setCustomWhatsAppMsg] = useState("");
 
   // Form State for Add / Edit Walk-in Lead
   const defaultSlot = (settings?.workoutSlots && settings.workoutSlots.length > 0)
@@ -493,14 +505,61 @@ export default function Visits() {
     window.open(`https://wa.me/${inviteData.phone}?text=${msg}`, "_blank");
   };
 
-  // WhatsApp Follow-up Chat
+  // WhatsApp Follow-up Modal Handlers
+  const handleOpenWhatsAppModal = (vis, preferredType = null) => {
+    setSelectedVisitForWhatsApp(vis);
+    const todayStr = new Date().toISOString().split("T")[0];
+    let type = preferredType;
+    if (!type) {
+      if (vis.demoEndDate === todayStr || vis.demoDate === todayStr) {
+        type = "ending_today";
+      } else if (vis.status === "demo_done" || (vis.demoEndDate && vis.demoEndDate < todayStr) || (vis.demoDate && vis.demoDate < todayStr)) {
+        type = "ended";
+      } else {
+        type = "visit";
+      }
+    }
+    setWhatsAppType(type);
+    let msg = "";
+    if (type === "ending_today") {
+      msg = generateDemoEndingTodayMessage(vis.name, vis.interestedIn, settings.gymName);
+    } else if (type === "ended") {
+      msg = generateDemoEndedMessage(vis.name, vis.interestedIn, vis.assignedTrainer, settings.gymName);
+    } else {
+      msg = generateVisitFollowupMessage(vis.name, vis.interestedIn);
+    }
+    setCustomWhatsAppMsg(msg);
+    setWhatsAppModalOpen(true);
+  };
+
+  const handleSelectWhatsAppType = (type) => {
+    if (!selectedVisitForWhatsApp) return;
+    setWhatsAppType(type);
+    let msg = "";
+    if (type === "ending_today") {
+      msg = generateDemoEndingTodayMessage(selectedVisitForWhatsApp.name, selectedVisitForWhatsApp.interestedIn, settings.gymName);
+    } else if (type === "ended") {
+      msg = generateDemoEndedMessage(selectedVisitForWhatsApp.name, selectedVisitForWhatsApp.interestedIn, selectedVisitForWhatsApp.assignedTrainer, settings.gymName);
+    } else {
+      msg = generateVisitFollowupMessage(selectedVisitForWhatsApp.name, selectedVisitForWhatsApp.interestedIn);
+    }
+    setCustomWhatsAppMsg(msg);
+  };
+
+  const handleSendCustomWhatsApp = () => {
+    if (!selectedVisitForWhatsApp) return;
+    const rawNum = (selectedVisitForWhatsApp.phone || "").replace(/\D/g, "");
+    if (!rawNum) {
+      toast.error("Phone number missing for this lead");
+      return;
+    }
+    openWhatsApp(rawNum, customWhatsAppMsg);
+    setWhatsAppModalOpen(false);
+    toast.success(`WhatsApp message opened for ${selectedVisitForWhatsApp.name}!`);
+  };
+
   const handleQuickWhatsAppChat = (vis) => {
-    const rawNum = (vis.phone || "").replace(/\D/g, "");
-    const waPhone = rawNum.length === 10 ? `91${rawNum}` : rawNum;
-    const msg = encodeURIComponent(
-      `Hi ${vis.name}! 👋\n\nThank you for visiting ${settings.gymName || "UNIVO GYM MANAGEMENT"}!\nHow was your trial session? We have special early-bird membership discounts running this week. Would you like us to reserve your workout batch?\n\nBest regards,\n${settings.gymName || "Gym Management"}`
-    );
-    window.open(`https://wa.me/${waPhone}?text=${msg}`, "_blank");
+    handleOpenWhatsAppModal(vis);
   };
 
   // Status Badge Helper
@@ -1440,6 +1499,125 @@ export default function Visits() {
                 className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md shadow-rose-500/20 transition cursor-pointer"
               >
                 Confirm Not Interested
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ========================================================================= */}
+      {/* -------------------- MODAL: WHATSAPP FOLLOW-UP SELECTOR ----------------- */}
+      {/* ========================================================================= */}
+      <Modal
+        isOpen={whatsAppModalOpen}
+        onClose={() => setWhatsAppModalOpen(false)}
+        title="💬 Send WhatsApp Notification to Lead / Demo"
+      >
+        {selectedVisitForWhatsApp && (
+          <div className="space-y-4 text-slate-800">
+            {/* Lead Brief Banner */}
+            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="font-extrabold text-xs block text-slate-900">{selectedVisitForWhatsApp.name}</span>
+                <span className="text-[11px] text-slate-500 block">📞 {selectedVisitForWhatsApp.phone} • {selectedVisitForWhatsApp.interestedIn}</span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase">
+                {selectedVisitForWhatsApp.status}
+              </span>
+            </div>
+
+            {/* Template Selection Pills */}
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                Select WhatsApp Message Type:
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSelectWhatsAppType("ending_today")}
+                  className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                    whatsAppType === "ending_today"
+                      ? "bg-amber-50 border-amber-400 text-amber-950 font-bold shadow-xs"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="text-xs font-black block flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-amber-600" /> Demo Ending Today
+                  </span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">
+                    Trial ending today reminder
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectWhatsAppType("ended")}
+                  className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                    whatsAppType === "ended"
+                      ? "bg-cyan-50 border-cyan-400 text-cyan-950 font-bold shadow-xs"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="text-xs font-black block flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-600" /> Demo Ended
+                  </span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">
+                    Trial completed, enroll now
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectWhatsAppType("visit")}
+                  className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                    whatsAppType === "visit"
+                      ? "bg-blue-50 border-blue-400 text-blue-950 font-bold shadow-xs"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="text-xs font-black block flex items-center gap-1">
+                    <Phone className="w-3.5 h-3.5 text-blue-600" /> Visit Follow-up
+                  </span>
+                  <span className="text-[10px] text-slate-500 block mt-0.5 leading-tight">
+                    General walk-in lead follow-up
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Message Preview & Edit */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-700">
+                  Message Preview (Editable):
+                </label>
+                <span className="text-[10px] text-slate-400">
+                  Customize text before sending
+                </span>
+              </div>
+              <textarea
+                rows={5}
+                value={customWhatsAppMsg}
+                onChange={(e) => setCustomWhatsAppMsg(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500 font-mono leading-relaxed"
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setWhatsAppModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendCustomWhatsApp}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md shadow-emerald-500/20 flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <MessageCircle className="w-4 h-4" /> Send via WhatsApp
               </button>
             </div>
           </div>
