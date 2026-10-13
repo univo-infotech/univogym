@@ -86,8 +86,8 @@ export default function InviteLinkModal({ gymId, onClose, existingMembers = [] }
         isPT: false,
         trainerId: '',
         trainerName: '',
-        loginEmail: '',
-        loginPassword: '',
+        loginEmail: cleanPhone,
+        loginPassword: 'Member@123',
       });
       setLink(url);
       startTimer();
@@ -202,6 +202,14 @@ export default function InviteLinkModal({ gymId, onClose, existingMembers = [] }
               <span className={`font-mono font-bold px-2.5 py-0.5 rounded-full ${expired ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'}`}>
                 {expired ? 'EXPIRED' : fmtCountdown(secondsLeft)}
               </span>
+            </div>
+
+            <div className="p-2.5 bg-emerald-50/90 border border-emerald-200 rounded-xl text-xs text-emerald-950 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span>Portal Login: <strong>{phone.replace(/\D/g, '')}</strong> | Pass: <strong className="font-mono text-emerald-700">Member@123</strong></span>
+              </div>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-emerald-200 text-emerald-900 shrink-0">Member Portal</span>
             </div>
 
 

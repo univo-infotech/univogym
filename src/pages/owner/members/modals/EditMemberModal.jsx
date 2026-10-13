@@ -9,7 +9,7 @@ import { updateMember } from '../../../../firebase/members';
 import Modal from '../../../../components/ui/Modal';
 import PhotoCaptureInput from '../../../../components/shared/PhotoCaptureInput';
 import { getGymSettings } from '../../../../utils/settings';
-import { toDate } from '../memberUtils';
+import { toDate, isNonPtTrainer } from '../memberUtils';
 
 const EDIT_FITNESS_GOALS = [
   'Weight Loss & Fat Burn',
@@ -145,7 +145,11 @@ export default function EditMemberModal({ member, initialTab = 'personal', onClo
     return [GENERAL_TRAINER, ...trainers.filter((t) => t.id !== 't0' && (t.name || t.fullName) !== 'General Floor Trainer (Included)')];
   }, [trainers]);
 
-  const [trainerName, setTrainerName] = useState(member.trainerName || 'General Floor Trainer (Included)');
+  const [trainerName, setTrainerName] = useState(
+    member.trainerName && !isNonPtTrainer(member.trainerName)
+      ? member.trainerName
+      : 'General Floor Trainer (Included)'
+  );
   const selectedTrainerObj = useMemo(() => {
     return allTrainers.find((t) => (t.name || t.fullName) === trainerName) || allTrainers[0];
   }, [allTrainers, trainerName]);
@@ -315,7 +319,10 @@ export default function EditMemberModal({ member, initialTab = 'personal', onClo
       targetWeight: targetWeight ? String(targetWeight) : '',
       targetTimeline,
       healthNotes: healthNotes.trim(),
-      medicalNotes: medicalNotes.trim()
+      medicalNotes: medicalNotes.trim(),
+      loginEmail: member.loginEmail || member.email || phone.replace(/\D/g, ''),
+      loginPassword: member.loginPassword || member.password || 'Member@123',
+      password: member.password || member.loginPassword || 'Member@123',
     };
 
     try {

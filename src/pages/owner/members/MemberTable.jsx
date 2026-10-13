@@ -31,6 +31,7 @@ import {
   getDaysRemaining,
   isLeft,
   hasPt,
+  isNonPtTrainer,
   getGymStatus,
   getPtStatus,
   isPartial,
@@ -88,6 +89,12 @@ export default function MemberTable({
           const gymStatus = getGymStatus(m);
           const gymPlanPrice = Number(m.planPrice || m.totalAmount || 2500);
           const gymPlanName = m.planName || 'Standard Gym Plan';
+          const isMemberNeedsRenew = !isMemberLeft && (
+            gymStatus === 'ending_soon' ||
+            gymStatus === 'expired' ||
+            gymStatus === 'due' ||
+            (gymDays !== null && gymDays <= 3)
+          );
 
           const memberHasPt = hasPt(m);
           const isPtEnded = m.ptStatus === 'ended';
@@ -119,9 +126,21 @@ export default function MemberTable({
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500 font-medium whitespace-nowrap mt-0.5">
-                      {phone || 'No phone'}
-                    </p>
+                    {phone ? (
+                      <a
+                        href={`tel:${phone.replace(/[^0-9+]/g, '')}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-xs text-slate-500 hover:text-emerald-600 hover:underline font-medium whitespace-nowrap mt-0.5 inline-flex items-center gap-1 transition-colors cursor-pointer"
+                        title={`Call ${name} (${phone})`}
+                      >
+                        <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{phone}</span>
+                      </a>
+                    ) : (
+                      <p className="text-xs text-slate-400 font-medium whitespace-nowrap mt-0.5">
+                        No phone
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -129,9 +148,6 @@ export default function MemberTable({
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-100">
                     {getSlotIcon(slot)}
                     <span>{slot}</span>
-                  </span>
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-mono font-bold text-[9px] bg-slate-100 text-slate-700 border border-slate-200">
-                    🖐️ #{m.biometricId || m.machineId || `10${idx + 1}`}
                   </span>
                 </div>
               </div>
@@ -313,19 +329,45 @@ export default function MemberTable({
 
               {/* Footer Actions Row */}
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-                {isPartialMember ? (
-                  <button
-                    type="button"
-                    onClick={() => onCollect(m)}
-                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs inline-flex items-center gap-1.5 transition shadow-xs"
-                  >
-                    <IndianRupee size={13} /> Collect Due (₹{gymDue.toLocaleString('en-IN')})
-                  </button>
+                {isMemberNeedsRenew ? (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onGymRenew(m)}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                    >
+                      <RotateCcw size={13} /> Renew Gym
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onReceipt && onReceipt(m)}
+                      className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
+                    >
+                      <Receipt size={13} /> Receipt
+                    </button>
+                  </div>
+                ) : isPartialMember ? (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onCollect(m)}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs inline-flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+                    >
+                      <IndianRupee size={13} /> Remaining (₹{gymDue.toLocaleString('en-IN')})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onReceipt && onReceipt(m)}
+                      className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
+                    >
+                      <Receipt size={13} /> Receipt
+                    </button>
+                  </div>
                 ) : gymDue > 0 ? (
                   <button
                     type="button"
                     onClick={() => onCollect(m)}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1.5 transition shadow-xs"
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1.5 transition shadow-xs cursor-pointer"
                   >
                     <IndianRupee size={13} /> Collect Fee
                   </button>
@@ -333,7 +375,7 @@ export default function MemberTable({
                   <button
                     type="button"
                     onClick={() => onReceipt && onReceipt(m)}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs inline-flex items-center gap-1.5 transition"
+                    className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs inline-flex items-center gap-1.5 transition shadow-xs cursor-pointer"
                   >
                     <Receipt size={13} /> Receipt PDF
                   </button>
@@ -415,17 +457,25 @@ export default function MemberTable({
               const gymStatus = getGymStatus(m);
               const gymPlanPrice = Number(m.planPrice || m.totalAmount || 2500);
               const gymPlanName = m.planName || 'Standard Gym Plan';
+              const isMemberNeedsRenew = !isMemberLeft && (
+                gymStatus === 'ending_soon' ||
+                gymStatus === 'expired' ||
+                gymStatus === 'due' ||
+                (gymDays !== null && gymDays <= 3)
+              );
 
               // --- 2. PT MEMBERSHIP DETAILS & STATUS ---
               const memberHasPt = hasPt(m);
               const isPtEnded = m.ptStatus === 'ended';
-              const ptEndDate = m.ptEndDate || m.ptExpiryDate || (m.isPt ? m.expiryDate : null);
+              const ptEndDate = memberHasPt ? (m.ptEndDate || m.ptExpiryDate || (m.isPt ? m.expiryDate : null)) : null;
               const ptDays = ptEndDate ? getDaysRemaining(ptEndDate) : null;
               const ptStatus = getPtStatus(m);
-              const trainerName = m.trainerName && !['Unassigned', 'General Floor Trainer (Included)', 'No Trainer'].includes(m.trainerName)
+              const trainerName = m.trainerName && !isNonPtTrainer(m.trainerName)
                 ? m.trainerName
                 : null;
-              const ptPlanName = m.ptPlanName || (memberHasPt ? '1-on-1 Personal Training' : null);
+              const ptPlanName = m.ptPlanName && m.ptPlanName !== 'None'
+                ? m.ptPlanName
+                : (memberHasPt ? '1-on-1 Personal Training' : null);
 
               return (
                 <tr key={m.id} className="hover:bg-slate-50/70 transition items-start">
@@ -446,17 +496,26 @@ export default function MemberTable({
                             </span>
                           )}
                         </div>
-                        <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                          <span>{phone || 'No phone'}</span>
-                        </p>
+                        {phone ? (
+                          <a
+                            href={`tel:${phone.replace(/[^0-9+]/g, '')}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-[11px] text-slate-500 hover:text-emerald-600 hover:underline font-medium inline-flex items-center gap-1 transition-colors cursor-pointer"
+                            title={`Call ${name} (${phone})`}
+                          >
+                            <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>{phone}</span>
+                          </a>
+                        ) : (
+                          <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                            <span>No phone</span>
+                          </p>
+                        )}
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-bold text-[10px] border border-indigo-100">
                             {getSlotIcon(slot)}
                             <span className="truncate max-w-[130px]">{slot}</span>
                           </div>
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-mono font-bold text-[9px] bg-slate-100 text-slate-700 border border-slate-200" title="Machine Biometric ID">
-                            🖐️ #{m.biometricId || m.machineId || `10${idx + 1}`}
-                          </span>
                         </div>
                         <p className="text-[10px] text-slate-400">
                           Joined: {joinDate}
@@ -507,7 +566,7 @@ export default function MemberTable({
                           </span>
                         ) : gymDue > 0 ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-50 text-amber-800 border border-amber-300">
-                            <AlertTriangle className="w-3 h-3 text-amber-600" /> Remaining: ₹{gymDue.toLocaleString('en-IN')}
+                            <AlertTriangle className="w-3 h-3 text-amber-600" /> {Number(m.paidAmount || 0) > 0 ? 'Remaining: ' : 'Fee Due: '}₹{gymDue.toLocaleString('en-IN')}
                           </span>
                         ) : gymDays !== null && gymDays < 0 ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
@@ -620,16 +679,18 @@ export default function MemberTable({
 
                           {/* Dedicated PT Action Buttons */}
                           <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-purple-100">
-                            {/* Dedicated PT Bill Receipt */}
-                            <button
-                              type="button"
-                              onClick={() => onReceipt && onReceipt(m, 'pt')}
-                              className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-[11px] inline-flex items-center gap-1 transition cursor-pointer"
-                              title="View Dedicated PT Fee Receipt & WhatsApp"
-                            >
-                              <Receipt size={11} className="text-purple-600" />
-                              <span>PT Bill</span>
-                            </button>
+                            {/* Dedicated PT Bill Receipt - only shown if fee has been collected */}
+                            {!isMemberLeft && m.lastPaymentDate && (
+                              <button
+                                type="button"
+                                onClick={() => onReceipt && onReceipt(m, 'pt')}
+                                className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 font-bold text-[11px] inline-flex items-center gap-1 transition cursor-pointer"
+                                title="View Dedicated PT Fee Receipt & WhatsApp"
+                              >
+                                <Receipt size={11} className="text-purple-600" />
+                                <span>PT Bill</span>
+                              </button>
+                            )}
 
                             {/* Renew PT (Only shown when ending soon, expired, or due) */}
                             {(ptStatus === 'ending_soon' || ptStatus === 'expired' || ptStatus === 'due' || (ptDays !== null && ptDays <= 3)) && (
@@ -709,8 +770,28 @@ export default function MemberTable({
                   ========================================================= */}
                   <td className="px-5 py-4 align-top text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1 flex-wrap">
-                      {/* Billing Action: Collect (Start/Unpaid), Due (Partial), Receipt (Fully Paid) */}
-                      {isPartialMember ? (
+                      {/* Billing Action: Renew (if expired/ending), Remaining (if partial), Collect (if unpaid), Receipt (if paid) */}
+                      {isMemberNeedsRenew ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => onGymRenew(m)}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
+                            title="Renew Gym Membership Plan"
+                          >
+                            <RotateCcw size={12} />
+                            <span className="hidden sm:inline">Renew</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onReceipt && onReceipt(m)}
+                            className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs inline-flex items-center transition shadow-xs cursor-pointer"
+                            title="View Official Fee Receipt & WhatsApp"
+                          >
+                            <Receipt size={13} className="text-indigo-600" />
+                          </button>
+                        </div>
+                      ) : isPartialMember ? (
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
@@ -719,7 +800,7 @@ export default function MemberTable({
                             title={`Collect Remaining Fee: ₹${gymDue.toLocaleString('en-IN')}`}
                           >
                             <IndianRupee size={13} />
-                            <span className="hidden sm:inline">Remaining</span>
+                            <span className="hidden sm:inline">Remaining (₹{gymDue.toLocaleString('en-IN')})</span>
                           </button>
                           <button
                             type="button"
@@ -735,16 +816,16 @@ export default function MemberTable({
                           type="button"
                           onClick={() => onCollect(m)}
                           className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
-                          title="Collect Member Fee"
+                          title={`Collect Member Fee: ₹${gymDue.toLocaleString('en-IN')}`}
                         >
                           <IndianRupee size={13} />
-                          <span className="hidden sm:inline">Collect</span>
+                          <span className="hidden sm:inline">Collect Fee</span>
                         </button>
                       ) : (
                         <button
                           type="button"
                           onClick={() => onReceipt && onReceipt(m)}
-                          className="px-2 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                          className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
                           title="View Official Fee Receipt & WhatsApp"
                         >
                           <Receipt size={13} className="text-indigo-600" />

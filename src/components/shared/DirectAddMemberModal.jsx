@@ -4,6 +4,7 @@ import SignaturePad from "./SignaturePad";
 import PhotoCaptureInput from "./PhotoCaptureInput";
 import {
   User,
+  UserPlus,
   Phone,
   Mail,
   Calendar,
@@ -189,7 +190,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
     healthNotes: "",
     // Member Portal Login Credentials
     loginEmail: "",
-    loginPassword: "",
+    loginPassword: "Member@123",
     // Personal Training & Assessment metrics
     weight: "",
     heightUnit: "ft", // "ft" | "cm"
@@ -372,8 +373,9 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
   };
 
   // Submit full member form
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e, type = "register") => {
+    if (e && e.preventDefault) e.preventDefault();
+    const shouldCollect = type === "collect";
 
     // 1. Full Name (Mandatory)
     if (!formData.fullName.trim()) {
@@ -467,6 +469,8 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       }
     }
 
+    const totalRegistrationFee = basePrice + ptPrice + servicesTotalPrice;
+
     const newMember = {
       id: "m_" + Date.now(),
       name: formData.fullName.trim(),
@@ -515,24 +519,21 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
         };
       }),
       servicesTotalPrice,
-      totalAmount: basePrice + ptPrice + servicesTotalPrice,
-      dueAmount: 0,
-      paidAmount: basePrice + ptPrice + servicesTotalPrice,
+      totalAmount: totalRegistrationFee,
+      dueAmount: totalRegistrationFee,
+      paidAmount: 0,
+      paymentStatus: "pending",
+      paymentMode: "pending",
+      lastPaymentDate: null,
       trainerName: formData.trainerName,
       trainerId: selectedTrainerObj?.id || "",
       hasPersonalCoach: isPersonalTrainer,
       isPt: isPersonalTrainer,
       isPTMember: isPersonalTrainer,
-      // Portal Access Credentials - ONLY created when member opts for PT
-      loginEmail: isPersonalTrainer
-        ? (formData.loginEmail.trim() || formData.email.trim() || formData.phone.trim())
-        : "",
-      password: isPersonalTrainer
-        ? (formData.loginPassword.trim() || "Member@123")
-        : "",
-      loginPassword: isPersonalTrainer
-        ? (formData.loginPassword.trim() || "Member@123")
-        : "",
+      // Member Portal Access Credentials - Created for ALL members
+      loginEmail: (formData.loginEmail.trim() || cleanPhone || formData.email.trim()),
+      password: (formData.loginPassword.trim() || "Member@123"),
+      loginPassword: (formData.loginPassword.trim() || "Member@123"),
       // Physical Assessment Metrics
       weight: formData.weight ? String(formData.weight) : "",
       height: formData.heightUnit === "cm"
@@ -565,52 +566,16 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       if (createdId) {
         newMember.id = createdId;
       }
-
-      // Record Combined Registration Invoice & Payment (Membership + PT + Extra Services with duration)
-      try {
-        const planDisplayName = [
-          selectedPlan?.name || 'Membership Plan',
-          formData.ptPlanName ? `PT (${formData.ptPlanName})` : '',
-          newMember.selectedServices.length > 0 ? `${newMember.selectedServices.length} Services (${newMember.selectedServices.map(s => `${s.name} ${s.months || planDurationMonths}M`).join(', ')})` : ''
-        ].filter(Boolean).join(' + ');
-
-        const totalAmt = basePrice + ptPrice + servicesTotalPrice;
-        await addPayment(GID, {
-          id: 'bill_' + Date.now(),
-          memberId: createdId || newMember.id || ('m_' + Date.now()),
-          memberName: newMember.fullName,
-          phone: newMember.phone,
-          slot: formData.preferredSlot || 'General Shift',
-          batch: 'Direct Registration • Admin',
-          planName: planDisplayName,
-          planPrice: totalAmt,
-          basePlanPrice: basePrice,
-          ptPlanName: formData.ptPlanName || '',
-          ptPlanPrice: ptPrice,
-          services: newMember.selectedServices,
-          servicesPrice: servicesTotalPrice,
-          discount: 0,
-          amount: totalAmt,
-          paidAmount: totalAmt,
-          dueAmount: 0,
-          paymentMode: 'cash',
-          paymentType: 'full',
-          validityStart: formatDate(newMember.createdAt),
-          validityEnd: formatDate(newMember.expiryDate),
-          dueDate: formatDate(newMember.expiryDate),
-          date: formatDate(new Date()),
-          status: 'paid',
-          remarks: `Membership Registration: ${selectedPlan.name} (${planDurationMonths}M) + Facilities`
-        });
-      } catch (payErr) {
-        console.warn("DirectAddMember payment recording notice:", payErr);
-      }
     } catch (err) {
       console.warn("Direct member recorded in offline state:", err);
     }
 
-    if (onSuccess) onSuccess(newMember);
-    toast.success(`${newMember.fullName} registered successfully!`);
+    if (onSuccess) onSuccess(newMember, shouldCollect);
+    toast.success(
+      shouldCollect
+        ? `${newMember.fullName} registered! Opening fee collection...`
+        : `${newMember.fullName} registered successfully!`
+    );
     setSaving(false);
     onClose();
 
@@ -622,7 +587,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
       altPhone: "",
       email: "",
       loginEmail: "",
-      loginPassword: "",
+      loginPassword: "Member@123",
       gender: "Male",
       dob: "",
       address: "",
@@ -1457,62 +1422,62 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                     className="w-full bg-white border border-purple-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-purple-600 placeholder:text-slate-400"
                   />
                 </div>
+              </div>
+            )}
 
-                  {/* ==========================================================
-                      PT ATHLETE APP & PORTAL LOGIN CREDENTIALS (ONLY WHEN PT TAKEN)
-                  ========================================================== */}
-                  <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 border-2 border-indigo-500/40 text-white space-y-3 shadow-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-indigo-500/30 text-indigo-300 flex items-center justify-center">
-                          <Sparkles className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <h5 className="font-extrabold text-white text-xs sm:text-sm flex items-center gap-1.5">
-                            PT Member Portal Login Credentials
-                          </h5>
-                          <p className="text-[11px] text-indigo-300">
-                            Member ne PT liya hai. In credentials se member app/portal me login karke Coach {selectedTrainerObj.name} se 1-on-1 live chat, customized diet aur workout routine access karega.
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0">
-                        PT Access Only
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
-                          Login ID / Phone *
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.loginEmail}
-                          onChange={(e) => setFormData({ ...formData, loginEmail: e.target.value })}
-                          placeholder={formData.phone || formData.email || "e.g. 9876543210"}
-                          className="w-full bg-slate-900 border border-indigo-500/40 rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-400 font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
-                          Create Login Password *
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.loginPassword}
-                          onChange={(e) => setFormData({ ...formData, loginPassword: e.target.value })}
-                          placeholder="Member@123"
-                          className="w-full bg-slate-900 border border-indigo-500/40 rounded-xl px-3.5 py-2 text-xs text-emerald-400 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400 font-mono font-bold tracking-wider"
-                        />
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-indigo-300/80 italic">
-                      💡 Note: PT membership expire hote hi login block ho jayega aur renew hone par wahi se continue hoga.
+            {/* ==========================================================
+                MEMBER APP & PORTAL LOGIN CREDENTIALS (FOR ALL MEMBERS)
+            ========================================================== */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 border-2 border-indigo-500/40 text-white space-y-3 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/30 text-indigo-300 flex items-center justify-center">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-extrabold text-white text-xs sm:text-sm flex items-center gap-1.5">
+                      Member Portal Login Credentials
+                    </h5>
+                    <p className="text-[11px] text-indigo-300">
+                      Credentials for member app & online portal to view active plan validity, workouts, attendance, and fee receipts.
                     </p>
                   </div>
                 </div>
-              )}
+                <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0">
+                  Portal Access
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                    Login ID / Phone *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.loginEmail}
+                    onChange={(e) => setFormData({ ...formData, loginEmail: e.target.value })}
+                    placeholder={formData.phone || formData.email || "e.g. 9876543210"}
+                    className="w-full bg-slate-900 border border-indigo-500/40 rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-400 font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
+                    Create Login Password *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.loginPassword}
+                    onChange={(e) => setFormData({ ...formData, loginPassword: e.target.value })}
+                    placeholder="Member@123"
+                    className="w-full bg-slate-900 border border-indigo-500/40 rounded-xl px-3.5 py-2 text-xs text-emerald-400 placeholder:text-slate-500 focus:outline-none focus:border-indigo-400 font-mono font-bold tracking-wider"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-indigo-300/80 italic">
+                💡 Default password is set to <span className="font-mono text-emerald-300 font-bold">Member@123</span>. Member can sign in at <span className="font-mono text-white font-semibold">/#/login</span>.
+              </p>
+            </div>
 
             {/* Preferred Workout Time Slot with LIVE Trainer Availability & Occupancy */}
             <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs space-y-2">
@@ -2000,21 +1965,32 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
             </div>
           </div>
 
-          {/* Submit Actions */}
-          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-4 border-t border-slate-200">
+          {/* Submit Actions: Register and Register & Collect */}
+          <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 transition text-center cursor-pointer"
+              className="w-full sm:w-auto px-4 sm:px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 transition text-center cursor-pointer"
             >
               Cancel
             </button>
             <button
-              type="submit"
+              type="button"
               disabled={saving}
-              className="w-full sm:w-auto px-6 sm:px-8 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md transition disabled:opacity-50 text-center cursor-pointer"
+              onClick={(e) => handleSubmit(e, "register")}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs shadow-xs transition disabled:opacity-50 text-center cursor-pointer flex items-center justify-center gap-1.5"
             >
-              {saving ? "Registering Member..." : "Register Member & Activate Plan"}
+              <UserPlus className="w-3.5 h-3.5 text-slate-600" />
+              <span>{saving ? "Registering..." : "Register Member"}</span>
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={(e) => handleSubmit(e, "collect")}
+              className="w-full sm:w-auto px-5 sm:px-7 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md transition disabled:opacity-50 text-center cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <IndianRupee className="w-3.5 h-3.5 text-white" />
+              <span>{saving ? "Registering..." : "Register & Collect Fee"}</span>
             </button>
           </div>
         </form>

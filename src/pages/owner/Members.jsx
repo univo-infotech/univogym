@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import {
   Search,
   UserPlus,
@@ -21,6 +21,8 @@ import { getMembers, updateMember } from '../../firebase/members';
 import { getTrainers } from '../../firebase/trainers';
 import { getPlans } from '../../firebase/plans';
 import { getAllPayments } from '../../firebase/payments';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { db } from '../../firebase/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { getSessionCachedData, setCachedData } from '../../utils/dataCache';
 
@@ -35,6 +37,7 @@ import {
   getPtStatus,
   getMemberStatus,
   hasPt,
+  isNonPtTrainer,
   isPtActive,
   isPaid,
   isPartial,
@@ -60,6 +63,7 @@ import AddServiceModal from './members/modals/AddServiceModal';
 
 export default function Members() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { gymId } = useAuth();
   const targetGymId = gymId || 'univo_main';
 
@@ -104,6 +108,14 @@ export default function Members() {
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [receiptMember, setReceiptMember] = useState(null);
 
+  // If redirected with a member to collect fees immediately
+  useEffect(() => {
+    if (location.state?.openCollectFor) {
+      setPlanMember(location.state.openCollectFor);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
   // --- Data Loading & Payment Reconciliation ---
   useEffect(() => {
     let isMounted = true;
@@ -120,12 +132,90 @@ export default function Members() {
 
         if (!isMounted) return;
 
+        // Clean up & filter out any placeholder self-registration payments
+        const realPayments = (paymentsData || []).filter(
+          (p) => p.batch !== 'Self Registration • Link Access' && !p.remarks?.includes('Online Registration & Plan Activation')
+        );
+
+        const fakePayments = (paymentsData || []).filter(
+          (p) => p.batch === 'Self Registration • Link Access' || p.remarks?.includes('Online Registration & Plan Activation')
+        );
+
+        if (fakePayments.length > 0) {
+          fakePayments.forEach(async (fp) => {
+            try {
+              if (fp.id) {
+                await deleteDoc(doc(db, 'payments', fp.id));
+                await deleteDoc(doc(db, 'gyms', targetGymId, 'payments', fp.id));
+              }
+            } catch (e) {}
+          });
+        }
+
         // Reconcile payments: match latest payment record for each member
         const reconciledMembers = (membersData || []).map((m) => {
-          const memberPayments = (paymentsData || []).filter(
+          const memberPayments = realPayments.filter(
             (p) => (p.memberId === m.id || p.memberId === m.memberId) && (p.createdAt || p.date)
           );
-          if (memberPayments.length === 0) return m;
+
+          if (memberPayments.length === 0) {
+            // Member has no genuine payment recorded yet.
+            const hasPaid = Number(m.paidAmount || 0) > 0;
+            const fullFee = Number(m.totalAmount || m.planPrice || 2500);
+            const currentDue = (m.dueAmount !== undefined && m.dueAmount !== null) ? Number(m.dueAmount) : fullFee;
+            const targetDue = (!hasPaid && currentDue <= 0) ? fullFee : currentDue;
+
+            // Self-heal member record if previously contaminated with fake 0-due registration payment
+            if (!hasPaid && (Number(m.dueAmount || 0) <= 0 || m.lastPaymentDate)) {
+              updateMember(m.id, {
+                dueAmount: targetDue,
+                paidAmount: 0,
+                lastPaymentDate: null,
+                paymentStatus: 'pending'
+              }).catch(() => {});
+            }
+
+            const finalObj = {
+              ...m,
+              dueAmount: targetDue,
+              paidAmount: hasPaid ? Number(m.paidAmount) : 0,
+              lastPaymentDate: hasPaid ? m.lastPaymentDate : null,
+              paymentStatus: hasPaid ? (targetDue > 0 ? 'partial' : 'paid') : 'pending'
+            };
+
+            if (m.ptStatus === 'none' || (!m.isPt && !m.ptPlanName && isNonPtTrainer(m.trainerName))) {
+              if (m.ptEndDate || m.ptStartDate || m.trainerName === 'Unassigned (General Floor)') {
+                updateMember(targetGymId, m.id, {
+                  ptStartDate: null,
+                  ptEndDate: null,
+                  ptDurationDays: 0,
+                  ptPlanPrice: 0,
+                  ptPlanName: '',
+                  trainerName: 'General Floor Trainer (Included)',
+                  hasPersonalCoach: false,
+                  isPTMember: false,
+                  isPt: false,
+                  ptStatus: 'none'
+                }).catch(() => {});
+              }
+              return {
+                ...finalObj,
+                isPt: false,
+                isPTMember: false,
+                hasPersonalCoach: false,
+                ptStatus: 'none',
+                ptPlanId: '',
+                ptPlanName: '',
+                ptPlanPrice: 0,
+                ptStartDate: null,
+                ptEndDate: null,
+                ptDurationDays: 0,
+                trainerName: 'General Floor Trainer (Included)'
+              };
+            }
+
+            return finalObj;
+          }
 
           // Sort descending by date
           memberPayments.sort((a, b) => {
@@ -135,16 +225,49 @@ export default function Members() {
           });
 
           const latest = memberPayments[0];
-          return {
+          const finalObj = {
             ...m,
             dueAmount: latest.dueAmount !== undefined ? latest.dueAmount : m.dueAmount,
             paidAmount: latest.paidAmount !== undefined ? latest.paidAmount : m.paidAmount,
             lastPaymentDate: latest.date || latest.createdAt || m.lastPaymentDate
           };
+
+          if (m.ptStatus === 'none' || (!m.isPt && !m.ptPlanName && isNonPtTrainer(m.trainerName))) {
+            if (m.ptEndDate || m.ptStartDate || m.trainerName === 'Unassigned (General Floor)') {
+              updateMember(targetGymId, m.id, {
+                ptStartDate: null,
+                ptEndDate: null,
+                ptDurationDays: 0,
+                ptPlanPrice: 0,
+                ptPlanName: '',
+                trainerName: 'General Floor Trainer (Included)',
+                hasPersonalCoach: false,
+                isPTMember: false,
+                isPt: false,
+                ptStatus: 'none'
+              }).catch(() => {});
+            }
+            return {
+              ...finalObj,
+              isPt: false,
+              isPTMember: false,
+              hasPersonalCoach: false,
+              ptStatus: 'none',
+              ptPlanId: '',
+              ptPlanName: '',
+              ptPlanPrice: 0,
+              ptStartDate: null,
+              ptEndDate: null,
+              ptDurationDays: 0,
+              trainerName: 'General Floor Trainer (Included)'
+            };
+          }
+
+          return finalObj;
         });
 
         setMembers(reconciledMembers);
-        setPayments(paymentsData || []);
+        setPayments(realPayments);
         setTrainers(trainersData || []);
         setPlans(plansData || []);
         setCachedData('members_' + targetGymId, reconciledMembers);
@@ -1440,7 +1563,12 @@ export default function Members() {
       <DirectAddMemberModal
         isOpen={showDirectAdd}
         onClose={() => setShowDirectAdd(false)}
-        onSuccess={(newMem) => setMembers([newMem, ...members])}
+        onSuccess={(newMem, shouldCollect) => {
+          setMembers((prev) => [newMem, ...prev]);
+          if (shouldCollect) {
+            setPlanMember(newMem);
+          }
+        }}
         plans={plans}
         trainers={trainers}
         existingMembers={members}

@@ -345,7 +345,10 @@ export default function Payments() {
     try {
       const storedPayments = await getAllPayments(activeGymId);
       const storedMembers = await getMembers(activeGymId);
-      setPaymentsList(storedPayments || []);
+      const realStoredPayments = (storedPayments || []).filter(
+        (p) => p.batch !== "Self Registration • Link Access" && !p.remarks?.includes("Online Registration & Plan Activation")
+      );
+      setPaymentsList(realStoredPayments);
       setMembersList(storedMembers || []);
     } catch (err) {
       console.warn("Could not load payments:", err);
@@ -958,9 +961,21 @@ export default function Payments() {
                               </span>
                             )}
                           </p>
-                          <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                            <Phone className="w-3 h-3 text-slate-400" /> {item.phone || "No Phone"}
-                          </p>
+                          {item.phone ? (
+                            <a
+                              href={`tel:${item.phone.replace(/[^0-9+]/g, '')}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-[11px] text-slate-500 hover:text-emerald-600 hover:underline inline-flex items-center gap-1 mt-0.5 cursor-pointer transition-colors"
+                              title={`Call ${item.memberName} (${item.phone})`}
+                            >
+                              <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{item.phone}</span>
+                            </a>
+                          ) : (
+                            <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                              <Phone className="w-3 h-3 text-slate-300" /> No Phone
+                            </p>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -1190,9 +1205,21 @@ export default function Payments() {
                           </span>
                         )}
                       </h4>
-                      <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
-                        <Phone className="w-3 h-3 text-slate-400" /> {item.phone || "No Phone"}
-                      </p>
+                      {item.phone ? (
+                        <a
+                          href={`tel:${item.phone.replace(/[^0-9+]/g, '')}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[11px] text-slate-500 hover:text-emerald-600 hover:underline inline-flex items-center gap-1 mt-0.5 cursor-pointer transition-colors"
+                          title={`Call ${item.memberName} (${item.phone})`}
+                        >
+                          <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span>{item.phone}</span>
+                        </a>
+                      ) : (
+                        <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                          <Phone className="w-3 h-3 text-slate-300" /> No Phone
+                        </p>
+                      )}
                     </div>
                   </div>
 

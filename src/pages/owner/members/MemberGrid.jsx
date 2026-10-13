@@ -16,7 +16,8 @@ import {
   Edit,
   Trash2,
   Dumbbell,
-  Layers
+  Layers,
+  Phone
 } from 'lucide-react';
 import { Avatar } from './MemberStatusBadge';
 import {
@@ -27,6 +28,7 @@ import {
   getDaysRemaining,
   isLeft,
   hasPt,
+  isNonPtTrainer,
   getGymStatus,
   getPtStatus,
   isPartial
@@ -82,17 +84,25 @@ export default function MemberGrid({
         const gymStatus = getGymStatus(m);
         const gymPlanPrice = Number(m.planPrice || m.totalAmount || 2500);
         const gymPlanName = m.planName || 'Standard Gym Plan';
+        const isMemberNeedsRenew = !isMemberLeft && (
+          gymStatus === 'ending_soon' ||
+          gymStatus === 'expired' ||
+          gymStatus === 'due' ||
+          (gymDays !== null && gymDays <= 3)
+        );
 
         // ─── 2. PT MEMBERSHIP ────────────────────────────────────────────────
         const memberHasPt = hasPt(m);
         const isPtEnded = m.ptStatus === 'ended';
-        const ptEndDate = m.ptEndDate || m.ptExpiryDate || (m.isPt ? m.expiryDate : null);
+        const ptEndDate = memberHasPt ? (m.ptEndDate || m.ptExpiryDate || (m.isPt ? m.expiryDate : null)) : null;
         const ptDays = ptEndDate ? getDaysRemaining(ptEndDate) : null;
         const ptStatus = getPtStatus(m);
-        const trainerName = m.trainerName && !['Unassigned', 'General Floor Trainer (Included)', 'No Trainer'].includes(m.trainerName)
+        const trainerName = m.trainerName && !isNonPtTrainer(m.trainerName)
           ? m.trainerName
           : null;
-        const ptPlanName = m.ptPlanName || (memberHasPt ? '1-on-1 PT' : null);
+        const ptPlanName = m.ptPlanName && m.ptPlanName !== 'None'
+          ? m.ptPlanName
+          : (memberHasPt ? '1-on-1 PT' : null);
 
         return (
           <div
@@ -113,9 +123,21 @@ export default function MemberGrid({
                         </span>
                       )}
                     </h4>
-                    <p className="text-xs text-slate-500 font-medium whitespace-nowrap mt-0.5">
-                      {phone || 'No phone'}
-                    </p>
+                    {phone ? (
+                      <a
+                        href={`tel:${phone.replace(/[^0-9+]/g, '')}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-xs text-slate-500 hover:text-emerald-600 hover:underline font-medium whitespace-nowrap mt-0.5 inline-flex items-center gap-1 transition-colors cursor-pointer"
+                        title={`Call ${name} (${phone})`}
+                      >
+                        <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{phone}</span>
+                      </a>
+                    ) : (
+                      <p className="text-xs text-slate-400 font-medium whitespace-nowrap mt-0.5">
+                        No phone
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -124,9 +146,6 @@ export default function MemberGrid({
                     {getSlotIcon(slot)}
                     <span className="truncate max-w-[90px]">{slot}</span>
                   </div>
-                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-mono font-bold text-[9px] bg-slate-100 text-slate-700 border border-slate-200" title="Machine Biometric ID">
-                    🖐️ #{m.biometricId || m.machineId || `10${idx + 1}`}
-                  </span>
                 </div>
               </div>
 
@@ -154,7 +173,7 @@ export default function MemberGrid({
                     </span>
                   ) : gymDue > 0 ? (
                     <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-red-100 text-red-800">
-                      Remaining: ₹{gymDue.toLocaleString('en-IN')}
+                      {Number(m.paidAmount || 0) > 0 ? 'Remaining: ' : 'Fee Due: '}₹{gymDue.toLocaleString('en-IN')}
                     </span>
                   ) : gymDays !== null && gymDays < 0 ? (
                     <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-rose-100 text-rose-800">
@@ -250,14 +269,16 @@ export default function MemberGrid({
                     </div>
 
                     <div className="flex items-center justify-end gap-1 pt-1 border-t border-purple-100/60">
-                      <button
-                        type="button"
-                        onClick={() => onReceipt && onReceipt(m, 'pt')}
-                        className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 border border-purple-200 font-bold text-[10px] inline-flex items-center gap-1 transition"
-                        title="View Dedicated PT Bill"
-                      >
-                        <Receipt size={10} className="text-purple-600" /> PT Bill
-                      </button>
+                      {m.lastPaymentDate && (
+                        <button
+                          type="button"
+                          onClick={() => onReceipt && onReceipt(m, 'pt')}
+                          className="px-1.5 py-0.5 rounded bg-purple-100 hover:bg-purple-200 text-purple-800 border border-purple-200 font-bold text-[10px] inline-flex items-center gap-1 transition"
+                          title="View Dedicated PT Bill"
+                        >
+                          <Receipt size={10} className="text-purple-600" /> PT Bill
+                        </button>
+                      )}
                       {(ptStatus === 'ending_soon' || ptStatus === 'expired' || ptStatus === 'due' || (ptDays !== null && ptDays <= 3)) && (
                         <button
                           type="button"
@@ -315,7 +336,26 @@ export default function MemberGrid({
 
             {/* Bottom Actions Bar */}
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-              {isPartial(m) ? (
+              {isMemberNeedsRenew ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onGymRenew(m)}
+                    className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
+                    title="Renew Gym Plan"
+                  >
+                    <RotateCcw size={11} /> Renew
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onReceipt && onReceipt(m)}
+                    className="p-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold inline-flex items-center transition cursor-pointer"
+                    title="View Receipt"
+                  >
+                    <Receipt size={12} />
+                  </button>
+                </div>
+              ) : isPartial(m) ? (
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
@@ -339,15 +379,15 @@ export default function MemberGrid({
                   type="button"
                   onClick={() => onCollect(m)}
                   className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] inline-flex items-center gap-1 transition shadow-xs cursor-pointer"
-                  title="Collect Member Fee"
+                  title={`Collect Member Fee: ₹${gymDue.toLocaleString('en-IN')}`}
                 >
-                  <IndianRupee size={12} /> Collect
+                  <IndianRupee size={12} /> Collect Fee
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => onReceipt && onReceipt(m)}
-                  className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-[11px] inline-flex items-center gap-1 transition"
+                  className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-[11px] inline-flex items-center transition cursor-pointer"
                   title="View & Print Receipt"
                 >
                   <Receipt size={12} /> Receipt

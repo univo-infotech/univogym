@@ -2,87 +2,66 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Users,
   CheckCircle2,
-  XCircle,
-  Wifi,
-  WifiOff,
+  Calendar,
   Clock,
   Dumbbell,
-  ShieldCheck,
-  ShieldAlert,
-  AlertTriangle,
-  Fingerprint,
-  Scan,
-  RefreshCw,
   Search,
   Plus,
-  Play,
-  Copy,
-  Radio,
-  ExternalLink,
-  Sliders,
+  RefreshCw,
+  Phone,
+  Flame,
   Check,
-  Calendar,
-  Lock,
-  Unlock,
-  Sparkles,
-  ArrowRight
+  X,
+  ChevronRight,
+  Sun,
+  Sunset,
+  Sunrise,
+  Activity,
+  AlertCircle
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import StatCard from "../../components/ui/StatCard";
 import { useAuth } from "../../contexts/AuthContext";
-import { getMembers } from "../../firebase/members";
-import {
-  getBiometricPunches,
-  logBiometricPunch,
-  getBiometricDevices,
-  getLocalDevices,
-  saveBiometricDevice,
-  enrollMemberBiometric,
-  toggleMemberBiometricAccess
+import { getMembers, updateMember } from "../../firebase/members";
+import { 
+  getGymAttendance, 
+  markMemberAttendance, 
+  deleteMemberAttendance 
 } from "../../firebase/attendance";
 import toast from "react-hot-toast";
 import { formatDate } from "../../utils/dateUtils";
 
-export default function BiometricAttendance() {
+export default function Attendance() {
   const { gymId } = useAuth();
   const currentGymId = gymId || "univo_main";
 
-  // Navigation Tabs: "live" | "simulator" | "enrollment" | "devices"
-  const [activeTab, setActiveTab] = useState("live");
+  // Navigation Tabs: "present" (Checked in) | "quick_mark" (All members ready to check in)
+  const [activeTab, setActiveTab] = useState("present");
 
   const [members, setMembers] = useState([]);
-  const [punches, setPunches] = useState([]);
-  const [devices, setDevices] = useState(() => getLocalDevices());
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchMember, setSearchMember] = useState("");
-  const [enrollModalMember, setEnrollModalMember] = useState(null);
-  const [enrollBiometricId, setEnrollBiometricId] = useState("");
-  const [enrollType, setEnrollType] = useState("fingerprint");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [shiftFilter, setShiftFilter] = useState("all");
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [quickCheckInModalOpen, setQuickCheckInModalOpen] = useState(false);
+  const [quickSearch, setQuickSearch] = useState("");
+  const [processingId, setProcessingId] = useState(null);
 
-  // Simulator state
-  const [simSelectedMemberId, setSimSelectedMemberId] = useState("");
-  const [simSelectedDevice, setSimSelectedDevice] = useState(devices[0]?.id || "dev_main_entrance");
-  const [simLastResult, setSimLastResult] = useState(null);
-  const [simulating, setSimulating] = useState(false);
-
-  // Load initial data
+  // Load attendance data for selected date
   const loadData = async () => {
     setLoading(true);
     try {
-      const [mList, pList, dList] = await Promise.all([
+      const targetDate = new Date(selectedDate);
+      const [mList, attList] = await Promise.all([
         getMembers(currentGymId),
-        getBiometricPunches(currentGymId, 50),
-        getBiometricDevices(currentGymId)
+        getGymAttendance(currentGymId, targetDate)
       ]);
       setMembers(mList || []);
-      setPunches(pList || []);
-      if (dList && dList.length > 0) setDevices(dList);
-      if (mList && mList.length > 0 && !simSelectedMemberId) {
-        setSimSelectedMemberId(mList[0].id);
-      }
+      setAttendanceRecords(attList || []);
     } catch (e) {
-      console.warn("Error loading biometric data:", e);
+      console.warn("Error loading attendance data:", e);
     } finally {
       setLoading(false);
     }
@@ -90,131 +69,162 @@ export default function BiometricAttendance() {
 
   useEffect(() => {
     loadData();
-  }, [currentGymId]);
+  }, [currentGymId, selectedDate]);
 
-  // Real-time Punch Stream Listener
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const freshPunches = await getBiometricPunches(currentGymId, 50);
-        setPunches(freshPunches);
-      } catch (e) {}
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [currentGymId]);
+  // Merge attendance records with member details
+  const checkedInList = useMemo(() => {
+    const membersMap = {};
+    members.forEach(m => {
+      membersMap[m.id] = m;
+    });
 
-  // Statistics
+    const isSelectedDateToday = selectedDate === new Date().toISOString().split("T")[0];
+
+    // Firestore attendance collection records
+    return attendanceRecords.map(att => {
+      const member = membersMap[att.memberId] || {};
+      const recordDate = att.date?.toDate ? att.date.toDate() : new Date(att.date || att.createdAt);
+      const timeStr = recordDate.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+
+      return {
+        id: att.id,
+        memberId: att.memberId,
+        memberName: member.name || member.fullName || att.memberName || "Athlete",
+        phone: member.phone || att.phone || "",
+        planName: member.planName || "General Plan",
+        slot: member.slot || member.workoutSlot || "General Shift",
+        photoURL: member.photoURL || member.photoUrl || member.photo || null,
+        streak: member.attendanceStreak || 1,
+        time: timeStr,
+        recordDate,
+        expiryDate: member.expiryDate || null,
+        isAttendanceDoc: true
+      };
+    });
+  }, [attendanceRecords, members]);
+
+  // Checked in member IDs set
+  const checkedInMemberIds = useMemo(() => {
+    return new Set(checkedInList.map(item => item.memberId));
+  }, [checkedInList]);
+
+  // Filter checked in list
+  const filteredCheckedIn = useMemo(() => {
+    return checkedInList.filter(item => {
+      const matchesSearch =
+        (item.memberName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.phone || "").includes(searchQuery);
+
+      const matchesShift =
+        shiftFilter === "all" ||
+        (item.slot || "").toLowerCase().includes(shiftFilter.toLowerCase());
+
+      return matchesSearch && matchesShift;
+    });
+  }, [checkedInList, searchQuery, shiftFilter]);
+
+  // All active members ready to check in
+  const pendingCheckInMembers = useMemo(() => {
+    return members
+      .filter(m => m.status !== "left" && m.status !== "ended")
+      .filter(m => {
+        const matchesSearch =
+          (m.name || m.fullName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (m.phone || "").includes(searchQuery);
+
+        const matchesShift =
+          shiftFilter === "all" ||
+          (m.slot || m.workoutSlot || "").toLowerCase().includes(shiftFilter.toLowerCase());
+
+        return matchesSearch && matchesShift;
+      });
+  }, [members, searchQuery, shiftFilter]);
+
+  // Quick search candidates for modal
+  const quickSearchMembers = useMemo(() => {
+    if (!quickSearch.trim()) return members.slice(0, 8);
+    const q = quickSearch.toLowerCase();
+    return members.filter(m => 
+      (m.name || m.fullName || "").toLowerCase().includes(q) ||
+      (m.phone || "").includes(q)
+    );
+  }, [members, quickSearch]);
+
+  // KPI Statistics
   const stats = useMemo(() => {
-    const todayStr = formatDate(new Date());
-    const todayPunches = punches.filter(p => formatDate(p.date) === todayStr || !p.date);
-    const granted = todayPunches.filter(p => p.status === "granted");
-    const denied = todayPunches.filter(p => p.status === "denied");
-    const uniqueMembers = new Set(granted.map(p => p.memberId)).size;
-    const enrolledCount = members.filter(m => m.biometricEnrolled || m.biometricId).length;
+    const totalToday = checkedInList.length;
+    const activeMembersCount = members.filter(m => m.status !== "left" && m.status !== "ended").length;
+    const morningCount = checkedInList.filter(item => (item.slot || "").toLowerCase().includes("morning")).length;
+    const eveningCount = checkedInList.filter(item => (item.slot || "").toLowerCase().includes("evening")).length;
 
     return {
-      todayTotal: todayPunches.length,
-      grantedCount: granted.length,
-      deniedCount: denied.length,
-      uniqueAthletes: uniqueMembers,
-      enrolledAthletes: enrolledCount,
-      totalAthletes: members.length
+      totalToday,
+      activeMembersCount,
+      morningCount,
+      eveningCount
     };
-  }, [punches, members]);
+  }, [checkedInList, members]);
 
-  // Handle Practical Punch Simulator
-  const handleSimulatePunch = async (e) => {
-    if (e) e.preventDefault();
-    if (!simSelectedMemberId) {
-      toast.error("Please select a member to simulate punch");
-      return;
-    }
+  // Handle Mark Attendance
+  const handleMarkPresent = async (member) => {
+    if (!member) return;
+    setProcessingId(member.id);
 
-    setSimulating(true);
     try {
-      const targetDev = devices.find(d => d.id === simSelectedDevice) || devices[0];
-      const result = await logBiometricPunch(currentGymId, {
-        memberId: simSelectedMemberId,
-        deviceId: targetDev.id,
-        deviceName: targetDev.name
+      const now = new Date();
+      await markMemberAttendance(member.id, currentGymId, now);
+
+      const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+      const dateStr = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
+
+      await updateMember(currentGymId, member.id, {
+        lastCheckIn: now.toISOString(),
+        lastCheckInDate: dateStr,
+        lastCheckInTime: timeStr,
+        attendanceStreak: (member.attendanceStreak || 0) + 1
       });
 
-      setSimLastResult(result);
-      if (result.status === "granted") {
-        toast.success(`🟢 ACCESS GRANTED! Gate opened for ${result.member?.name || "Member"}`);
-      } else {
-        toast.error(`🛑 ACCESS DENIED! ${result.reason}`);
-      }
+      toast.success(`Check-in recorded for ${member.name || member.fullName || "Athlete"}! 🏋️`, {
+        icon: "✅"
+      });
 
-      // Refresh punch list
-      const fresh = await getBiometricPunches(currentGymId, 50);
-      setPunches(fresh);
+      await loadData();
     } catch (err) {
-      toast.error("Simulation error");
+      console.error("Mark attendance error:", err);
+      toast.error("Failed to record check-in");
     } finally {
-      setSimulating(false);
+      setProcessingId(null);
     }
   };
 
-  // Handle Save Enrollment
-  const handleSaveEnrollment = async (e) => {
-    e.preventDefault();
-    if (!enrollModalMember || !enrollBiometricId.trim()) {
-      toast.error("Please enter a numeric Biometric / Machine ID");
-      return;
-    }
+  // Handle Remove Attendance
+  const handleRemoveAttendance = async (item) => {
+    if (!window.confirm(`Undo attendance check-in for ${item.memberName}?`)) return;
+    setProcessingId(item.id);
 
     try {
-      await enrollMemberBiometric(currentGymId, enrollModalMember.id, enrollBiometricId.trim(), enrollType);
-      setMembers(prev =>
-        prev.map(m =>
-          m.id === enrollModalMember.id
-            ? {
-                ...m,
-                biometricId: enrollBiometricId.trim(),
-                biometricEnrolled: true,
-                biometricType: enrollType,
-                biometricAccess: true
-              }
-            : m
-        )
-      );
-      toast.success(`Biometric ID #${enrollBiometricId.trim()} enrolled for ${enrollModalMember.name || "Member"}! ✨`);
-      setEnrollModalMember(null);
+      if (item.isAttendanceDoc) {
+        await deleteMemberAttendance(item.id);
+      }
+      toast.success("Attendance check-in undone.");
+      await loadData();
     } catch (err) {
-      toast.error("Failed to enroll biometric");
+      console.error("Delete attendance error:", err);
+      toast.error("Failed to undo check-in");
+    } finally {
+      setProcessingId(null);
     }
   };
 
-  // Toggle Member Biometric Access Lock
-  const handleToggleAccess = async (m) => {
-    const nextAccess = m.biometricAccess === false ? true : false;
-    try {
-      await toggleMemberBiometricAccess(currentGymId, m.id, nextAccess);
-      setMembers(prev =>
-        prev.map(item => item.id === m.id ? { ...item, biometricAccess: nextAccess } : item)
-      );
-      toast.success(nextAccess ? `Biometric unlocked for ${m.name}` : `Biometric gate access locked for ${m.name}`);
-    } catch (e) {
-      toast.error("Failed to update access switch");
-    }
+  const getSlotIcon = (slot) => {
+    const s = (slot || "").toLowerCase();
+    if (s.includes("morning")) return <Sunrise className="w-3.5 h-3.5 text-amber-500" />;
+    if (s.includes("evening")) return <Sunset className="w-3.5 h-3.5 text-indigo-500" />;
+    return <Sun className="w-3.5 h-3.5 text-emerald-500" />;
   };
-
-  // Filtered members for enrollment tab
-  const filteredEnrollMembers = useMemo(() => {
-    return members.filter(m => {
-      const q = searchMember.toLowerCase();
-      return (
-        (m.name || "").toLowerCase().includes(q) ||
-        (m.phone || "").toLowerCase().includes(q) ||
-        String(m.biometricId || "").toLowerCase().includes(q) ||
-        (m.planName || "").toLowerCase().includes(q)
-      );
-    });
-  }, [members, searchMember]);
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-20">
       {/* ============================================================
           TOP HEADER
       ============================================================ */}
@@ -222,26 +232,26 @@ export default function BiometricAttendance() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
-              <Scan className="w-7 h-7 text-emerald-600" />
-              Biometric Attendance & Access Control
+              <Calendar className="w-7 h-7 text-emerald-600" />
+              Member Attendance & Check-in
             </h1>
             <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Hardware Cloud Sync Active
+              Live Check-in System
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Universal integration for ZKTeco, Realtime, e-SSL & Hikvision machines with live fee expiry locking
+            Track daily gym presence, record check-ins with 1 click, and manage member attendance streaks
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <Button
-            icon={<Play className="w-4 h-4 text-emerald-200" />}
-            onClick={() => setActiveTab("simulator")}
-            className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2.5 px-4 shadow-sm"
+            icon={<Plus className="w-4 h-4 text-emerald-200" />}
+            onClick={() => setQuickCheckInModalOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 px-4 shadow-sm"
           >
-            🧪 Test Punch Simulator
+            + Quick Check-in
           </Button>
           <Button
             icon={<RefreshCw className="w-4 h-4 text-slate-600" />}
@@ -255,437 +265,355 @@ export default function BiometricAttendance() {
       </div>
 
       {/* ============================================================
-          KPI SUMMARY METRIC CARDS
+          KPI SUMMARY STAT CARDS
       ============================================================ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
-          title="Today Punches Logged"
-          value={stats.todayTotal}
-          change={`${stats.uniqueAthletes} unique members`}
+          title="Today's Check-ins"
+          value={stats.totalToday}
+          change={`${stats.totalToday} athletes attended`}
           changeType="up"
-          icon={<Clock className="w-5 h-5 text-emerald-600" />}
+          icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
           color="green"
         />
         <StatCard
-          title="Access Granted"
-          value={stats.grantedCount}
-          change="Gate unlocked & streak saved"
+          title="Morning Shift"
+          value={stats.morningCount}
+          change="Early training athletes"
           changeType="up"
-          icon={<CheckCircle2 className="w-5 h-5 text-teal-600" />}
-          color="teal"
+          icon={<Sunrise className="w-5 h-5 text-amber-500" />}
+          color="amber"
         />
         <StatCard
-          title="Denied (Fee Due / Expired)"
-          value={stats.deniedCount}
-          change={stats.deniedCount > 0 ? "Blocked at entrance" : "Zero blockages"}
-          changeType={stats.deniedCount > 0 ? "down" : "up"}
-          icon={<ShieldAlert className="w-5 h-5 text-rose-600" />}
-          color="red"
-        />
-        <StatCard
-          title="Athletes Enrolled"
-          value={`${stats.enrolledAthletes} / ${stats.totalAthletes}`}
-          change={`${Math.round((stats.enrolledAthletes / (stats.totalAthletes || 1)) * 100)}% coverage`}
+          title="Evening Shift"
+          value={stats.eveningCount}
+          change="Afternoon & evening batch"
           changeType="up"
-          icon={<Fingerprint className="w-5 h-5 text-indigo-600" />}
+          icon={<Sunset className="w-5 h-5 text-indigo-500" />}
           color="blue"
         />
+        <StatCard
+          title="Active Gym Members"
+          value={stats.activeMembersCount}
+          change={`${Math.round((stats.totalToday / (stats.activeMembersCount || 1)) * 100)}% attendance today`}
+          changeType="up"
+          icon={<Users className="w-5 h-5 text-teal-600" />}
+          color="teal"
+        />
+      </div>
+
+      {/* ============================================================
+          DATE SELECTOR & FILTERS ROW
+      ============================================================ */}
+      <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        {/* Date Picker */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5 shrink-0">
+            <Clock className="w-4 h-4 text-slate-400" /> Date:
+          </span>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          />
+          {selectedDate !== new Date().toISOString().split("T")[0] && (
+            <button
+              onClick={() => setSelectedDate(new Date().toISOString().split("T")[0])}
+              className="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200"
+            >
+              Today
+            </button>
+          )}
+        </div>
+
+        {/* Search & Shift Filter */}
+        <div className="flex items-center gap-2.5 flex-1 max-w-md">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search athlete by name or phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-slate-50 focus:bg-white"
+            />
+          </div>
+
+          <select
+            value={shiftFilter}
+            onChange={(e) => setShiftFilter(e.target.value)}
+            className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-slate-50 focus:bg-white"
+          >
+            <option value="all">All Shifts</option>
+            <option value="morning">Morning Shift</option>
+            <option value="evening">Evening Shift</option>
+            <option value="general">General Shift</option>
+          </select>
+        </div>
       </div>
 
       {/* ============================================================
           MAIN NAVIGATION TABS
       ============================================================ */}
       <div className="flex border-b border-slate-200 gap-2 sm:gap-4 overflow-x-auto pb-px">
-        {[
-          { id: "live", label: "🔴 Live Gate Feed (Real-Time)", icon: Radio, count: punches.length },
-          { id: "simulator", label: "🧪 Practical Punch Simulator", icon: Play },
-          { id: "enrollment", label: "👥 Member Biometric IDs & Lock", icon: Users, count: members.length },
-          { id: "devices", label: "⚙️ Hardware Setup (ZKTeco / Realtime)", icon: Sliders, count: devices.length }
-        ].map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 py-3 px-3.5 border-b-2 text-xs font-black transition whitespace-nowrap ${
-                isActive
-                  ? "border-emerald-600 text-emerald-700 bg-emerald-50/40 rounded-t-xl"
-                  : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? "text-emerald-600" : "text-slate-400"}`} />
-              <span>{tab.label}</span>
-              {tab.count !== undefined && (
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${isActive ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600"}`}>
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
+        <button
+          onClick={() => setActiveTab("present")}
+          className={`flex items-center gap-2 py-3 px-4 border-b-2 text-xs font-black transition whitespace-nowrap ${
+            activeTab === "present"
+              ? "border-emerald-600 text-emerald-700 bg-emerald-50/40 rounded-t-xl"
+              : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+          }`}
+        >
+          <CheckCircle2 className={`w-4 h-4 ${activeTab === "present" ? "text-emerald-600" : "text-slate-400"}`} />
+          <span>Checked-In Athletes</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "present" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+            {checkedInList.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("quick_mark")}
+          className={`flex items-center gap-2 py-3 px-4 border-b-2 text-xs font-black transition whitespace-nowrap ${
+            activeTab === "quick_mark"
+              ? "border-emerald-600 text-emerald-700 bg-emerald-50/40 rounded-t-xl"
+              : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+          }`}
+        >
+          <Users className={`w-4 h-4 ${activeTab === "quick_mark" ? "text-emerald-600" : "text-slate-400"}`} />
+          <span>All Members Directory & Mark Present</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === "quick_mark" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+            {members.length}
+          </span>
+        </button>
       </div>
 
       {/* ============================================================
-          TAB 1: LIVE GATE FEED (REAL-TIME BIOMETRIC STREAM)
+          TAB 1: CHECKED-IN ATHLETES
       ============================================================ */}
-      {activeTab === "live" && (
+      {activeTab === "present" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <Radio className="w-5 h-5 animate-pulse text-emerald-600" />
+          {filteredCheckedIn.length === 0 ? (
+            <div className="p-12 rounded-3xl bg-white border border-slate-200 text-center space-y-3">
+              <div className="w-14 h-14 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                <Calendar className="w-7 h-7" />
               </div>
-              <div>
-                <h3 className="text-sm font-black text-slate-900">Live Entrance Feed</h3>
-                <p className="text-xs text-slate-500">
-                  Every fingerprint or facial scan triggers real-time fee check, gate unlock signal and attendance log.
-                </p>
-              </div>
-            </div>
-            <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              Listening to Cloud Webhooks
-            </span>
-          </div>
-
-          {loading ? (
-            <div className="py-16 text-center text-xs font-bold text-slate-400">Loading punch logs...</div>
-          ) : punches.length === 0 ? (
-            <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 space-y-3">
-              <Fingerprint className="w-12 h-12 text-slate-300 mx-auto" />
-              <h4 className="text-base font-bold text-slate-800">No Biometric Punches Yet Today</h4>
-              <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-                When members place their thumb or scan their face at your gym entrance machine, their punch will appear here instantly.
+              <h3 className="text-base font-extrabold text-slate-800">
+                No Check-ins Found for {formatDate(selectedDate)}
+              </h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                No member attendance was recorded on this date yet. Use "+ Quick Check-in" above or the member list to record athlete check-ins.
               </p>
-              <Button
-                onClick={() => setActiveTab("simulator")}
-                className="mt-2 bg-emerald-600 text-white text-xs font-bold"
+              <button
+                onClick={() => setQuickCheckInModalOpen(true)}
+                className="mt-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition inline-flex items-center gap-1.5"
               >
-                Try Punch Simulator Now →
-              </Button>
+                <Plus className="w-4 h-4" /> Check In an Athlete Now
+              </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {punches.map(p => {
-                const isGranted = p.status === "granted";
-                return (
-                  <div
-                    key={p.id}
-                    className={`p-4 rounded-2xl border transition shadow-2xs flex flex-col justify-between space-y-3 ${
-                      isGranted
-                        ? "bg-white border-slate-200 hover:border-emerald-300"
-                        : "bg-rose-50/40 border-rose-200 hover:border-rose-300"
-                    }`}
-                  >
-                    <div className="space-y-2.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-3">
-                          {p.photoUrl ? (
-                            <img
-                              src={p.photoUrl}
-                              alt={p.memberName}
-                              className="w-11 h-11 rounded-xl object-cover border border-slate-200"
-                            />
-                          ) : (
-                            <div className={`w-11 h-11 rounded-xl font-black text-sm flex items-center justify-center text-white ${
-                              isGranted ? "bg-gradient-to-br from-emerald-500 to-teal-600" : "bg-gradient-to-br from-rose-500 to-red-600"
-                            }`}>
-                              {(p.memberName || "M").slice(0, 2).toUpperCase()}
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                      <th className="py-3 px-4">Member Name</th>
+                      <th className="py-3 px-4">Contact</th>
+                      <th className="py-3 px-4">Membership Plan</th>
+                      <th className="py-3 px-4">Workout Shift</th>
+                      <th className="py-3 px-4">Check-in Time</th>
+                      <th className="py-3 px-4">Streak</th>
+                      <th className="py-3 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {filteredCheckedIn.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/60 transition">
+                        {/* Member */}
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            {item.photoURL ? (
+                              <img
+                                src={item.photoURL}
+                                alt={item.memberName}
+                                className="w-9 h-9 rounded-full object-cover border border-slate-200"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center">
+                                {item.memberName?.[0] || "A"}
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-extrabold text-slate-900">{item.memberName}</div>
+                              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-100">
+                                <Check className="w-3 h-3 text-emerald-600" /> Present
+                              </span>
                             </div>
-                          )}
-                          <div>
-                            <h4 className="text-sm font-extrabold text-slate-900 leading-tight">
-                              {p.memberName}
-                            </h4>
-                            <p className="text-[11px] text-slate-500 font-mono mt-0.5">
-                              ID: #{p.biometricId || "N/A"} • {p.phone || "No phone"}
-                            </p>
                           </div>
-                        </div>
+                        </td>
 
-                        <span className={`text-[10px] uppercase font-black px-2.5 py-1 rounded-full border ${
-                          isGranted
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-rose-100 text-rose-700 border-rose-300 animate-pulse"
-                        }`}>
-                          {isGranted ? "ACCESS GRANTED 🟢" : "ACCESS DENIED 🛑"}
-                        </span>
-                      </div>
+                        {/* Phone */}
+                        <td className="py-3 px-4">
+                          {item.phone ? (
+                            <a
+                              href={`tel:${item.phone.replace(/[^0-9+]/g, "")}`}
+                              className="text-slate-600 hover:text-emerald-600 hover:underline inline-flex items-center gap-1 font-mono cursor-pointer"
+                              title={`Call ${item.memberName} (${item.phone})`}
+                            >
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              <span>{item.phone}</span>
+                            </a>
+                          ) : (
+                            <span className="text-slate-400">No phone</span>
+                          )}
+                        </td>
 
-                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs space-y-1">
-                        <div className="flex justify-between text-[11px]">
-                          <span className="text-slate-500">Plan / Status:</span>
-                          <strong className="text-slate-800 truncate max-w-[170px]">{p.planName}</strong>
-                        </div>
-                        <div className="flex justify-between text-[11px]">
-                          <span className="text-slate-500">Workout Shift:</span>
-                          <strong className="text-slate-700">{p.slot || "General Shift"}</strong>
-                        </div>
-                        <div className="flex justify-between text-[11px]">
-                          <span className="text-slate-500">Device Location:</span>
-                          <strong className="text-slate-700">{p.deviceName || "Entrance Gate"}</strong>
-                        </div>
-                      </div>
+                        {/* Plan */}
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-slate-800">{item.planName}</div>
+                          {item.expiryDate && (
+                            <div className="text-[10px] text-slate-400">Exp: {formatDate(item.expiryDate)}</div>
+                          )}
+                        </td>
 
-                      {!isGranted && (
-                        <div className="p-2.5 rounded-xl bg-rose-100/70 border border-rose-200 text-rose-900 text-xs font-semibold flex items-start gap-1.5">
-                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                          <span>{p.reason}</span>
-                        </div>
-                      )}
-                    </div>
+                        {/* Shift */}
+                        <td className="py-3 px-4">
+                          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-[11px]">
+                            {getSlotIcon(item.slot)}
+                            <span>{item.slot}</span>
+                          </div>
+                        </td>
 
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                      <span className="flex items-center gap-1 font-mono font-bold text-slate-600">
-                        <Clock className="w-3 h-3 text-emerald-600" /> {p.time || "Just now"}
-                      </span>
-                      <span>{formatDate(p.date)}</span>
-                    </div>
-                  </div>
-                );
-              })}
+                        {/* Time */}
+                        <td className="py-3 px-4 font-mono font-bold text-slate-800">
+                          {item.time}
+                        </td>
+
+                        {/* Streak */}
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 font-extrabold text-[10px]">
+                            <Flame className="w-3 h-3 text-amber-500 fill-amber-500" />
+                            <span>{item.streak || 1} Days</span>
+                          </span>
+                        </td>
+
+                        {/* Undo Action */}
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => handleRemoveAttendance(item)}
+                            disabled={processingId === item.id}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                            title="Undo / remove this check-in"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
       )}
 
       {/* ============================================================
-          TAB 2: PRACTICAL PUNCH SIMULATOR (TEST LIVE IN BROWSER)
+          TAB 2: ALL MEMBERS DIRECTORY & MARK PRESENT
       ============================================================ */}
-      {activeTab === "simulator" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-6 p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-5">
-            <div>
-              <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                PRACTICAL TESTING BENCH
-              </span>
-              <h3 className="text-lg font-black text-slate-900 mt-2">
-                Simulate Biometric Machine Punch
-              </h3>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                Test right now from your screen! Select any gym member to see how the biometric software verifies their fee, plan expiry, marks attendance, or triggers gate lock denial.
-              </p>
-            </div>
-
-            <form onSubmit={handleSimulatePunch} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  1. Select Gym Member
-                </label>
-                <select
-                  value={simSelectedMemberId}
-                  onChange={(e) => setSimSelectedMemberId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                >
-                  {members.map(m => (
-                    <option key={m.id} value={m.id}>
-                      {m.name || m.fullName} (ID #{m.biometricId || "N/A"}) • Plan: {m.planName || "General"} • {m.status?.toUpperCase() || "ACTIVE"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  2. Select Biometric Terminal / Gate
-                </label>
-                <select
-                  value={simSelectedDevice}
-                  onChange={(e) => setSimSelectedDevice(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-                >
-                  {devices.map(d => (
-                    <option key={d.id} value={d.id}>
-                      {d.name} ({d.brand})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1.5">
-                <p className="font-bold text-slate-800">What happens on this punch?</p>
-                <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-600">
-                  <li>Checks if member plan is active or expired.</li>
-                  <li>Checks if member has unpaid overdue balance.</li>
-                  <li>If active: Marks attendance today + increments streak.</li>
-                  <li>If expired/left: Blocks gate and logs reason.</li>
-                </ul>
-              </div>
-
-              <Button
-                type="submit"
-                disabled={simulating}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20"
-              >
-                {simulating ? "Scanning Thumb..." : "🖐️ Scan Fingerprint Now (Simulate Punch)"}
-              </Button>
-            </form>
-          </div>
-
-          {/* Machine Screen Preview */}
-          <div className="lg:col-span-6 flex flex-col justify-center items-center p-8 rounded-3xl bg-slate-950 border-4 border-slate-800 shadow-xl text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-slate-900 border-2 border-slate-700 flex items-center justify-center text-slate-400">
-              <Fingerprint className="w-9 h-9 animate-pulse text-emerald-400" />
-            </div>
-
-            <div>
-              <p className="text-[10px] uppercase font-mono tracking-widest text-slate-400">
-                BIOMETRIC TERMINAL LCD DISPLAY
-              </p>
-              <h4 className="text-xl font-mono font-black text-white mt-1">
-                {simLastResult ? (
-                  simLastResult.status === "granted" ? (
-                    <span className="text-emerald-400">🟢 ACCESS GRANTED</span>
-                  ) : (
-                    <span className="text-rose-400">🛑 ACCESS DENIED</span>
-                  )
-                ) : (
-                  <span className="text-slate-500">READY FOR PUNCH</span>
-                )}
-              </h4>
-            </div>
-
-            {simLastResult ? (
-              <div className="w-full max-w-sm p-4 rounded-2xl bg-slate-900 border border-slate-800 text-left space-y-2 font-mono text-xs">
-                <div className="flex justify-between text-slate-400">
-                  <span>MEMBER:</span>
-                  <strong className="text-white">{simLastResult.member?.name}</strong>
-                </div>
-                <div className="flex justify-between text-slate-400">
-                  <span>BIO ID:</span>
-                  <strong className="text-emerald-400">#{simLastResult.punch.biometricId}</strong>
-                </div>
-                <div className="flex justify-between text-slate-400">
-                  <span>PLAN:</span>
-                  <strong className="text-slate-300">{simLastResult.member?.planName}</strong>
-                </div>
-                <div className="flex justify-between text-slate-400">
-                  <span>TIME:</span>
-                  <strong className="text-slate-300">{simLastResult.punch.time}</strong>
-                </div>
-                <div className="pt-2 border-t border-slate-800 text-[11px]">
-                  <span className="text-slate-500">REASON / ALERT:</span>
-                  <p className={`mt-0.5 font-bold ${simLastResult.status === "granted" ? "text-emerald-400" : "text-rose-400"}`}>
-                    {simLastResult.reason}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="text-xs text-slate-500 font-mono">
-                Click "Scan Fingerprint Now" to see live terminal readout.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================
-          TAB 3: MEMBER BIOMETRIC ENROLLMENT & LOCK MANAGEMENT
-      ============================================================ */}
-      {activeTab === "enrollment" && (
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-base font-extrabold text-slate-900">
-                Member Biometric IDs & Gate Access Control
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Assign numeric Machine IDs (#101, #102) and instantly lock/unlock door access.
-              </p>
-            </div>
-
-            <div className="relative w-full sm:w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search member, phone, or bio ID..."
-                value={searchMember}
-                onChange={(e) => setSearchMember(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div className="overflow-x-auto rounded-2xl border border-slate-200">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">Member Name</th>
-                  <th className="py-3 px-4">Biometric ID</th>
-                  <th className="py-3 px-4">Gym Plan & Validity</th>
-                  <th className="py-3 px-4">Thumb/Face Status</th>
-                  <th className="py-3 px-4 text-center">Gate Permission</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+      {activeTab === "quick_mark" && (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                  <th className="py-3 px-4">Athlete Name</th>
+                  <th className="py-3 px-4">Contact</th>
+                  <th className="py-3 px-4">Membership Plan</th>
+                  <th className="py-3 px-4">Workout Shift</th>
+                  <th className="py-3 px-4">Today's Status</th>
+                  <th className="py-3 px-4 text-right">Mark Attendance</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredEnrollMembers.map((m, idx) => {
-                  const bioId = m.biometricId || m.machineId || `10${idx + 1}`;
-                  const isEnrolled = !!m.biometricEnrolled || !!m.biometricId;
-                  const isAccessAllowed = m.biometricAccess !== false;
+                {pendingCheckInMembers.map((m) => {
+                  const isCheckedIn = checkedInMemberIds.has(m.id);
 
                   return (
                     <tr key={m.id} className="hover:bg-slate-50/60 transition">
                       <td className="py-3 px-4">
-                        <div className="font-extrabold text-slate-900">{m.name || m.fullName}</div>
-                        <div className="text-[11px] text-slate-400 font-mono">{m.phone || "No phone"}</div>
+                        <div className="flex items-center gap-3">
+                          {m.photoURL || m.photoUrl ? (
+                            <img
+                              src={m.photoURL || m.photoUrl}
+                              alt={m.name}
+                              className="w-9 h-9 rounded-full object-cover border border-slate-200"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-slate-100 text-slate-700 font-extrabold text-xs flex items-center justify-center">
+                              {(m.name || m.fullName || "A")[0]}
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-extrabold text-slate-900">{m.name || m.fullName}</div>
+                            <div className="text-[10px] text-slate-400 capitalize">{m.gender || "Member"}</div>
+                          </div>
+                        </div>
                       </td>
+
                       <td className="py-3 px-4">
-                        <span className="font-mono font-bold text-xs px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          #{bioId}
-                        </span>
+                        {m.phone ? (
+                          <a
+                            href={`tel:${m.phone.replace(/[^0-9+]/g, "")}`}
+                            className="text-slate-600 hover:text-emerald-600 hover:underline inline-flex items-center gap-1 font-mono cursor-pointer"
+                            title={`Call ${m.name || m.fullName} (${m.phone})`}
+                          >
+                            <Phone className="w-3 h-3 text-slate-400" />
+                            <span>{m.phone}</span>
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">No phone</span>
+                        )}
                       </td>
+
                       <td className="py-3 px-4">
                         <div className="font-semibold text-slate-800">{m.planName || "General Plan"}</div>
-                        <div className="text-[11px] text-slate-500">Exp: {m.expiryDate || "Ongoing"}</div>
+                        <div className="text-[10px] text-slate-400">Exp: {formatDate(m.expiryDate) || "Ongoing"}</div>
                       </td>
+
                       <td className="py-3 px-4">
-                        {isEnrolled ? (
-                          <span className="inline-flex items-center gap-1 font-bold text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                            <Check className="w-3 h-3 text-emerald-600" />
-                            Thumb Enrolled ✅
+                        <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold text-[11px]">
+                          {getSlotIcon(m.slot || m.workoutSlot)}
+                          <span>{m.slot || m.workoutSlot || "General"}</span>
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        {isCheckedIn ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Checked-In Today
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 font-semibold text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                            Not Scanned
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium text-[11px]">
+                            Not Yet Checked-In
                           </span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleAccess(m)}
-                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold transition border ${
-                            isAccessAllowed
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                              : "bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100"
-                          }`}
-                          title="Click to toggle gate access"
-                        >
-                          {isAccessAllowed ? (
-                            <>
-                              <Unlock className="w-3 h-3" /> Unlocked
-                            </>
-                          ) : (
-                            <>
-                              <Lock className="w-3 h-3" /> Blocked
-                            </>
-                          )}
-                        </button>
-                      </td>
+
                       <td className="py-3 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEnrollModalMember(m);
-                            setEnrollBiometricId(bioId);
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-emerald-600 transition flex items-center gap-1 ml-auto"
-                        >
-                          <Fingerprint className="w-3.5 h-3.5" />
-                          <span>{isEnrolled ? "Edit Code" : "Enroll Thumb"}</span>
-                        </button>
+                        {isCheckedIn ? (
+                          <span className="text-xs text-emerald-700 font-bold px-3 py-1 bg-emerald-50 rounded-xl border border-emerald-200">
+                            ✅ Present
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleMarkPresent(m)}
+                            disabled={processingId === m.id}
+                            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition cursor-pointer"
+                          >
+                            {processingId === m.id ? "Marking..." : "✅ Mark Present"}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -697,208 +625,91 @@ export default function BiometricAttendance() {
       )}
 
       {/* ============================================================
-          TAB 4: HARDWARE SETUP & MULTI-GYM CONNECT INSTRUCTIONS
+          QUICK CHECK-IN SEARCH MODAL
       ============================================================ */}
-      {activeTab === "devices" && (
-        <div className="space-y-6">
-          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">
-                  Universal Biometric Gateway Configuration
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Use these credentials to connect any biometric machine in your gym without changing your PC or hardware.
-                </p>
-              </div>
-              <span className="text-xs font-bold px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Plug & Play Cloud Push
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Cloud Server Webhook URL
-                </span>
-                <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200">
-                  <code className="text-xs font-mono font-bold text-slate-900 truncate">
-                    {window.location.origin}/api/biometric/push
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/api/biometric/push`);
-                      toast.success("Webhook URL copied!");
-                    }}
-                    className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                    title="Copy URL"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                </div>
-                <p className="text-[10px] text-slate-500">
-                  Paste this in machine menu: <code>Comm. -&gt; Cloud Server / Web Server</code>
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Gym Secret Token / Device Key
-                </span>
-                <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200">
-                  <code className="text-xs font-mono font-bold text-emerald-700">
-                    UNIVO_BIO_9921_MAIN
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText("UNIVO_BIO_9921_MAIN");
-                      toast.success("Gym Secret Token copied!");
-                    }}
-                    className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                    title="Copy Token"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                </div>
-                <p className="text-[10px] text-slate-500">
-                  Unique authentication key identifying punches from your gym facility.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Machine Connection Guide Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Guide 1: ZKTeco / e-SSL */}
-            <div className="p-5 rounded-3xl bg-white border border-slate-200 space-y-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 font-black text-sm flex items-center justify-center">
-                  ZK
-                </div>
-                <div>
-                  <h4 className="text-sm font-extrabold text-slate-900">ZKTeco & e-SSL Machines</h4>
-                  <p className="text-[11px] text-slate-500">Models: K90, e990, MB20, uFace, SilkBio</p>
-                </div>
-              </div>
-              <ol className="list-decimal list-inside space-y-1.5 text-xs text-slate-600 leading-relaxed">
-                <li>Machine ka <strong>Menu</strong> dabayein aur <strong>Comm.</strong> par jayein.</li>
-                <li><strong>Cloud Server Setting / ADMS</strong> select karein.</li>
-                <li>Server URL mein upar diya gaya link daalein aur Port <code>80</code> ya <code>443</code> set karein.</li>
-                <li>Machine ko WiFi ya LAN se connect karein. Screen par Cloud icon green ho jayega!</li>
-              </ol>
-            </div>
-
-            {/* Guide 2: Realtime Biometrics */}
-            <div className="p-5 rounded-3xl bg-white border border-slate-200 space-y-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 font-black text-sm flex items-center justify-center">
-                  RT
-                </div>
-                <div>
-                  <h4 className="text-sm font-extrabold text-slate-900">Realtime Biometrics</h4>
-                  <p className="text-[11px] text-slate-500">Models: T52, C101, RS Series, BioEnable</p>
-                </div>
-              </div>
-              <ol className="list-decimal list-inside space-y-1.5 text-xs text-slate-600 leading-relaxed">
-                <li>Machine ke <strong>Network Settings</strong> mein jayein.</li>
-                <li><strong>HTTP Push / Webhook</strong> enable karein.</li>
-                <li>Host address mein Univo Webhook URL daalein.</li>
-                <li>Save karein. Realtime automatic live punches Univo ko push karega.</li>
-              </ol>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================
-          ENROLL MEMBER BIOMETRIC ID MODAL
-      ============================================================ */}
-      {enrollModalMember && (
+      {quickCheckInModalOpen && (
         <Modal
-          isOpen={true}
-          onClose={() => setEnrollModalMember(null)}
-          title={`🖐️ Enroll Biometric ID: ${enrollModalMember.name || "Member"}`}
-          maxWidth="max-w-md"
+          isOpen={quickCheckInModalOpen}
+          onClose={() => setQuickCheckInModalOpen(false)}
+          size="md"
         >
-          <form onSubmit={handleSaveEnrollment} className="space-y-4 text-slate-800">
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                <Fingerprint className="w-5 h-5 text-emerald-700" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-slate-900">{enrollModalMember.name || "Member"}</h4>
-                <p className="text-[11px] text-slate-500">
-                  Plan: {enrollModalMember.planName || "General Plan"} • Phone: {enrollModalMember.phone || "N/A"}
-                </p>
-              </div>
-            </div>
-
+          <div className="p-6 space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Biometric Machine ID (User Code on Machine)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. 101, 102, 103..."
-                value={enrollBiometricId}
-                onChange={(e) => setEnrollBiometricId(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
-                autoFocus
-                required
-              />
-              <p className="text-[10px] text-slate-400 mt-1">
-                Enter the exact ID code registered for this member on the physical biometric scanner.
+              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                Quick Athlete Check-in
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Search any member by name or mobile number to record their presence today
               </p>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Biometric Type
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEnrollType("fingerprint")}
-                  className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
-                    enrollType === "fingerprint"
-                      ? "bg-emerald-50 border-emerald-400 text-emerald-800"
-                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  <Fingerprint className="w-4 h-4" />
-                  <span>Fingerprint (Thumb)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEnrollType("face")}
-                  className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 ${
-                    enrollType === "face"
-                      ? "bg-emerald-50 border-emerald-400 text-emerald-800"
-                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  <Scan className="w-4 h-4" />
-                  <span>Facial Scan</span>
-                </button>
-              </div>
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Type member name or phone..."
+                value={quickSearch}
+                onChange={(e) => setQuickSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
             </div>
 
-            <div className="flex items-center gap-2 pt-2">
+            <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 -mx-2 px-2">
+              {quickSearchMembers.map((m) => {
+                const isChecked = checkedInMemberIds.has(m.id);
+
+                return (
+                  <div
+                    key={m.id}
+                    className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-50 rounded-xl px-2 transition"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-xs flex items-center justify-center shrink-0">
+                        {(m.name || m.fullName || "A")[0]}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs font-bold text-slate-900 truncate">
+                          {m.name || m.fullName}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          {m.phone || "No phone"} • {m.planName || "General Plan"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      {isChecked ? (
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                          Checked-In ✅
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            handleMarkPresent(m);
+                            setQuickCheckInModalOpen(false);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                        >
+                          Check In
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
               <button
-                type="button"
-                onClick={() => setEnrollModalMember(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50"
+                onClick={() => setQuickCheckInModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md"
-              >
-                Save Biometric ID
+                Close
               </button>
             </div>
-          </form>
+          </div>
         </Modal>
       )}
     </div>

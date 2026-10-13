@@ -124,23 +124,50 @@ export function getAadhaar(m) {
   return m?.aadharNumber || m?.aadharNo || m?.aadhaar || '';
 }
 
-// --- --- PT Detection ---
-
-const NON_PT_TRAINERS = [
+export const NON_PT_TRAINERS = [
   'Unassigned',
   'General Floor Trainer (Included)',
   'No Trainer',
   'Unassigned (General Floor)',
   'Unassigned (No PT)',
-  'Unassigned (Left Gym)'
+  'Unassigned (Left Gym)',
+  'General Floor',
+  'Floor Trainer'
 ];
+
+/** Check if trainer name is general floor / unassigned (not a paid 1-on-1 coach). */
+export function isNonPtTrainer(trainerName) {
+  if (!trainerName) return true;
+  const lower = String(trainerName).trim().toLowerCase();
+  return (
+    lower === 'unassigned' ||
+    lower === 'no trainer' ||
+    lower.includes('general floor') ||
+    lower.includes('no pt') ||
+    lower.includes('left gym') ||
+    NON_PT_TRAINERS.some(t => t.toLowerCase() === lower)
+  );
+}
 
 /** Check if member has/had a PT package. */
 export function hasPt(m) {
   if (!m) return false;
-  return !!m.isPt || !!m.ptPlanName || !!m.ptEndDate || (
-    m.trainerName && !NON_PT_TRAINERS.includes(m.trainerName)
-  );
+  if (m.ptStatus === 'none' || m.ptStatus === 'no_pt') return false;
+
+  // If marked explicitly as ended PT, they had PT previously
+  if (m.ptStatus === 'ended') return true;
+
+  const hasRealTrainer = Boolean(m.trainerName && !isNonPtTrainer(m.trainerName));
+  const hasPtPlan = Boolean(m.ptPlanName && m.ptPlanName.trim() && m.ptPlanName !== 'None' && m.ptPlanName !== '1-on-1 PT');
+  const hasPtPrice = Number(m.ptPlanPrice || 0) > 0;
+  const hasPtFlag = Boolean(m.isPt || m.isPTMember || m.hasPersonalCoach);
+
+  // If neither a real coach nor a PT plan nor a PT price is present, they do not have PT
+  if (!hasRealTrainer && !hasPtPlan && !hasPtPrice) {
+    return false;
+  }
+
+  return Boolean(hasRealTrainer || hasPtPlan || (hasPtFlag && (hasPtPrice || m.ptStatus === 'active')));
 }
 
 /** Check if member's PT is currently active (not ended). */

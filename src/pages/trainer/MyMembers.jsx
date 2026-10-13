@@ -15,7 +15,8 @@ import {
   Sparkles,
   Activity,
   CheckCircle2,
-  Filter
+  Filter,
+  Phone
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getTrainerMembers, getTrainer, getTrainers } from "../../firebase/trainers";
@@ -271,7 +272,23 @@ export default function MyMembers() {
                       )}
                       <div>
                         <h4 className="text-base font-extrabold text-slate-900">{m.name}</h4>
-                        <p className="text-xs text-emerald-700 font-bold mt-0.5">PT Athlete</p>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          <p className="text-xs text-emerald-700 font-bold">PT Athlete</p>
+                          {m.phone && (
+                            <>
+                              <span className="text-slate-300 text-xs">•</span>
+                              <a
+                                href={`tel:${m.phone.replace(/[^0-9+]/g, '')}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-xs text-slate-500 hover:text-emerald-600 hover:underline inline-flex items-center gap-1 font-medium transition cursor-pointer"
+                                title={`Call ${m.name} (${m.phone})`}
+                              >
+                                <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                                <span>{m.phone}</span>
+                              </a>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
 

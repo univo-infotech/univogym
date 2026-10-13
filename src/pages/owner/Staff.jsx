@@ -2044,8 +2044,7 @@ Portal me login karke assigned features use kar sakte hain! 🚀`);
                     onChange={e => setForm({ ...form, attendanceMode: e.target.value })}
                     className="inp-modern"
                   >
-                    <option value="manual">Manual Record (Owner/Manager logs leaves)</option>
-                    <option value="biometric">Biometric Device Ready (Cloud punch sync)</option>
+                    <option value="manual">Daily Attendance & Duty Logs</option>
                   </select>
                 </div>
 

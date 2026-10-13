@@ -45,13 +45,12 @@ export default function MemberRoutes() {
 
         // 1. Immediate check against local session
         if (
-          sessObj.ptStatus === "ended" ||
           sessObj.status === "left" ||
           sessObj.status === "ended" ||
           sessObj.memberPortalAccess === false ||
           sessObj.active === false
         ) {
-          triggerForcedLogout("Aapka PT package end ho chuka hai. Session logout ho gaya.");
+          triggerForcedLogout("Aapka membership account inactive ho chuka hai. Session logout ho gaya.");
           return;
         }
 
@@ -62,13 +61,12 @@ export default function MemberRoutes() {
 
         if (fresh) {
           if (
-            fresh.ptStatus === "ended" ||
             fresh.status === "left" ||
             fresh.status === "ended" ||
             fresh.memberPortalAccess === false ||
             fresh.active === false
           ) {
-            triggerForcedLogout("Aapka PT package end ho chuka hai. Member portal access band kar diya gaya hai.");
+            triggerForcedLogout("Aapka membership account inactive ho chuka hai. Member portal access band kar diya gaya hai.");
           }
         }
       } catch (err) {

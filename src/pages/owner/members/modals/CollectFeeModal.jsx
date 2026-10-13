@@ -26,6 +26,7 @@ import {
   getGymStatus, 
   getPtStatus, 
   hasPt, 
+  isNonPtTrainer,
   toIndianDate 
 } from '../memberUtils';
 
@@ -101,12 +102,16 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
     return trainers && trainers.length > 0 ? trainers : [];
   }, [trainers]);
 
-  const [selectedTrainerName, setSelectedTrainerName] = useState(member.trainerName || "General Floor Trainer (Included)");
+  const [selectedTrainerName, setSelectedTrainerName] = useState(
+    member.trainerName && !isNonPtTrainer(member.trainerName)
+      ? member.trainerName
+      : "General Floor Trainer (Included)"
+  );
   const [selectedPtPlanId, setSelectedPtPlanId] = useState(member.ptPlanId || (member.ptPlanName ? "pt_cur" : ""));
   const [selectedPtPlanName, setSelectedPtPlanName] = useState(member.ptPlanName || "");
   const [selectedPtPrice, setSelectedPtPrice] = useState(Number(member.ptPlanPrice || 0));
 
-  const isTrainerSelected = selectedTrainerName && selectedTrainerName !== "General Floor Trainer (Included)" && selectedTrainerName !== "No Trainer";
+  const isTrainerSelected = selectedTrainerName && !isNonPtTrainer(selectedTrainerName);
   const selectedTrainerObj = availableTrainers.find(t => (t.name || t.fullName) === selectedTrainerName);
 
   const currentTrainerPtPlans = useMemo(() => {
@@ -413,14 +418,14 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
           hasPersonalCoach: isPTNow,
           isPt: isPTNow || Boolean(member.isPt),
           isPTMember: isPTNow || Boolean(member.isPTMember),
+          loginEmail: member.loginEmail || member.email || phone,
+          loginPassword: member.loginPassword || member.password || "Member@123",
+          password: member.password || member.loginPassword || "Member@123",
           ...(isPTNow ? {
             ptStatus: "active",
             ptPlanId: selectedPtPlanId,
             ptPlanName: selectedPtPlanName,
             ptPlanPrice: Number(selectedPtPrice || 0),
-            loginEmail: member.loginEmail || member.email || phone,
-            loginPassword: member.loginPassword || member.password || "Member@123",
-            password: member.password || member.loginPassword || "Member@123",
           } : {}),
           selectedServices: selectedServices.map((s) => {
             const monthlyRate = Number(s.monthlyRate || s.originalPrice || s.price || 0);

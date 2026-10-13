@@ -783,9 +783,17 @@ export default function Visits() {
                       {vis.gender || "Athlete"}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 font-semibold mt-0.5 flex items-center gap-1">
-                    <Phone className="w-3.5 h-3.5 text-emerald-600" /> {vis.phone}
-                  </p>
+                  {vis.phone ? (
+                    <a
+                      href={`tel:${vis.phone.replace(/[^0-9+]/g, '')}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-xs text-slate-500 hover:text-emerald-600 hover:underline font-semibold mt-0.5 inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      title={`Call ${vis.name} (${vis.phone})`}
+                    >
+                      <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{vis.phone}</span>
+                    </a>
+                  ) : null}
                 </div>
 
                 {/* Program & Demo Info */}

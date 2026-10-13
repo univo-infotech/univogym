@@ -6,6 +6,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -118,6 +119,46 @@ export async function markMemberAttendance(memberId, gymId, date = new Date()) {
   } catch (e) {
     console.warn("markMemberAttendance firestore fallback:", e);
     return "att_" + Date.now();
+  }
+}
+
+/**
+ * Get attendance records for a gym on a specific date.
+ */
+export async function getGymAttendance(gymId, targetDate = new Date()) {
+  try {
+    const targetGymId = gymId || "univo_main";
+    const start = new Date(targetDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(targetDate);
+    end.setHours(23, 59, 59, 999);
+
+    const q = query(
+      collection(db, "attendance"),
+      where("gymId", "==", targetGymId)
+    );
+    const snap = await getDocs(q);
+    const records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return records.filter(r => {
+      const d = r.date?.toDate ? r.date.toDate() : new Date(r.date || r.createdAt);
+      return d >= start && d <= end;
+    });
+  } catch (err) {
+    console.warn("getGymAttendance error:", err);
+    return [];
+  }
+}
+
+/**
+ * Remove an attendance check-in record.
+ */
+export async function deleteMemberAttendance(attendanceId) {
+  try {
+    await deleteDoc(doc(db, "attendance", attendanceId));
+    return true;
+  } catch (e) {
+    console.warn("deleteMemberAttendance error:", e);
+    return false;
   }
 }
 
@@ -374,4 +415,71 @@ export async function toggleMemberBiometricAccess(gymId, memberId, allowAccess) 
   await updateMember(gymId || "univo_main", memberId, {
     biometricAccess: Boolean(allowAccess)
   });
+}
+
+/**
+ * Trigger Remote Gate / Door Unlock via Cloud Relay for one or both machines.
+ * @param {string} gymId
+ * @param {string} targetDeviceId - 'dev_main_entrance' | 'dev_floor_scanner' | 'all'
+ * @param {number} durationSeconds - duration door stays open (default 8s)
+ */
+export async function triggerRemoteGateUnlock(gymId, targetDeviceId = "all", durationSeconds = 8) {
+  const targetGymId = gymId || "univo_main";
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  const dateStr = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
+
+  const currentDevices = await getBiometricDevices(targetGymId);
+  const devicesToUnlock = targetDeviceId === "all"
+    ? currentDevices
+    : currentDevices.filter(d => d.id === targetDeviceId);
+
+  const logs = [];
+
+  for (const device of devicesToUnlock) {
+    const punchRecord = {
+      id: "remote_unlock_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+      biometricId: "OWNER_REMOTE",
+      memberName: "Remote Unlock (Owner Control)",
+      phone: "Admin Remote",
+      planName: "Cloud Door Release",
+      slot: "Remote Bypass",
+      trainerName: "Cloud Relay",
+      status: "granted",
+      reason: `Gate unlocked remotely by Gym Owner (${durationSeconds}s auto-relock)`,
+      deviceId: device.id,
+      deviceName: device.name,
+      timestamp: nowIso,
+      time: timeStr,
+      date: dateStr,
+      isRemoteUnlock: true,
+      unlockDurationSeconds: durationSeconds,
+      photoUrl: null
+    };
+
+    try {
+      await addDoc(collection(db, "gyms", targetGymId, "biometric_punches"), {
+        ...punchRecord,
+        gymId: targetGymId,
+        createdAt: serverTimestamp()
+      });
+      await addDoc(collection(db, "biometric_punches"), {
+        ...punchRecord,
+        gymId: targetGymId,
+        createdAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.warn("Remote unlock punch logging notice:", e);
+    }
+
+    logs.push(punchRecord);
+  }
+
+  return {
+    success: true,
+    unlockedDevices: devicesToUnlock.map(d => d.name),
+    durationSeconds,
+    logs
+  };
 }

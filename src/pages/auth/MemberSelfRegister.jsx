@@ -48,7 +48,6 @@ import {
   addMember,
   getMembers,
 } from '../../firebase/members';
-import { addPayment } from '../../firebase/payments';
 import { getActivePlans } from '../../firebase/plans';
 import { getTrainers } from '../../firebase/trainers';
 import { getServices, isServiceIncludedInPlan, getPlanDurationMonths, calculateServiceEndDate } from '../../firebase/services';
@@ -789,6 +788,8 @@ export default function MemberSelfRegister() {
         }
       }
 
+      const isPTNow = Boolean(selectedTrainer && selectedPtPlan);
+
       const memberPayload = {
         gymId: gymId || 'univo_main',
         fullName: personalData.fullName || tokenData?.memberName || typedName,
@@ -807,14 +808,14 @@ export default function MemberSelfRegister() {
         planName: selectedPlan?.name || '3-Month Pro',
         planPrice: baseFee,
         // Coach PT Add-on details & Commission tracking
-        ptPlanId: selectedPtPlan?.id || '',
-        ptPlanName: selectedPtPlan?.name || '',
-        ptPlanPrice: ptFee,
-        ptDuration: selectedPtPlan?.duration || '',
-        ptCommissionType: commissionType,
-        ptCommissionValue: commissionValue,
-        ptOwnerCommission,
-        ptTrainerPayout,
+        ptPlanId: isPTNow ? (selectedPtPlan?.id || '') : '',
+        ptPlanName: isPTNow ? (selectedPtPlan?.name || '') : '',
+        ptPlanPrice: isPTNow ? ptFee : 0,
+        ptDuration: isPTNow ? (selectedPtPlan?.duration || '') : '',
+        ptCommissionType: isPTNow ? commissionType : '',
+        ptCommissionValue: isPTNow ? commissionValue : 0,
+        ptOwnerCommission: isPTNow ? ptOwnerCommission : 0,
+        ptTrainerPayout: isPTNow ? ptTrainerPayout : 0,
         // Add-on Services details
         selectedServices: selectedServices.map(s => {
           const isInc = isServiceIncludedInPlan(s, selectedPlan);
@@ -842,19 +843,25 @@ export default function MemberSelfRegister() {
         servicesTotalPrice: srvFee,
         totalAmount: combinedTotalFee,
         dueAmount: combinedTotalFee,
+        paidAmount: 0,
+        paymentStatus: 'pending',
+        paymentMode: 'pending',
+        lastPaymentDate: null,
+        registeredBy: 'self_link',
         joinDate: todayDate.toISOString().split('T')[0],
         expiryDate: expDate.toISOString().split('T')[0],
-        trainerId: selectedTrainer?.id || null,
-        trainerName: selectedTrainer?.name || 'Unassigned (General Floor)',
-        hasPersonalCoach: Boolean(selectedTrainer),
-        isPTMember: Boolean(selectedTrainer),
-        isPt: Boolean(selectedTrainer && selectedPtPlan),
-        ptStatus: Boolean(selectedTrainer && selectedPtPlan) ? 'active' : 'none',
-        ptDurationDays: Number(selectedPtPlan?.durationDays || 30),
-        ptStartDate: todayDate.toISOString().split('T')[0],
-        ptEndDate: new Date(Date.now() + (Number(selectedPtPlan?.durationDays || 30) * 86400000)).toISOString().split('T')[0],
-        loginEmail: selectedTrainer ? (loginEmail?.includes('@') ? loginEmail : personalData.email || loginEmail || tokenData?.loginEmail || personalData.phone || tokenData?.phone || '').trim() : '',
-        loginPassword: selectedTrainer ? (loginPassword || tokenData?.loginPassword || 'Member@123').trim() : '',
+        trainerId: isPTNow ? (selectedTrainer?.id || null) : null,
+        trainerName: isPTNow ? (selectedTrainer?.name || '') : 'General Floor Trainer (Included)',
+        hasPersonalCoach: isPTNow,
+        isPTMember: isPTNow,
+        isPt: isPTNow,
+        ptStatus: isPTNow ? 'active' : 'none',
+        ptDurationDays: isPTNow ? Number(selectedPtPlan?.durationDays || 30) : 0,
+        ptStartDate: isPTNow ? todayDate.toISOString().split('T')[0] : null,
+        ptEndDate: isPTNow ? new Date(Date.now() + (Number(selectedPtPlan?.durationDays || 30) * 86400000)).toISOString().split('T')[0] : null,
+        loginEmail: (loginEmail?.includes('@') ? loginEmail : personalData.email || loginEmail || tokenData?.loginEmail || personalData.phone || tokenData?.phone || '').trim(),
+        loginPassword: (loginPassword || tokenData?.loginPassword || 'Member@123').trim(),
+        password: (loginPassword || tokenData?.loginPassword || 'Member@123').trim(),
         weight: weight || '',
         height: heightUnit === 'cm'
           ? (heightCm ? `${heightCm} cm` : (bmiInfo ? bmiInfo.heightFtIn : ''))
@@ -879,61 +886,8 @@ export default function MemberSelfRegister() {
         inviteToken: token,
       };
 
-      // 1. Add member document to Firestore & local cache FIRST so profile is guaranteed to save!
+      // 1. Add member document to Firestore & local cache
       const createdMemberId = await addMember(gymId || 'univo_main', memberPayload);
-
-      // Create initial subscription/payment record so member immediately appears in Payments & Billing
-      try {
-        const formatToIndian = (d) => {
-          const dt = new Date(d);
-          const day = String(dt.getDate()).padStart(2, '0');
-          const month = String(dt.getMonth() + 1).padStart(2, '0');
-          const year = dt.getFullYear();
-          return `${day}/${month}/${year}`;
-        };
-
-        const planDisplayName = [
-          selectedPlan?.name || 'Membership Plan',
-          selectedPtPlan?.name ? `PT (${selectedPtPlan.name})` : '',
-          selectedServices.length > 0 ? `${selectedServices.length} Services (${selectedServices.map(s => `${s.name} ${s.months || planDurationMonths}M`).join(', ')})` : ''
-        ].filter(Boolean).join(' + ');
-
-        await addPayment(gymId || 'univo_main', {
-          id: 'bill_' + Date.now(),
-          memberId: createdMemberId || 'm_' + Date.now(),
-          memberName: memberPayload.fullName,
-          phone: memberPayload.phone,
-          slot: preferredTime || 'General Floor',
-          batch: 'Self Registration • Link Access',
-          planName: planDisplayName,
-          planPrice: combinedTotalFee,
-          basePlanPrice: baseFee,
-          ptPlanName: selectedPtPlan?.name || '',
-          ptPlanPrice: ptFee,
-          services: selectedServices.map(s => ({
-            name: s.name,
-            monthlyRate: Number(s.price || 0),
-            months: Number(s.months || planDurationMonths),
-            price: getServiceCharge(s),
-            isIncluded: isServiceIncludedInPlan(s, selectedPlan)
-          })),
-          servicesPrice: srvFee,
-          discount: 0,
-          amount: combinedTotalFee,
-          paidAmount: combinedTotalFee,
-          dueAmount: 0,
-          paymentMode: 'online',
-          paymentType: 'full',
-          validityStart: formatToIndian(todayDate),
-          validityEnd: formatToIndian(expDate),
-          dueDate: formatToIndian(expDate),
-          date: formatToIndian(todayDate),
-          status: 'paid',
-          remarks: `Online Registration & Plan Activation: ${selectedPlan?.name || 'Membership'}`
-        });
-      } catch (payErr) {
-        console.warn('MemberSelfRegister payment recording notice:', payErr);
-      }
 
       // 2. Mark token as used
       try {
@@ -1031,31 +985,29 @@ export default function MemberSelfRegister() {
             ))}
           </Card>
 
-          {selectedTrainer && (
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-900 to-slate-900 text-white border border-emerald-500/30 text-left space-y-2.5 shadow-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                  🔑 Your PT App Login Credentials
-                </span>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/40">
-                  Coach: {selectedTrainer.name}
-                </span>
-              </div>
-              <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Login ID / Phone:</span>
-                  <span className="font-mono font-bold text-white">{loginEmail || tokenData?.phone || personalData.phone}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Password:</span>
-                  <span className="font-mono font-bold text-emerald-300">{loginPassword}</span>
-                </div>
-              </div>
-              <p className="text-[10px] text-slate-300">
-                You can directly sign into the Athlete Portal with these credentials to view workout plans and chat with your trainer.
-              </p>
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-900 to-slate-900 text-white border border-emerald-500/30 text-left space-y-2.5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                🔑 Your Member Portal Login Credentials
+              </span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/40">
+                {selectedTrainer ? `Coach: ${selectedTrainer.name}` : 'Member Portal'}
+              </span>
             </div>
-          )}
+            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Login ID / Phone:</span>
+                <span className="font-mono font-bold text-white">{loginEmail || tokenData?.phone || personalData.phone}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Password:</span>
+                <span className="font-mono font-bold text-emerald-300">{loginPassword || 'Member@123'}</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-300">
+              You can sign into the Member Portal with these credentials to view your active plan, attendance streak, workout routine, and fee receipts.
+            </p>
+          </div>
 
           <button
             onClick={() => navigate('/login')}
@@ -1988,53 +1940,57 @@ export default function MemberSelfRegister() {
                       />
                     </div>
 
-                    {/* PT Athlete App & Portal Login Credentials */}
-                    <div className="pt-3 border-t border-emerald-200/70">
-                      <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100/50 border border-emerald-200">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
-                            🔑
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-bold text-emerald-950">PT Athlete App & Portal Login Credentials</h4>
-                            <p className="text-[10px] text-emerald-700 font-medium">Use these credentials to log in, interact with {selectedTrainer.name}, and view workout & diet routines.</p>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Login ID / Mobile Number <span className="text-rose-500">*</span>
-                            </label>
-                            <input
-                              type="text"
-                              value={loginEmail || tokenData?.phone || personalData.phone || ''}
-                              onChange={(e) => setLoginEmail(e.target.value)}
-                              placeholder="e.g. 9876543210 or email"
-                              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                            />
-                            <p className="text-[9px] text-slate-500 mt-0.5">Your mobile or ID to log into the Member Portal</p>
-                          </div>
-
-                          <div>
-                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                              Set Password <span className="text-rose-500">*</span>
-                            </label>
-                            <input
-                              type="text"
-                              value={loginPassword}
-                              onChange={(e) => setLoginPassword(e.target.value)}
-                              placeholder="e.g. Member@123"
-                              className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono"
-                            />
-                            <p className="text-[9px] text-slate-500 mt-0.5">Remember this password for member login</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}
+
+              {/* Member App & Portal Login Credentials (FOR ALL MEMBERS) */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100/60 border-2 border-emerald-300 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                      🔑
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-emerald-950">Member Portal Login Credentials</h4>
+                      <p className="text-[10px] text-emerald-700 font-medium">Use these credentials to sign in, check workout routines, attendance, and fee receipts.</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-800 border border-emerald-400">
+                    Portal Access
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Login ID / Mobile Number <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={loginEmail || tokenData?.phone || personalData.phone || ''}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      placeholder="e.g. 9876543210 or email"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <p className="text-[9px] text-slate-500 mt-0.5">Your mobile or ID to log into the Member Portal</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Set Password <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="e.g. Member@123"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono font-bold text-emerald-700"
+                    />
+                    <p className="text-[9px] text-slate-500 mt-0.5">Remember this password for member login</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* ==========================================================
