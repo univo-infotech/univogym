@@ -303,7 +303,6 @@ export async function updateMember(arg1, arg2, arg3) {
 
   // Update or invalidate active member session
   const isDeactivated = Boolean(
-    data.ptStatus === 'ended' ||
     data.status === 'left' ||
     data.status === 'ended' ||
     data.memberPortalAccess === false ||
@@ -329,12 +328,12 @@ export async function updateMember(arg1, arg2, arg3) {
     // Ignore
   }
 
-  // If member PT ended or deactivated, broadcast cross-tab/cross-device force logout
+  // If member deactivated or left, broadcast cross-tab/cross-device force logout
   if (isDeactivated) {
     try {
       if (typeof window !== "undefined" && "BroadcastChannel" in window) {
         const channel = new BroadcastChannel("univo_session_channel");
-        channel.postMessage({ type: "FORCE_LOGOUT", memberId, reason: "pt_ended" });
+        channel.postMessage({ type: "FORCE_LOGOUT", memberId, reason: "account_deactivated" });
         channel.close();
       }
       localStorage.setItem("univo_force_logout", `${memberId}_${Date.now()}`);

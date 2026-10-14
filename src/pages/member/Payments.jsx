@@ -31,16 +31,16 @@ export default function MemberPayments() {
             setHistory(list);
           } else if (mData) {
             // Display current enrolled plan payment record if standalone history is empty
-            const ptPrice = Number(mData.ptPlanPrice) || 5000;
-            const paid = Number(mData.paidAmount) || ptPrice;
-            const due = Number(mData.dueAmount) || 0;
+            const totalPlanPrice = Number(mData.planPrice || mData.totalAmount || mData.ptPlanPrice || 0);
+            const paid = Number(mData.paidAmount) || (mData.paymentStatus === 'paid' ? totalPlanPrice : 0);
+            const due = Number(mData.dueAmount) || Math.max(0, totalPlanPrice - paid);
             setHistory([
               {
                 id: mData.id || "p_curr",
                 memberName: mData.name || mData.fullName || "Athlete",
-                planName: mData.ptPlanName || mData.planName || "Personal Training Package",
+                planName: mData.planName || mData.ptPlanName || "Gym Membership",
                 paidAmount: paid,
-                amount: paid + due,
+                amount: totalPlanPrice || (paid + due),
                 dueAmount: due,
                 paymentMode: mData.paymentMode || "online",
                 date: mData.joinDate || new Date().toISOString().split("T")[0],

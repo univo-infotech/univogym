@@ -202,13 +202,12 @@ export function EndMembershipModal({ member, gymId, onClose, onSave }) {
           ptSlot: null,
           preferredTime: null,
           ptShift: null,
-          memberPortalAccess: false,
+          memberPortalAccess: true,
         };
 
         await updateMember(gymId || 'univo_main', member.id, updatedFields);
-        broadcastForceLogout(member.id);
 
-        toast.success(`PT package ended for ${getName(member)}. Coach shift freed & Member portal logged out! Gym stays ACTIVE 🏋️`);
+        toast.success(`PT package ended for ${getName(member)}. Coach shift freed! Gym stays ACTIVE 🏋️`);
         onSave(member.id, { ptOnly: true, reason: finalReason, updatedFields });
       } else {
         const updatedFields = {

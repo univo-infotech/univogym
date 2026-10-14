@@ -5,6 +5,7 @@ import StatCard from "../../components/ui/StatCard";
 import { useAuth } from "../../contexts/AuthContext";
 import { getMember, getMembers } from "../../firebase/members";
 import { formatDate } from "../../utils/dateUtils";
+import { hasPt, isNonPtTrainer, getDaysRemaining } from "../owner/members/memberUtils";
 
 export default function MemberDashboard() {
   const navigate = useNavigate();
@@ -56,9 +57,12 @@ export default function MemberDashboard() {
   }, [gymId, profileId, user]);
 
   const athleteName = member?.name || member?.fullName || "Athlete";
-  const planName = member?.planName || member?.ptPlanName || "Personal Training Plan";
-  const ptPlanName = member?.ptPlanName || (member?.personalTrainer ? "1-on-1 Personal Training" : null);
-  const coachName = member?.personalTrainer || member?.trainerName || member?.trainer || "Assigned Coach";
+  const rawCoachName = member?.personalTrainer || member?.trainerName || member?.trainer || "";
+  const hasPtMember = hasPt(member) && !isNonPtTrainer(rawCoachName);
+  const coachName = hasPtMember ? rawCoachName : "Floor Coach (Included)";
+  const planName = member?.planName || member?.ptPlanName || "Gym Floor Membership";
+  const ptPlanName = hasPtMember ? (member?.ptPlanName || "1-on-1 Personal Training") : null;
+  const daysRemaining = getDaysRemaining(member?.expiryDate);
 
   return (
     <div className="space-y-6 pb-12">
@@ -75,45 +79,53 @@ export default function MemberDashboard() {
           </p>
         </div>
         <Link
-          to="/member/trainer"
+          to={hasPtMember ? "/member/trainer" : "/member/plan"}
           className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition flex items-center gap-2 shrink-0"
         >
-          <Dumbbell className="w-4 h-4" /> View My Coach →
+          {hasPtMember ? (
+            <>
+              <Dumbbell className="w-4 h-4" /> View My Coach →
+            </>
+          ) : (
+            <>
+              <CreditCard className="w-4 h-4" /> View My Membership →
+            </>
+          )}
         </Link>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard 
-          title="Workout Streak" 
-          value="14 Days" 
-          change="View Attendance History" 
+          title="Attendance Streak" 
+          value={member?.attendanceStreak ? `${member.attendanceStreak} Days` : "Active"} 
+          change="Regular Gym Access" 
           icon={<Flame className="w-5 h-5 text-amber-600" />} 
           color="orange" 
-          onClick={() => navigate("/member/attendance")}
+          onClick={() => navigate("/member/profile")}
         />
         <StatCard 
-          title="Days Attended (Month)" 
-          value="18 / 26" 
-          change="Check Attendance Records" 
+          title="Membership Status" 
+          value={hasPtMember ? "PT + Gym Floor" : "General Floor Access"} 
+          change="View Plan Details" 
           icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />} 
           color="green" 
-          onClick={() => navigate("/member/attendance")}
+          onClick={() => navigate("/member/plan")}
         />
         <StatCard 
           title="Plan Expiry" 
-          value={member?.validityEnd ? formatDate(member.validityEnd) : "30 Days Left"} 
-          change="View Membership Details" 
+          value={daysRemaining !== null ? (daysRemaining > 0 ? `${daysRemaining} Days Left` : daysRemaining === 0 ? "Expires Today" : "Expired") : "Active"} 
+          change={member?.expiryDate ? `Valid till ${formatDate(member.expiryDate)}` : "Active Subscription"} 
           icon={<Calendar className="w-5 h-5 text-teal-600" />} 
           color="teal" 
           onClick={() => navigate("/member/plan")}
         />
         <StatCard 
-          title="Assigned PT Coach" 
+          title={hasPtMember ? "Assigned PT Coach" : "Gym Training"} 
           value={coachName} 
-          change="Chat & Workouts" 
+          change={hasPtMember ? "Chat & Workouts" : "Floor Assistance Included"} 
           icon={<Dumbbell className="w-5 h-5 text-blue-600" />} 
           color="blue" 
-          onClick={() => navigate("/member/trainer")}
+          onClick={() => navigate(hasPtMember ? "/member/trainer" : "/member/plan")}
         />
       </div>
 
@@ -145,7 +157,7 @@ export default function MemberDashboard() {
               </div>
             )}
             <p className="text-xs text-slate-500">
-              Valid until: {member?.validityEnd || member?.dueDate ? formatDate(member.validityEnd || member.dueDate) : "Active Subscription"}
+              Valid until: {member?.expiryDate || member?.dueDate ? formatDate(member.expiryDate || member.dueDate) : "Active Subscription"}
             </p>
             <p className="text-xs text-slate-700 pt-2 border-t border-emerald-100">
               Preferred Workout Time: <b>{member?.slot || member?.preferredTime || "Morning (6:00 AM - 9:00 AM)"}</b>
@@ -153,36 +165,72 @@ export default function MemberDashboard() {
           </div>
         </div>
 
-        <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Dumbbell className="w-5 h-5 text-teal-600" /> 1-on-1 Personal Coaching
-            </h3>
-            <Link to="/member/trainer" className="text-xs font-bold text-emerald-700 hover:underline">
-              Open Chat →
-            </Link>
-          </div>
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-lg">
-                {coachName.charAt(0)}
+        {hasPtMember ? (
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Dumbbell className="w-5 h-5 text-teal-600" /> 1-on-1 Personal Coaching
+              </h3>
+              <Link to="/member/trainer" className="text-xs font-bold text-emerald-700 hover:underline">
+                Open Chat →
+              </Link>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-lg">
+                  {coachName.charAt(0)}
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">{coachName}</h4>
+                  <p className="text-xs text-emerald-700 font-medium">Head Personal Coach</p>
+                </div>
               </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">{coachName}</h4>
-                <p className="text-xs text-emerald-700 font-medium">Head Personal Coach</p>
+              <p className="text-xs text-slate-600">
+                Form check, daily attendance motivation and tailored meal plans.
+              </p>
+              <Link
+                to="/member/trainer"
+                className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition"
+              >
+                <MessageCircle className="w-3.5 h-3.5" /> Message Coach & View Diet
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Dumbbell className="w-5 h-5 text-teal-600" /> Gym Floor Training
+              </h3>
+              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                Included
+              </span>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold text-lg">
+                  🏋️
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">Floor Trainers On Duty</h4>
+                  <p className="text-xs text-slate-500 font-medium">Machine guidance & workout support</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-600">
+                Floor trainers are available during your gym hours to assist you with equipment setups, spot heavy lifts, and safety form checks.
+              </p>
+              <div className="pt-2 flex items-center justify-between border-t border-slate-200">
+                <span className="text-xs text-slate-500">Want 1-on-1 Dedicated PT?</span>
+                <Link
+                  to="/member/plan"
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+                >
+                  Inquire at Reception →
+                </Link>
               </div>
             </div>
-            <p className="text-xs text-slate-600">
-              Form check, daily attendance motivation and tailored meal plans.
-            </p>
-            <Link
-              to="/member/trainer"
-              className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition"
-            >
-              <MessageCircle className="w-3.5 h-3.5" /> Message Coach & View Diet
-            </Link>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Supplement Store Banner */}

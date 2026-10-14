@@ -7,6 +7,7 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 import { getMember } from "../../firebase/members";
 import { formatDate } from "../../utils/dateUtils";
+import { hasPt, isNonPtTrainer } from "../owner/members/memberUtils";
 
 export default function MyPlan() {
   const { gymId, profileId, user } = useAuth();
@@ -64,8 +65,10 @@ export default function MyPlan() {
     );
   }
 
-  const planTitle = member.ptPlanName || member.planName || "Personal Training Transformation";
-  const coach = member.personalTrainer || member.trainerName || member.trainer || "Assigned Coach";
+  const rawCoach = member.personalTrainer || member.trainerName || member.trainer || "";
+  const memberHasPt = hasPt(member) && !isNonPtTrainer(rawCoach);
+  const planTitle = (memberHasPt && member.ptPlanName) ? member.ptPlanName : (member.planName || member.ptPlanName || "Gym Floor Membership");
+  const coachLabel = memberHasPt ? `Coach ${rawCoach}` : "General Floor Training (Included)";
   const joinDate = formatDate(member.joinDate, "--");
   const expiryDate = formatDate(member.expiryDate, "--");
   
@@ -126,7 +129,7 @@ export default function MyPlan() {
               
               <h3 className="text-3xl font-extrabold text-white mb-2">{planTitle}</h3>
               <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
-                <User className="w-4 h-4" /> Coach {coach}
+                <User className="w-4 h-4" /> {coachLabel}
               </div>
               
               <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -139,8 +142,8 @@ export default function MyPlan() {
                   <p className="text-sm font-semibold flex items-center gap-1.5"><Target className="w-4 h-4 text-emerald-400" /> {member.goal || member.fitnessGoal || "--"}</p>
                 </div>
                 <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50">
-                  <p className="text-xs text-slate-400 font-medium mb-1">PT Sessions</p>
-                  <p className="text-sm font-semibold flex items-center gap-1.5"><Zap className="w-4 h-4 text-emerald-400" /> {member.ptCompletedSessions || 0} Completed</p>
+                  <p className="text-xs text-slate-400 font-medium mb-1">{memberHasPt ? "PT Sessions" : "Membership"}</p>
+                  <p className="text-sm font-semibold flex items-center gap-1.5"><Zap className="w-4 h-4 text-emerald-400" /> {memberHasPt ? `${member.ptCompletedSessions || 0} Completed` : "Floor Access"}</p>
                 </div>
                 <div className="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50">
                   <p className="text-xs text-slate-400 font-medium mb-1">Status</p>
@@ -155,9 +158,9 @@ export default function MyPlan() {
             <div className="bg-emerald-900/40 p-6 border-t border-emerald-900/50">
               <ul className="grid sm:grid-cols-2 gap-3 text-sm text-slate-300">
                 <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-emerald-500 flex-shrink-0" /> Full Gym floor access (Cardio + Free weights)</li>
-                <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-emerald-500 flex-shrink-0" /> Dedicated 1-on-1 PT Coach guidance</li>
-                <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-emerald-500 flex-shrink-0" /> Live Chat & direct consultation</li>
-                <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-emerald-500 flex-shrink-0" /> Body assessment & weekly tracking</li>
+                <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-emerald-500 flex-shrink-0" /> {memberHasPt ? "Dedicated 1-on-1 PT Coach guidance" : "General floor trainer safety guidance"}</li>
+                <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-emerald-500 flex-shrink-0" /> {memberHasPt ? "Live Chat & direct consultation" : "Locker room & hydration amenities"}</li>
+                <li className="flex items-center gap-2.5"><Check className="w-4 h-4 text-emerald-500 flex-shrink-0" /> {memberHasPt ? "Tailored diet & workout plan updates" : "Member athlete portal access"}</li>
               </ul>
             </div>
           </div>

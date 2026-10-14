@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   Dumbbell,
   Phone,
@@ -19,13 +20,15 @@ import {
   Flame,
   Target,
   Droplets,
-  Zap
+  Zap,
+  CreditCard
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { getTrainer, getTrainers } from "../../firebase/trainers";
 import { formatDate } from "../../utils/dateUtils";
 import { getMember, getMembers, updateMember } from "../../firebase/members";
 import { getChatRoomId, subscribeRoomMeta } from "../../firebase/chat";
+import { hasPt, isNonPtTrainer } from "../owner/members/memberUtils";
 import DirectChatModal from "../../components/shared/DirectChatModal";
 import toast from "react-hot-toast";
 
@@ -89,27 +92,27 @@ export default function MyTrainer() {
           } catch (e) {}
         }
 
-        // Fetch Trainer
+        // Fetch Trainer only if member actually has a PT package
         const tId = m?.trainerId || m?.coachId || "";
         const tName = m?.personalTrainer || m?.trainerName || m?.trainer || "";
+        const memberHasPt = hasPt(m) && !isNonPtTrainer(tName);
 
         let t = null;
-        if (tId) {
-          try {
-            t = await getTrainer(GID, tId);
-          } catch (e) {}
-        }
-
-        if (!t) {
-          const allTrainers = await getTrainers(GID);
-          if (tName) {
-            t = allTrainers.find((item) =>
-              (item.name || "").toLowerCase().includes(tName.toLowerCase()) ||
-              tName.toLowerCase().includes((item.name || "").toLowerCase())
-            );
+        if (memberHasPt) {
+          if (tId) {
+            try {
+              t = await getTrainer(GID, tId);
+            } catch (e) {}
           }
-          if (!t && allTrainers.length > 0) {
-            t = allTrainers[0];
+
+          if (!t) {
+            const allTrainers = await getTrainers(GID);
+            if (tName) {
+              t = allTrainers.find((item) =>
+                (item.name || "").toLowerCase().includes(tName.toLowerCase()) ||
+                tName.toLowerCase().includes((item.name || "").toLowerCase())
+              );
+            }
           }
         }
 
@@ -185,7 +188,80 @@ export default function MyTrainer() {
     );
   }
 
-  const coachName = trainer?.name || memberData?.personalTrainer || "Coach Boggey man";
+  const memberHasPt = hasPt(memberData) && !isNonPtTrainer(memberData?.personalTrainer || memberData?.trainerName);
+
+  if (!memberHasPt || !trainer) {
+    return (
+      <div className="space-y-6 max-w-4xl pb-16">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-3 py-1 rounded-full border border-teal-200">
+            Gym Floor Training
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mt-2 tracking-tight">
+            Floor Trainer Support & Guidance
+          </h1>
+          <p className="text-slate-500 text-xs sm:text-sm mt-1">
+            You are currently on General Floor Access. Certified gym floor trainers are on duty to guide and assist you.
+          </p>
+        </div>
+
+        <div className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row items-center gap-6">
+            <div className="w-20 h-20 rounded-3xl bg-teal-600 text-white flex items-center justify-center font-bold text-3xl shadow-md shrink-0">
+              🏋️
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-slate-900">General Floor Trainers (Included)</h3>
+              <p className="text-xs font-bold text-teal-700 mt-0.5">Available Daily During Workout Hours</p>
+              <p className="text-xs text-slate-600 mt-2 max-w-xl">
+                During your gym sessions, approach any floor trainer on duty for equipment setup help, posture correction, and safety spotting during heavy sets.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-100">
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <CheckCircle2 className="w-5 h-5 text-teal-600 mb-2" />
+              <h4 className="text-xs font-bold text-slate-900">Machine Guidance</h4>
+              <p className="text-xs text-slate-500 mt-1">Learn how to adjust and operate all gym machines safely.</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <CheckCircle2 className="w-5 h-5 text-teal-600 mb-2" />
+              <h4 className="text-xs font-bold text-slate-900">Spotting & Safety</h4>
+              <p className="text-xs text-slate-500 mt-1">Request a spotter anytime for bench press or squats.</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <CheckCircle2 className="w-5 h-5 text-teal-600 mb-2" />
+              <h4 className="text-xs font-bold text-slate-900">Gym Etiquette</h4>
+              <p className="text-xs text-slate-500 mt-1">Warm-up and cooldown recommendations on the floor.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Upgrade / PT Inquire Card */}
+        <div className="p-8 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-700 to-slate-900 text-white shadow-xl space-y-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-amber-300" />
+            <span className="text-xs font-bold tracking-wider uppercase text-emerald-200">Accelerate Your Fitness</span>
+          </div>
+          <h3 className="text-2xl font-black">Want Dedicated 1-on-1 Personal Training?</h3>
+          <p className="text-xs text-emerald-100 max-w-xl">
+            Upgrade to a 1-on-1 Personal Training plan to get an assigned certified coach, tailored daily macro diet plans, specialized workout splits, and weekly body composition checks.
+          </p>
+          <div className="pt-2">
+            <Link
+              to="/member/plan"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white text-emerald-800 font-extrabold text-xs shadow-lg hover:bg-emerald-50 transition"
+            >
+              <CreditCard className="w-4 h-4 text-emerald-600" /> View Membership Plans
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const coachName = trainer?.name || memberData?.personalTrainer || "Coach";
   const coachSpecialization = trainer?.specialization || trainer?.specializations?.[0] || "Strength & Hypertrophy";
   const coachBio = trainer?.bio || "Certified Personal Trainer at Univo Gym. Specializing in weight training, bodybuilding, fat burn and tailored athletic performance.";
   const coachSchedule = trainer?.schedule || "Morning (6:00 AM - 11:00 AM) & Evening (5:00 PM - 9:30 PM)";

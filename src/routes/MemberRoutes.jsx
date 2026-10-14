@@ -86,7 +86,7 @@ export default function MemberRoutes() {
             const sessStr = localStorage.getItem("univo_member_session");
             const sessObj = sessStr ? JSON.parse(sessStr) : null;
             if (!event.data.memberId || (sessObj && sessObj.id === event.data.memberId)) {
-              triggerForcedLogout("PT Package ended: Member portal session logged out.");
+              triggerForcedLogout(event.data?.reason === "account_deactivated" ? "Membership ended: Member portal session logged out." : "Membership ended: Session logged out.");
             }
           }
         };
