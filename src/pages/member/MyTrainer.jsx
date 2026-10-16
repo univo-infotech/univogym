@@ -34,6 +34,7 @@ import { openWhatsApp } from "../../utils/whatsapp";
 import { getGymSettings } from "../../utils/settings";
 import Modal from "../../components/ui/Modal";
 import DirectChatModal from "../../components/shared/DirectChatModal";
+import OnlineRenewalModal from "../../components/member/OnlineRenewalModal";
 import toast from "react-hot-toast";
 
 export default function MyTrainer() {
@@ -49,6 +50,7 @@ export default function MyTrainer() {
   const [certModal, setCertModal] = useState(null);
   const [hasUnreadChat, setHasUnreadChat] = useState(false);
   const [demoModalOpen, setDemoModalOpen] = useState(false);
+  const [ptModalOpen, setPtModalOpen] = useState(false);
   const [submittingDemo, setSubmittingDemo] = useState(false);
   const [demoForm, setDemoForm] = useState({
     goal: "Fat Loss & Muscle Building",
@@ -315,19 +317,36 @@ export default function MyTrainer() {
           </p>
           <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
-              onClick={() => setDemoModalOpen(true)}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white text-emerald-800 font-extrabold text-xs shadow-lg hover:bg-emerald-50 transition"
+              type="button"
+              onClick={() => setPtModalOpen(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white text-emerald-800 font-extrabold text-xs shadow-lg hover:bg-emerald-50 transition cursor-pointer"
             >
-              <Sparkles className="w-4 h-4 text-emerald-600" /> Book Free PT Consultation & Demo
+              <Sparkles className="w-4 h-4 text-emerald-600" /> Enroll in 1-on-1 PT Coaching (UPI QR)
             </button>
-            <Link
-              to="/member/plan"
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-800/60 hover:bg-emerald-800 text-white font-bold text-xs border border-emerald-400/30 transition"
+            <button
+              type="button"
+              onClick={() => setDemoModalOpen(true)}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-800/60 hover:bg-emerald-800 text-white font-bold text-xs border border-emerald-400/30 transition cursor-pointer"
             >
-              <CreditCard className="w-4 h-4" /> View Membership Plans
-            </Link>
+              <Calendar className="w-4 h-4" /> Book Free Demo Consultation
+            </button>
           </div>
         </div>
+
+        {/* Online PT Purchase Modal */}
+        {ptModalOpen && (
+          <OnlineRenewalModal
+            isOpen={ptModalOpen}
+            onClose={() => setPtModalOpen(false)}
+            member={memberData}
+            gymId={GID}
+            initialCategory="pt"
+            onSuccess={() => {
+              setPtModalOpen(false);
+              toast.success("PT Request submitted! Your personal coach will be activated upon approval.");
+            }}
+          />
+        )}
 
         {/* Demo Consultation Modal */}
         {demoModalOpen && (

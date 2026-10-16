@@ -52,37 +52,38 @@ import { useAuth } from "../../contexts/AuthContext";
 import toast from "react-hot-toast";
 import { formatDate } from "../../utils/dateUtils";
 
-// Format DD/MM/YYYY or YYYY-MM-DD or Timestamp to ISO date string YYYY-MM-DD
+// Format DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD or Timestamp to ISO date string YYYY-MM-DD in local time
 function normalizeDate(dStr) {
   if (!dStr) return "";
+  let dObj = null;
   if (typeof dStr === "object") {
     if (dStr.toDate && typeof dStr.toDate === "function") {
-      return dStr.toDate().toISOString().split("T")[0];
-    }
-    if (dStr.seconds) {
-      return new Date(dStr.seconds * 1000).toISOString().split("T")[0];
-    }
-    if (dStr instanceof Date && !isNaN(dStr.getTime())) {
-      return dStr.toISOString().split("T")[0];
+      dObj = dStr.toDate();
+    } else if (dStr.seconds) {
+      dObj = new Date(dStr.seconds * 1000);
+    } else if (dStr instanceof Date && !isNaN(dStr.getTime())) {
+      dObj = dStr;
     }
   }
+  if (dObj) {
+    const y = dObj.getFullYear();
+    const m = String(dObj.getMonth() + 1).padStart(2, "0");
+    const d = String(dObj.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
   const s = String(dStr).trim();
-  if (s.includes("/")) {
-    const parts = s.split("/");
-    if (parts.length === 3) {
-      if (parts[0].length === 4) {
-        // YYYY/MM/DD
-        const year = parts[0];
-        const month = parts[1].padStart(2, "0");
-        const day = parts[2].padStart(2, "0");
-        return `${year}-${month}-${day}`;
-      } else {
-        // DD/MM/YYYY
-        const day = parts[0].padStart(2, "0");
-        const month = parts[1].padStart(2, "0");
-        const year = parts[2];
-        return `${year}-${month}-${day}`;
-      }
+  const sepMatch = s.match(/^(\d{1,4})[\/\-](\d{1,2})[\/\-](\d{1,4})/);
+  if (sepMatch) {
+    const part1 = sepMatch[1];
+    const part2 = sepMatch[2].padStart(2, "0");
+    const part3 = sepMatch[3];
+    if (part1.length === 4) {
+      // YYYY-MM-DD or YYYY/MM/DD
+      return `${part1}-${part2}-${part3.padStart(2, "0")}`;
+    } else if (part3.length === 4) {
+      // DD-MM-YYYY or DD/MM/YYYY
+      return `${part3}-${part2}-${part1.padStart(2, "0")}`;
     }
   }
   return s.slice(0, 10);

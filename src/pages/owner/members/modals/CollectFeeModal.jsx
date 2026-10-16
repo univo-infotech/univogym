@@ -252,8 +252,12 @@ export default function CollectFeeModal({ member, gymId, onClose, onSave, traine
   // Auto calculate validity end date
   useEffect(() => {
     if (validityStart) {
-      const d = new Date(validityStart);
-      d.setMonth(d.getMonth() + Number(currentPlan.durationMonths));
+      const d = toDate(validityStart) || new Date(validityStart);
+      const originalDay = d.getDate();
+      d.setMonth(d.getMonth() + Number(currentPlan.durationMonths || 1));
+      if (d.getDate() !== originalDay) {
+        d.setDate(0);
+      }
       const day = String(d.getDate()).padStart(2, "0");
       const month = String(d.getMonth() + 1).padStart(2, "0");
       const year = d.getFullYear();

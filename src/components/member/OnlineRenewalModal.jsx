@@ -39,9 +39,9 @@ const DEFAULT_PT_PACKAGES = [
   { id: "pt_3m", name: "3 Months Elite Transformation PT (72 Sessions)", durationMonths: 3, durationDays: 90, price: 11000, sessions: 72, desc: "Complete lifestyle overhaul, contest/strength conditioning" },
 ];
 
-export default function OnlineRenewalModal({ isOpen, onClose, member, gymId = "univo_main", onSuccess }) {
+export default function OnlineRenewalModal({ isOpen, onClose, member, gymId = "univo_main", initialCategory = "membership", onSuccess }) {
   const [step, setStep] = useState(1); // 1: Select Plan, 2: Scan QR & Pay, 3: UTR Submission & Success
-  const [category, setCategory] = useState("membership"); // "membership" | "pt"
+  const [category, setCategory] = useState(initialCategory || "membership"); // "membership" | "pt"
   const [plans, setPlans] = useState([]);
   const [trainers, setTrainers] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -72,6 +72,9 @@ export default function OnlineRenewalModal({ isOpen, onClose, member, gymId = "u
       return;
     }
 
+    const startCat = initialCategory || "membership";
+    setCategory(startCat);
+
     async function loadCatalog() {
       setLoadingData(true);
       try {
@@ -92,7 +95,11 @@ export default function OnlineRenewalModal({ isOpen, onClose, member, gymId = "u
           : DEFAULT_MEMBERSHIP_PLANS;
 
         setPlans(mergedPlans);
-        setSelectedPlan(mergedPlans[1] || mergedPlans[0]);
+        if (startCat === "pt") {
+          setSelectedPlan(DEFAULT_PT_PACKAGES[1] || DEFAULT_PT_PACKAGES[0]);
+        } else {
+          setSelectedPlan(mergedPlans[1] || mergedPlans[0]);
+        }
 
         const activeTrainers = Array.isArray(tList) ? tList : [];
         setTrainers(activeTrainers);
@@ -101,14 +108,14 @@ export default function OnlineRenewalModal({ isOpen, onClose, member, gymId = "u
         }
       } catch (err) {
         setPlans(DEFAULT_MEMBERSHIP_PLANS);
-        setSelectedPlan(DEFAULT_MEMBERSHIP_PLANS[1]);
+        setSelectedPlan(startCat === "pt" ? DEFAULT_PT_PACKAGES[1] : DEFAULT_MEMBERSHIP_PLANS[1]);
       } finally {
         setLoadingData(false);
       }
     }
 
     loadCatalog();
-  }, [isOpen, gymId]);
+  }, [isOpen, gymId, initialCategory]);
 
   if (!isOpen) return null;
 

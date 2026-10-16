@@ -66,7 +66,8 @@ export default function Expenses() {
   const [activeTab, setActiveTab] = useState("all"); // "all" | "salaries" | "monthly_templates" | "monthly_advance" | "monthly_postpaid" | "onetime"
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const todayIso = new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const currentMonthKey = todayIso.slice(0, 7);
 
   const [form, setForm] = useState({

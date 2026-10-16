@@ -312,9 +312,9 @@ export default function Dashboard() {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
       const dayName = daysArr[d.getDay()];
-      const dateStr = d.toISOString().split("T")[0]; // YYYY-MM-DD
       const dayNum = String(d.getDate()).padStart(2, "0");
       const monthNum = String(d.getMonth() + 1).padStart(2, "0");
+      const dateStr = `${d.getFullYear()}-${monthNum}-${dayNum}`; // YYYY-MM-DD
       const indianDateStr = `${dayNum}/${monthNum}/${d.getFullYear()}`;
 
       // Sum Net Owner revenue matching this day (after trainer commission deduction)
@@ -366,7 +366,7 @@ export default function Dashboard() {
   // Today's date representations
   const todayStr = useMemo(() => {
     const now = new Date();
-    return now.toISOString().split("T")[0]; // YYYY-MM-DD
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; // YYYY-MM-DD
   }, []);
 
   // Today's payments & collections

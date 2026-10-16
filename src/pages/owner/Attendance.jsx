@@ -37,6 +37,11 @@ export default function Attendance() {
   const currentGymId = gymId || "univo_main";
 
   // Navigation Tabs: "present" (Checked in) | "quick_mark" (All members ready to check in)
+  const getTodayIso = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  };
+
   const [activeTab, setActiveTab] = useState("present");
 
   const [members, setMembers] = useState([]);
@@ -44,7 +49,7 @@ export default function Attendance() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [shiftFilter, setShiftFilter] = useState("all");
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(getTodayIso);
   const [quickCheckInModalOpen, setQuickCheckInModalOpen] = useState(false);
   const [quickSearch, setQuickSearch] = useState("");
   const [processingId, setProcessingId] = useState(null);
@@ -78,7 +83,7 @@ export default function Attendance() {
       membersMap[m.id] = m;
     });
 
-    const isSelectedDateToday = selectedDate === new Date().toISOString().split("T")[0];
+    const isSelectedDateToday = selectedDate === getTodayIso();
 
     // Firestore attendance collection records
     return attendanceRecords.map(att => {
@@ -317,9 +322,9 @@ export default function Attendance() {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
           />
-          {selectedDate !== new Date().toISOString().split("T")[0] && (
+          {selectedDate !== getTodayIso() && (
             <button
-              onClick={() => setSelectedDate(new Date().toISOString().split("T")[0])}
+              onClick={() => setSelectedDate(getTodayIso())}
               className="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200"
             >
               Today
