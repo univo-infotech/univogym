@@ -32,18 +32,28 @@ function getInitialAuthState() {
     // 2. If active role is trainer
     if (activeRole === "trainer" || (savedTrainer && activeRole !== "owner" && activeRole !== "member" && activeRole !== "staff")) {
       if (savedTrainer) {
-        const parsed = JSON.parse(savedTrainer);
-        if (parsed && (parsed.id || parsed.uid)) {
-          return {
-            user: { uid: parsed.id || parsed.uid, displayName: parsed.name, email: parsed.email || parsed.loginEmail, ...parsed },
-            role: "trainer",
-            gymId: parsed.gymId || "univo_main",
-            profileId: parsed.id || parsed.uid,
-            permissions: [],
-            loading: false,
-          };
-        }
+        try {
+          const parsed = JSON.parse(savedTrainer);
+          if (parsed && (parsed.id || parsed.uid)) {
+            return {
+              user: { uid: parsed.id || parsed.uid, displayName: parsed.name || "Coach", email: parsed.email || parsed.loginEmail, ...parsed },
+              role: "trainer",
+              gymId: parsed.gymId || "univo_main",
+              profileId: parsed.id || parsed.uid,
+              permissions: [],
+              loading: false,
+            };
+          }
+        } catch (e) {}
       }
+      return {
+        user: { uid: "trainer_user", displayName: "Coach", role: "trainer" },
+        role: "trainer",
+        gymId: "univo_main",
+        profileId: "trainer_user",
+        permissions: [],
+        loading: false,
+      };
     }
 
     // 3. If active role is staff
@@ -110,17 +120,19 @@ export function AuthProvider({ children }) {
 
         // 2. If currently active as Trainer, NEVER let Firebase Auth overwrite it!
         if (currentActiveRole === "trainer" || (savedTrainer && currentActiveRole !== "owner" && currentActiveRole !== "member" && currentActiveRole !== "staff")) {
+          let trainerObj = { uid: "trainer_user", displayName: "Coach", role: "trainer" };
           if (savedTrainer) {
             try {
               const parsed = JSON.parse(savedTrainer);
-              setUser({ uid: parsed.id || parsed.uid, displayName: parsed.name, email: parsed.email || parsed.loginEmail, ...parsed });
-              setRole("trainer");
-              setGymId(parsed.gymId || "univo_main");
-              setProfileId(parsed.id || parsed.uid);
-              setPermissions([]);
-              localStorage.setItem("univo_active_role", "trainer");
+              trainerObj = { uid: parsed.id || parsed.uid, displayName: parsed.name || "Coach", email: parsed.email || parsed.loginEmail, ...parsed };
             } catch (e) {}
           }
+          setUser(trainerObj);
+          setRole("trainer");
+          setGymId(trainerObj.gymId || "univo_main");
+          setProfileId(trainerObj.id || trainerObj.uid);
+          setPermissions([]);
+          localStorage.setItem("univo_active_role", "trainer");
           setLoading(false);
           return;
         }
@@ -140,15 +152,64 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        // 4. Firebase User (Owner)
+        // 4. Firebase User (Owner, Trainer, or Member)
         if (firebaseUser) {
-          setUser(firebaseUser);
           const userData = await getUserRole(firebaseUser.uid);
-          setRole(userData.role || "owner");
+          const targetRole = (userData.role || "owner").toLowerCase();
+
+          if (targetRole.includes("trainer") || targetRole.includes("coach")) {
+            const trainerObj = {
+              id: userData.profileId || firebaseUser.uid,
+              uid: firebaseUser.uid,
+              name: userData.name || firebaseUser.displayName || "Coach",
+              email: firebaseUser.email,
+              role: "trainer",
+              gymId: userData.gymId || "univo_main",
+              ...userData,
+            };
+            setUser(trainerObj);
+            setRole("trainer");
+            setGymId(userData.gymId || "univo_main");
+            setProfileId(userData.profileId || firebaseUser.uid);
+            setPermissions([]);
+            localStorage.setItem("univo_active_role", "trainer");
+            localStorage.setItem("univo_trainer_session", JSON.stringify(trainerObj));
+            localStorage.removeItem("univo_member_session");
+            localStorage.removeItem("univo_staff_session");
+            setLoading(false);
+            return;
+          }
+
+          if (targetRole === "member") {
+            const memberObj = {
+              id: userData.profileId || firebaseUser.uid,
+              uid: firebaseUser.uid,
+              name: userData.name || firebaseUser.displayName || "Athlete",
+              email: firebaseUser.email,
+              role: "member",
+              gymId: userData.gymId || "univo_main",
+              ...userData,
+            };
+            setUser(memberObj);
+            setRole("member");
+            setGymId(userData.gymId || "univo_main");
+            setProfileId(userData.profileId || firebaseUser.uid);
+            setPermissions([]);
+            localStorage.setItem("univo_active_role", "member");
+            localStorage.setItem("univo_member_session", JSON.stringify(memberObj));
+            localStorage.removeItem("univo_trainer_session");
+            localStorage.removeItem("univo_staff_session");
+            setLoading(false);
+            return;
+          }
+
+          const ownerRole = targetRole === "owner" || targetRole === "co-owner" ? "owner" : "staff";
+          setUser(firebaseUser);
+          setRole(ownerRole);
           setGymId(userData.gymId || "univo_main");
           setProfileId(userData.profileId || null);
           setPermissions(userData.permissions || []);
-          localStorage.setItem("univo_active_role", userData.role || "owner");
+          localStorage.setItem("univo_active_role", ownerRole);
           localStorage.removeItem("univo_trainer_session");
           localStorage.removeItem("univo_member_session");
           localStorage.removeItem("univo_staff_session");

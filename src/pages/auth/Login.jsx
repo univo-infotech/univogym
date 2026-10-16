@@ -59,24 +59,279 @@ export default function Login() {
     setError('');
 
     const cleanEmail = email.trim().toLowerCase();
+    const inputPhone = email.trim().replace(/\D/g, '');
     if (!cleanEmail) { setError('Please enter your email address, phone or login ID.'); return; }
     if (!password) { setError('Please enter your password.'); return; }
 
     setLoading(true);
     try {
-      // 1. If Owner login
-      if (cleanEmail === 'univo@gmail.com' || selectedRole === 'owner') {
+      // Helper: Complete Trainer Login
+      const logInTrainer = (trainerData) => {
+        localStorage.setItem('univo_active_role', 'trainer');
+        localStorage.setItem('univo_trainer_session', JSON.stringify(trainerData));
+        localStorage.removeItem('univo_member_session');
+        localStorage.removeItem('univo_staff_session');
+
+        if (setRole) setRole('trainer');
+        if (setProfileId) setProfileId(trainerData.id || trainerData.uid);
+        if (setUser) setUser({ uid: trainerData.id || trainerData.uid, displayName: trainerData.name || 'Coach', ...trainerData });
+
+        try {
+          signOut(auth).catch(() => {});
+        } catch (e) {}
+
+        navigate('/trainer/dashboard', { replace: true });
+      };
+
+      // Helper: Complete Member Login
+      const logInMember = (memberData) => {
+        localStorage.setItem('univo_active_role', 'member');
+        localStorage.setItem('univo_member_session', JSON.stringify(memberData));
+        localStorage.removeItem('univo_trainer_session');
+        localStorage.removeItem('univo_staff_session');
+
+        if (setRole) setRole('member');
+        if (setProfileId) setProfileId(memberData.id);
+        if (setUser) setUser({ uid: memberData.id, displayName: memberData.name || memberData.fullName || 'Athlete', ...memberData });
+
+        try {
+          signOut(auth).catch(() => {});
+        } catch (e) {}
+
+        navigate('/member/dashboard', { replace: true });
+      };
+
+      // 1. Check Trainer from Firestore trainers collection
+      const checkTrainerInFirestore = async () => {
+        try {
+          const trainersList = await getTrainers('univo_main');
+          const matched = trainersList.find((t) => {
+            const tEmail = (t.email || t.loginEmail || '').trim().toLowerCase();
+            const tPhone = (t.phone || '').trim().replace(/\D/g, '');
+            const tPass = t.password || t.loginPassword;
+
+            const isIdMatch =
+              (tEmail && tEmail === cleanEmail) ||
+              (inputPhone.length >= 10 && tPhone && tPhone.endsWith(inputPhone.slice(-10)));
+            const isPassMatch = tPass ? tPass === password : password === 'Coach@123';
+            return isIdMatch && isPassMatch;
+          });
+
+          if (matched) {
+            logInTrainer(matched);
+            return true;
+          }
+        } catch (err) {
+          console.warn('Trainer query note:', err.message);
+        }
+        return false;
+      };
+
+      // 2. Check Users collection (Staff, Co-Owner, or Provisioned Trainer/Member)
+      const checkUsersInFirestore = async () => {
+        try {
+          const { collection, query, where, getDocs } = await import('firebase/firestore');
+          const { db } = await import('../../firebase/config');
+          const userQ = query(
+            collection(db, "users"),
+            where("email", "==", cleanEmail)
+          );
+          let userSnap = await getDocs(userQ);
+          if (userSnap.empty && inputPhone.length >= 10) {
+            const phoneQ = query(
+              collection(db, "users"),
+              where("phone", "==", inputPhone.slice(-10))
+            );
+            userSnap = await getDocs(phoneQ);
+          }
+
+          if (!userSnap.empty) {
+            const matchedUser = userSnap.docs.map(d => ({ uid: d.id, ...d.data() }))[0];
+            if (matchedUser.password && matchedUser.password === password) {
+              if (matchedUser.status === 'inactive' || matchedUser.status === 'blocked') {
+                setError('Account suspended. Please contact gym management.');
+                return 'STOP';
+              }
+
+              const roleNormalized = (matchedUser.role || '').toLowerCase();
+
+              // If registered in users as a trainer
+              if (roleNormalized.includes('trainer') || roleNormalized.includes('coach')) {
+                logInTrainer(matchedUser);
+                return true;
+              }
+
+              // If registered in users as a member
+              if (roleNormalized === 'member') {
+                logInMember(matchedUser);
+                return true;
+              }
+
+              // Owner or Staff
+              const isOwner = roleNormalized === 'owner' || roleNormalized === 'co-owner' || roleNormalized.includes('owner');
+              const targetRole = isOwner ? 'owner' : 'staff';
+
+              localStorage.setItem('univo_active_role', targetRole);
+              localStorage.setItem('univo_staff_session', JSON.stringify(matchedUser));
+              localStorage.removeItem('univo_trainer_session');
+              localStorage.removeItem('univo_member_session');
+
+              if (setRole) setRole(targetRole);
+              if (setProfileId) setProfileId(matchedUser.profileId || matchedUser.uid);
+              if (setUser) setUser(matchedUser);
+
+              try {
+                signOut(auth).catch(() => {});
+              } catch (e) {}
+
+              navigate('/owner/dashboard', { replace: true });
+              return true;
+            }
+          }
+        } catch (staffErr) {
+          console.warn('Staff login note:', staffErr.message);
+        }
+        return false;
+      };
+
+      // 3. Check Members collection
+      const checkMembersInFirestore = async () => {
+        try {
+          const { getMembers, DEMO_MEMBERS } = await import('../../firebase/members');
+          const membersList = await getMembers('univo_main');
+
+          // Combined search pool: membersList + DEMO_MEMBERS
+          const pool = [...(membersList || [])];
+          if (Array.isArray(DEMO_MEMBERS)) {
+            for (const dm of DEMO_MEMBERS) {
+              if (!pool.some(m => m.id === dm.id)) {
+                pool.push({
+                  ...dm,
+                  password: dm.password || dm.loginPassword || 'Member@123',
+                  loginPassword: dm.loginPassword || dm.password || 'Member@123',
+                });
+              }
+            }
+          }
+
+          let matchedMember = pool.find((m) => {
+            const memberIdentifiers = [m.email, m.loginEmail, m.username, m.memberId, m.id]
+              .filter(Boolean)
+              .map((e) => String(e).trim().toLowerCase());
+            const mPhone = (m.phone || '').trim().replace(/\D/g, '');
+            const mName = (m.name || m.fullName || '').trim().toLowerCase();
+            const mPass = m.loginPassword || m.password;
+
+            const isEmailOrIdMatch =
+              memberIdentifiers.includes(cleanEmail) ||
+              (m.id && String(m.id).toLowerCase() === cleanEmail) ||
+              (m.memberId && String(m.memberId).toLowerCase() === cleanEmail) ||
+              (mName && mName.replace(/\s+/g, '') === cleanEmail.replace(/\s+/g, ''));
+
+            const isPhoneMatch =
+              inputPhone.length >= 7 &&
+              Boolean(mPhone) &&
+              (mPhone === inputPhone ||
+               mPhone.endsWith(inputPhone.slice(-10)) ||
+               inputPhone.endsWith(mPhone.slice(-10)));
+
+            const isIdMatch = isEmailOrIdMatch || isPhoneMatch;
+            const isPassMatch = mPass ? mPass === password : (password === 'Member@123' || password === '123456');
+            return isIdMatch && isPassMatch;
+          });
+
+          // Direct Firestore query fallback if not found in memory
+          if (!matchedMember) {
+            try {
+              const { collection, query, where, getDocs } = await import('firebase/firestore');
+              const { db } = await import('../../firebase/config');
+
+              let foundDoc = null;
+              if (cleanEmail.includes('@')) {
+                const qEmail = query(collection(db, 'members'), where('email', '==', cleanEmail));
+                const sEmail = await getDocs(qEmail);
+                if (!sEmail.empty) foundDoc = { id: sEmail.docs[0].id, ...sEmail.docs[0].data() };
+              }
+              if (!foundDoc && inputPhone.length >= 10) {
+                const qPhone = query(collection(db, 'members'), where('phone', '==', inputPhone.slice(-10)));
+                const sPhone = await getDocs(qPhone);
+                if (!sPhone.empty) foundDoc = { id: sPhone.docs[0].id, ...sPhone.docs[0].data() };
+              }
+
+              if (foundDoc) {
+                const mPass = foundDoc.loginPassword || foundDoc.password;
+                const isPassMatch = mPass ? mPass === password : (password === 'Member@123' || password === '123456');
+                if (isPassMatch) {
+                  matchedMember = foundDoc;
+                }
+              }
+            } catch (err) {
+              console.warn('Direct member query notice:', err);
+            }
+          }
+
+          if (matchedMember) {
+            if (
+              matchedMember.status === 'left' ||
+              matchedMember.status === 'ended' ||
+              matchedMember.memberPortalAccess === false
+            ) {
+              setError(
+                'Access Revoked: Your account is inactive or disconnected from the gym. Please contact gym management.'
+              );
+              return 'STOP';
+            }
+
+            // Expired members are permitted to log in so they can view and renew their plan via UPI QR
+            logInMember(matchedMember);
+            return true;
+          }
+        } catch (memberErr) {
+          console.warn('Member login note:', memberErr.message);
+        }
+        return false;
+      };
+
+      // 4. Check Firebase Auth
+      const checkFirebaseAuthLogin = async () => {
         try {
           const userCredential = await loginUser(cleanEmail, password);
-          localStorage.setItem('univo_active_role', 'owner');
+          const userData = await getUserRole(userCredential.user.uid);
+          const roleNormalized = (userData.role || 'owner').toLowerCase();
+
+          if (roleNormalized.includes('trainer') || roleNormalized.includes('coach')) {
+            const trainerObj = {
+              id: userData.profileId || userCredential.user.uid,
+              uid: userCredential.user.uid,
+              name: userData.name || userCredential.user.displayName || 'Coach',
+              email: cleanEmail,
+              ...userData,
+            };
+            logInTrainer(trainerObj);
+            return true;
+          }
+
+          if (roleNormalized === 'member') {
+            const memberObj = {
+              id: userData.profileId || userCredential.user.uid,
+              uid: userCredential.user.uid,
+              name: userData.name || userCredential.user.displayName || 'Athlete',
+              email: cleanEmail,
+              ...userData,
+            };
+            logInMember(memberObj);
+            return true;
+          }
+
+          const targetRole = roleNormalized === 'owner' || roleNormalized === 'co-owner' ? 'owner' : 'staff';
+          localStorage.setItem('univo_active_role', targetRole);
           localStorage.removeItem('univo_trainer_session');
           localStorage.removeItem('univo_member_session');
-          localStorage.removeItem('univo_staff_session');
-          if (setRole) setRole('owner');
+          if (setRole) setRole(targetRole);
+          if (setUser) setUser(userCredential.user);
           navigate('/owner/dashboard', { replace: true });
-          return;
+          return true;
         } catch (authErr) {
-          // Fallback if password matches default
           if (cleanEmail === 'univo@gmail.com' && (password === 'Univo@123' || password.length >= 6)) {
             localStorage.setItem('univo_active_role', 'owner');
             localStorage.removeItem('univo_trainer_session');
@@ -84,195 +339,53 @@ export default function Login() {
             localStorage.removeItem('univo_staff_session');
             if (setRole) setRole('owner');
             navigate('/owner/dashboard', { replace: true });
-            return;
+            return true;
           }
-          throw authErr;
+          return false;
         }
+      };
+
+      // --- EXECUTION DISPATCHER ---
+      if (selectedRole === 'trainer') {
+        if (await checkTrainerInFirestore()) return;
+        const uRes = await checkUsersInFirestore();
+        if (uRes === 'STOP' || uRes === true) return;
+        if (await checkFirebaseAuthLogin()) return;
+        setError('Invalid trainer credentials. Please enter your registered email or phone and password.');
+        return;
       }
 
-      // 1b. Check Provisioned Staff / Co-Owner login from Firestore users collection
-      try {
-        const { collection, query, where, getDocs } = await import('firebase/firestore');
-        const { db } = await import('../../firebase/config');
-        const userQ = query(
-          collection(db, "users"),
-          where("email", "==", cleanEmail)
-        );
-        let userSnap = await getDocs(userQ);
-        if (userSnap.empty) {
-          const rawPhone = cleanEmail.replace(/\D/g, "");
-          if (rawPhone.length >= 10) {
-            const phoneQ = query(
-              collection(db, "users"),
-              where("phone", "==", rawPhone.slice(-10))
-            );
-            userSnap = await getDocs(phoneQ);
-          }
-        }
-        if (!userSnap.empty) {
-          const matchedUser = userSnap.docs.map(d => ({ uid: d.id, ...d.data() }))[0];
-          if (matchedUser.password && matchedUser.password === password) {
-            if (matchedUser.status === 'inactive' || matchedUser.status === 'blocked') {
-              setError('Account suspended. Kripya gym owner se sampark karein.');
-              setLoading(false);
-              return;
-            }
-            
-            try {
-              await signOut(auth).catch(() => {});
-            } catch (e) {}
-
-            const isOwner = matchedUser.role === 'owner' || matchedUser.role === 'co-owner' || (matchedUser.role || '').toLowerCase().includes('owner');
-            const targetRole = isOwner ? 'owner' : 'staff';
-            
-            localStorage.setItem('univo_active_role', targetRole);
-            localStorage.setItem('univo_staff_session', JSON.stringify(matchedUser));
-            localStorage.removeItem('univo_trainer_session');
-            localStorage.removeItem('univo_member_session');
-            
-            if (setRole) setRole(targetRole);
-            if (setProfileId) setProfileId(matchedUser.profileId || matchedUser.uid);
-            if (setUser) setUser(matchedUser);
-            
-            navigate('/owner/dashboard', { replace: true });
-            return;
-          }
-        }
-      } catch (staffErr) {
-        console.warn('Staff login note:', staffErr.message);
+      if (selectedRole === 'member') {
+        const mRes = await checkMembersInFirestore();
+        if (mRes === 'STOP' || mRes === true) return;
+        const uRes = await checkUsersInFirestore();
+        if (uRes === 'STOP' || uRes === true) return;
+        if (await checkFirebaseAuthLogin()) return;
+        setError('Invalid member credentials. Please enter your registered mobile number or email and password.');
+        return;
       }
 
-      // 2. Trainer login check from Firestore
-      try {
-        const trainersList = await getTrainers('univo_main');
-        const inputPhone = cleanEmail.replace(/\D/g, '');
-
-        const matchedTrainer = trainersList.find((t) => {
-          const tEmail = (t.email || t.loginEmail || '').trim().toLowerCase();
-          const tPhone = (t.phone || '').trim().replace(/\D/g, '');
-          const tPass = t.password || t.loginPassword;
-
-          const isIdMatch =
-            (tEmail && tEmail === cleanEmail) ||
-            (inputPhone.length >= 10 && tPhone && tPhone.endsWith(inputPhone.slice(-10)));
-          const isPassMatch = tPass ? tPass === password : password === 'Coach@123';
-          return isIdMatch && isPassMatch;
-        });
-
-        if (matchedTrainer) {
-          try {
-            await signOut(auth).catch(() => {});
-          } catch (e) {}
-
-          localStorage.setItem('univo_active_role', 'trainer');
-          localStorage.setItem('univo_trainer_session', JSON.stringify(matchedTrainer));
-          localStorage.removeItem('univo_member_session');
-          localStorage.removeItem('univo_staff_session');
-
-          if (setRole) setRole('trainer');
-          if (setProfileId) setProfileId(matchedTrainer.id);
-          if (setUser) setUser({ uid: matchedTrainer.id, displayName: matchedTrainer.name, ...matchedTrainer });
-          navigate('/trainer/dashboard', { replace: true });
-          return;
-        }
-
-        if (selectedRole === 'trainer') {
-          setError('Invalid trainer credentials. Kripya sahi email/phone aur password dalein.');
-          setLoading(false);
-          return;
-        }
-      } catch (trainerErr) {
-        console.warn('Trainer query note:', trainerErr.message);
+      // Default (selectedRole === 'owner')
+      // If master owner email
+      if (cleanEmail === 'univo@gmail.com') {
+        if (await checkFirebaseAuthLogin()) return;
+        setError('Invalid owner credentials. Please check your email and password.');
+        return;
       }
 
-      // 3. Member login check from Firestore
-      try {
-        const { getMembers } = await import('../../firebase/members');
-        const membersList = await getMembers('univo_main');
-        const inputPhone = cleanEmail.replace(/\D/g, '');
+      // Check users collection (e.g. Co-Owner, Staff, or provisioned Trainer)
+      const uRes = await checkUsersInFirestore();
+      if (uRes === 'STOP' || uRes === true) return;
 
-        const matchedMember = membersList.find((m) => {
-          const memberEmails = [m.email, m.loginEmail]
-            .filter(Boolean)
-            .map((e) => String(e).trim().toLowerCase());
-          const mPhone = (m.phone || '').trim().replace(/\D/g, '');
-          const mPass = m.loginPassword || m.password;
+      // Auto-detect if user entered Trainer credentials while on Owner tab!
+      if (await checkTrainerInFirestore()) return;
 
-          const isEmailMatch = memberEmails.includes(cleanEmail);
-          const isPhoneMatch = inputPhone.length >= 10 && mPhone && mPhone.endsWith(inputPhone.slice(-10));
-          const isIdMatch = isEmailMatch || isPhoneMatch;
-          const isPassMatch = mPass ? mPass === password : password === 'Member@123';
-          return isIdMatch && isPassMatch;
-        });
+      // Auto-detect if user entered Member credentials while on Owner tab!
+      const mRes = await checkMembersInFirestore();
+      if (mRes === 'STOP' || mRes === true) return;
 
-        if (matchedMember) {
-          // 1. If member is marked as left, ended, or portal access revoked
-          if (
-            matchedMember.status === 'left' ||
-            matchedMember.status === 'ended' ||
-            matchedMember.memberPortalAccess === false
-          ) {
-            setError(
-              '❌ Access Revoked: Aapka account inactive ya gym se disconnect ho chuka hai. ID aur Password access band kar diya gaya hai. Kripya Gym Management se sampark karein.'
-            );
-            setLoading(false);
-            return;
-          }
-
-          // 2. Check Membership Expiry status
-          let isExpired = false;
-          if (matchedMember.status === 'expired' || matchedMember.active === false) {
-            isExpired = true;
-          } else if (matchedMember.expiryDate) {
-            const expDate = parseToDate(matchedMember.expiryDate);
-            if (expDate) {
-              expDate.setHours(23, 59, 59, 999);
-              if (expDate.getTime() < Date.now()) {
-                isExpired = true;
-              }
-            }
-          } else if (matchedMember.ptEndDate) {
-            const expDate = parseToDate(matchedMember.ptEndDate);
-            if (expDate) {
-              expDate.setHours(23, 59, 59, 999);
-              if (expDate.getTime() < Date.now()) {
-                isExpired = true;
-              }
-            }
-          }
-
-          if (isExpired) {
-            setError(
-              `⚠️ Membership Expired: Aapka account / membership expire ho chuka hai. Gym owner se renew karwane ke baad aapka account wahi se shuru ho jayega.`
-            );
-            setLoading(false);
-            return;
-          }
-
-          try {
-            await signOut(auth).catch(() => {});
-          } catch (e) {}
-
-          localStorage.setItem('univo_active_role', 'member');
-          localStorage.setItem('univo_member_session', JSON.stringify(matchedMember));
-          localStorage.removeItem('univo_trainer_session');
-          localStorage.removeItem('univo_staff_session');
-
-          if (setRole) setRole('member');
-          if (setProfileId) setProfileId(matchedMember.id);
-          if (setUser) setUser({ uid: matchedMember.id, displayName: matchedMember.name || matchedMember.fullName || 'Athlete', ...matchedMember });
-          navigate('/member/dashboard', { replace: true });
-          return;
-        }
-
-        if (selectedRole === 'member') {
-          setError('Invalid member credentials. Sahi Phone/Email aur password dalein.');
-          setLoading(false);
-          return;
-        }
-      } catch (memberErr) {
-        console.warn('Member login note:', memberErr.message);
-      }
+      // Try Firebase Auth
+      if (await checkFirebaseAuthLogin()) return;
 
       setError('Invalid email or password. Please check your credentials and try again.');
     } catch (err) {

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import {
   CreditCard,
   Receipt,
@@ -23,13 +24,24 @@ import {
   ChevronDown,
   LogOut,
   UserX,
-  CheckCircle2
+  CheckCircle2,
+  QrCode,
+  Check,
+  X,
+  ExternalLink,
+  Copy,
+  Image as ImageIcon
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import toast from "react-hot-toast";
 import { getAllPayments, addPayment } from "../../firebase/payments";
 import { getMembers, updateMember } from "../../firebase/members";
+import {
+  getRenewalRequests,
+  approveRenewalRequest,
+  rejectRenewalRequest
+} from "../../firebase/renewalRequests";
 import { generatePaymentReceipt } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
 import { openWhatsApp, formatPhone } from "../../utils/whatsapp";
@@ -93,14 +105,26 @@ function calculateEndDate(startDateStr, months) {
 }
 
 export default function Payments() {
+  const location = useLocation();
+  const isUpiApprovalsPath = location.pathname.includes("upi-approvals");
+  const urlTab = new URLSearchParams(location.search).get("tab") || location.state?.tab || (isUpiApprovalsPath ? "online_requests" : null);
+
   const [paymentsList, setPaymentsList] = useState([]);
   const [membersList, setMembersList] = useState([]);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(urlTab || "all");
   const [slotFilter, setSlotFilter] = useState("all");
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [renewModalOpen, setRenewModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
+
+  useEffect(() => {
+    const isUpi = location.pathname.includes("upi-approvals");
+    const currentTab = new URLSearchParams(location.search).get("tab") || location.state?.tab || (isUpi ? "online_requests" : null);
+    if (currentTab) {
+      setStatusFilter(currentTab);
+    }
+  }, [location.search, location.state, location.pathname]);
 
   // Left action modal state
   const [leftModalOpen, setLeftModalOpen] = useState(false);
@@ -108,6 +132,15 @@ export default function Payments() {
   const [leftReason, setLeftReason] = useState("Stopped coming / Gym left");
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [receiptMember, setReceiptMember] = useState(null);
+
+  // Online UPI Renewal Requests state
+  const [onlineRequests, setOnlineRequests] = useState([]);
+  const [actionInProgress, setActionInProgress] = useState(null);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [requestToReject, setRequestToReject] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [selectedProofImg, setSelectedProofImg] = useState(null);
+  const [requestsSubFilter, setRequestsSubFilter] = useState("all");
 
   const settings = getGymSettings();
 
@@ -350,6 +383,14 @@ export default function Payments() {
       );
       setPaymentsList(realStoredPayments);
       setMembersList(storedMembers || []);
+
+      // Load Online UPI Renewal Requests
+      try {
+        const reqs = await getRenewalRequests(activeGymId);
+        setOnlineRequests(reqs || []);
+      } catch (e) {
+        console.warn("Could not load renewal requests:", e);
+      }
     } catch (err) {
       console.warn("Could not load payments:", err);
       setPaymentsList([]);
@@ -480,6 +521,73 @@ export default function Payments() {
     } catch (err) {
       toast.error("Failed to mark as left");
     }
+  };
+
+  // --- Online UPI Renewal Approval / Rejection Handlers ---
+  const handleApproveRequest = async (req) => {
+    if (!req || actionInProgress) return;
+    setActionInProgress(req.id);
+    const toastId = toast.loading(`Approving renewal for ${req.memberName || "Member"}...`);
+    try {
+      const result = await approveRenewalRequest(activeGymId, req.id, {
+        approvedBy: "Owner",
+      });
+      toast.success(`Plan approved & renewed for ${req.memberName || "Member"}! 🎉`, { id: toastId });
+
+      // Update local onlineRequests state
+      setOnlineRequests((prev) =>
+        prev.map((r) =>
+          r.id === req.id
+            ? { ...r, status: "approved", approvedAt: new Date().toISOString() }
+            : r
+        )
+      );
+
+      // Reload payments and members to update tables & charts
+      loadData();
+    } catch (err) {
+      console.error("Failed to approve renewal:", err);
+      toast.error(err.message || "Failed to approve renewal request", { id: toastId });
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleOpenReject = (req) => {
+    setRequestToReject(req);
+    setRejectReason("Payment not reflected in gym bank account / invalid UTR reference.");
+    setRejectModalOpen(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!requestToReject) return;
+    const toastId = toast.loading("Rejecting request...");
+    try {
+      await rejectRenewalRequest(activeGymId, requestToReject.id, {
+        rejectionReason: rejectReason,
+      });
+      toast.success("Request rejected.", { id: toastId });
+      setOnlineRequests((prev) =>
+        prev.map((r) =>
+          r.id === requestToReject.id
+            ? { ...r, status: "rejected", rejectionReason: rejectReason }
+            : r
+        )
+      );
+      setRejectModalOpen(false);
+      setRequestToReject(null);
+    } catch (err) {
+      console.error("Failed to reject request:", err);
+      toast.error("Failed to reject request", { id: toastId });
+    }
+  };
+
+  const handleCopyUtr = (utr) => {
+    if (!utr) return;
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(utr);
+    }
+    toast.success(`UTR ${utr} copied! 📋`);
   };
 
   // Submit Fee Collection
@@ -646,6 +754,10 @@ export default function Payments() {
     });
   }, [paymentsList, membersMap]);
 
+  const pendingOnlineRequests = useMemo(() => {
+    return (onlineRequests || []).filter((r) => r.status === "pending");
+  }, [onlineRequests]);
+
   // Tab counts
   const counts = useMemo(() => {
     return {
@@ -656,8 +768,9 @@ export default function Payments() {
       expired: classifiedItems.filter((i) => i.dynamicStatus === "expired").length,
       overdue: classifiedItems.filter((i) => i.dynamicStatus === "overdue").length,
       left: classifiedItems.filter((i) => i.dynamicStatus === "left").length,
+      online_requests: pendingOnlineRequests.length,
     };
-  }, [classifiedItems]);
+  }, [classifiedItems, pendingOnlineRequests]);
 
   // Filtered list
   const filteredSubscriptions = useMemo(() => {
@@ -690,6 +803,26 @@ export default function Payments() {
     return classifiedItems.filter((i) => i.dynamicStatus === "ending_soon");
   }, [classifiedItems]);
 
+  // Filtered Online Requests
+  const filteredOnlineRequests = useMemo(() => {
+    let list = onlineRequests || [];
+    if (requestsSubFilter === "pending") list = list.filter((r) => r.status === "pending");
+    else if (requestsSubFilter === "approved") list = list.filter((r) => r.status === "approved");
+    else if (requestsSubFilter === "rejected") list = list.filter((r) => r.status === "rejected");
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (r) =>
+          (r.memberName || "").toLowerCase().includes(q) ||
+          (r.memberPhone || "").toLowerCase().includes(q) ||
+          (r.utr || "").toLowerCase().includes(q) ||
+          (r.planName || "").toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [onlineRequests, requestsSubFilter, search]);
+
   return (
     <div className="space-y-6">
       {/* Top Header */}
@@ -718,6 +851,34 @@ export default function Payments() {
           </Button>
         </div>
       </div>
+
+      {/* Pending Online UPI Requests Alert Banner */}
+      {counts.online_requests > 0 && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 text-white shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border border-emerald-500/40 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0 text-emerald-300 font-bold border border-emerald-500/30">
+              <QrCode className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-emerald-300 uppercase tracking-wide flex items-center gap-2">
+                <span>🔔 {counts.online_requests} Online UPI Renewal Request{counts.online_requests > 1 ? "s" : ""} Pending Approval</span>
+              </h4>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Members have transferred fees via Gym UPI QR code. Verify the 12-digit UTR in your bank app and approve to renew validity.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+            <button
+              onClick={() => setStatusFilter("online_requests")}
+              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition shadow-md whitespace-nowrap flex items-center gap-1.5"
+            >
+              Review Requests ({counts.online_requests}) →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 3-Day Expiry Alert Banner */}
       {endingInThreeDays.length > 0 && (
@@ -874,6 +1035,28 @@ export default function Payments() {
               <UserX className="w-3.5 h-3.5" />
               Left Gym <span className="text-[10px] px-1 rounded-full bg-slate-200 text-slate-800">{counts.left}</span>
             </button>
+
+            {/* Online UPI Requests Tab */}
+            <button
+              onClick={() => setStatusFilter("online_requests")}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
+                statusFilter === "online_requests"
+                  ? "bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400"
+                  : "bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100"
+              }`}
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              Online UPI Requests{" "}
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                  counts.online_requests > 0
+                    ? "bg-red-500 text-white animate-pulse"
+                    : "bg-emerald-200 text-emerald-900"
+                }`}
+              >
+                {counts.online_requests}
+              </span>
+            </button>
           </div>
 
           {/* Slot Filter Dropdown */}
@@ -896,7 +1079,251 @@ export default function Payments() {
         </div>
       </div>
 
-      {/* High-Fidelity Table (Desktop & Tablet) */}
+      {/* Online UPI Renewal Requests View or Standard Subscriptions View */}
+      {statusFilter === "online_requests" ? (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Subfilter Bar & Summary */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-emerald-600" />
+                Online UPI Payment Renewal Requests
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Review UPI transactions submitted by members via Gym UPI QR. Verify UTR in your bank app and approve.
+              </p>
+            </div>
+
+            {/* Sub-filters */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                { id: "all", label: "All Requests", count: onlineRequests.length },
+                { id: "pending", label: "Pending Verification", count: pendingOnlineRequests.length, highlight: true },
+                { id: "approved", label: "Approved", count: onlineRequests.filter(r => r.status === "approved").length },
+                { id: "rejected", label: "Rejected", count: onlineRequests.filter(r => r.status === "rejected").length }
+              ].map((sf) => (
+                <button
+                  key={sf.id}
+                  onClick={() => setRequestsSubFilter(sf.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                    requestsSubFilter === sf.id
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {sf.label}{" "}
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                      sf.highlight && sf.count > 0
+                        ? "bg-red-500 text-white"
+                        : "bg-slate-200 text-slate-700"
+                    }`}
+                  >
+                    {sf.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Cards for Online Requests */}
+          {filteredOnlineRequests.length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 text-slate-400">
+              <QrCode className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+              <h4 className="text-base font-bold text-slate-700">No UPI Requests Found</h4>
+              <p className="text-xs text-slate-400 mt-1">
+                {requestsSubFilter === "pending"
+                  ? "All online UPI renewal requests have been verified and processed! 🎉"
+                  : "No requests match the selected search or filter."}
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {filteredOnlineRequests.map((req) => {
+                const initials = (req.memberName || "M")
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2);
+                const isPending = req.status === "pending";
+                const isApproved = req.status === "approved";
+                const isRejected = req.status === "rejected";
+
+                return (
+                  <div
+                    key={req.id}
+                    className={`p-5 rounded-3xl bg-white border shadow-sm transition space-y-4 ${
+                      isPending
+                        ? "border-amber-300 ring-2 ring-amber-400/20"
+                        : isApproved
+                        ? "border-emerald-200 bg-emerald-50/20"
+                        : "border-slate-200 opacity-75"
+                    }`}
+                  >
+                    {/* Header: Member Avatar, Name, Phone & Status */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-extrabold flex items-center justify-center text-sm shadow-xs shrink-0">
+                          {initials}
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                            {req.memberName}
+                            {req.planType === "pt" && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold border border-purple-200">
+                                1-on-1 PT
+                              </span>
+                            )}
+                          </h4>
+                          {req.memberPhone ? (
+                            <a
+                              href={`tel:${req.memberPhone.replace(/[^0-9+]/g, '')}`}
+                              className="text-xs text-slate-500 hover:text-emerald-600 inline-flex items-center gap-1 mt-0.5"
+                            >
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              <span>{req.memberPhone}</span>
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-400">No phone</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Status Badge */}
+                      <div>
+                        {isPending && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
+                            <Clock className="w-3 h-3 text-amber-600" /> Pending Verification
+                          </span>
+                        )}
+                        {isApproved && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Approved & Renewed
+                          </span>
+                        )}
+                        {isRejected && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black bg-rose-100 text-rose-800 border border-rose-300">
+                            <X className="w-3 h-3 text-rose-600" /> Rejected
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Plan & Amount Box */}
+                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Requested Plan</span>
+                        <span className="font-extrabold text-slate-900 text-xs block">{req.planName}</span>
+                        {req.trainerName && (
+                          <span className="text-[11px] text-purple-700 font-medium">Coach: {req.trainerName}</span>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Amount</span>
+                        <span className="text-base font-black text-emerald-600">₹{req.amount || req.amountPaid || req.planPrice || 0}</span>
+                      </div>
+                    </div>
+
+                    {/* UTR Number Display (with Copy button) */}
+                    <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800">
+                          12-Digit UPI UTR / Reference
+                        </span>
+                        <span className="text-[10px] text-slate-400">{formatDate(req.createdAt || req.submittedAt)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-xl border border-amber-300">
+                        <span className="font-mono font-black text-slate-900 text-sm tracking-wider select-all">
+                          {req.utr || req.utrNumber || "N/A"}
+                        </span>
+                        <button
+                          onClick={() => handleCopyUtr(req.utr || req.utrNumber)}
+                          className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold flex items-center gap-1 transition"
+                          title="Copy UTR to clipboard"
+                        >
+                          <Copy className="w-3 h-3" /> Copy
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        💡 Verify that ₹{req.amount || req.amountPaid || req.planPrice} was credited in your Axis/PhonePe/GPay bank account for this UTR.
+                      </p>
+                    </div>
+
+                    {/* Screenshot Proof if attached */}
+                    {req.screenshotUrl && (
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="flex items-center gap-2">
+                          <ImageIcon className="w-4 h-4 text-indigo-600" />
+                          <span className="text-xs font-semibold text-slate-700">Payment Screenshot Attached</span>
+                        </div>
+                        <button
+                          onClick={() => setSelectedProofImg(req.screenshotUrl)}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 hover:underline"
+                        >
+                          View Screenshot <ExternalLink className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Rejection reason if rejected */}
+                    {isRejected && req.rejectionReason && (
+                      <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                        <strong>Reason:</strong> {req.rejectionReason}
+                      </div>
+                    )}
+
+                    {/* Actions if pending */}
+                    {isPending && (
+                      <div className="pt-2 flex items-center gap-2">
+                        <button
+                          disabled={actionInProgress === req.id}
+                          onClick={() => handleApproveRequest(req)}
+                          className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {actionInProgress === req.id ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              Approving...
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-4 h-4" />
+                              Approve & Renew Plan
+                            </>
+                          )}
+                        </button>
+                        <button
+                          disabled={actionInProgress === req.id}
+                          onClick={() => handleOpenReject(req)}
+                          className="py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition flex items-center justify-center gap-1 disabled:opacity-50"
+                        >
+                          <X className="w-4 h-4" />
+                          Reject
+                        </button>
+                        {req.memberPhone && (
+                          <button
+                            onClick={() => {
+                              const msg = `Hello ${req.memberName}, regarding your gym renewal request (Plan: ${req.planName}, UTR: ${req.utr}) at ${settings.gymName}...`;
+                              openWhatsApp(req.memberPhone, msg);
+                            }}
+                            className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition"
+                            title="Chat on WhatsApp"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* High-Fidelity Table (Desktop & Tablet) */}
       <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-xs text-slate-600">
           <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-extrabold border-b border-slate-200">
@@ -1349,6 +1776,8 @@ export default function Payments() {
           })
         )}
       </div>
+    </>
+  )}
 
       {/* COLLECT FEE & RENEW / CLEAR DUE MODAL */}
       <Modal
@@ -1816,6 +2245,108 @@ export default function Payments() {
           payment={receiptPayment}
           member={receiptMember}
         />
+      )}
+
+      {/* Reject Online UPI Request Modal */}
+      {rejectModalOpen && requestToReject && (
+        <Modal
+          isOpen={rejectModalOpen}
+          onClose={() => {
+            setRejectModalOpen(false);
+            setRequestToReject(null);
+          }}
+          title="❌ Reject Online UPI Renewal Request"
+        >
+          <div className="space-y-4 text-xs text-slate-700">
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 space-y-1">
+              <p className="font-extrabold text-sm">
+                Reject request from {requestToReject.memberName}?
+              </p>
+              <p className="text-xs text-rose-700">
+                Plan: {requestToReject.planName} • Amount: ₹{requestToReject.amount} • UTR: {requestToReject.utr}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                Reason for Rejection
+              </label>
+              <textarea
+                rows={3}
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Explain why this request is being rejected..."
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-rose-500"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-[10px] text-slate-400 font-bold uppercase w-full">Quick Suggestions:</span>
+              {[
+                "Payment not received in bank account",
+                "Invalid or fake 12-digit UTR number",
+                "Transferred amount does not match plan price",
+                "Duplicate request submitted"
+              ].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setRejectReason(s)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-medium transition"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectModalOpen(false);
+                  setRequestToReject(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold transition text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReject}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition text-xs shadow-md"
+              >
+                Confirm Rejection
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Payment Screenshot Proof Modal */}
+      {selectedProofImg && (
+        <Modal
+          isOpen={Boolean(selectedProofImg)}
+          onClose={() => setSelectedProofImg(null)}
+          title="📸 Member UPI Payment Screenshot Proof"
+        >
+          <div className="space-y-4">
+            <div className="max-h-[75vh] overflow-auto rounded-2xl border border-slate-200 bg-slate-950 flex items-center justify-center p-2">
+              <img
+                src={selectedProofImg}
+                alt="Payment proof screenshot"
+                className="max-w-full max-h-[70vh] object-contain rounded-xl"
+              />
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setSelectedProofImg(null)}
+                className="px-5 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

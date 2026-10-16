@@ -41,6 +41,7 @@ import toast from "react-hot-toast";
 import { getMembers, generateInviteToken } from "../../firebase/members";
 import { getTrainers } from "../../firebase/trainers";
 import { getAllPayments } from "../../firebase/payments";
+import { getRenewalRequests } from "../../firebase/renewalRequests";
 import { getStock, getSupplementSales } from "../../firebase/stock";
 import { getExpenses } from "../../firebase/expenses";
 import { getVisits } from "../../firebase/visits";
@@ -68,6 +69,7 @@ export default function Dashboard() {
   // Pre-seed state from session cache for instant 0ms initial render
   const [members, setMembers] = useState(() => getSessionCachedData(`members_${gymId}`) || []);
   const [payments, setPayments] = useState(() => getSessionCachedData(`payments_${gymId}`) || []);
+  const [pendingOnlineRequests, setPendingOnlineRequests] = useState([]);
   const [stockItems, setStockItems] = useState(() => getSessionCachedData(`stock_${gymId}`) || []);
   const [supplementSales, setSupplementSales] = useState(() => getSessionCachedData(`supplements_sales_${gymId}`) || []);
   const [expenses, setExpenses] = useState(() => getSessionCachedData(`expenses_${gymId}`) || []);
@@ -128,6 +130,12 @@ export default function Dashboard() {
         setExpenses(exps || []);
         setAttendanceRecords(att || []);
         if (tr && tr.length > 0) setSelectedTrainerId(tr[0].id);
+
+        try {
+          const reqs = await getRenewalRequests(gymId);
+          const pending = (reqs || []).filter((r) => r.status === "pending");
+          setPendingOnlineRequests(pending);
+        } catch (e) {}
       } catch (err) {
         console.error("Dashboard load data error:", err);
       }
@@ -523,6 +531,17 @@ export default function Dashboard() {
         className="shrink-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:border-teal-500 hover:text-teal-700 font-bold text-slate-700 shadow-xs transition flex items-center gap-1.5"
       >
         <DollarSign className="w-3.5 h-3.5 text-teal-600" /> Payments & Fees
+      </button>
+      <button
+        onClick={() => navigate("/owner/payments?tab=online_requests", { state: { tab: "online_requests" } })}
+        className="shrink-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-300 hover:border-emerald-500 hover:text-emerald-900 font-bold text-emerald-800 shadow-xs transition flex items-center gap-1.5"
+      >
+        <QrCode className="w-3.5 h-3.5 text-emerald-600" /> Online UPI Requests
+        {pendingOnlineRequests.length > 0 && (
+          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-red-500 text-white font-extrabold animate-pulse">
+            {pendingOnlineRequests.length}
+          </span>
+        )}
       </button>
       <button
         onClick={() => navigate("/owner/attendance")}
@@ -1463,6 +1482,40 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-full overflow-hidden">
+      {/* Pending Online UPI Renewal Requests Banner */}
+      {pendingOnlineRequests.length > 0 && (
+        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 text-white shadow-lg border border-emerald-500/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0 text-emerald-300 font-bold">
+              <QrCode className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-red-500 text-white px-2.5 py-0.5 rounded-full animate-pulse">
+                  Action Required
+                </span>
+                <span className="text-xs font-bold text-emerald-300">
+                  {pendingOnlineRequests.length} Member{pendingOnlineRequests.length > 1 ? "s" : ""} Paid via UPI QR
+                </span>
+              </div>
+              <h4 className="text-sm sm:text-base font-extrabold text-white mt-1">
+                {pendingOnlineRequests.length} Online UPI Renewal Request{pendingOnlineRequests.length > 1 ? "s" : ""} Awaiting Your Approval
+              </h4>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Members submitted their 12-digit UTR for plan renewals & PT. Check your bank app and approve to renew validity.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate("/owner/payments?tab=online_requests", { state: { tab: "online_requests" } })}
+            className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition shadow-md whitespace-nowrap flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <span>Review & Approve Requests ({pendingOnlineRequests.length})</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Dynamic User-Customized Dashboard Layout */}
       {(() => {
         const elements = [];

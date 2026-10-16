@@ -23,8 +23,13 @@ import {
   AlertTriangle,
   Flame,
   Calendar,
-  ArrowRight
+  ArrowRight,
+  QrCode,
+  IndianRupee,
+  ShieldCheck,
+  Copy
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import toast from "react-hot-toast";
@@ -42,6 +47,7 @@ export default function Settings() {
   const [signatureMode, setSignatureMode] = useState("draw"); // "draw" or "upload"
   const logoInputRef = useRef(null);
   const signatureInputRef = useRef(null);
+  const qrInputRef = useRef(null);
 
   // Data management states
   const [dataLoading, setDataLoading] = useState(false);
@@ -90,6 +96,30 @@ export default function Settings() {
   const handleResetLogo = () => {
     setSettings((prev) => ({ ...prev, logoUrl: "/logo-icon.png" }));
     toast.success("Reset to default Univo logo.");
+  };
+
+  // QR Code upload handler
+  const handleQrUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("QR Code file size must be less than 2 MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSettings((prev) => ({ ...prev, upiQrCodeUrl: reader.result }));
+      toast.success("Gym QR code image uploaded successfully! Remember to save settings.");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Reset QR to dynamic SVG
+  const handleResetQr = () => {
+    setSettings((prev) => ({ ...prev, upiQrCodeUrl: "" }));
+    toast.success("Switched to Live Dynamic UPI QR.");
   };
 
   // Signature image file upload handler
@@ -464,6 +494,166 @@ export default function Settings() {
                 onChange={(e) => setSettings({ ...settings, address: e.target.value })}
                 className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Official Gym UPI & Online Renewal Gateway */}
+        <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-white border border-slate-200 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <QrCode className="w-5 h-5 text-indigo-600 shrink-0" />
+                <span>Gym UPI & Online Renewal Payment Gateway</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Configure your official UPI ID. Members can scan your QR, pay, and submit their UTR number for your instant approval to renew membership or book 1-on-1 PT.
+              </p>
+            </div>
+            <span className="self-start sm:self-auto text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-full whitespace-nowrap flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" /> Member Self-Renewal Active
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-slate-700">Official Gym UPI ID (VPA) *</label>
+              <div className="relative mt-1">
+                <input
+                  required
+                  type="text"
+                  value={settings.upiId || ""}
+                  onChange={(e) => setSettings({ ...settings, upiId: e.target.value.trim() })}
+                  placeholder="e.g. 9196302375@okbizaxis or univogym@upi"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-slate-900 font-mono focus:bg-white focus:outline-none focus:border-indigo-500 pr-10"
+                />
+                {settings.upiId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(settings.upiId);
+                      toast.success("UPI ID copied!");
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition"
+                    title="Copy UPI ID"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Enter your Google Pay, PhonePe, Paytm, BHIM, or Bank merchant UPI handle.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-700">Payee / Account Holder Name *</label>
+              <input
+                required
+                type="text"
+                value={settings.upiName || ""}
+                onChange={(e) => setSettings({ ...settings, upiName: e.target.value })}
+                placeholder="e.g. UNIVO GYM MANAGEMENT"
+                className="w-full mt-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Display name shown in the member's UPI app upon scanning the QR.
+              </p>
+            </div>
+          </div>
+
+          {/* Toggle Online Renewals */}
+          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+            <div className="space-y-0.5">
+              <h5 className="text-xs font-bold text-slate-800">Allow Online UPI Plan Renewals & PT Bookings</h5>
+              <p className="text-[11px] text-slate-500">
+                Members will see a "Renew Plan" button with live UPI QR and UTR submission on their dashboard.
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.enableOnlineRenewals !== false}
+                onChange={(e) => setSettings({ ...settings, enableOnlineRenewals: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
+          </div>
+
+          {/* Live Dynamic UPI QR Preview & Standee Upload */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 text-white border border-slate-800 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" /> Live Dynamic UPI QR Code Preview
+              </span>
+              <span className="text-[10px] text-slate-400 bg-slate-800 px-2.5 py-0.5 rounded-full font-mono">
+                Sample Amount: ₹500
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              {/* QR Code Container */}
+              <div className="p-3 bg-white rounded-2xl shadow-lg border border-white/20 shrink-0 flex flex-col items-center">
+                {settings.upiQrCodeUrl ? (
+                  <img
+                    src={settings.upiQrCodeUrl}
+                    alt="Gym Standee QR"
+                    className="w-32 h-32 object-contain rounded-lg"
+                  />
+                ) : (
+                  <QRCodeSVG
+                    value={`upi://pay?pa=${settings.upiId || "9196302375@okbizaxis"}&pn=${encodeURIComponent(settings.upiName || settings.gymName || "UNIVO GYM")}&am=500&cu=INR&tn=Sample%20Renewal`}
+                    size={128}
+                    level="H"
+                    includeMargin={false}
+                  />
+                )}
+                <span className="text-[9px] font-bold text-slate-800 uppercase tracking-widest mt-2 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3 text-emerald-600" /> Verified UPI QR
+                </span>
+              </div>
+
+              {/* QR Code Actions & Explanations */}
+              <div className="space-y-2 text-center sm:text-left flex-1">
+                <div className="space-y-1">
+                  <p className="text-sm font-extrabold text-white">
+                    {settings.upiName || settings.gymName || "UNIVO GYM MANAGEMENT"}
+                  </p>
+                  <p className="text-xs font-mono font-bold text-emerald-400">
+                    UPI ID: {settings.upiId || "9196302375@okbizaxis"}
+                  </p>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  When a member chooses a plan, the QR code automatically encodes their exact plan amount and membership ID. Once the member enters their 12-digit UTR, you receive an instant approval request in <span className="text-indigo-300 font-bold">Payments &rarr; Online UPI Requests</span>.
+                </p>
+
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-2">
+                  <input
+                    ref={qrInputRef}
+                    type="file"
+                    accept="image/png, image/jpeg, image/webp"
+                    onChange={handleQrUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => qrInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition"
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Upload Physical QR Standee Photo
+                  </button>
+                  {settings.upiQrCodeUrl && (
+                    <button
+                      type="button"
+                      onClick={handleResetQr}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition"
+                    >
+                      Use Dynamic Vector QR
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

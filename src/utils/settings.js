@@ -31,6 +31,11 @@ const DEFAULT_SETTINGS = {
   ownerSignatureTitle: "Gym Manager / Owner",
   logoUrl: "/logo-icon.png",
   signatureUrl: "",
+  // Official Gym UPI & Online QR Settings
+  upiId: "9196302375@okbizaxis",
+  upiName: "UNIVO GYM MANAGEMENT",
+  upiQrCodeUrl: "",
+  enableOnlineRenewals: true,
   workoutSlots: [
     { id: "morning", label: "Morning", time: "6:00 AM - 9:00 AM", iconName: "Sun" },
     { id: "afternoon", label: "Afternoon", time: "12:00 PM - 3:00 PM", iconName: "Sun" },

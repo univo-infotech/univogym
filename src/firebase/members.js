@@ -29,32 +29,84 @@ export async function getMembers(gymId, forceRefresh = false) {
 
   if (!forceRefresh) {
     const cached = getCachedData(cacheKey);
-    if (cached && cached.isFresh) {
+    if (cached && cached.isFresh && Array.isArray(cached.data) && cached.data.length > 0) {
       return cached.data;
     }
   }
 
   let membersList = [];
+  const seenIds = new Set();
+
+  // 1. Top-level members collection
   try {
-    // Resilient query: fetch by gymId without composite orderBy, sort in memory
     const q = query(
       collection(db, "members"),
       where("gymId", "==", targetGymId)
     );
     const snap = await getDocs(q);
-    membersList = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
+    snap.docs.forEach((d) => {
+      seenIds.add(d.id);
+      membersList.push({ ...d.data(), id: d.id });
+    });
   } catch (err) {
     console.warn("getMembers filtered query warning:", err);
-    try {
-      // Fallback: fetch collection and filter client-side
-      const allSnap = await getDocs(collection(db, "members"));
-      membersList = allSnap.docs
-        .map((d) => ({ ...d.data(), id: d.id }))
-        .filter((m) => !m.gymId || m.gymId === targetGymId);
-    } catch (fallbackErr) {
-      console.error("getMembers fallback error:", fallbackErr);
-    }
   }
+
+  // 1b. Fallback top-level if empty or query error
+  if (membersList.length === 0) {
+    try {
+      const allSnap = await getDocs(collection(db, "members"));
+      allSnap.docs.forEach((d) => {
+        const data = d.data();
+        if (!data.gymId || data.gymId === targetGymId) {
+          if (!seenIds.has(d.id)) {
+            seenIds.add(d.id);
+            membersList.push({ ...data, id: d.id });
+          }
+        }
+      });
+    } catch (e) {}
+  }
+
+  // 2. Gym sub-collection gyms/{gymId}/members
+  try {
+    const subSnap = await getDocs(collection(db, "gyms", targetGymId, "members"));
+    subSnap.docs.forEach((d) => {
+      if (!seenIds.has(d.id)) {
+        seenIds.add(d.id);
+        membersList.push({ ...d.data(), id: d.id });
+      } else {
+        const idx = membersList.findIndex((x) => x.id === d.id);
+        if (idx >= 0) membersList[idx] = { ...membersList[idx], ...d.data() };
+      }
+    });
+  } catch (subErr) {
+    console.warn("getMembers sub-collection warning:", subErr);
+  }
+
+  // 3. Merge DEMO_MEMBERS so that default members (e.g. Ajay Prajapati m2) are always present
+  DEMO_MEMBERS.forEach((dm) => {
+    const dmPhone = (dm.phone || "").replace(/\D/g, "");
+    const dmEmail = (dm.email || "").toLowerCase();
+    const alreadyExists = membersList.some((m) => {
+      const mP = (m.phone || "").replace(/\D/g, "");
+      const mE = (m.email || m.loginEmail || "").toLowerCase();
+      return (
+        m.id === dm.id ||
+        (dmEmail && mE === dmEmail) ||
+        (dmPhone.length >= 10 && mP && mP.endsWith(dmPhone.slice(-10)))
+      );
+    });
+
+    if (!alreadyExists) {
+      membersList.push({
+        ...dm,
+        gymId: targetGymId,
+        password: dm.password || dm.loginPassword || "Member@123",
+        loginPassword: dm.loginPassword || dm.password || "Member@123",
+      });
+    }
+  });
 
   // Sort descending by creation date
   membersList.sort((a, b) => {
@@ -67,7 +119,7 @@ export async function getMembers(gymId, forceRefresh = false) {
   return membersList;
 }
 
-const DEMO_MEMBERS = [
+export const DEMO_MEMBERS = [
   {
     id: 'm1',
     name: 'Ashis',

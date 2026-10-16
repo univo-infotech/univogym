@@ -29,6 +29,10 @@ import { formatDate } from "../../utils/dateUtils";
 import { getMember, getMembers, updateMember } from "../../firebase/members";
 import { getChatRoomId, subscribeRoomMeta } from "../../firebase/chat";
 import { hasPt, isNonPtTrainer } from "../owner/members/memberUtils";
+import { addVisit } from "../../firebase/visits";
+import { openWhatsApp } from "../../utils/whatsapp";
+import { getGymSettings } from "../../utils/settings";
+import Modal from "../../components/ui/Modal";
 import DirectChatModal from "../../components/shared/DirectChatModal";
 import toast from "react-hot-toast";
 
@@ -44,6 +48,53 @@ export default function MyTrainer() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [certModal, setCertModal] = useState(null);
   const [hasUnreadChat, setHasUnreadChat] = useState(false);
+  const [demoModalOpen, setDemoModalOpen] = useState(false);
+  const [submittingDemo, setSubmittingDemo] = useState(false);
+  const [demoForm, setDemoForm] = useState({
+    goal: "Fat Loss & Muscle Building",
+    slot: "Morning (6:00 AM - 9:00 AM)",
+    notes: ""
+  });
+
+  const handleRequestDemo = async (e) => {
+    e.preventDefault();
+    setSubmittingDemo(true);
+    try {
+      const gymSettings = getGymSettings();
+      const athleteName = memberData?.name || memberData?.fullName || "Athlete";
+      const athletePhone = memberData?.phone || "";
+
+      await addVisit(GID, {
+        name: athleteName,
+        phone: athletePhone,
+        source: "member_app_pt_inquiry",
+        interestedIn: `1-on-1 PT Consultation (${demoForm.goal})`,
+        visitDate: new Date().toISOString(),
+        demoDate: new Date().toISOString().split("T")[0],
+        status: "demo_scheduled",
+        notes: `Member Inquired via Portal: Slot: ${demoForm.slot}. Goal: ${demoForm.goal}. Notes: ${demoForm.notes || "None"}`,
+        memberId: memberData?.id || profileId || ""
+      });
+
+      toast.success("1-on-1 PT Consultation booked! Opening WhatsApp...");
+      setDemoModalOpen(false);
+
+      const msg = `🔥 *New 1-on-1 PT Consultation Request*\n\nHi Univo Gym Reception,\nI am an active gym member (*${athleteName}*, ${athletePhone}).\nI would like to schedule a 1-on-1 Personal Training consultation and demo session.\n\n🎯 *Goal:* ${demoForm.goal}\n⏰ *Preferred Slot:* ${demoForm.slot}\n📝 *Notes:* ${demoForm.notes || "Ready to start"}\n\nPlease share available coach slots!`;
+      openWhatsApp(gymSettings.phone || "919999999999", msg);
+    } catch (err) {
+      console.error("Demo request error:", err);
+      toast.error("Failed to submit request. Please try again.");
+    } finally {
+      setSubmittingDemo(false);
+    }
+  };
+
+  const handleReceptionWhatsApp = () => {
+    const gymSettings = getGymSettings();
+    const athleteName = memberData?.name || memberData?.fullName || "Athlete";
+    const msg = `👋 *Hello Univo Gym Reception*,\n\nI am gym member *${athleteName}*. I have an inquiry regarding my membership / workout timing.`;
+    openWhatsApp(gymSettings.phone || "919999999999", msg);
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -236,6 +287,20 @@ export default function MyTrainer() {
               <p className="text-xs text-slate-500 mt-1">Warm-up and cooldown recommendations on the floor.</p>
             </div>
           </div>
+
+          {/* Quick Reception Contact */}
+          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 p-4 rounded-2xl">
+            <div>
+              <h4 className="text-xs font-bold text-slate-900">Have a Gym Question or Need Help?</h4>
+              <p className="text-[11px] text-slate-500">Contact reception directly for timing changes, locker keys, or queries.</p>
+            </div>
+            <button
+              onClick={handleReceptionWhatsApp}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-sm transition whitespace-nowrap"
+            >
+              <MessageCircle className="w-4 h-4" /> Message Gym Helpdesk
+            </button>
+          </div>
         </div>
 
         {/* Upgrade / PT Inquire Card */}
@@ -246,17 +311,121 @@ export default function MyTrainer() {
           </div>
           <h3 className="text-2xl font-black">Want Dedicated 1-on-1 Personal Training?</h3>
           <p className="text-xs text-emerald-100 max-w-xl">
-            Upgrade to a 1-on-1 Personal Training plan to get an assigned certified coach, tailored daily macro diet plans, specialized workout splits, and weekly body composition checks.
+            Upgrade to a 1-on-1 Personal Training package to get an assigned certified coach, custom macro diet plans, specialized workout splits, and weekly body composition checks.
           </p>
-          <div className="pt-2">
-            <Link
-              to="/member/plan"
+          <div className="pt-2 flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setDemoModalOpen(true)}
               className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white text-emerald-800 font-extrabold text-xs shadow-lg hover:bg-emerald-50 transition"
             >
-              <CreditCard className="w-4 h-4 text-emerald-600" /> View Membership Plans
+              <Sparkles className="w-4 h-4 text-emerald-600" /> Book Free PT Consultation & Demo
+            </button>
+            <Link
+              to="/member/plan"
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-800/60 hover:bg-emerald-800 text-white font-bold text-xs border border-emerald-400/30 transition"
+            >
+              <CreditCard className="w-4 h-4" /> View Membership Plans
             </Link>
           </div>
         </div>
+
+        {/* Demo Consultation Modal */}
+        {demoModalOpen && (
+          <Modal
+            isOpen={demoModalOpen}
+            onClose={() => setDemoModalOpen(false)}
+            title="🎯 Book 1-on-1 PT Consultation & Demo"
+            maxWidth="max-w-md"
+          >
+            <form onSubmit={handleRequestDemo} className="space-y-4 text-slate-800">
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-600" /> Free 1-on-1 Consultation
+                </p>
+                <p className="text-emerald-700">
+                  Our head trainer will evaluate your fitness baseline, calculate target timeline, and arrange a trial session.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Your Name</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={memberData?.name || memberData?.fullName || ""}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={memberData?.phone || ""}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Primary Fitness Goal</label>
+                <select
+                  value={demoForm.goal}
+                  onChange={(e) => setDemoForm({ ...demoForm, goal: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                >
+                  <option value="Fat Loss & Lean Muscle">Fat Loss & Lean Muscle</option>
+                  <option value="Muscle Building & Hypertrophy">Muscle Building & Hypertrophy</option>
+                  <option value="Strength & Powerlifting">Strength & Powerlifting</option>
+                  <option value="Endurance & General Stamina">Endurance & General Stamina</option>
+                  <option value="Post-Injury Rehabilitation">Post-Injury Rehabilitation</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Preferred Training Shift</label>
+                <select
+                  value={demoForm.slot}
+                  onChange={(e) => setDemoForm({ ...demoForm, slot: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                >
+                  <option value="Morning (6:00 AM - 9:00 AM)">Morning (6:00 AM - 9:00 AM)</option>
+                  <option value="Mid-Day (10:00 AM - 1:00 PM)">Mid-Day (10:00 AM - 1:00 PM)</option>
+                  <option value="Evening (5:00 PM - 8:00 PM)">Evening (5:00 PM - 8:00 PM)</option>
+                  <option value="Night (8:00 PM - 10:30 PM)">Night (8:00 PM - 10:30 PM)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Any specific injuries or notes? (Optional)</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. lower back stiffness, wedding in 3 months, etc."
+                  value={demoForm.notes}
+                  onChange={(e) => setDemoForm({ ...demoForm, notes: e.target.value })}
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDemoModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingDemo}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {submittingDemo ? "Submitting..." : "Confirm & Send WhatsApp →"}
+                </button>
+              </div>
+            </form>
+          </Modal>
+        )}
       </div>
     );
   }
