@@ -218,13 +218,16 @@ export function generateVisitFollowupMessage(name, planName) {
     .replace(/{gym_name}/g, settings.gymName || "UNIVO GYM");
 }
 
-export function generateMemberLoginMessage(memberName, phone, password, portalUrl = null, gymName = null) {
+export function generateMemberLoginMessage(memberName, memberIdOrPhone, password, portalUrl = null, gymName = null) {
   const settings = getGymSettings();
   const url = portalUrl || `${window.location.origin}/#/login`;
-  const template = settings.whatsappMemberLogin || "🏋️ *Member Portal Login Credentials - {gym_name}*\n\nHi {name},\nHere are your member portal login credentials:\n\n📱 *Login Phone / ID:* {phone}\n🔑 *Password:* {password}\n🔗 *Portal Link:* {link}\n\nLog in anytime to view your plan validity, attendance record, and workout progress! 💪🔥\n— {gym_name}";
+  const defaultTemplate = "🔐 *Member Portal Login Credentials - {gym_name}*\n\nHi {name},\nHere are your official member portal login credentials:\n\n🆔 *Member Login ID:* {member_id}\n🔑 *Password:* {password}\n🌐 *Portal Link:* {link}\n\nLog in anytime to view your plan validity, attendance record, and workout progress! 💪🔥\n— {gym_name}";
+  const template = settings.whatsappMemberLogin || defaultTemplate;
   return template
     .replace(/{name}/g, memberName || "Member")
-    .replace(/{phone}/g, phone || "—")
+    .replace(/{member_id}/g, memberIdOrPhone || "—")
+    .replace(/{id}/g, memberIdOrPhone || "—")
+    .replace(/{phone}/g, memberIdOrPhone || "—")
     .replace(/{password}/g, password || "Member@123")
     .replace(/{link}/g, url)
     .replace(/{gym_name}/g, gymName || settings.gymName || "UNIVO GYM");

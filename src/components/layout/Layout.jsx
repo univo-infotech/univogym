@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useLocation, NavLink } from "react-router-dom";
-import { LayoutDashboard, Users, CreditCard, DollarSign, Package } from "lucide-react";
+import { LayoutDashboard, Users, CreditCard, DollarSign, Package, Receipt, User, Dumbbell } from "lucide-react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
@@ -33,7 +33,9 @@ export default function Layout({ children, role = "owner" }) {
       return [
         { to: "/member/dashboard", label: "Home", icon: LayoutDashboard },
         { to: "/member/plan", label: "My Plan", icon: CreditCard },
-        { to: "/member/trainer", label: "Coach", icon: Users },
+        { to: "/member/trainer", label: "Coach", icon: Dumbbell },
+        { to: "/member/payments", label: "Invoices", icon: Receipt },
+        { to: "/member/profile", label: "Profile", icon: User },
       ];
     }
     return [
@@ -59,14 +61,17 @@ export default function Layout({ children, role = "owner" }) {
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex justify-around items-center shadow-xl">
           {mobileNav.map((tab) => {
             const Icon = tab.icon;
-            const active = location.pathname.startsWith(tab.to);
+            const active = location.pathname === tab.to || location.pathname.startsWith(`${tab.to}/`);
             return (
               <NavLink
                 key={tab.to}
                 to={tab.to}
-                className={`flex flex-col items-center gap-0.5 px-2.5 py-1 rounded-xl transition-all ${
-                  active ? "text-emerald-600 font-bold" : "text-slate-500 hover:text-slate-800 font-medium"
-                }`}
+                className={({ isActive }) => {
+                  const isCurrent = isActive || active;
+                  return `flex flex-col items-center gap-0.5 px-2.5 py-1 rounded-xl transition-all ${
+                    isCurrent ? "text-emerald-600 font-bold" : "text-slate-500 hover:text-slate-800 font-medium"
+                  }`;
+                }}
               >
                 <Icon className="w-4 h-4" />
                 <span className="text-[10px]">{tab.label}</span>

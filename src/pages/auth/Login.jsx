@@ -21,6 +21,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../firebase/config';
 import { parseToDate } from '../../utils/dateUtils';
+import { getDisplayMemberId, getDisplayTrainerId } from '../../utils/idGenerator';
 
 const BRAND_STATS = [
   { icon: Users,      label: 'Active Members',  value: '2,400+' },
@@ -58,10 +59,34 @@ export default function Login() {
     e.preventDefault();
     setError('');
 
-    const cleanEmail = email.trim().toLowerCase();
-    const inputPhone = email.trim().replace(/\D/g, '');
-    if (!cleanEmail) { setError('Please enter your email address, phone or login ID.'); return; }
+    const cleanInput = email.trim();
+    const cleanEmail = cleanInput.toLowerCase();
+    const inputDigits = cleanInput.replace(/\D/g, '');
+    const isPhoneLike = inputDigits.length >= 10 && !cleanInput.includes('@');
+    const isEmailLike = cleanInput.includes('@');
+
+    if (!cleanInput) {
+      setError(
+        selectedRole === 'owner'
+          ? 'Please enter your owner email address.'
+          : selectedRole === 'trainer'
+          ? 'Please enter your unique Trainer ID.'
+          : 'Please enter your unique Member ID.'
+      );
+      return;
+    }
     if (!password) { setError('Please enter your password.'); return; }
+
+    // Multi-gym isolation guard: Reject phone/email login for Member & Trainer
+    if (selectedRole === 'member' && (isPhoneLike || isEmailLike)) {
+      setError('Multi-gym security alert: Login via Phone Number or Email is discontinued to prevent cross-gym account mixing. Please enter your Universal Unique Member ID (e.g. M-849201) provided by your gym.');
+      return;
+    }
+
+    if (selectedRole === 'trainer' && (isPhoneLike || isEmailLike)) {
+      setError('Multi-gym security alert: Login via Phone Number or Email is discontinued to prevent cross-gym account mixing. Please enter your Universal Unique Trainer ID (e.g. T-39201) provided by your gym.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -101,23 +126,93 @@ export default function Login() {
         navigate('/member/dashboard', { replace: true });
       };
 
-      // 1. Check Trainer from Firestore trainers collection
+      // 1. Check Trainer from Firestore trainers collection strictly by Trainer ID
       const checkTrainerInFirestore = async () => {
         try {
           const trainersList = await getTrainers('univo_main');
-          const matched = trainersList.find((t) => {
-            const tEmail = (t.email || t.loginEmail || '').trim().toLowerCase();
-            const tPhone = (t.phone || '').trim().replace(/\D/g, '');
-            const tPass = t.password || t.loginPassword;
+          const upperInput = cleanInput.toUpperCase();
+          const cleanNum = upperInput.replace(/^[T|TRN]-?0*/, '');
 
-            const isIdMatch =
-              (tEmail && tEmail === cleanEmail) ||
-              (inputPhone.length >= 10 && tPhone && tPhone.endsWith(inputPhone.slice(-10)));
-            const isPassMatch = tPass ? tPass === password : password === 'Coach@123';
-            return isIdMatch && isPassMatch;
+          // Check memory, local trainers, and cache
+          let pool = [...(trainersList || [])];
+          try {
+            const { getLocalTrainers } = await import('../../firebase/trainers');
+            const local = getLocalTrainers();
+            if (Array.isArray(local)) {
+              local.forEach(lt => {
+                if (!pool.some(p => p.id === lt.id)) pool.push(lt);
+              });
+            }
+          } catch (e) {}
+
+          let matched = pool.find((t) => {
+            const displayId = getDisplayTrainerId(t).toUpperCase();
+            const rawId = String(t.id || '').toUpperCase();
+            const tId = String(t.trainerId || '').toUpperCase();
+            const displayNum = displayId.replace(/^[T|TRN]-?0*/, '');
+
+            return (
+              upperInput === displayId ||
+              upperInput === rawId ||
+              upperInput === tId ||
+              (cleanNum.length >= 4 && cleanNum === displayNum)
+            );
           });
 
+          // Direct Firestore queries fallback
+          if (!matched) {
+            try {
+              const { collection, query, where, getDocs, doc, getDoc } = await import('firebase/firestore');
+              const { db } = await import('../../firebase/config');
+
+              // Check top-level doc by id
+              const snapDoc = await getDoc(doc(db, 'trainers', cleanInput));
+              if (snapDoc.exists()) {
+                matched = { id: snapDoc.id, ...snapDoc.data() };
+              } else {
+                // Check by trainerId field
+                const qT = query(collection(db, 'trainers'), where('trainerId', '==', upperInput));
+                const sT = await getDocs(qT);
+                if (!sT.empty) {
+                  matched = { id: sT.docs[0].id, ...sT.docs[0].data() };
+                } else {
+                  // Check sub-collection
+                  const subDoc = await getDoc(doc(db, 'gyms', 'univo_main', 'trainers', cleanInput));
+                  if (subDoc.exists()) {
+                    matched = { id: subDoc.id, ...subDoc.data() };
+                  }
+                }
+              }
+            } catch (fErr) {
+              console.warn('Direct trainer lookup note:', fErr);
+            }
+          }
+
           if (matched) {
+            const displayId = getDisplayTrainerId(matched);
+            const localPass = (typeof window !== "undefined")
+              ? (localStorage.getItem(`univo_pass_${matched.id}`) || localStorage.getItem(`univo_pass_${displayId}`))
+              : null;
+            const tPass = localPass || matched.password || matched.loginPassword;
+            const isPassMatch = tPass ? tPass === password : (password === 'Coach@123' || password === '123456');
+
+            if (!isPassMatch) {
+              setError(`Incorrect password for Trainer ID ${displayId}. (Default: Coach@123). Please enter the correct password.`);
+              return 'STOP';
+            }
+
+            if (
+              matched.isActive === false ||
+              matched.status === 'inactive' ||
+              matched.status === 'left' ||
+              matched.active === false
+            ) {
+              setError(
+                'Access Revoked: Your trainer account is inactive or disconnected from the gym. Please contact gym management.'
+              );
+              return 'STOP';
+            }
+
             logInTrainer(matched);
             return true;
           }
@@ -148,8 +243,14 @@ export default function Login() {
           if (!userSnap.empty) {
             const matchedUser = userSnap.docs.map(d => ({ uid: d.id, ...d.data() }))[0];
             if (matchedUser.password && matchedUser.password === password) {
-              if (matchedUser.status === 'inactive' || matchedUser.status === 'blocked') {
-                setError('Account suspended. Please contact gym management.');
+              if (
+                matchedUser.status === 'inactive' ||
+                matchedUser.status === 'blocked' ||
+                matchedUser.status === 'left' ||
+                matchedUser.isActive === false ||
+                matchedUser.active === false
+              ) {
+                setError('Access Revoked: Your account is inactive or suspended. Please contact gym management.');
                 return 'STOP';
               }
 
@@ -172,7 +273,11 @@ export default function Login() {
               const targetRole = isOwner ? 'owner' : 'staff';
 
               localStorage.setItem('univo_active_role', targetRole);
-              localStorage.setItem('univo_staff_session', JSON.stringify(matchedUser));
+              if (isOwner) {
+                localStorage.setItem('univo_owner_session', JSON.stringify(matchedUser));
+              } else {
+                localStorage.setItem('univo_staff_session', JSON.stringify(matchedUser));
+              }
               localStorage.removeItem('univo_trainer_session');
               localStorage.removeItem('univo_member_session');
 
@@ -194,96 +299,111 @@ export default function Login() {
         return false;
       };
 
-      // 3. Check Members collection
+      // 3. Check Members collection strictly by Member ID
       const checkMembersInFirestore = async () => {
         try {
-          const { getMembers, DEMO_MEMBERS } = await import('../../firebase/members');
+          const { getMembers, getMemberLocalOverrides, DEMO_MEMBERS } = await import('../../firebase/members');
           const membersList = await getMembers('univo_main');
+          const localOverrides = (typeof getMemberLocalOverrides === 'function') ? getMemberLocalOverrides() : {};
 
-          // Combined search pool: membersList + DEMO_MEMBERS
-          const pool = [...(membersList || [])];
+          // Build candidate pool from fetched members + demo members fallback + local overrides
+          let pool = [...(membersList || [])];
           if (Array.isArray(DEMO_MEMBERS)) {
-            for (const dm of DEMO_MEMBERS) {
-              if (!pool.some(m => m.id === dm.id)) {
-                pool.push({
-                  ...dm,
-                  password: dm.password || dm.loginPassword || 'Member@123',
-                  loginPassword: dm.loginPassword || dm.password || 'Member@123',
-                });
-              }
-            }
+            DEMO_MEMBERS.forEach(dm => {
+              if (!pool.some(p => p.id === dm.id)) pool.push(dm);
+            });
           }
 
-          let matchedMember = pool.find((m) => {
-            const memberIdentifiers = [m.email, m.loginEmail, m.username, m.memberId, m.id]
-              .filter(Boolean)
-              .map((e) => String(e).trim().toLowerCase());
-            const mPhone = (m.phone || '').trim().replace(/\D/g, '');
-            const mName = (m.name || m.fullName || '').trim().toLowerCase();
-            const mPass = m.loginPassword || m.password;
+          // Also inject any member directly registered in overrides
+          Object.keys(localOverrides).forEach(ovId => {
+            const existingIdx = pool.findIndex(p => p.id === ovId);
+            if (existingIdx >= 0) {
+              pool[existingIdx] = { ...pool[existingIdx], ...localOverrides[ovId] };
+            } else {
+              pool.push({ id: ovId, ...localOverrides[ovId] });
+            }
+          });
 
-            const isEmailOrIdMatch =
-              memberIdentifiers.includes(cleanEmail) ||
-              (m.id && String(m.id).toLowerCase() === cleanEmail) ||
-              (m.memberId && String(m.memberId).toLowerCase() === cleanEmail) ||
-              (mName && mName.replace(/\s+/g, '') === cleanEmail.replace(/\s+/g, ''));
+          pool = pool.map(m => ({ ...m, ...(localOverrides[m.id] || {}) }));
+          const upperInput = cleanInput.toUpperCase();
+          const cleanNum = upperInput.replace(/^[M|MEM]-?0*/, '');
 
-            const isPhoneMatch =
-              inputPhone.length >= 7 &&
-              Boolean(mPhone) &&
-              (mPhone === inputPhone ||
-               mPhone.endsWith(inputPhone.slice(-10)) ||
-               inputPhone.endsWith(mPhone.slice(-10)));
+          // Step 1: Find candidate member by Unique Member ID
+          let candidateMember = pool.find((m) => {
+            const displayId = getDisplayMemberId(m).toUpperCase();
+            const rawId = String(m.id || '').toUpperCase();
+            const mId = String(m.memberId || '').toUpperCase();
+            const displayNum = displayId.replace(/^[M|MEM]-?0*/, '');
 
-            const isIdMatch = isEmailOrIdMatch || isPhoneMatch;
-            const isPassMatch = mPass ? mPass === password : (password === 'Member@123' || password === '123456');
-            return isIdMatch && isPassMatch;
+            return (
+              upperInput === displayId ||
+              upperInput === rawId ||
+              upperInput === mId ||
+              (cleanNum.length >= 4 && cleanNum === displayNum)
+            );
           });
 
           // Direct Firestore query fallback if not found in memory
-          if (!matchedMember) {
+          if (!candidateMember) {
             try {
-              const { collection, query, where, getDocs } = await import('firebase/firestore');
+              const { collection, query, where, getDocs, doc, getDoc } = await import('firebase/firestore');
               const { db } = await import('../../firebase/config');
 
               let foundDoc = null;
-              if (cleanEmail.includes('@')) {
-                const qEmail = query(collection(db, 'members'), where('email', '==', cleanEmail));
-                const sEmail = await getDocs(qEmail);
-                if (!sEmail.empty) foundDoc = { id: sEmail.docs[0].id, ...sEmail.docs[0].data() };
-              }
-              if (!foundDoc && inputPhone.length >= 10) {
-                const qPhone = query(collection(db, 'members'), where('phone', '==', inputPhone.slice(-10)));
-                const sPhone = await getDocs(qPhone);
-                if (!sPhone.empty) foundDoc = { id: sPhone.docs[0].id, ...sPhone.docs[0].data() };
+              // Check top-level by document ID
+              const docRef = doc(db, 'members', cleanInput);
+              const docSnap = await getDoc(docRef);
+              if (docSnap.exists()) {
+                foundDoc = { id: docSnap.id, ...docSnap.data() };
+              } else {
+                // Check by memberId field
+                const qMemberId = query(collection(db, 'members'), where('memberId', '==', upperInput));
+                const sMemberId = await getDocs(qMemberId);
+                if (!sMemberId.empty) {
+                  foundDoc = { id: sMemberId.docs[0].id, ...sMemberId.docs[0].data() };
+                } else {
+                  // Check gym sub-collection
+                  const subSnap = await getDoc(doc(db, 'gyms', 'univo_main', 'members', cleanInput));
+                  if (subSnap.exists()) {
+                    foundDoc = { id: subSnap.id, ...subSnap.data() };
+                  }
+                }
               }
 
               if (foundDoc) {
-                const mPass = foundDoc.loginPassword || foundDoc.password;
-                const isPassMatch = mPass ? mPass === password : (password === 'Member@123' || password === '123456');
-                if (isPassMatch) {
-                  matchedMember = foundDoc;
-                }
+                candidateMember = { ...foundDoc, ...(localOverrides[foundDoc.id] || {}) };
               }
             } catch (err) {
               console.warn('Direct member query notice:', err);
             }
           }
 
-          if (matchedMember) {
+          if (candidateMember) {
+            const displayId = getDisplayMemberId(candidateMember);
+            const localPass = (typeof window !== "undefined")
+              ? (localStorage.getItem(`univo_pass_${candidateMember.id}`) || localStorage.getItem(`univo_pass_${displayId}`))
+              : null;
+            const mPass = localPass || candidateMember.loginPassword || candidateMember.password;
+            const isPassMatch = mPass ? mPass === password : (password === 'Member@123' || password === '123456');
+
+            if (!isPassMatch) {
+              setError(`Incorrect password for Member ID ${displayId}. (Default password: Member@123). Please enter the correct password.`);
+              return 'STOP';
+            }
+
             if (
-              matchedMember.status === 'left' ||
-              matchedMember.status === 'ended' ||
-              matchedMember.memberPortalAccess === false
+              candidateMember.status === 'left' ||
+              candidateMember.status === 'ended' ||
+              candidateMember.memberPortalAccess === false
             ) {
               setError(
-                'Access Revoked: Your account is inactive or disconnected from the gym. Please contact gym management.'
+                'Access Revoked: Your account is marked as Left or Inactive. Please contact gym management.'
               );
               return 'STOP';
             }
 
             // Expired members are permitted to log in so they can view and renew their plan via UPI QR
-            logInMember(matchedMember);
+            logInMember(candidateMember);
             return true;
           }
         } catch (memberErr) {
@@ -307,6 +427,19 @@ export default function Login() {
               email: cleanEmail,
               ...userData,
             };
+
+            if (
+              trainerObj.isActive === false ||
+              trainerObj.status === 'inactive' ||
+              trainerObj.status === 'left' ||
+              trainerObj.active === false
+            ) {
+              setError(
+                'Access Revoked: Your trainer account is inactive or disconnected from the gym. Please contact gym management.'
+              );
+              return 'STOP';
+            }
+
             logInTrainer(trainerObj);
             return true;
           }
@@ -319,6 +452,18 @@ export default function Login() {
               email: cleanEmail,
               ...userData,
             };
+
+            if (
+              memberObj.status === 'left' ||
+              memberObj.status === 'ended' ||
+              memberObj.memberPortalAccess === false
+            ) {
+              setError(
+                'Access Revoked: Your account is marked as Left or Inactive. Please contact gym management to rejoin.'
+              );
+              return 'STOP';
+            }
+
             logInMember(memberObj);
             return true;
           }
@@ -351,7 +496,7 @@ export default function Login() {
         const uRes = await checkUsersInFirestore();
         if (uRes === 'STOP' || uRes === true) return;
         if (await checkFirebaseAuthLogin()) return;
-        setError('Invalid trainer credentials. Please enter your registered email or phone and password.');
+        setError('Invalid trainer credentials. Please enter your Universal Unique Trainer ID (e.g. T-39201) and password.');
         return;
       }
 
@@ -361,7 +506,7 @@ export default function Login() {
         const uRes = await checkUsersInFirestore();
         if (uRes === 'STOP' || uRes === true) return;
         if (await checkFirebaseAuthLogin()) return;
-        setError('Invalid member credentials. Please enter your registered mobile number or email and password.');
+        setError('Invalid member credentials. Please enter your Universal Unique Member ID (e.g. M-849201) and password.');
         return;
       }
 
@@ -377,10 +522,10 @@ export default function Login() {
       const uRes = await checkUsersInFirestore();
       if (uRes === 'STOP' || uRes === true) return;
 
-      // Auto-detect if user entered Trainer credentials while on Owner tab!
+      // Auto-detect if user entered Trainer ID while on Owner tab!
       if (await checkTrainerInFirestore()) return;
 
-      // Auto-detect if user entered Member credentials while on Owner tab!
+      // Auto-detect if user entered Member ID while on Owner tab!
       const mRes = await checkMembersInFirestore();
       if (mRes === 'STOP' || mRes === true) return;
 
@@ -504,17 +649,42 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                {selectedRole === 'owner' ? 'Owner Email ID' : selectedRole === 'trainer' ? 'Trainer Email or Mobile No.' : 'Member Mobile No. or Email'}
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-slate-700">
+                  {selectedRole === 'owner' ? 'Owner Email ID' : selectedRole === 'trainer' ? 'Unique Trainer ID' : 'Unique Member ID'}
+                </label>
+                {selectedRole !== 'owner' && (
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                    Strict Unique ID
+                  </span>
+                )}
+              </div>
               <input
                 type="text"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={selectedRole === 'owner' ? 'e.g. univo@gmail.com' : selectedRole === 'trainer' ? 'e.g. coach@gmail.com or 9876543210' : 'e.g. 9630237549'}
-                className="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-xl px-4 py-2.5 text-sm focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                placeholder={
+                  selectedRole === 'owner'
+                    ? 'e.g. univo@gmail.com'
+                    : selectedRole === 'trainer'
+                    ? 'e.g. T-39201'
+                    : 'e.g. M-849201'
+                }
+                className="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-xl px-4 py-2.5 text-sm focus:bg-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-medium"
               />
+              {selectedRole === 'member' && (
+                <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1.5 font-medium">
+                  <Shield className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Universal Unique ID prevents account collision across multiple gyms.</span>
+                </p>
+              )}
+              {selectedRole === 'trainer' && (
+                <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1.5 font-medium">
+                  <Shield className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                  <span>Universal Unique Trainer ID (e.g. T-39201) issued by your gym.</span>
+                </p>
+              )}
             </div>
 
             <div>
@@ -540,9 +710,17 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2"
+              className="w-full mt-2 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : `Sign In as ${selectedRole.toUpperCase()}`}
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : selectedRole === 'owner' ? (
+                'Sign In as GYM OWNER'
+              ) : selectedRole === 'trainer' ? (
+                'Sign In with TRAINER ID'
+              ) : (
+                'Sign In with MEMBER ID'
+              )}
             </button>
           </form>
 

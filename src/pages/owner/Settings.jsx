@@ -161,12 +161,13 @@ export default function Settings() {
       toast.loading("Generating 6-Month realistic gym data across all modules...", { id: "data_action" });
       const res = await load6MonthDummyData(gymId);
       toast.success(
-        `Loaded 6-month dummy data successfully!\n` +
-        `• ${res.membersCount} Members (March to Sept 2026)\n` +
+        `Loaded dummy data up to October 2026 successfully!\n` +
+        `• ${res.membersCount} Members (Active, Expiring, Due & PT)\n` +
         `• ${res.paymentsCount} Payment Records & Subscriptions\n` +
-        `• ${res.beforeAfterCount || 6} Verified Before & After Client Transformations\n` +
-        `• ${res.expensesCount} Expenses & Maintenance Bills\n` +
-        `• ${res.supplementsCount} Supplements & ${res.equipmentCount} Equipment`,
+        `• ${res.renewalRequestsCount || 3} Online UPI Renewal Requests\n` +
+        `• ${res.beforeAfterCount || 6} Verified Client Transformations\n` +
+        `• ${res.expensesCount} Expenses (May - Oct 2026)\n` +
+        `• ${res.plansCount || 4} Membership Plans & ${res.servicesCount || 4} Facility Services`,
         { id: "data_action", duration: 6000 }
       );
       setTimeout(() => {
@@ -184,23 +185,20 @@ export default function Settings() {
     setDataLoading(true);
     setDeleteConfirmOpen(false);
     try {
-      toast.loading("Full Clean: Wiping all database collections, resetting settings & logging out everywhere...", { id: "data_action" });
-      const res = await clearAllGymData(gymId || "univo_main");
+      toast.loading("Full Clean: Wiping all database collections & gym data...", { id: "data_action" });
+      const res = await clearAllGymData(gymId || "univo_main", false);
 
-      if (logoutUser) {
-        await logoutUser();
-      }
+      const freshSettings = getGymSettings(gymId || "univo_main");
+      setSettings(freshSettings);
 
       toast.success(
-        `Full Clean Complete (${res?.deletedCount || 0} records deleted)! Members, trainers, sections & settings completely reset. Logging out...`,
-        { id: "data_action", duration: 4000 }
+        `Full Clean Complete (${res?.deletedCount || 0} records deleted)! Members, trainers, records & storage completely wiped. You remain logged in.`,
+        { id: "data_action", duration: 5000 }
       );
-      setTimeout(() => {
-        window.location.href = "/login";
-      }, 1200);
     } catch (err) {
       console.error("Delete all data error:", err);
       toast.error("Failed to delete all data: " + err.message, { id: "data_action" });
+    } finally {
       setDataLoading(false);
     }
   };
@@ -730,35 +728,43 @@ export default function Settings() {
                   <Sparkles className="w-4 h-4 text-emerald-600" /> Demo Dataset
                 </span>
                 <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider bg-white px-2.5 py-0.5 rounded-full border border-indigo-100">
-                  March - Sept 2026
+                  May - October 2026
                 </span>
               </div>
               <h4 className="text-sm font-extrabold text-slate-900">
-                Load 6-Month Dummy Data
+                Load 6-Month Dummy Data (Up to October 2026)
               </h4>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Pichle 6 mahine ka complete testing record generate karega:
+                Pichle 6 mahine se lekar aaj (October 2026) tak ka complete real-world testing record generate karega:
               </p>
               <ul className="text-[11px] text-slate-600 space-y-1 pt-1 font-medium">
                 <li className="flex items-center gap-1.5">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <strong>17+ Members</strong> across 6 months (active, expiring, expired)
+                  <strong>16+ Dynamic Members</strong> (Active, Expiring Soon, Expired, PT Active & Due)
                 </li>
                 <li className="flex items-center gap-1.5">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <strong>19+ Payment Receipts</strong> (₹599 to ₹4,999 plans, cash & online)
+                  <strong>22+ Payment Records</strong> (Cash, UPI QR, and Split Payments up to today)
                 </li>
                 <li className="flex items-center gap-1.5">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <strong>6 Verified Transformations</strong> (Before & After photos, kg & body fat drop)
+                  <strong>3 Online UPI Renewal Requests</strong> (Pending & Approved for Approvals desk)
                 </li>
                 <li className="flex items-center gap-1.5">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <strong>21+ Gym Expenses</strong> (Floor Rent, Commercial Electricity, AC Repairs)
+                  <strong>4 Plans & 4 Facility Services</strong> (Steam, Locker, Diet consultation)
                 </li>
                 <li className="flex items-center gap-1.5">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <strong>Store Inventory & Equipment</strong> with maintenance logs
+                  <strong>6 Verified Transformations</strong> (Before & After photos with weight & fat loss)
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <strong>25+ Gym Expenses</strong> (Commercial Rent, Electricity & Maintenance to Oct 2026)
+                </li>
+                <li className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <strong>Supplements Inventory & Equipment</strong> with active service logs
                 </li>
               </ul>
             </div>
@@ -842,7 +848,7 @@ export default function Settings() {
           <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-950">
             <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <p className="leading-relaxed">
-              Kya aap <strong>March 2026 se September 2026 (6 Months)</strong> ka realistic dummy data load karna chahte hain? Isse Reports, Dashboard, Members, aur Payments me 6 mahine ka pura hisab-kitab aa jayega.
+              Kya aap <strong>May 2026 se October 2026 (Live Current)</strong> ka realistic dummy data load karna chahte hain? Isse Reports, Dashboard, Members, Online UPI Renewals, Plans, aur Payments me pura hisab-kitab aa jayega.
             </p>
           </div>
 
@@ -885,7 +891,7 @@ export default function Settings() {
                 • Sabhi <strong>Members</strong>, <strong>Trainers</strong>, aur <strong>Staff</strong> delete ho jayenge.<br />
                 • Sabhi <strong>Payments</strong>, <strong>Expenses</strong>, aur <strong>Stock/Sales</strong> wipe ho jayenge.<br />
                 • <strong>Gym Settings, Logo & Signature</strong> default reset honge.<br />
-                • Kisi bhi member ya trainer ki open ID hogi toh wo <strong>turant logout</strong> ho jayegi.
+                • <strong>Aapka Gym Owner account</strong> logged in rahega bina kisi logout ke.
               </p>
             </div>
           </div>
@@ -905,7 +911,7 @@ export default function Settings() {
               className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5"
             >
               {dataLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-              Yes, Clean Everything & Logout
+              Yes, Clean All Gym Data (Keep Me Logged In)
             </button>
           </div>
         </div>

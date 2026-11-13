@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./config";
 import { getCachedData, setCachedData, invalidateCache } from "../utils/dataCache";
+import { generateUniqueTrainerId } from "../utils/idGenerator";
 
 let inMemoryTrainers = [];
 
@@ -36,6 +37,13 @@ export function saveLocalTrainer(trainer) {
  */
 export function removeLocalTrainer(trainerId) {
   inMemoryTrainers = inMemoryTrainers.filter((t) => t.id !== trainerId);
+}
+
+/**
+ * Helper to completely clear in-memory trainers cache
+ */
+export function clearLocalTrainers() {
+  inMemoryTrainers = [];
 }
 
 export async function getTrainers(gymId, forceRefresh = false) {
@@ -127,9 +135,11 @@ export async function addTrainer(gymId, data) {
   const nowIso = new Date().toISOString();
   const docId = data.id || `tr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
 
+  const displayTrainerId = data.trainerId || generateUniqueTrainerId(inMemoryTrainers);
   const payload = {
     ...data,
     id: docId,
+    trainerId: displayTrainerId,
     gymId: GID,
     memberCount: data.memberCount || 0,
     rating: data.rating || 5,
@@ -215,17 +225,42 @@ export async function updateTrainer(gymId, trainerId, data) {
     console.warn("Error updating gym sub-collection trainer:", e2);
   }
 
-  // 4. If password or email updated, sync users doc
-  if (data.email || data.password) {
-    try {
-      await setDoc(doc(db, "users", trainerId), {
-        ...(data.email ? { email: data.email } : {}),
-        ...(data.password ? { password: data.password } : {}),
-        ...(data.name ? { name: data.name } : {}),
-        updatedAt: nowIso
-      }, { merge: true });
-    } catch (uErr) {}
-  }
+  // 4. Sync status, email, and password to users doc
+  try {
+    const isDeactivated = Boolean(data.isActive === false || data.status === "inactive" || data.status === "left");
+    await setDoc(doc(db, "users", trainerId), {
+      status: isDeactivated ? "inactive" : "active",
+      ...(data.email ? { email: data.email } : {}),
+      ...(data.password ? { password: data.password } : {}),
+      ...(data.name ? { name: data.name } : {}),
+      updatedAt: nowIso
+    }, { merge: true });
+
+    // 5. If trainer is deactivated, wipe active local trainer session and broadcast forced logout
+    if (isDeactivated) {
+      try {
+        const sessionStr = localStorage.getItem("univo_trainer_session");
+        if (sessionStr) {
+          const sess = JSON.parse(sessionStr);
+          if (sess.id === trainerId || sess.uid === trainerId) {
+            localStorage.removeItem("univo_trainer_session");
+            if (localStorage.getItem("univo_active_role") === "trainer") {
+              localStorage.removeItem("univo_active_role");
+            }
+          }
+        }
+      } catch (sErr) {}
+
+      try {
+        if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+          const channel = new BroadcastChannel("univo_session_channel");
+          channel.postMessage({ type: "FORCE_LOGOUT", trainerId, role: "trainer", reason: "trainer_deactivated" });
+          channel.close();
+        }
+        localStorage.setItem("univo_force_logout", `trainer_${trainerId}_${Date.now()}`);
+      } catch (bErr) {}
+    }
+  } catch (uErr) {}
 }
 
 export async function deleteTrainer(gymId, trainerId) {
@@ -235,7 +270,31 @@ export async function deleteTrainer(gymId, trainerId) {
   removeLocalTrainer(trainerId);
   invalidateCache("trainers");
 
-  // 2. Delete from Firestore
+  // 2. Wipe active trainer session if deleted trainer is logged in locally
+  try {
+    const sessionStr = localStorage.getItem("univo_trainer_session");
+    if (sessionStr) {
+      const sess = JSON.parse(sessionStr);
+      if (sess.id === trainerId || sess.uid === trainerId) {
+        localStorage.removeItem("univo_trainer_session");
+        if (localStorage.getItem("univo_active_role") === "trainer") {
+          localStorage.removeItem("univo_active_role");
+        }
+      }
+    }
+  } catch (sErr) {}
+
+  // 3. Broadcast cross-tab and cross-device force logout
+  try {
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      const channel = new BroadcastChannel("univo_session_channel");
+      channel.postMessage({ type: "FORCE_LOGOUT", trainerId, role: "trainer", reason: "trainer_deleted" });
+      channel.close();
+    }
+    localStorage.setItem("univo_force_logout", `trainer_${trainerId}_${Date.now()}`);
+  } catch (bErr) {}
+
+  // 4. Delete from Firestore
   try {
     await deleteDoc(doc(db, "trainers", trainerId));
   } catch (e1) {}

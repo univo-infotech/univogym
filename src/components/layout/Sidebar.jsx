@@ -73,7 +73,6 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
     { id: "dashboard", to: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "members", to: "/owner/members", label: "Members", icon: Users },
     { id: "attendance", to: "/owner/attendance", label: "Attendance", icon: CheckSquare },
-    { id: "payments", to: "/owner/payments", label: "Fee Collections", icon: DollarSign },
     {
       id: "upi_approvals",
       to: "/owner/upi-approvals",
@@ -107,12 +106,12 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
 
   const memberLinks = [
     { to: "/member/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/member/profile", label: "My Profile", icon: User },
-    { to: "/member/plan", label: "My Plan", icon: CreditCard },
+    { to: "/member/plan", label: "My Membership & Plan", icon: CreditCard },
+    { to: "/member/trainer", label: "My Coach & Diet", icon: Dumbbell },
+    { to: "/member/payments", label: "Billing & Invoices", icon: DollarSign },
     { to: "/member/store", label: "Gym Store & Nutrition", icon: ShoppingBag },
-    { to: "/member/trainer", label: "My Trainer", icon: Dumbbell },
-    { to: "/member/complain", label: "Trainer Complain", icon: ShieldAlert },
-    { to: "/member/payments", label: "My Payments", icon: DollarSign },
+    { to: "/member/complain", label: "Support & Feedback", icon: ShieldAlert },
+    { to: "/member/profile", label: "My Profile & ID Card", icon: User },
   ];
 
   let links = ownerLinks;
@@ -173,13 +172,8 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
         <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1 overscroll-contain">
           {links.map((link) => {
             const Icon = link.icon;
-            const isUpiActive = link.id === "upi_approvals" && (
-              location.pathname === "/owner/upi-approvals" ||
-              (location.pathname === "/owner/payments" && location.search.includes("online_requests"))
-            );
-            const isPaymentsActive = link.id === "payments" && (
-              location.pathname === "/owner/payments" && !location.search.includes("online_requests")
-            );
+            const isUpiActive = link.id === "upi_approvals" && location.pathname === "/owner/upi-approvals";
+            const isPaymentsActive = link.id === "payments" && location.pathname === "/owner/payments";
 
             return (
               <NavLink

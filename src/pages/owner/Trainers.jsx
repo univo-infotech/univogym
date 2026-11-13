@@ -53,6 +53,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { invalidateCache } from "../../utils/dataCache";
 import toast from "react-hot-toast";
 import { formatDate } from "../../utils/dateUtils";
+import { getDisplayTrainerId } from "../../utils/idGenerator";
 
 export const DEFAULT_SHIFTS_CONFIG = [
   { id: "morning", label: "Morning", fullLabel: "Morning Shift", time: "6:00 AM - 9:00 AM", icon: Sun, color: "text-amber-500", bg: "bg-amber-50", border: "border-amber-200" },
@@ -641,11 +642,19 @@ export default function Trainers() {
 
   const handleToggleActive = async (id, currentStatus) => {
     try {
-      await updateTrainer(gymId || "univo_main", id, { isActive: !currentStatus });
+      const nextActive = !currentStatus;
+      await updateTrainer(gymId || "univo_main", id, {
+        isActive: nextActive,
+        status: nextActive ? "active" : "inactive"
+      });
       setTrainers(
-        trainers.map((t) => (t.id === id ? { ...t, isActive: !currentStatus } : t))
+        trainers.map((t) => (t.id === id ? { ...t, isActive: nextActive, status: nextActive ? "active" : "inactive" } : t))
       );
-      toast.success(currentStatus ? "Trainer deactivated" : "Trainer activated");
+      toast.success(
+        currentStatus
+          ? "Trainer deactivated & portal session logged out"
+          : "Trainer reactivated & portal access restored"
+      );
     } catch (err) {
       toast.error("Failed to update status");
     }
@@ -1039,22 +1048,23 @@ export default function Trainers() {
               {/* Login Credentials & Quick WhatsApp Share */}
               <div className="mt-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-[11px]">
                 <div className="flex items-center gap-1.5 truncate">
-                  <KeyRound className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <KeyRound className="w-3.5 h-3.5 text-teal-600 shrink-0" />
                   <span className="text-slate-600 truncate text-[10px]">
-                    ID: <strong className="text-slate-900">{t.email || t.loginEmail || "N/A"}</strong> • Pass: <span className="font-mono text-emerald-700 font-bold">{t.password || t.loginPassword || "Coach@123"}</span>
+                    Trainer ID: <strong className="text-slate-900 font-mono font-bold bg-teal-50 text-teal-800 px-1 py-0.5 rounded border border-teal-200">{getDisplayTrainerId(t)}</strong> • Pass: <span className="font-mono text-emerald-700 font-bold">{t.password || t.loginPassword || "Coach@123"}</span>
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
                     const num = (t.phone || "").replace(/\D/g, "");
+                    const trainerId = getDisplayTrainerId(t);
                     const msg = encodeURIComponent(
-                      `🏋️ *UNIVO GYM TRAINER PORTAL LOGIN*\n\nHi Coach *${t.name}*,\nHere are your login credentials to access your Trainer Portal:\n\n👤 *Login ID:* ${t.email || t.loginEmail}\n🔑 *Password:* ${t.password || t.loginPassword || "Coach@123"}\n🔗 *Login Link:* ${window.location.origin}/#/login\n\nYou can now log in, view your assigned PT athletes, track their progress, and create custom diet plans!`
+                      `🏋️ *UNIVO GYM TRAINER PORTAL LOGIN*\n\nHi Coach *${t.name}*,\nHere are your login credentials to access your Trainer Portal:\n\n🆔 *Trainer Login ID:* ${trainerId}\n🔑 *Password:* ${t.password || t.loginPassword || "Coach@123"}\n🔗 *Login Link:* ${window.location.origin}/#/login\n\n🔒 *Important:* Multi-gym data security ke liye login sirf Trainer ID & Password se hoga (Email/Phone login band hai).\n\nYou can now log in, view your assigned PT athletes, track their progress, and create custom diet plans!`
                     );
                     window.open(`https://wa.me/${num}?text=${msg}`, "_blank");
                   }}
-                  className="shrink-0 text-[10px] font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded-lg flex items-center gap-1 transition ml-1"
-                  title="Share Login Credentials via WhatsApp"
+                  className="shrink-0 text-[10px] font-bold text-teal-700 bg-teal-100 hover:bg-teal-200 px-2 py-0.5 rounded-lg flex items-center gap-1 transition ml-1"
+                  title="Share Official Trainer Login ID via WhatsApp"
                 >
                   <Send className="w-2.5 h-2.5" /> Share
                 </button>

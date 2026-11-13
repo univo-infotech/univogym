@@ -2,8 +2,10 @@ import { useAuth } from "../contexts/AuthContext";
 
 export function usePermissions(moduleId) {
   const { role, permissions } = useAuth();
+  const rawRole = role || localStorage.getItem("univo_active_role") || "";
+  const activeRole = String(rawRole).toLowerCase().trim();
   
-  if (role === "owner") {
+  if (role === "owner" || activeRole === "owner" || activeRole === "co-owner") {
     return { view: true, create: true, edit: true, delete: true };
   }
   

@@ -1451,19 +1451,16 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <div>
                   <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
-                    Login ID / Phone *
+                    Official Member Login ID *
                   </label>
-                  <input
-                    type="text"
-                    value={formData.loginEmail}
-                    onChange={(e) => setFormData({ ...formData, loginEmail: e.target.value })}
-                    placeholder={formData.phone || formData.email || "e.g. 9876543210"}
-                    className="w-full bg-slate-900 border border-indigo-500/40 rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-400 font-medium"
-                  />
+                  <div className="w-full bg-slate-900/90 border border-indigo-500/40 rounded-xl px-3.5 py-2 text-xs text-indigo-300 font-mono font-bold flex items-center justify-between">
+                    <span>Auto-Generated (e.g. M-849201)</span>
+                    <span className="text-[9px] bg-indigo-500/20 text-indigo-200 px-1.5 py-0.5 rounded font-sans uppercase">Gym Isolated</span>
+                  </div>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block mb-1">
-                    Create Login Password *
+                    Portal Login Password *
                   </label>
                   <input
                     type="text"
@@ -1475,7 +1472,7 @@ export default function DirectAddMemberModal({ isOpen, onClose, onSuccess, plans
                 </div>
               </div>
               <p className="text-[10px] text-indigo-300/80 italic">
-                💡 Default password is set to <span className="font-mono text-emerald-300 font-bold">Member@123</span>. Member can sign in at <span className="font-mono text-white font-semibold">/#/login</span>.
+                💡 <span className="font-bold text-white">Multi-Gym Isolation:</span> Member is issued a unique Member ID. Member will log in at <span className="font-mono text-white font-semibold">/#/login</span> with Member ID & Password (Phone/Email login is disabled to prevent cross-gym collisions).
               </p>
             </div>
 

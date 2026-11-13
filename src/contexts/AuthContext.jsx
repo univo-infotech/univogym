@@ -17,14 +17,24 @@ function getInitialAuthState() {
       if (savedMember) {
         const parsed = JSON.parse(savedMember);
         if (parsed && (parsed.id || parsed.uid)) {
-          return {
-            user: { uid: parsed.id || parsed.uid, displayName: parsed.name || parsed.fullName || "Athlete", email: parsed.email || parsed.loginEmail, ...parsed },
-            role: "member",
-            gymId: parsed.gymId || "univo_main",
-            profileId: parsed.id || parsed.uid,
-            permissions: [],
-            loading: false,
-          };
+          if (
+            parsed.status === "left" ||
+            parsed.status === "ended" ||
+            parsed.memberPortalAccess === false ||
+            parsed.active === false
+          ) {
+            localStorage.removeItem("univo_member_session");
+            if (activeRole === "member") localStorage.removeItem("univo_active_role");
+          } else {
+            return {
+              user: { uid: parsed.id || parsed.uid, displayName: parsed.name || parsed.fullName || "Athlete", email: parsed.email || parsed.loginEmail, ...parsed },
+              role: "member",
+              gymId: parsed.gymId || "univo_main",
+              profileId: parsed.id || parsed.uid,
+              permissions: [],
+              loading: false,
+            };
+          }
         }
       }
     }
@@ -35,25 +45,27 @@ function getInitialAuthState() {
         try {
           const parsed = JSON.parse(savedTrainer);
           if (parsed && (parsed.id || parsed.uid)) {
-            return {
-              user: { uid: parsed.id || parsed.uid, displayName: parsed.name || "Coach", email: parsed.email || parsed.loginEmail, ...parsed },
-              role: "trainer",
-              gymId: parsed.gymId || "univo_main",
-              profileId: parsed.id || parsed.uid,
-              permissions: [],
-              loading: false,
-            };
+            if (
+              parsed.isActive === false ||
+              parsed.status === "left" ||
+              parsed.status === "inactive" ||
+              parsed.active === false
+            ) {
+              localStorage.removeItem("univo_trainer_session");
+              if (activeRole === "trainer") localStorage.removeItem("univo_active_role");
+            } else {
+              return {
+                user: { uid: parsed.id || parsed.uid, displayName: parsed.name || "Coach", email: parsed.email || parsed.loginEmail, ...parsed },
+                role: "trainer",
+                gymId: parsed.gymId || "univo_main",
+                profileId: parsed.id || parsed.uid,
+                permissions: [],
+                loading: false,
+              };
+            }
           }
         } catch (e) {}
       }
-      return {
-        user: { uid: "trainer_user", displayName: "Coach", role: "trainer" },
-        role: "trainer",
-        gymId: "univo_main",
-        profileId: "trainer_user",
-        permissions: [],
-        loading: false,
-      };
     }
 
     // 3. If active role is staff
@@ -69,6 +81,26 @@ function getInitialAuthState() {
           loading: false,
         };
       }
+    }
+
+    // 4. If active role is owner or co-owner
+    const normalizedActiveRole = String(activeRole || "").toLowerCase().trim();
+    if (normalizedActiveRole === "owner" || normalizedActiveRole === "co-owner") {
+      const savedOwner = localStorage.getItem("univo_owner_session") || savedStaff;
+      let ownerObj = null;
+      if (savedOwner) {
+        try {
+          ownerObj = JSON.parse(savedOwner);
+        } catch (e) {}
+      }
+      return {
+        user: ownerObj || { uid: "owner_user", displayName: "Gym Owner", role: "owner" },
+        role: "owner",
+        gymId: ownerObj?.gymId || "univo_main",
+        profileId: ownerObj?.profileId || null,
+        permissions: [],
+        loading: false,
+      };
     }
   } catch (e) {
     console.warn("Notice reading initial auth state:", e);
@@ -210,9 +242,21 @@ export function AuthProvider({ children }) {
           setProfileId(userData.profileId || null);
           setPermissions(userData.permissions || []);
           localStorage.setItem("univo_active_role", ownerRole);
+          if (ownerRole === "owner") {
+            localStorage.setItem("univo_owner_session", JSON.stringify({
+              uid: firebaseUser.uid,
+              displayName: firebaseUser.displayName || "Gym Owner",
+              email: firebaseUser.email,
+              role: "owner",
+              gymId: userData.gymId || "univo_main",
+              ...userData
+            }));
+          }
           localStorage.removeItem("univo_trainer_session");
           localStorage.removeItem("univo_member_session");
-          localStorage.removeItem("univo_staff_session");
+          if (ownerRole === "owner") {
+            localStorage.removeItem("univo_staff_session");
+          }
         } else {
           // If no active session whatsoever
           if (!savedMember && !savedTrainer && !savedStaff) {

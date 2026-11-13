@@ -16,29 +16,47 @@ import { useNavigate } from "react-router-dom";
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, role, loading } = useAuth();
-  const activeRole = role || localStorage.getItem("univo_active_role");
+  const rawRole = role || localStorage.getItem("univo_active_role") || "";
+  const activeRole = String(rawRole).toLowerCase().trim();
   const hasSession =
     Boolean(user) ||
     Boolean(localStorage.getItem("univo_trainer_session")) ||
     Boolean(localStorage.getItem("univo_member_session")) ||
     Boolean(localStorage.getItem("univo_staff_session")) ||
+    Boolean(localStorage.getItem("univo_owner_session")) ||
     Boolean(localStorage.getItem("univo_active_role"));
 
-  if (loading && !hasSession) return <Loader />;
-  if (!hasSession && !user) return <Navigate to="/login" replace />;
-  if (allowedRoles && !allowedRoles.includes(activeRole)) return <Navigate to="/unauthorized" replace />;
+  if (loading && !activeRole) return <Loader />;
+  if (!hasSession && !user && !activeRole) return <Navigate to="/login" replace />;
+  if (loading) return <Loader />;
+
+  // OWNER and CO-OWNER have master access across the entire gym portal - never deny owner
+  if (activeRole === "owner" || activeRole === "co-owner") {
+    return children;
+  }
+
+  const normalizedAllowedRoles = (allowedRoles || []).map((r) => String(r).toLowerCase().trim());
+  if (normalizedAllowedRoles.length > 0 && !normalizedAllowedRoles.includes(activeRole)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
   return children;
 }
 
 function UnauthorizedPage() {
   const navigate = useNavigate();
-  const { role, logoutUser } = useAuth();
-  const activeRole = role || localStorage.getItem("univo_active_role") || "guest";
+  const { role, logoutUser, user } = useAuth();
+  const rawRole = role || localStorage.getItem("univo_active_role") || (localStorage.getItem("univo_owner_session") ? "owner" : "guest");
+  const activeRole = String(rawRole).toLowerCase().trim();
+
+  // If owner, co-owner, or master owner ever hits /unauthorized, auto-redirect directly to owner dashboard
+  if (activeRole === "owner" || activeRole === "co-owner" || user?.email === "univo@gmail.com" || Boolean(localStorage.getItem("univo_owner_session"))) {
+    return <Navigate to="/owner/dashboard" replace />;
+  }
 
   const getDashboardPath = () => {
     if (activeRole === "trainer") return "/trainer/dashboard";
     if (activeRole === "member") return "/member/dashboard";
-    if (activeRole === "owner" || activeRole === "staff") return "/owner/dashboard";
+    if (activeRole === "owner" || activeRole === "staff" || activeRole === "co-owner") return "/owner/dashboard";
     return "/login";
   };
 
@@ -50,6 +68,7 @@ function UnauthorizedPage() {
     localStorage.removeItem("univo_trainer_session");
     localStorage.removeItem("univo_member_session");
     localStorage.removeItem("univo_staff_session");
+    localStorage.removeItem("univo_owner_session");
     navigate("/login", { replace: true });
   };
 
@@ -86,12 +105,14 @@ function UnauthorizedPage() {
 
 export default function App() {
   const { user, role, loading } = useAuth();
-  const activeRole = role || localStorage.getItem("univo_active_role");
+  const rawRole = role || localStorage.getItem("univo_active_role") || "";
+  const activeRole = String(rawRole).toLowerCase().trim();
   const hasSession =
     Boolean(user) ||
     Boolean(localStorage.getItem("univo_trainer_session")) ||
     Boolean(localStorage.getItem("univo_member_session")) ||
     Boolean(localStorage.getItem("univo_staff_session")) ||
+    Boolean(localStorage.getItem("univo_owner_session")) ||
     Boolean(localStorage.getItem("univo_active_role"));
 
   return (
@@ -103,7 +124,7 @@ export default function App() {
           loading && !hasSession ? (
             <Loader />
           ) : hasSession ? (
-            (activeRole === "owner" || activeRole === "staff") ? (
+            (activeRole === "owner" || activeRole === "staff" || activeRole === "co-owner") ? (
               <Navigate to="/owner/dashboard" replace />
             ) : activeRole === "trainer" ? (
               <Navigate to="/trainer/dashboard" replace />

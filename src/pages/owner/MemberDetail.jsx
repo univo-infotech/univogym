@@ -37,13 +37,14 @@ import {
   Layers
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { getMember, updateMember } from "../../firebase/members";
+import { getMember, updateMember, saveMemberLocalOverride } from "../../firebase/members";
 import { getMemberPayments, addPayment } from "../../firebase/payments";
 import { getTrainers } from "../../firebase/trainers";
 import { getPlans } from "../../firebase/plans";
 import { generatePaymentReceipt } from "../../utils/pdf";
 import { getGymSettings } from "../../utils/settings";
 import { openWhatsApp, generatePtAddonReceiptMessage, generateMemberLoginMessage } from "../../utils/whatsapp";
+import { getDisplayMemberId } from "../../utils/idGenerator";
 import { invalidateCache } from "../../utils/dataCache";
 import { calculateBmi, parseHeightToMeters } from "../../utils/bmi";
 import { toIndianDate, hasPt, isNonPtTrainer } from "./members/memberUtils";
@@ -119,16 +120,35 @@ export default function MemberDetail() {
       toast.error("Password cannot be empty");
       return;
     }
+    const newPass = passInput.trim();
     setIsSavingPass(true);
     try {
+      const displayId = getDisplayMemberId(member);
+      saveMemberLocalOverride(targetMemberId, {
+        loginPassword: newPass,
+        password: newPass,
+      });
+      if (displayId && displayId !== targetMemberId) {
+        saveMemberLocalOverride(displayId, {
+          loginPassword: newPass,
+          password: newPass,
+        });
+        try {
+          localStorage.setItem(`univo_pass_${displayId}`, newPass);
+        } catch (e) {}
+      }
+      try {
+        localStorage.setItem(`univo_pass_${targetMemberId}`, newPass);
+      } catch (e) {}
+
       await updateMember("univo_main", targetMemberId, {
-        loginPassword: passInput.trim(),
-        password: passInput.trim(),
+        loginPassword: newPass,
+        password: newPass,
       });
       setMember(prev => ({
         ...prev,
-        loginPassword: passInput.trim(),
-        password: passInput.trim()
+        loginPassword: newPass,
+        password: newPass
       }));
       invalidateCache("members");
       toast.success("Member login password updated successfully!");
@@ -163,11 +183,12 @@ export default function MemberDetail() {
       toast.error("Member phone number not available");
       return;
     }
+    const memId = getDisplayMemberId(member);
     const memPass = member.loginPassword || member.password || "Member@123";
     const appUrl = `${window.location.origin}/#/login`;
     const msg = generateMemberLoginMessage(
       member.name || member.fullName || "Member",
-      member.phone || "—",
+      memId,
       memPass,
       appUrl,
       settings?.gymName
@@ -656,15 +677,44 @@ export default function MemberDetail() {
 
               {/* Credentials 3-Column Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-                {/* Login ID (Mobile) */}
+                {/* Official Member Login ID */}
+                <div className="p-4 rounded-2xl bg-slate-800/80 border border-indigo-500/50 ring-1 ring-indigo-500/30 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1.5">
+                      <span className="flex items-center gap-1.5 font-semibold text-indigo-300">
+                        <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" /> Member Login ID
+                      </span>
+                      <span className="text-[9px] uppercase font-black text-emerald-300 bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded">
+                        Official ID
+                      </span>
+                    </div>
+                    <div className="font-mono font-black text-lg text-white tracking-wider truncate">
+                      {getDisplayMemberId(member)}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(getDisplayMemberId(member), "Member ID")}
+                    className="mt-3 text-xs font-semibold text-indigo-300 hover:text-white flex items-center gap-1.5 transition self-start cursor-pointer"
+                  >
+                    {copiedKey === "Member ID" ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" /> Copy Member ID
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Registered Phone */}
                 <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1.5">
                       <span className="flex items-center gap-1.5 font-semibold text-slate-300">
-                        <Smartphone className="w-3.5 h-3.5 text-indigo-400" /> Primary Login (Phone)
-                      </span>
-                      <span className="text-[9px] uppercase font-bold text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded">
-                        Default ID
+                        <Smartphone className="w-3.5 h-3.5 text-teal-400" /> Registered Phone
                       </span>
                     </div>
                     <div className="font-mono font-bold text-base text-white tracking-wide truncate">
@@ -686,7 +736,7 @@ export default function MemberDetail() {
                     <button
                       type="button"
                       onClick={() => handleCopy(member.phone, "Phone Number")}
-                      className="mt-3 text-xs font-semibold text-indigo-300 hover:text-white flex items-center gap-1.5 transition self-start"
+                      className="mt-3 text-xs font-semibold text-teal-300 hover:text-white flex items-center gap-1.5 transition self-start cursor-pointer"
                     >
                       {copiedKey === "Phone Number" ? (
                         <>
@@ -695,40 +745,6 @@ export default function MemberDetail() {
                       ) : (
                         <>
                           <Copy className="w-3.5 h-3.5" /> Copy Phone
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-
-                {/* Login Email */}
-                <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between text-xs text-slate-400 font-medium mb-1.5">
-                      <span className="flex items-center gap-1.5 font-semibold text-slate-300">
-                        <Mail className="w-3.5 h-3.5 text-teal-400" /> Alternate ID (Email)
-                      </span>
-                    </div>
-                    <div
-                      className="font-mono font-bold text-sm text-white tracking-wide truncate"
-                      title={memberEmail || "Not set"}
-                    >
-                      {memberEmail || "Not set"}
-                    </div>
-                  </div>
-                  {memberEmail && (
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(memberEmail, "Email")}
-                      className="mt-3 text-xs font-semibold text-teal-300 hover:text-white flex items-center gap-1.5 transition self-start"
-                    >
-                      {copiedKey === "Email" ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" /> <span className="text-emerald-400">Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" /> Copy Email
                         </>
                       )}
                     </button>
@@ -836,12 +852,12 @@ export default function MemberDetail() {
 
               {/* Hint footer */}
               <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between text-[11px] text-slate-400 gap-2">
-                <span className="flex items-center gap-1.5">
-                  💡 <span className="text-slate-300">Tip:</span> Member apne Mobile Number ya Email me se koi bhi ID daal kar password ke sath login kar sakta hai.
-                </span>
-                <span className="font-mono text-slate-400 text-[10px] bg-slate-800/80 px-2 py-0.5 rounded">
+                <div className="leading-relaxed">
+                  💡 <strong className="text-slate-300">Important:</strong> Multi-gym conflict se bachne ke liye Member Portal login sirf Unique Member ID (<span className="text-emerald-400 font-mono font-bold whitespace-nowrap">{getDisplayMemberId(member)}</span>) aur password se hoga. Phone/Email se login band hai.
+                </div>
+                <div className="font-mono text-slate-300 text-[10px] bg-slate-800/90 px-2.5 py-1 rounded shrink-0">
                   Default Password: Member@123
-                </span>
+                </div>
               </div>
             </div>
 

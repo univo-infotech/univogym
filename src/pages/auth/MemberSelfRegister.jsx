@@ -48,6 +48,7 @@ import {
   addMember,
   getMembers,
 } from '../../firebase/members';
+import { getDisplayMemberId } from '../../utils/idGenerator';
 import { getActivePlans } from '../../firebase/plans';
 import { getTrainers } from '../../firebase/trainers';
 import { getServices, isServiceIncludedInPlan, getPlanDurationMonths, calculateServiceEndDate } from '../../firebase/services';
@@ -377,6 +378,7 @@ export default function MemberSelfRegister() {
   // PT Login Credentials
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('Member@123');
+  const [assignedMemberId, setAssignedMemberId] = useState('');
 
   // Plan duration in months (e.g. 1 Month, 3 Months, 6 Months, 12 Months)
   const planDurationMonths = useMemo(() => {
@@ -888,6 +890,8 @@ export default function MemberSelfRegister() {
 
       // 1. Add member document to Firestore & local cache
       const createdMemberId = await addMember(gymId || 'univo_main', memberPayload);
+      const finalId = getDisplayMemberId({ id: createdMemberId, memberId: memberPayload.memberId });
+      setAssignedMemberId(finalId);
 
       // 2. Mark token as used
       try {
@@ -988,24 +992,30 @@ export default function MemberSelfRegister() {
           <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-900 to-slate-900 text-white border border-emerald-500/30 text-left space-y-2.5 shadow-lg">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                🔑 Your Member Portal Login Credentials
+                🔑 Your Official Member Portal Credentials
               </span>
               <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/40">
                 {selectedTrainer ? `Coach: ${selectedTrainer.name}` : 'Member Portal'}
               </span>
             </div>
-            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Login ID / Phone:</span>
-                <span className="font-mono font-bold text-white">{loginEmail || tokenData?.phone || personalData.phone}</span>
+            <div className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Official Member ID:</span>
+                <span className="font-mono font-black text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/40 text-sm">
+                  {assignedMemberId || 'M-100001'}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Password:</span>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Registered Phone:</span>
+                <span className="font-mono font-medium text-slate-300">{personalData.phone || tokenData?.phone || '—'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Portal Password:</span>
                 <span className="font-mono font-bold text-emerald-300">{loginPassword || 'Member@123'}</span>
               </div>
             </div>
             <p className="text-[10px] text-slate-300">
-              You can sign into the Member Portal with these credentials to view your active plan, attendance streak, workout routine, and fee receipts.
+              🔒 <strong className="text-white">Multi-Gym Isolation:</strong> Sign into the Member Portal using your <strong>Official Member ID ({assignedMemberId || 'M-100001'})</strong> & password. Phone/Email login is disabled to avoid cross-gym collisions.
             </p>
           </div>
 

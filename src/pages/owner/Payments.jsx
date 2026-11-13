@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   CreditCard,
   Receipt,
@@ -109,6 +109,7 @@ function calculateEndDate(startDateStr, months) {
 
 export default function Payments() {
   const location = useLocation();
+  const navigate = useNavigate();
   const isUpiApprovalsPath = location.pathname.includes("upi-approvals");
   const urlTab = new URLSearchParams(location.search).get("tab") || location.state?.tab || (isUpiApprovalsPath ? "online_requests" : null);
 
@@ -874,10 +875,10 @@ export default function Payments() {
 
           <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
             <button
-              onClick={() => setStatusFilter("online_requests")}
-              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition shadow-md whitespace-nowrap flex items-center gap-1.5"
+              onClick={() => navigate("/owner/upi-approvals")}
+              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition shadow-md whitespace-nowrap flex items-center gap-1.5 cursor-pointer"
             >
-              Review Requests ({counts.online_requests}) →
+              Review in Online UPI Approvals ({counts.online_requests}) →
             </button>
           </div>
         </div>
@@ -1039,17 +1040,14 @@ export default function Payments() {
               Left Gym <span className="text-[10px] px-1 rounded-full bg-slate-200 text-slate-800">{counts.left}</span>
             </button>
 
-            {/* Online UPI Requests Tab */}
+            {/* Online UPI Requests Button (Direct link to dedicated UPI Approvals portal) */}
             <button
-              onClick={() => setStatusFilter("online_requests")}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
-                statusFilter === "online_requests"
-                  ? "bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400"
-                  : "bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100"
-              }`}
+              onClick={() => navigate("/owner/upi-approvals")}
+              className="px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 cursor-pointer shadow-2xs"
+              title="Open Online UPI Approvals Portal"
             >
-              <QrCode className="w-3.5 h-3.5" />
-              Online UPI Requests{" "}
+              <QrCode className="w-3.5 h-3.5 text-emerald-600" />
+              Online UPI Approvals{" "}
               <span
                 className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
                   counts.online_requests > 0

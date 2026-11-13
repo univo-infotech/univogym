@@ -4,6 +4,7 @@ import {
   getDoc,
   getDocs,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   query,
@@ -14,6 +15,32 @@ import {
 } from "firebase/firestore";
 import { db } from "./config";
 import { getCachedData, setCachedData, invalidateCache } from "../utils/dataCache";
+import { generateUniqueMemberId } from "../utils/idGenerator";
+
+/**
+ * Local overrides for members (guarantees password updates and edits persist instantly with 0ms lag)
+ */
+export function saveMemberLocalOverride(memberId, patch) {
+  try {
+    if (!memberId) return;
+    const key = "univo_member_overrides";
+    const existing = JSON.parse(localStorage.getItem(key) || "{}");
+    existing[memberId] = { ...(existing[memberId] || {}), ...patch };
+    localStorage.setItem(key, JSON.stringify(existing));
+    if (patch.password || patch.loginPassword) {
+      localStorage.setItem(`univo_pass_${memberId}`, patch.password || patch.loginPassword);
+    }
+  } catch (e) {}
+}
+
+export function getMemberLocalOverrides() {
+  try {
+    const key = "univo_member_overrides";
+    return JSON.parse(localStorage.getItem(key) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
 
 /**
  * Fetch all members for a given gym.
@@ -84,28 +111,14 @@ export async function getMembers(gymId, forceRefresh = false) {
     console.warn("getMembers sub-collection warning:", subErr);
   }
 
-  // 3. Merge DEMO_MEMBERS so that default members (e.g. Ajay Prajapati m2) are always present
-  DEMO_MEMBERS.forEach((dm) => {
-    const dmPhone = (dm.phone || "").replace(/\D/g, "");
-    const dmEmail = (dm.email || "").toLowerCase();
-    const alreadyExists = membersList.some((m) => {
-      const mP = (m.phone || "").replace(/\D/g, "");
-      const mE = (m.email || m.loginEmail || "").toLowerCase();
-      return (
-        m.id === dm.id ||
-        (dmEmail && mE === dmEmail) ||
-        (dmPhone.length >= 10 && mP && mP.endsWith(dmPhone.slice(-10)))
-      );
-    });
 
-    if (!alreadyExists) {
-      membersList.push({
-        ...dm,
-        gymId: targetGymId,
-        password: dm.password || dm.loginPassword || "Member@123",
-        loginPassword: dm.loginPassword || dm.password || "Member@123",
-      });
-    }
+
+  // Merge with locally persisted overrides (guarantees updated passwords/details are never lost)
+  const overrides = getMemberLocalOverrides();
+  membersList = membersList.map((m) => {
+    const localPass = (typeof window !== "undefined") ? localStorage.getItem(`univo_pass_${m.id}`) : null;
+    const passObj = localPass ? { loginPassword: localPass, password: localPass } : {};
+    return { ...m, ...(overrides[m.id] || {}), ...passObj };
   });
 
   // Sort descending by creation date
@@ -230,13 +243,18 @@ export async function getMember(gymIdOrMemberId, optionalMemberId) {
   const memberId = optionalMemberId || gymIdOrMemberId;
   if (!memberId) return null;
 
+  const overrides = getMemberLocalOverrides();
+  const localMem = overrides[memberId] || {};
+  const localPass = (typeof window !== "undefined") ? localStorage.getItem(`univo_pass_${memberId}`) : null;
+  const passObj = localPass ? { loginPassword: localPass, password: localPass } : {};
+
   try {
     const snap = await getDoc(doc(db, "members", memberId));
     if (snap.exists()) {
-      return { id: snap.id, ...snap.data() };
+      return { id: snap.id, ...snap.data(), ...localMem, ...passObj };
     }
   } catch (err) {
-    console.error("getMember firestore error:", err);
+    console.warn("getMember firestore note:", err);
   }
 
   // Also query by memberId field in Firestore if doc id differs
@@ -244,15 +262,23 @@ export async function getMember(gymIdOrMemberId, optionalMemberId) {
     const q = query(collection(db, "members"), where("id", "==", memberId));
     const qSnap = await getDocs(q);
     if (!qSnap.empty) {
-      return { id: qSnap.docs[0].id, ...qSnap.docs[0].data() };
+      return { id: qSnap.docs[0].id, ...qSnap.docs[0].data(), ...localMem, ...passObj };
     }
   } catch (e) {
     // Ignore
   }
 
-  // Check DEMO_MEMBERS fallback
-  const demoFound = DEMO_MEMBERS.find((m) => m.id === memberId || m.name?.toLowerCase() === memberId.toLowerCase());
-  if (demoFound) return demoFound;
+  // Sub-collection fallback
+  try {
+    const subSnap = await getDoc(doc(db, "gyms", "univo_main", "members", memberId));
+    if (subSnap.exists()) {
+      return { id: subSnap.id, ...subSnap.data(), ...localMem, ...passObj };
+    }
+  } catch (e2) {}
+
+  if (Object.keys(localMem).length > 0) {
+    return { id: memberId, ...localMem, ...passObj };
+  }
 
   return null;
 }
@@ -332,25 +358,40 @@ export async function updateMember(arg1, arg2, arg3) {
 
   if (!memberId) return;
 
+  // 1. Immediately persist to localStorage override so all tabs/routes see it with 0ms lag
+  saveMemberLocalOverride(memberId, data);
+
+  // 2. Resilient Firestore write to top-level members collection
   try {
-    await updateDoc(doc(db, "members", memberId), {
+    await setDoc(doc(db, "members", memberId), {
       ...data,
       updatedAt: serverTimestamp(),
-    });
+    }, { merge: true });
   } catch (err) {
-    // If not found by doc id, attempt to query by member 'id' field or 'phone'
-    try {
-      const q = query(collection(db, "members"), where("id", "==", memberId));
-      const qSnap = await getDocs(q);
-      if (!qSnap.empty) {
-        await updateDoc(doc(db, "members", qSnap.docs[0].id), {
-          ...data,
-          updatedAt: serverTimestamp(),
-        });
+    console.warn("Top-level updateMember note:", err);
+  }
+
+  // 3. Resilient Firestore write to gym sub-collection
+  try {
+    await setDoc(doc(db, "gyms", gymId, "members", memberId), {
+      ...data,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  } catch (err2) {
+    console.warn("Sub-collection updateMember note:", err2);
+  }
+
+  // 4. Fallback search by 'id' query if document ID was different
+  try {
+    const q = query(collection(db, "members"), where("id", "==", memberId));
+    const qSnap = await getDocs(q);
+    if (!qSnap.empty) {
+      for (const d of qSnap.docs) {
+        await setDoc(doc(db, "members", d.id), { ...data, updatedAt: serverTimestamp() }, { merge: true });
       }
-    } catch (qErr) {
-      console.warn("updateDoc query fallback error:", qErr);
     }
+  } catch (qErr) {
+    // Ignore
   }
 
   // Update or invalidate active member session
@@ -467,9 +508,15 @@ export async function addMember(gymId, memberData) {
   const effectiveGymId = gymId || "univo_main";
   const nowIso = new Date().toISOString();
   let memberId = "mem_" + Date.now();
+  
+  // Ensure unique human-readable Universal Member ID (M-XXXXXX) is always assigned
+  const uniqueMemberCode =
+    memberData.memberId ||
+    generateUniqueMemberId();
 
   const payload = {
     ...memberData,
+    memberId: uniqueMemberCode,
     gymId: effectiveGymId,
     status: memberData.status || "active",
     createdAt: nowIso,
@@ -477,9 +524,7 @@ export async function addMember(gymId, memberData) {
 
   try {
     const ref = await addDoc(collection(db, "members"), {
-      ...memberData,
-      gymId: effectiveGymId,
-      status: memberData.status || "active",
+      ...payload,
       createdAt: serverTimestamp(),
     });
     memberId = ref.id;
@@ -521,6 +566,30 @@ export async function deleteMember(gymIdOrMemberId, maybeMemberId) {
   try {
     await deleteDoc(doc(db, `gyms/${targetGymId}/members`, memberId));
   } catch (err) {}
+
+  // Wipe active member session if deleted member is logged in locally
+  try {
+    const sessionStr = localStorage.getItem("univo_member_session");
+    if (sessionStr) {
+      const sess = JSON.parse(sessionStr);
+      if (sess.id === memberId) {
+        localStorage.removeItem("univo_member_session");
+        if (localStorage.getItem("univo_active_role") === "member") {
+          localStorage.removeItem("univo_active_role");
+        }
+      }
+    }
+  } catch (e) {}
+
+  // Broadcast cross-tab and cross-device force logout
+  try {
+    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+      const channel = new BroadcastChannel("univo_session_channel");
+      channel.postMessage({ type: "FORCE_LOGOUT", memberId, reason: "account_deleted" });
+      channel.close();
+    }
+    localStorage.setItem("univo_force_logout", `${memberId}_${Date.now()}`);
+  } catch (e) {}
 
   invalidateCache("members");
 }

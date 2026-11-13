@@ -13,6 +13,7 @@ import Memberships from "../pages/owner/Memberships";
 import Services from "../pages/owner/Services";
 import Stock from "../pages/owner/Stock";
 import Payments from "../pages/owner/Payments";
+import UpiApprovals from "../pages/owner/UpiApprovals";
 import Expenses from "../pages/owner/Expenses";
 import Reports from "../pages/owner/Reports";
 import Visits from "../pages/owner/Visits";
@@ -27,7 +28,19 @@ import { usePermissions } from "../hooks/usePermissions";
 import { useAuth } from "../contexts/AuthContext";
 
 function PermissionRoute({ moduleId, children }) {
+  const { role, loading } = useAuth();
+  const rawRole = role || localStorage.getItem("univo_active_role") || "owner";
+  const activeRole = String(rawRole).toLowerCase().trim();
   const { view } = usePermissions(moduleId);
+
+  if (activeRole === "owner" || activeRole === "co-owner" || role === "owner") {
+    return children;
+  }
+
+  if (loading) {
+    return null;
+  }
+
   if (!view) {
     return <Navigate to="/unauthorized" replace />;
   }
@@ -36,9 +49,11 @@ function PermissionRoute({ moduleId, children }) {
 
 export default function OwnerRoutes() {
   const { role } = useAuth();
+  const rawRole = role || localStorage.getItem("univo_active_role") || "owner";
+  const activeRole = String(rawRole).toLowerCase().trim();
   
   return (
-    <Layout role={role}>
+    <Layout role={activeRole}>
       <Routes>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<PermissionRoute moduleId="dashboard"><OwnerDashboard /></PermissionRoute>} />
@@ -46,7 +61,7 @@ export default function OwnerRoutes() {
         <Route path="members/:memberId" element={<PermissionRoute moduleId="members"><MemberDetail /></PermissionRoute>} />
         <Route path="attendance" element={<Attendance />} />
         <Route path="payments" element={<PermissionRoute moduleId="payments"><Payments /></PermissionRoute>} />
-        <Route path="upi-approvals" element={<PermissionRoute moduleId="payments"><Payments /></PermissionRoute>} />
+        <Route path="upi-approvals" element={<PermissionRoute moduleId="payments"><UpiApprovals /></PermissionRoute>} />
         <Route path="trainers" element={<PermissionRoute moduleId="trainers"><Trainers /></PermissionRoute>} />
         <Route path="trainers/:trainerId" element={<PermissionRoute moduleId="trainers"><TrainerDetail /></PermissionRoute>} />
         <Route path="staff" element={<PermissionRoute moduleId="staff"><Staff /></PermissionRoute>} />
@@ -64,7 +79,7 @@ export default function OwnerRoutes() {
         <Route path="customization" element={<Customization />} />
         
         {/* Roles config is strictly owner only */}
-        <Route path="roles" element={role === 'owner' ? <RolesPermissions /> : <Navigate to="/unauthorized" replace />} />
+        <Route path="roles" element={(activeRole === 'owner' || activeRole === 'co-owner' || role === 'owner') ? <RolesPermissions /> : <Navigate to="/unauthorized" replace />} />
         
         <Route path="*" element={<Navigate to="dashboard" replace />} />
       </Routes>

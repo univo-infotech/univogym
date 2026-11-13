@@ -11,6 +11,7 @@ import { signOut } from "firebase/auth";
 import { db, auth } from "./config.js";
 import { resetGymSettings } from "../utils/settings.js";
 import { invalidateCache } from "../utils/dataCache.js";
+import { clearLocalTrainers } from "./trainers.js";
 
 /**
  * 6-MONTH REALISTIC GYM SEED DATA
@@ -18,7 +19,7 @@ import { invalidateCache } from "../utils/dataCache.js";
  * Date range spans from 6 months ago (March 2026) up to current date (September 2026).
  */
 
-export async function clearAllGymData(gymId = "univo_main") {
+export async function clearAllGymData(gymId = "univo_main", shouldLogout = false) {
   const targetGymIds = Array.from(new Set([gymId, "univo_main", "default"].filter(Boolean)));
   let totalDeleted = 0;
 
@@ -46,7 +47,8 @@ export async function clearAllGymData(gymId = "univo_main") {
     "chats",
     "messages",
     "inviteTokens",
-    "users"
+    "users",
+    "renewal_requests"
   ];
 
   for (const gId of targetGymIds) {
@@ -73,7 +75,8 @@ export async function clearAllGymData(gymId = "univo_main") {
       `gyms/${gId}/messages`,
       `gyms/${gId}/chatRooms`,
       `gyms/${gId}/inviteTokens`,
-      `gyms/${gId}/settings`
+      `gyms/${gId}/settings`,
+      `gyms/${gId}/renewal_requests`
     );
   }
 
@@ -117,59 +120,273 @@ export async function clearAllGymData(gymId = "univo_main") {
     }
   }
 
-  // 4. Record global reset signal in Firestore for real-time cross-device forced logout
   const nowTs = Date.now();
-  try {
-    await setDoc(doc(db, "system", "app_status"), {
-      lastResetAt: nowTs,
-      isReset: true,
-      resetAtIso: new Date().toISOString()
-    });
-  } catch (e) {
-    console.warn("Could not set system/app_status:", e);
-  }
 
-  for (const gId of targetGymIds) {
+  // Clear business data stored in LocalStorage regardless of logout status
+  try {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      // Never remove owner session if shouldLogout is false
+      if (!shouldLogout && (key === "univo_owner_session" || key === "univo_active_role" || key.startsWith("firebase:authUser"))) {
+        continue;
+      }
+      if (
+        key.startsWith("univo_pass_") ||
+        key === "univo_member_overrides" ||
+        key === "univo_renewal_requests" ||
+        key === "univo_member_session" ||
+        key === "univo_trainer_session" ||
+        key.startsWith("members_") ||
+        key.startsWith("trainers_") ||
+        key.startsWith("payments_") ||
+        key.startsWith("expenses_") ||
+        key.startsWith("stock_") ||
+        key.startsWith("plans_") ||
+        key.startsWith("services_") ||
+        key.startsWith("visits_") ||
+        key.startsWith("attendance_") ||
+        key.startsWith("reports_")
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch (e) {}
+
+  if (shouldLogout) {
+    // 4. Record global reset signal in Firestore for real-time cross-device forced logout
     try {
-      await setDoc(doc(db, "gyms", gId, "system", "app_status"), {
+      await setDoc(doc(db, "system", "app_status"), {
         lastResetAt: nowTs,
         isReset: true,
         resetAtIso: new Date().toISOString()
       });
+    } catch (e) {
+      console.warn("Could not set system/app_status:", e);
+    }
+
+    for (const gId of targetGymIds) {
+      try {
+        await setDoc(doc(db, "gyms", gId, "system", "app_status"), {
+          lastResetAt: nowTs,
+          isReset: true,
+          resetAtIso: new Date().toISOString()
+        });
+      } catch (e) {}
+    }
+
+    // 5. Broadcast forced logout across all open browser tabs
+    try {
+      if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+        const channel = new BroadcastChannel("univo_session_channel");
+        channel.postMessage({ type: "FORCE_LOGOUT", timestamp: nowTs });
+        channel.close();
+      }
+    } catch (e) {}
+
+    // 6. Complete wipe of LocalStorage & SessionStorage
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+      localStorage.setItem("univo_force_logout", String(nowTs));
+      localStorage.setItem("univo_last_reset_seen", String(nowTs));
+    } catch (e) {
+      console.warn("Storage wipe notice:", e);
+    }
+
+    // 7. Sign out Firebase Auth so owner/all users are completely logged out
+    try {
+      await signOut(auth);
+    } catch (e) {}
+  } else {
+    // Keep gym owner session active
+    try {
+      localStorage.setItem("univo_active_role", "owner");
     } catch (e) {}
   }
 
-  // 5. Broadcast forced logout across all open browser tabs
   try {
-    if (typeof window !== "undefined" && "BroadcastChannel" in window) {
-      const channel = new BroadcastChannel("univo_session_channel");
-      channel.postMessage({ type: "FORCE_LOGOUT", timestamp: nowTs });
-      channel.close();
-    }
-  } catch (e) {}
-
-  // 6. Complete wipe of LocalStorage & SessionStorage + Reset Gym Settings to pristine default
-  try {
-    localStorage.clear();
-    sessionStorage.clear();
-    resetGymSettings();
-    localStorage.setItem("univo_force_logout", String(nowTs));
-    localStorage.setItem("univo_last_reset_seen", String(nowTs));
-  } catch (e) {
-    console.warn("Storage wipe notice:", e);
-  }
-
-  // 7. Sign out Firebase Auth so owner/all users are completely logged out
-  try {
-    await signOut(auth);
+    clearLocalTrainers();
+    await resetGymSettings(gymId);
+    invalidateCache();
   } catch (e) {}
 
   return { success: true, deletedCount: totalDeleted };
 }
 
 export async function load6MonthDummyData(gymId = "univo_main") {
-  // Clear first so data is pristine
-  await clearAllGymData(gymId);
+  // Clear first without forcing owner logout so data loads cleanly
+  await clearAllGymData(gymId, false);
+
+  // --- 0. MEMBERSHIP PLANS ---
+  const plansData = [
+    {
+      id: "p1",
+      name: "1-Month Kickstart",
+      category: "General Fitness",
+      duration: 30,
+      price: 2500,
+      originalPrice: 3200,
+      admissionFee: 0,
+      color: "emerald",
+      tag: "Starter Choice",
+      accessTiming: "All Day Unlimited (6:00 AM - 10:00 PM)",
+      freezeDays: "No Pause Allowed",
+      ptOption: "General Floor Support",
+      features: [
+        "Full Gym & Cardio Zone Access",
+        "Strength & Heavy Machine Zone",
+        "Locker & Shower Facility",
+        "General Floor Trainer Support"
+      ],
+      isActive: true,
+      memberCount: 24
+    },
+    {
+      id: "p2",
+      name: "3-Month Pro Transformation",
+      category: "Fat Loss & Muscle Gain",
+      duration: 90,
+      price: 6500,
+      originalPrice: 9000,
+      admissionFee: 0,
+      color: "amber",
+      tag: "Most Popular",
+      accessTiming: "All Day Unlimited (6:00 AM - 10:00 PM)",
+      freezeDays: "15 Days Free Freeze",
+      ptOption: "1 Free PT Session Included",
+      features: [
+        "All Cardio & Strength Equipment",
+        "Steam & Hot Sauna Access",
+        "1 Free Personal Training Session",
+        "Monthly InBody / BMI Body Composition Test",
+        "Custom Diet & Nutrition Meal Chart",
+        "15 Days Free Membership Freeze"
+      ],
+      isActive: true,
+      memberCount: 68
+    },
+    {
+      id: "p3",
+      name: "6-Month Muscle Hypertrophy",
+      category: "Muscle Building",
+      duration: 180,
+      price: 11000,
+      originalPrice: 16000,
+      admissionFee: 0,
+      color: "indigo",
+      tag: "Best Value",
+      accessTiming: "All Day Unlimited (6:00 AM - 10:00 PM)",
+      freezeDays: "30 Days Free Freeze",
+      ptOption: "2 Free PT Sessions Included",
+      features: [
+        "Full Unlimited Gym Access",
+        "Dedicated Locker & Changing Area",
+        "2 Free 1-on-1 PT Consultation Sessions",
+        "Bi-weekly Body Fat & Measurement Audits",
+        "Complete Supplement & Meal Guidance",
+        "Free Welcome Shaker Bottle Kit",
+        "30 Days Free Membership Freeze"
+      ],
+      isActive: true,
+      memberCount: 42
+    },
+    {
+      id: "p4",
+      name: "1-Year Annual Elite Pass",
+      category: "VIP / Elite Member",
+      duration: 365,
+      price: 18000,
+      originalPrice: 28000,
+      admissionFee: 0,
+      color: "purple",
+      tag: "Save 35%",
+      accessTiming: "All Day Unlimited (6:00 AM - 10:00 PM)",
+      freezeDays: "45 Days Free Freeze",
+      ptOption: "Weekly PT Check-in Included",
+      features: [
+        "365 Days Unlimited Access to All Zones",
+        "Reserved VIP Locker & Steam Bath",
+        "Free InBody BMI Scans Every Month",
+        "Personalized Diet & Macro Nutrition Plan",
+        "Weekly Trainer Progress Audit",
+        "2 Free Guest Passes for Family / Friends",
+        "45 Days Free Membership Freeze Allowed"
+      ],
+      isActive: true,
+      memberCount: 31
+    }
+  ];
+
+  for (const p of plansData) {
+    try {
+      const batch = writeBatch(db);
+      batch.set(doc(db, `gyms/${gymId}/plans`, p.id), {
+        ...p,
+        gymId,
+        createdAt: serverTimestamp(),
+      });
+      await batch.commit();
+    } catch (e) {
+      console.warn("Plan write note:", e);
+    }
+  }
+
+  // --- 0.1 FACILITY SERVICES ---
+  const servicesData = [
+    {
+      id: "s1",
+      name: "Steam & Sauna Bath",
+      category: "Recovery & Spa",
+      price: 300,
+      billingType: "Per Month",
+      desc: "Muscle relaxation, detoxification and post-workout pore cleansing.",
+      isActive: true,
+    },
+    {
+      id: "s2",
+      name: "Private Locker Bay",
+      category: "Locker & Amenities",
+      price: 500,
+      billingType: "Per Month",
+      desc: "Assigned personal locker for shoes, apparel, and gym accessories.",
+      isActive: true,
+    },
+    {
+      id: "s3",
+      name: "Personal Diet Consultation",
+      category: "Nutrition & Diet",
+      price: 1200,
+      billingType: "Per Month",
+      desc: "Weekly personalized macro targets and customized Indian meal plan.",
+      isActive: true,
+    },
+    {
+      id: "s4",
+      name: "Towel & Laundry Service",
+      category: "Locker & Amenities",
+      price: 400,
+      billingType: "Per Month",
+      desc: "Fresh sanitized gym and shower towels provided daily.",
+      isActive: true,
+    },
+  ];
+
+  for (const s of servicesData) {
+    try {
+      const batch = writeBatch(db);
+      batch.set(doc(db, `gyms/${gymId}/services`, s.id), {
+        ...s,
+        gymId,
+        createdAt: serverTimestamp(),
+      });
+      await batch.commit();
+    } catch (e) {
+      console.warn("Service write note:", e);
+    }
+  }
 
   // --- 1. TRAINERS ---
   const trainersData = [
@@ -286,10 +503,17 @@ export async function load6MonthDummyData(gymId = "univo_main") {
   for (const t of trainersData) {
     try {
       const batch = writeBatch(db);
-      batch.set(doc(db, `gyms/${gymId}/trainers`, t.id), {
+      const computedTrainerId = getDisplayTrainerId(t);
+      const trainerDoc = {
+        password: "Coach@123",
+        loginPassword: "Coach@123",
+        trainerId: computedTrainerId,
         ...t,
+        gymId,
         createdAt: serverTimestamp(),
-      });
+      };
+      batch.set(doc(db, "trainers", t.id), trainerDoc);
+      batch.set(doc(db, `gyms/${gymId}/trainers`, t.id), trainerDoc);
       await batch.commit();
     } catch (e) {
       console.warn("Trainer write note:", e);
@@ -764,16 +988,17 @@ export async function load6MonthDummyData(gymId = "univo_main") {
   for (const m of membersData) {
     try {
       const batch = writeBatch(db);
-      batch.set(doc(db, "members", m.id), {
+      const computedMemberId = getDisplayMemberId(m);
+      const memberDoc = {
+        password: "Member@123",
+        loginPassword: "Member@123",
+        memberId: computedMemberId,
         ...m,
         gymId,
         createdAt: serverTimestamp(),
-      });
-      batch.set(doc(db, "gyms", gymId, "members", m.id), {
-        ...m,
-        gymId,
-        createdAt: serverTimestamp(),
-      });
+      };
+      batch.set(doc(db, "members", m.id), memberDoc);
+      batch.set(doc(db, "gyms", gymId, "members", m.id), memberDoc);
       await batch.commit();
     } catch (e) {
       console.warn("Member write note:", e);
@@ -857,10 +1082,15 @@ export async function load6MonthDummyData(gymId = "univo_main") {
     { id: "exp_16", title: "Gym Floor Commercial Rent (August)", category: "Rent", type: "monthly", amount: 45000, date: "2026-08-01", createdAt: "2026-08-01T10:00:00Z" },
     { id: "exp_17", title: "Commercial Electricity Bill (August)", category: "Electricity", type: "monthly", amount: 18200, date: "2026-08-05", createdAt: "2026-08-05T11:00:00Z" },
     { id: "exp_18", title: "Lat Pulldown Dual Pulley & Wire Cable Replacement", category: "Maintenance", type: "onetime", amount: 2400, date: "2026-08-15", createdAt: "2026-08-15T14:30:00Z" },
-    // September 2026 (Current)
+    // September 2026
     { id: "exp_19", title: "Gym Floor Commercial Rent (September)", category: "Rent", type: "monthly", amount: 45000, date: "2026-09-01", createdAt: "2026-09-01T10:00:00Z" },
     { id: "exp_20", title: "Commercial Electricity Bill (September)", category: "Electricity", type: "monthly", amount: 17900, date: "2026-09-05", createdAt: "2026-09-05T11:00:00Z" },
-    { id: "exp_21", title: "Drinking Water Cans & Dispensers (September)", category: "Water", type: "monthly", amount: 3200, date: "2026-09-08", createdAt: "2026-09-08T12:00:00Z" }
+    { id: "exp_21", title: "Drinking Water Cans & Dispensers (September)", category: "Water", type: "monthly", amount: 3200, date: "2026-09-08", createdAt: "2026-09-08T12:00:00Z" },
+    // October 2026 (Current Month)
+    { id: "exp_22", title: "Gym Floor Commercial Rent (October)", category: "Rent", type: "monthly", amount: 45000, date: "2026-10-01", createdAt: "2026-10-01T10:00:00Z" },
+    { id: "exp_23", title: "Commercial Electricity Bill (October)", category: "Electricity", type: "monthly", amount: 18500, date: "2026-10-05", createdAt: "2026-10-05T11:00:00Z" },
+    { id: "exp_24", title: "Drinking Water Cans & Dispensers (October)", category: "Water", type: "monthly", amount: 3100, date: "2026-10-08", createdAt: "2026-10-08T12:00:00Z" },
+    { id: "exp_25", title: "Dual Cable Pulley & Bench Maintenance (October)", category: "Maintenance", type: "onetime", amount: 2200, date: "2026-10-14", createdAt: "2026-10-14T15:00:00Z" }
   ];
 
   for (const exp of expensesData) {
@@ -961,7 +1191,10 @@ export async function load6MonthDummyData(gymId = "univo_main") {
     { id: "sale_03", supplementId: "sup_3", supplementName: "C4 Original Pre-Workout", buyerName: "Deepak Meena", quantitySold: 1, unitPrice: 2399, totalAmount: 2399, paymentMode: "online", date: "2026-06-18", timestamp: "2026-06-18T08:30:00Z" },
     { id: "sale_04", supplementId: "sup_1", supplementName: "ON Gold Standard Whey", buyerName: "Lucky Kirar", quantitySold: 1, unitPrice: 6699, totalAmount: 6699, paymentMode: "online", date: "2026-09-04", timestamp: "2026-09-04T18:00:00Z" },
     { id: "sale_05", supplementId: "sup_2", supplementName: "MB Creatine Monohydrate", buyerName: "Mohit Yadav", quantitySold: 1, unitPrice: 899, totalAmount: 899, paymentMode: "cash", date: "2026-09-08", timestamp: "2026-09-08T11:30:00Z" },
-    { id: "sale_06", supplementId: "sup_4", supplementName: "Univo Pro Shaker (750ml)", buyerName: "Priya Sharma", quantitySold: 2, unitPrice: 499, totalAmount: 998, paymentMode: "online", date: "2026-09-11", timestamp: "2026-09-11T16:45:00Z" }
+    { id: "sale_06", supplementId: "sup_4", supplementName: "Univo Pro Shaker (750ml)", buyerName: "Priya Sharma", quantitySold: 2, unitPrice: 499, totalAmount: 998, paymentMode: "online", date: "2026-09-11", timestamp: "2026-09-11T16:45:00Z" },
+    { id: "sale_07", supplementId: "sup_1", supplementName: "ON Gold Standard Whey", buyerName: "Ajay Prajapati", quantitySold: 1, unitPrice: 6699, totalAmount: 6699, paymentMode: "online", date: "2026-10-06", timestamp: "2026-10-06T18:15:00Z" },
+    { id: "sale_08", supplementId: "sup_2", supplementName: "MB Creatine Monohydrate", buyerName: "Vikas Malhotra", quantitySold: 1, unitPrice: 899, totalAmount: 899, paymentMode: "online", date: "2026-10-12", timestamp: "2026-10-12T19:30:00Z" },
+    { id: "sale_09", supplementId: "sup_4", supplementName: "Univo Pro Shaker (750ml)", buyerName: "Lucky Kirar", quantitySold: 1, unitPrice: 499, totalAmount: 499, paymentMode: "online", date: "2026-10-16", timestamp: "2026-10-16T17:00:00Z" }
   ];
 
   for (const sale of supplementSalesData) {
@@ -1085,15 +1318,15 @@ export async function load6MonthDummyData(gymId = "univo_main") {
       gender: "Male",
       interestedIn: "Weight Loss & Fat Burn",
       source: "Walk-in (Reception)",
-      visitDate: "2026-09-08",
-      demoDate: "2026-09-09",
+      visitDate: getOffsetDate(-7),
+      demoDate: getOffsetDate(-5),
       demoTime: "07:00 PM",
       budget: "Rs. 1,500 - 3,000",
       assignedTrainer: "Coach Amit Sharma",
       notes: "Came for trial workout. Wants 8kg weight loss before wedding.",
-      followUpDate: "2026-09-14",
+      followUpDate: getOffsetDate(1),
       status: "demo_done",
-      createdAt: "2026-09-08T18:00:00Z"
+      createdAt: new Date(Date.now() - 7 * 86400000).toISOString()
     },
     {
       id: "vis_2",
@@ -1102,15 +1335,15 @@ export async function load6MonthDummyData(gymId = "univo_main") {
       gender: "Female",
       interestedIn: "Pilates & Core Fitness",
       source: "Instagram Ad",
-      visitDate: "2026-09-11",
-      demoDate: "2026-09-13",
+      visitDate: getOffsetDate(-3),
+      demoDate: getOffsetDate(0),
       demoTime: "06:00 PM",
       budget: "Rs. 3,000 - 6,000",
       assignedTrainer: "Coach Sneha Kapoor",
       notes: "Enquired about female personal training batch.",
-      followUpDate: "2026-09-15",
+      followUpDate: getOffsetDate(2),
       status: "demo_scheduled",
-      createdAt: "2026-09-11T14:30:00Z"
+      createdAt: new Date(Date.now() - 3 * 86400000).toISOString()
     },
     {
       id: "vis_3",
@@ -1119,15 +1352,15 @@ export async function load6MonthDummyData(gymId = "univo_main") {
       gender: "Male",
       interestedIn: "Powerlifting & Bodybuilding",
       source: "Friend Referral",
-      visitDate: "2026-09-12",
-      demoDate: "2026-09-14",
+      visitDate: getOffsetDate(0),
+      demoDate: getOffsetDate(1),
       demoTime: "08:00 PM",
       budget: "Rs. 5,000+",
       assignedTrainer: "Coach Rohan Deshmukh",
       notes: "Interstate weightlifter visiting city.",
-      followUpDate: "2026-09-16",
+      followUpDate: getOffsetDate(3),
       status: "new",
-      createdAt: "2026-09-12T16:00:00Z"
+      createdAt: new Date().toISOString()
     }
   ];
 
@@ -1313,6 +1546,96 @@ export async function load6MonthDummyData(gymId = "univo_main") {
     }
   }
 
+  // --- 10. ONLINE UPI RENEWAL & PT SUBSCRIPTION REQUESTS ---
+  const renewalRequestsData = [
+    {
+      id: "req_seed_01",
+      gymId,
+      memberId: "mem_01",
+      memberName: "Vikas Malhotra",
+      memberPhone: "+91 9811122334",
+      requestType: "plan_renewal",
+      isPt: false,
+      planId: "p2",
+      planName: "3-Month Pro Transformation",
+      planPrice: 6500,
+      amount: 6500,
+      durationDays: 90,
+      durationMonths: 3,
+      utr: "UPI982341772601",
+      paymentMode: "upi_qr",
+      status: "pending",
+      submittedAt: new Date(Date.now() - 3600000 * 3).toISOString(),
+      updatedAt: new Date(Date.now() - 3600000 * 3).toISOString()
+    },
+    {
+      id: "req_seed_02",
+      gymId,
+      memberId: "mem_02",
+      memberName: "Kavita Rao",
+      memberPhone: "+91 9822334455",
+      requestType: "pt_activation",
+      isPt: true,
+      trainerId: "tr_2",
+      trainerName: "Coach Sneha Kapoor",
+      planId: "pt_1m",
+      planName: "1 Month 1-on-1 PT Coaching",
+      planPrice: 3500,
+      amount: 3500,
+      durationDays: 30,
+      durationMonths: 1,
+      utr: "UPI449120883719",
+      paymentMode: "upi_qr",
+      status: "pending",
+      submittedAt: new Date(Date.now() - 3600000 * 6).toISOString(),
+      updatedAt: new Date(Date.now() - 3600000 * 6).toISOString()
+    },
+    {
+      id: "req_seed_03",
+      gymId,
+      memberId: "mem_12",
+      memberName: "Ajay Prajapati",
+      memberPhone: "+91 9196302375",
+      requestType: "plan_renewal",
+      isPt: false,
+      planId: "p2",
+      planName: "3-Month Pro Transformation",
+      planPrice: 6500,
+      amount: 6500,
+      durationDays: 90,
+      durationMonths: 3,
+      utr: "UPI310928475620",
+      paymentMode: "upi_qr",
+      status: "approved",
+      approvedAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+      submittedAt: new Date(Date.now() - 3600000 * 15).toISOString(),
+      updatedAt: new Date(Date.now() - 3600000 * 12).toISOString()
+    }
+  ];
+
+  for (const req of renewalRequestsData) {
+    try {
+      const batch = writeBatch(db);
+      batch.set(doc(db, "renewal_requests", req.id), {
+        ...req,
+        createdAt: serverTimestamp(),
+      });
+      batch.set(doc(db, `gyms/${gymId}/renewal_requests`, req.id), {
+        ...req,
+        createdAt: serverTimestamp(),
+      });
+      await batch.commit();
+    } catch (e) {
+      console.warn("Renewal request write note:", e);
+    }
+  }
+
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("univo_renewal_requests", JSON.stringify(renewalRequestsData));
+    }
+  } catch (e) {}
+
   return {
     success: true,
     membersCount: membersData.length,
@@ -1323,6 +1646,9 @@ export async function load6MonthDummyData(gymId = "univo_main") {
     visitsCount: visitsData.length,
     trainersCount: trainersData.length,
     staffCount: staffData.length,
-    beforeAfterCount: beforeAfterData.length
+    beforeAfterCount: beforeAfterData.length,
+    plansCount: plansData.length,
+    servicesCount: servicesData.length,
+    renewalRequestsCount: renewalRequestsData.length
   };
 }

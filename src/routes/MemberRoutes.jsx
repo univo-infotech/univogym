@@ -19,6 +19,13 @@ export default function MemberRoutes() {
 
   // Real-time security guard: Instantly force-logout if PT is ended or member leaves
   useEffect(() => {
+    // If viewing as gym owner or co-owner, bypass member security guard
+    const rawRole = role || localStorage.getItem("univo_active_role") || "";
+    const activeRole = String(rawRole).toLowerCase().trim();
+    if (activeRole === "owner" || activeRole === "co-owner" || role === "owner") {
+      return;
+    }
+
     let isSubscribed = true;
 
     const triggerForcedLogout = (msg) => {
@@ -59,15 +66,19 @@ export default function MemberRoutes() {
         const fresh = await getMember("univo_main", targetId);
         if (!isSubscribed) return;
 
-        if (fresh) {
-          if (
-            fresh.status === "left" ||
-            fresh.status === "ended" ||
-            fresh.memberPortalAccess === false ||
-            fresh.active === false
-          ) {
-            triggerForcedLogout("Aapka membership account inactive ho chuka hai. Member portal access band kar diya gaya hai.");
-          }
+        if (!fresh) {
+          triggerForcedLogout("Account not found: Aapka member account gym database se delete ho chuka hai.");
+          return;
+        }
+
+        if (
+          fresh.status === "left" ||
+          fresh.status === "ended" ||
+          fresh.memberPortalAccess === false ||
+          fresh.active === false
+        ) {
+          triggerForcedLogout("Aapka membership account inactive ho chuka hai. Member portal access band kar diya gaya hai.");
+          return;
         }
       } catch (err) {
         console.warn("Member session check notice:", err);
@@ -107,7 +118,9 @@ export default function MemberRoutes() {
     };
   }, [profileId, user, role, logoutUser, navigate]);
 
-  if (!hasMemberSession && role !== "owner" && role !== "member") {
+  const rawRole = role || localStorage.getItem("univo_active_role") || "";
+  const activeRole = String(rawRole).toLowerCase().trim();
+  if (!hasMemberSession && activeRole !== "owner" && activeRole !== "co-owner" && activeRole !== "member") {
     return <Navigate to="/login" replace />;
   }
 
