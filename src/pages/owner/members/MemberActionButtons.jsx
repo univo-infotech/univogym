@@ -91,35 +91,39 @@ export default function MemberActionButtons({
         if (gymNeedsRenewal || ptNeedsRenewal) {
           return (
             <div className="inline-flex items-center gap-1 flex-wrap">
-              {/* Gym Renew */}
-              {(!memberHasPt || gymNeedsRenewal || (memberHasPt && ptNeedsRenewal)) && onGymRenew && (
+              {/* Gym Renew (Only shown if Gym membership actually needs renewal) */}
+              {gymNeedsRenewal && onGymRenew && (
                 <button
                   onClick={() => onGymRenew(member)}
                   className={`inline-flex items-center gap-1 rounded-lg text-white font-black transition shadow-xs ${btnBase} ${
-                    gymNeedsRenewal
-                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 animate-pulse ring-1 ring-emerald-300'
-                      : 'bg-emerald-600 hover:bg-emerald-700 opacity-90'
+                    gStatus === 'ending_soon'
+                      ? 'bg-amber-500 hover:bg-amber-600 animate-pulse'
+                      : gStatus === 'expired'
+                      ? 'bg-orange-600 hover:bg-orange-700'
+                      : 'bg-rose-600 hover:bg-rose-700'
                   }`}
                   title={`Gym (${gStatus}) - Click to Renew Gym Plan`}
                 >
                   <RotateCcw className="w-3 h-3 text-white" />
-                  <span>Gym Renew</span>
+                  <span>Renew Gym</span>
                 </button>
               )}
 
-              {/* PT Renew */}
-              {memberHasPt && (ptNeedsRenewal || gymNeedsRenewal) && onPtRenew && (
+              {/* PT Renew (Only shown if PT actually needs renewal) */}
+              {memberHasPt && ptNeedsRenewal && onPtRenew && (
                 <button
                   onClick={() => onPtRenew(member)}
                   className={`inline-flex items-center gap-1 rounded-lg text-white font-black transition shadow-xs ${btnBase} ${
-                    ptNeedsRenewal
-                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 animate-pulse ring-1 ring-purple-300'
-                      : 'bg-purple-600 hover:bg-purple-700 opacity-90'
+                    pStatus === 'ending_soon'
+                      ? 'bg-amber-500 hover:bg-amber-600 animate-pulse'
+                      : pStatus === 'expired'
+                      ? 'bg-orange-600 hover:bg-orange-700'
+                      : 'bg-rose-600 hover:bg-rose-700'
                   }`}
                   title={`PT (${pStatus}) - Click to Renew PT Package`}
                 >
-                  <Sparkles className="w-3 h-3 text-purple-200" />
-                  <span>PT Renew</span>
+                  <Sparkles className="w-3 h-3 text-white" />
+                  <span>Renew PT</span>
                 </button>
               )}
             </div>

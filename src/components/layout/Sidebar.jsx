@@ -91,6 +91,7 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
       items: [
         { id: "memberships", to: "/owner/memberships", label: "Memberships & Plans", icon: CreditCard },
         { id: "services", to: "/owner/services", label: "Add-on Services", icon: Star },
+        { id: "payments", to: "/owner/payments", label: "Fee Collections & Dues", icon: DollarSign },
         {
           id: "upi_approvals",
           to: "/owner/upi-approvals",

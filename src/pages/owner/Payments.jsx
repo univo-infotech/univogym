@@ -30,13 +30,23 @@ import {
   X,
   ExternalLink,
   Copy,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Dumbbell,
+  Layers,
+  RotateCcw,
+  Eye,
+  IndianRupee,
+  Sunrise,
+  Sunset,
+  Sun
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
 import toast from "react-hot-toast";
 import { getAllPayments, addPayment } from "../../firebase/payments";
 import { getMembers, updateMember } from "../../firebase/members";
+import { getPlans } from "../../firebase/plans";
+import { getTrainers } from "../../firebase/trainers";
 import {
   getRenewalRequests,
   approveRenewalRequest,
@@ -47,7 +57,19 @@ import { getGymSettings } from "../../utils/settings";
 import { openWhatsApp, formatPhone } from "../../utils/whatsapp";
 import { useAuth } from "../../contexts/AuthContext";
 import ReceiptModal from "./members/modals/ReceiptModal";
+import CollectFeeModal from "./members/modals/CollectFeeModal";
+import AddPtPackageModal from "./members/modals/AddPtPackageModal";
+import AddServiceModal from "./members/modals/AddServiceModal";
 import { formatDate, parseToDate } from "../../utils/dateUtils";
+import {
+  getGymStatus,
+  getPtStatus,
+  hasPt,
+  isPaid,
+  isPartial,
+  isLeft,
+  isEnded
+} from "./members/memberUtils";
 
 // Available plans for quick selection
 const PLANS_CATALOG = [
@@ -115,12 +137,22 @@ export default function Payments() {
 
   const [paymentsList, setPaymentsList] = useState([]);
   const [membersList, setMembersList] = useState([]);
+  const [plansList, setPlansList] = useState([]);
+  const [trainersList, setTrainersList] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState(urlTab || "all");
+  const [subFilter, setSubFilter] = useState("all"); // 'all' | 'gym' | 'pt'
   const [slotFilter, setSlotFilter] = useState("all");
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
-  const [renewModalOpen, setRenewModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
+
+  // Dedicated Modals state
+  const [collectFeeModalOpen, setCollectFeeModalOpen] = useState(false);
+  const [collectFeeMode, setCollectFeeMode] = useState("renew"); // "renew" | "clear_due" | "collect"
+  const [ptModalOpen, setPtModalOpen] = useState(false);
+  const [ptModalMember, setPtModalMember] = useState(null);
+  const [serviceModalOpen, setServiceModalOpen] = useState(false);
+  const [serviceModalMember, setServiceModalMember] = useState(null);
 
   useEffect(() => {
     const isUpi = location.pathname.includes("upi-approvals");
@@ -382,11 +414,15 @@ export default function Payments() {
     try {
       const storedPayments = await getAllPayments(activeGymId);
       const storedMembers = await getMembers(activeGymId);
+      const storedPlans = await getPlans(activeGymId);
+      const storedTrainers = await getTrainers(activeGymId);
       const realStoredPayments = (storedPayments || []).filter(
         (p) => p.batch !== "Self Registration • Link Access" && !p.remarks?.includes("Online Registration & Plan Activation")
       );
       setPaymentsList(realStoredPayments);
       setMembersList(storedMembers || []);
+      setPlansList(storedPlans || []);
+      setTrainersList(storedTrainers || []);
 
       // Load Online UPI Renewal Requests
       try {
@@ -406,70 +442,38 @@ export default function Payments() {
     loadData();
   }, [activeGymId]);
 
-  // Map of memberId -> member object for checking real-time member status
-  const membersMap = useMemo(() => {
-    const map = {};
-    membersList.forEach((m) => {
-      map[m.id] = m;
-      if (m.phone) map[m.phone] = m;
-    });
-    return map;
-  }, [membersList]);
-
-  // Sync plan and validity calculation in modal
-  const currentPlan = PLANS_CATALOG.find((p) => p.id === selectedPlanId) || PLANS_CATALOG[0];
-  const calculatedTotal = Math.max(0, currentPlan.price - Number(discountAmount || 0));
-
-  useEffect(() => {
-    if (validityStart) {
-      const endFormatted = calculateEndDate(validityStart, currentPlan.durationMonths);
-      setValidityEnd(endFormatted);
-    }
-  }, [validityStart, selectedPlanId]);
-
-  useEffect(() => {
-    if (collectMode === "clear_due" && selectedMember) {
-      setPayingNow(Number(selectedMember.dueAmount || 0));
-    } else if (paymentType === "full") {
-      setPayingNow(calculatedTotal);
-    }
-  }, [calculatedTotal, paymentType, collectMode, selectedMember]);
-
-  const remainingDue =
-    collectMode === "clear_due"
-      ? Math.max(0, Number(selectedMember?.dueAmount || 0) - Number(payingNow || 0))
-      : Math.max(0, calculatedTotal - Number(payingNow || 0));
+  // Helper for slot icons
+  const getSlotIcon = (slotStr = '') => {
+    const s = String(slotStr).toLowerCase();
+    if (s.includes('morn')) return <Sunrise className="w-3 h-3 text-amber-500" />;
+    if (s.includes('even') || s.includes('night')) return <Sunset className="w-3 h-3 text-indigo-500" />;
+    if (s.includes('noon') || s.includes('after')) return <Sun className="w-3 h-3 text-orange-500" />;
+    return <Clock className="w-3 h-3 text-teal-500" />;
+  };
 
   // Open Collect Modal for a specific member or general
   const handleOpenCollectModal = (item = null, mode = "renew") => {
-    setCollectMode(mode);
+    let targetMem = null;
     if (item) {
-      setSelectedMember(item);
-      const planMatch = PLANS_CATALOG.find((p) => p.name.toLowerCase().includes((item.planName || "").toLowerCase())) || PLANS_CATALOG[0];
-      setSelectedPlanId(planMatch.id);
-      setDiscountAmount(item.discount || 0);
-      setValidityStart(new Date().toISOString().split("T")[0]);
-      if (mode === "clear_due") {
-        setPaymentType("full");
-        setPayingNow(Number(item.dueAmount || 0));
-      } else {
-        setPaymentType("full");
-        setPayingNow(planMatch.price);
-      }
-      setPaymentMode("cash");
-      setRemarks("");
+      targetMem = item.rawMember || membersList.find((m) => m.id === item.memberId || m.id === item.id) || item;
     } else {
-      const firstActive = paymentsList[0] || null;
-      setSelectedMember(firstActive);
-      setSelectedPlanId("p1");
-      setDiscountAmount(0);
-      setValidityStart(new Date().toISOString().split("T")[0]);
-      setPaymentType("full");
-      setPayingNow(599);
-      setPaymentMode("cash");
-      setRemarks("");
+      targetMem = membersList[0] || null;
     }
-    setRenewModalOpen(true);
+    setSelectedMember(targetMem);
+    setCollectFeeMode(mode);
+    setCollectFeeModalOpen(true);
+  };
+
+  const handleOpenPtModal = (item) => {
+    const rawMem = item?.rawMember || membersList.find((m) => m.id === item?.memberId || m.id === item?.id) || item;
+    setPtModalMember(rawMem);
+    setPtModalOpen(true);
+  };
+
+  const handleOpenServiceModal = (item) => {
+    const rawMem = item?.rawMember || membersList.find((m) => m.id === item?.memberId || m.id === item?.id) || item;
+    setServiceModalMember(rawMem);
+    setServiceModalOpen(true);
   };
 
   // Mark member as Left
@@ -717,62 +721,234 @@ export default function Payments() {
    * 6. Paid: dueAmount === 0 and days > 3 (active and paid)
    */
   const classifiedItems = useMemo(() => {
-    return paymentsList.map((item) => {
-      const days = getDaysRemaining(item.dueDate || item.validityEnd);
-      const isMemberLeft =
-        item.status === "left" ||
-        (item.memberId && membersMap[item.memberId]?.status === "left") ||
-        (item.phone && membersMap[item.phone]?.status === "left");
+    const items = [];
+    const processedMemberIds = new Set();
 
-      let dynamicStatus = "paid";
+    // 1. Map all members from membersList
+    (membersList || []).forEach((m) => {
+      processedMemberIds.add(m.id);
+      if (m.phone) processedMemberIds.add(m.phone);
 
+      const memberPayments = (paymentsList || []).filter(
+        (p) => p.memberId === m.id || (p.phone && m.phone && p.phone === m.phone)
+      );
+      const latestPayment = memberPayments[0] || null;
+
+      const expiryVal = m.expiryDate || latestPayment?.validityEnd || latestPayment?.dueDate;
+      const days = getDaysRemaining(expiryVal);
+      const isMemberLeft = m.status === "left" || latestPayment?.status === "left";
+      const dueAmt = Number(m.dueAmount ?? latestPayment?.dueAmount ?? 0);
+      const planAmt = Number(m.planPrice || latestPayment?.planPrice || latestPayment?.amount || 2500);
+      const paidAmt = Number(m.paidAmount || latestPayment?.paidAmount || (dueAmt > 0 ? Math.max(0, planAmt - dueAmt) : planAmt));
+
+      // 1. Gym individual status
+      let gymDynamicStatus = "paid";
       if (isMemberLeft) {
-        dynamicStatus = "left";
-      } else if (Number(item.dueAmount) > 0) {
-        // Has pending due
-        if (days !== null && days < -3) {
-          // Plan ended more than 3 days ago with due -> Overdue
-          dynamicStatus = "overdue";
-        } else {
-          dynamicStatus = "partial";
-        }
+        gymDynamicStatus = "left";
       } else if (days !== null) {
-        if (days >= 0 && days <= 3) {
-          // Ending in 3, 2, 1 days or today (0)
-          dynamicStatus = "ending_soon";
-        } else if (days < 0 && days >= -3) {
-          // Ended 1, 2, or 3 days ago
-          dynamicStatus = "expired";
-        } else if (days < -3) {
-          // Ended more than 3 days ago
-          dynamicStatus = "overdue";
-        } else {
-          // Active with > 3 days remaining and 0 due
-          dynamicStatus = "paid";
-        }
-      } else {
-        dynamicStatus = item.status || "paid";
+        if (days < -2) gymDynamicStatus = "overdue";
+        else if (days <= 0) gymDynamicStatus = "expired";
+        else if (days <= 3) gymDynamicStatus = "ending_soon";
+        else gymDynamicStatus = "paid";
       }
 
-      return { ...item, computedDays: days, dynamicStatus, isLeft: isMemberLeft };
+      // 2. PT individual status
+      const memberHasPt = hasPt(m);
+      const ptDateVal = m.ptEndDate || m.ptExpiryDate || (m.isPt ? m.expiryDate : null);
+      const ptDays = memberHasPt && ptDateVal ? getDaysRemaining(ptDateVal) : null;
+      let ptDynamicStatus = null;
+      if (memberHasPt) {
+        if (isMemberLeft || m.ptStatus === "ended") {
+          ptDynamicStatus = "ended";
+        } else if (ptDays !== null) {
+          if (ptDays < -2) ptDynamicStatus = "overdue";
+          else if (ptDays <= 0) ptDynamicStatus = "expired";
+          else if (ptDays <= 3) ptDynamicStatus = "ending_soon";
+          else ptDynamicStatus = "paid";
+        } else {
+          ptDynamicStatus = "paid";
+        }
+      }
+
+      // 3. Composite dynamic status (accounting for both Gym & PT)
+      let dynamicStatus = "paid";
+      if (isMemberLeft) {
+        dynamicStatus = "left";
+      } else if (dueAmt > 0) {
+        if ((days !== null && days < -2) || (ptDays !== null && ptDays < -2)) dynamicStatus = "overdue";
+        else dynamicStatus = "partial";
+      } else if (gymDynamicStatus === "overdue" || ptDynamicStatus === "overdue") {
+        dynamicStatus = "overdue";
+      } else if (gymDynamicStatus === "expired" || ptDynamicStatus === "expired") {
+        dynamicStatus = "expired";
+      } else if (gymDynamicStatus === "ending_soon" || ptDynamicStatus === "ending_soon") {
+        dynamicStatus = "ending_soon";
+      } else {
+        dynamicStatus = "paid";
+      }
+
+      const hasPaidAtLeastOnce = Boolean(m.lastPaymentDate || (latestPayment && Number(latestPayment.paidAmount || 0) > 0));
+      const isFirstTimeUnpaid = !hasPaidAtLeastOnce && dueAmt > 0;
+      const isPartialDue = hasPaidAtLeastOnce && dueAmt > 0;
+      const isFullyPaid = dueAmt <= 0 && (hasPaidAtLeastOnce || paidAmt > 0);
+
+      items.push({
+        id: m.id,
+        memberId: m.id,
+        memberName: m.name || m.fullName || "Member",
+        phone: m.phone || "",
+        slot: m.slot || m.workoutSlot || "General Shift",
+        batch: m.batch || "Alpha Gym",
+        planName: m.planName || m.plan || latestPayment?.planName || "Gym Plan",
+        planPrice: planAmt,
+        amount: planAmt,
+        paidAmount: paidAmt,
+        dueAmount: dueAmt,
+        validityStart: m.startDate || m.admissionDate || m.createdAt || latestPayment?.validityStart || "—",
+        validityEnd: m.expiryDate || latestPayment?.validityEnd || "—",
+        dueDate: m.expiryDate || latestPayment?.dueDate || "—",
+        paymentMode: m.paymentMode || latestPayment?.paymentMode || "Cash",
+        discount: Number(m.discount || latestPayment?.discount || 0),
+        computedDays: days,
+        isPt: memberHasPt,
+        trainerName: m.trainerName && !["Unassigned", "General Floor Trainer (Included)", "No Trainer"].includes(m.trainerName) ? m.trainerName : null,
+        ptPlanName: m.ptPlanName || (memberHasPt ? "1-on-1 PT" : null),
+        ptPlanPrice: Number(m.ptPlanPrice || 0),
+        ptEndDate: m.ptEndDate || m.ptExpiryDate,
+        ptStatus: m.ptStatus,
+        ptDays,
+        gymDynamicStatus,
+        ptDynamicStatus,
+        hasPaidAtLeastOnce,
+        isFirstTimeUnpaid,
+        isPartialDue,
+        isFullyPaid,
+        selectedServices: m.selectedServices || m.services || [],
+        dynamicStatus,
+        isLeft: isMemberLeft,
+        rawMember: m,
+        latestPayment,
+      });
     });
-  }, [paymentsList, membersMap]);
+
+    // 2. Also append any payment records whose member is not in membersList
+    (paymentsList || []).forEach((p) => {
+      if (p.memberId && !processedMemberIds.has(p.memberId) && (!p.phone || !processedMemberIds.has(p.phone))) {
+        const days = getDaysRemaining(p.dueDate || p.validityEnd);
+        const isMemberLeft = p.status === "left";
+        const dueAmt = Number(p.dueAmount || 0);
+
+        let dynamicStatus = "paid";
+        if (isMemberLeft) {
+          dynamicStatus = "left";
+        } else if (dueAmt > 0) {
+          if (days !== null && days < -2) dynamicStatus = "overdue";
+          else dynamicStatus = "partial";
+        } else if (days !== null) {
+          if (days < -2) dynamicStatus = "overdue";
+          else if (days <= 0) dynamicStatus = "expired";
+          else if (days <= 3) dynamicStatus = "ending_soon";
+          else dynamicStatus = "paid";
+        }
+
+        const hasPaidAtLeastOnce = Boolean(Number(p.paidAmount || p.amount || 0) > 0);
+        const isFirstTimeUnpaid = !hasPaidAtLeastOnce && dueAmt > 0;
+        const isPartialDue = hasPaidAtLeastOnce && dueAmt > 0;
+        const isFullyPaid = dueAmt <= 0 && (hasPaidAtLeastOnce || Number(p.paidAmount || 0) > 0);
+
+        items.push({
+          id: p.id,
+          memberId: p.memberId,
+          memberName: p.memberName || "Guest",
+          phone: p.phone || "",
+          slot: p.slot || "General",
+          batch: p.batch || "Alpha Gym",
+          planName: p.planName || "Standard Plan",
+          planPrice: Number(p.amount || 0),
+          amount: Number(p.amount || 0),
+          paidAmount: Number(p.paidAmount || 0),
+          dueAmount: dueAmt,
+          validityStart: p.validityStart || "—",
+          validityEnd: p.validityEnd || "—",
+          dueDate: p.dueDate || "—",
+          paymentMode: p.paymentMode || "Cash",
+          discount: Number(p.discount || 0),
+          computedDays: days,
+          isPt: false,
+          trainerName: null,
+          ptPlanName: null,
+          ptPlanPrice: 0,
+          ptEndDate: null,
+          ptStatus: null,
+          ptDays: null,
+          gymDynamicStatus: dynamicStatus,
+          ptDynamicStatus: null,
+          hasPaidAtLeastOnce,
+          isFirstTimeUnpaid,
+          isPartialDue,
+          isFullyPaid,
+          selectedServices: [],
+          dynamicStatus,
+          isLeft: isMemberLeft,
+          rawMember: null,
+          latestPayment: p,
+        });
+      }
+    });
+
+    return items;
+  }, [membersList, paymentsList]);
+
+  const totalCollections = useMemo(() => {
+    return (paymentsList || []).reduce((acc, p) => acc + Number(p.paidAmount || p.amount || 0), 0);
+  }, [paymentsList]);
+
+  const totalDues = useMemo(() => {
+    return classifiedItems.reduce((acc, i) => acc + Number(i.dueAmount || 0), 0);
+  }, [classifiedItems]);
+
+  const totalDueMembersCount = useMemo(() => {
+    return classifiedItems.filter((i) => Number(i.dueAmount || 0) > 0 && !i.isLeft).length;
+  }, [classifiedItems]);
 
   const pendingOnlineRequests = useMemo(() => {
     return (onlineRequests || []).filter((r) => r.status === "pending");
   }, [onlineRequests]);
 
-  // Tab counts
+  // Tab counts with Gym & PT breakdown
   const counts = useMemo(() => {
+    let gymEndingSoonCount = 0;
+    let ptEndingSoonCount = 0;
+    let gymExpiredCount = 0;
+    let ptExpiredCount = 0;
+    let gymOverdueCount = 0;
+    let ptOverdueCount = 0;
+
+    classifiedItems.forEach((i) => {
+      if (i.isLeft) return;
+      if (i.gymDynamicStatus === "ending_soon") gymEndingSoonCount++;
+      if (i.ptDynamicStatus === "ending_soon") ptEndingSoonCount++;
+      if (i.gymDynamicStatus === "expired") gymExpiredCount++;
+      if (i.ptDynamicStatus === "expired") ptExpiredCount++;
+      if (i.gymDynamicStatus === "overdue") gymOverdueCount++;
+      if (i.ptDynamicStatus === "overdue") ptOverdueCount++;
+    });
+
     return {
       all: classifiedItems.length,
-      paid: classifiedItems.filter((i) => i.dynamicStatus === "paid").length,
-      partial: classifiedItems.filter((i) => i.dynamicStatus === "partial").length,
-      ending_soon: classifiedItems.filter((i) => i.dynamicStatus === "ending_soon").length,
-      expired: classifiedItems.filter((i) => i.dynamicStatus === "expired").length,
-      overdue: classifiedItems.filter((i) => i.dynamicStatus === "overdue").length,
-      left: classifiedItems.filter((i) => i.dynamicStatus === "left").length,
+      paid: classifiedItems.filter((i) => i.isFullyPaid && !i.isLeft && i.gymDynamicStatus === "paid" && (!i.isPt || i.ptDynamicStatus === "paid")).length,
+      partial: classifiedItems.filter((i) => Number(i.dueAmount || 0) > 0 && !i.isLeft).length,
+      ending_soon: classifiedItems.filter((i) => (i.gymDynamicStatus === "ending_soon" || i.ptDynamicStatus === "ending_soon") && !i.isLeft).length,
+      expired: classifiedItems.filter((i) => (i.gymDynamicStatus === "expired" || i.ptDynamicStatus === "expired") && !i.isLeft).length,
+      overdue: classifiedItems.filter((i) => (i.gymDynamicStatus === "overdue" || i.ptDynamicStatus === "overdue") && !i.isLeft).length,
+      left: classifiedItems.filter((i) => i.isLeft).length,
       online_requests: pendingOnlineRequests.length,
+      gymEndingSoonCount,
+      ptEndingSoonCount,
+      gymExpiredCount,
+      ptExpiredCount,
+      gymOverdueCount,
+      ptOverdueCount,
     };
   }, [classifiedItems, pendingOnlineRequests]);
 
@@ -784,27 +960,47 @@ export default function Payments() {
         (item.memberName || "").toLowerCase().includes(term) ||
         (item.phone || "").toLowerCase().includes(term) ||
         (item.slot || "").toLowerCase().includes(term) ||
-        (item.planName || "").toLowerCase().includes(term);
+        (item.planName || "").toLowerCase().includes(term) ||
+        (item.trainerName || "").toLowerCase().includes(term);
 
       const matchSlot =
         slotFilter === "all" ||
         (item.slot || "").toLowerCase().includes(slotFilter.toLowerCase());
 
       let matchTab = true;
-      if (statusFilter === "paid") matchTab = item.dynamicStatus === "paid";
-      else if (statusFilter === "partial") matchTab = item.dynamicStatus === "partial";
-      else if (statusFilter === "ending_soon") matchTab = item.dynamicStatus === "ending_soon";
-      else if (statusFilter === "expired") matchTab = item.dynamicStatus === "expired";
-      else if (statusFilter === "overdue") matchTab = item.dynamicStatus === "overdue";
-      else if (statusFilter === "left") matchTab = item.dynamicStatus === "left";
+      if (statusFilter === "paid") {
+        matchTab = item.isFullyPaid && !item.isLeft && item.gymDynamicStatus === "paid" && (!item.isPt || item.ptDynamicStatus === "paid");
+      } else if (statusFilter === "partial") {
+        matchTab = Number(item.dueAmount || 0) > 0 && !item.isLeft;
+      } else if (statusFilter === "ending_soon") {
+        const isEnding = (item.gymDynamicStatus === "ending_soon" || item.ptDynamicStatus === "ending_soon") && !item.isLeft;
+        if (!isEnding) return false;
+        if (subFilter === "gym") return item.gymDynamicStatus === "ending_soon";
+        if (subFilter === "pt") return item.ptDynamicStatus === "ending_soon";
+        return true;
+      } else if (statusFilter === "expired") {
+        const isExp = (item.gymDynamicStatus === "expired" || item.ptDynamicStatus === "expired") && !item.isLeft;
+        if (!isExp) return false;
+        if (subFilter === "gym") return item.gymDynamicStatus === "expired";
+        if (subFilter === "pt") return item.ptDynamicStatus === "expired";
+        return true;
+      } else if (statusFilter === "overdue") {
+        const isOver = (item.gymDynamicStatus === "overdue" || item.ptDynamicStatus === "overdue") && !item.isLeft;
+        if (!isOver) return false;
+        if (subFilter === "gym") return item.gymDynamicStatus === "overdue";
+        if (subFilter === "pt") return item.ptDynamicStatus === "overdue";
+        return true;
+      } else if (statusFilter === "left") {
+        matchTab = item.isLeft;
+      }
 
       return matchSearch && matchSlot && matchTab;
     });
-  }, [classifiedItems, search, statusFilter, slotFilter]);
+  }, [classifiedItems, search, statusFilter, slotFilter, subFilter]);
 
   // List of members expiring in 3, 2, 1 or today for top alert banner
   const endingInThreeDays = useMemo(() => {
-    return classifiedItems.filter((i) => i.dynamicStatus === "ending_soon");
+    return classifiedItems.filter((i) => (i.gymDynamicStatus === "ending_soon" || i.ptDynamicStatus === "ending_soon") && !i.isLeft);
   }, [classifiedItems]);
 
   // Filtered Online Requests
@@ -828,257 +1024,415 @@ export default function Payments() {
   }, [onlineRequests, requestsSubFilter, search]);
 
   return (
-    <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-4 sm:space-y-5">
+      {/* App-Style Top Header */}
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2.5">
-            Fee & Subscription Management
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+            Fee Desk
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-extrabold">
+              {classifiedItems.length}
+            </span>
           </h1>
-          <p className="text-slate-500 text-xs mt-1">
-            Daily collections, dues tracking, expiring alerts, overdue monitoring & Left members management
+          <p className="text-slate-500 text-xs">
+            Fee collections, pending dues & renewals
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Auto-Synced Members & Dues
-          </div>
+        <button
+          onClick={() => handleOpenCollectModal(null, "renew")}
+          className="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs py-2 px-3.5 shadow-sm rounded-xl flex items-center gap-1.5 shrink-0 transition cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">Collect Fee & Renew</span>
+          <span className="sm:hidden">Collect Fee</span>
+        </button>
+      </div>
 
-          <Button
-            icon={<Plus className="w-4 h-4" />}
-            onClick={() => handleOpenCollectModal(null, "renew")}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 px-4 shadow-sm rounded-xl"
-          >
-            Collect Fee & Renew
-          </Button>
+      {/* KPI Stats Quick Bar (2x2 on Mobile, 4-col on Desktop) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        {/* Total Collections */}
+        <div className="p-3 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Collections</span>
+            <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <DollarSign className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="mt-1.5">
+            <p className="text-lg sm:text-xl font-black text-emerald-600 leading-tight">
+              ₹{totalCollections.toLocaleString("en-IN")}
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Total fee collected</p>
+          </div>
+        </div>
+
+        {/* Outstanding Dues */}
+        <div
+          onClick={() => setStatusFilter("partial")}
+          className={`p-3 sm:p-4 rounded-2xl bg-white border shadow-2xs flex flex-col justify-between cursor-pointer transition ${
+            totalDues > 0 ? "border-rose-200 hover:border-rose-300" : "border-slate-200/90"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Pending Dues</span>
+            <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${totalDues > 0 ? "bg-rose-50 text-rose-600" : "bg-slate-50 text-slate-400"}`}>
+              <AlertTriangle className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="mt-1.5">
+            <p className={`text-lg sm:text-xl font-black leading-tight ${totalDues > 0 ? "text-rose-600" : "text-slate-800"}`}>
+              ₹{totalDues.toLocaleString("en-IN")}
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+              {totalDueMembersCount} member{totalDueMembersCount === 1 ? "" : "s"} due
+            </p>
+          </div>
+        </div>
+
+        {/* Ending Soon Alerts */}
+        <div
+          onClick={() => setStatusFilter("ending_soon")}
+          className="p-3 sm:p-4 rounded-2xl bg-white border border-slate-200/90 hover:border-amber-300 shadow-2xs flex flex-col justify-between cursor-pointer transition"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Ending Soon</span>
+            <div className="w-6 h-6 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <Clock className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="mt-1.5">
+            <p className="text-lg sm:text-xl font-black text-amber-600 leading-tight">
+              {counts.ending_soon}
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Expiring in 0-3 days</p>
+          </div>
+        </div>
+
+        {/* Fully Paid */}
+        <div
+          onClick={() => setStatusFilter("paid")}
+          className="p-3 sm:p-4 rounded-2xl bg-white border border-slate-200/90 hover:border-indigo-300 shadow-2xs flex flex-col justify-between cursor-pointer transition"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Fully Paid</span>
+            <div className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <CheckCircle className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="mt-1.5">
+            <p className="text-lg sm:text-xl font-black text-indigo-600 leading-tight">
+              {counts.paid}
+            </p>
+            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Active & cleared</p>
+          </div>
         </div>
       </div>
 
-      {/* Pending Online UPI Requests Alert Banner */}
+      {/* Online UPI Requests Sleek Alert Strip */}
       {counts.online_requests > 0 && (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 text-white shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border border-emerald-500/40 animate-in fade-in duration-300">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center shrink-0 text-emerald-300 font-bold border border-emerald-500/30">
-              <QrCode className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-emerald-300 uppercase tracking-wide flex items-center gap-2">
-                <span>🔔 {counts.online_requests} Online UPI Renewal Request{counts.online_requests > 1 ? "s" : ""} Pending Approval</span>
-              </h4>
-              <p className="text-xs text-slate-300 mt-0.5">
-                Members have transferred fees via Gym UPI QR code. Verify the 12-digit UTR in your bank app and approve to renew validity.
-              </p>
-            </div>
+        <div
+          onClick={() => navigate("/owner/upi-approvals")}
+          className="p-3 rounded-2xl bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 text-white flex items-center justify-between gap-3 border border-emerald-500/30 cursor-pointer shadow-sm hover:border-emerald-400 transition"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+            <p className="text-xs font-bold text-emerald-200 truncate">
+              🔔 {counts.online_requests} UPI Renewal Request{counts.online_requests > 1 ? "s" : ""} Pending Verification
+            </p>
           </div>
-
-          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-            <button
-              onClick={() => navigate("/owner/upi-approvals")}
-              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition shadow-md whitespace-nowrap flex items-center gap-1.5 cursor-pointer"
-            >
-              Review in Online UPI Approvals ({counts.online_requests}) →
-            </button>
-          </div>
+          <span className="text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1 rounded-lg shrink-0">
+            Review →
+          </span>
         </div>
       )}
 
-      {/* 3-Day Expiry Alert Banner */}
-      {endingInThreeDays.length > 0 && (
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-amber-700 font-bold">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wide">
-                ⚠️ Ending Soon Alert: 3, 2, 1 Days / Today Expiring ({endingInThreeDays.length} Members)
-              </h4>
-              <p className="text-xs text-amber-800 mt-0.5">
-                In members ka plan aaj ya aane wale 1-3 din me khatam hone wala hai. WhatsApp reminder bhejein ya fee collect karein:
-              </p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {endingInThreeDays.map((m) => (
-                  <span
-                    key={m.id}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-white border border-amber-300 text-[11px] font-bold text-amber-900 shadow-2xs"
-                  >
-                    <span>{m.memberName}</span>
-                    <span className="text-rose-600 font-extrabold">
-                      ({m.computedDays === 0 ? "Expires Today!" : `${m.computedDays} day${m.computedDays > 1 ? "s" : ""} left`})
-                    </span>
-                  </span>
-                ))}
-              </div>
-            </div>
+      {/* Ending Soon Quick Strip */}
+      {endingInThreeDays.length > 0 && statusFilter !== "ending_soon" && (
+        <div
+          onClick={() => setStatusFilter("ending_soon")}
+          className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-center justify-between gap-2 cursor-pointer hover:bg-amber-100/70 transition"
+        >
+          <div className="flex items-center gap-2 text-xs font-bold text-amber-950 min-w-0 truncate">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="truncate">{endingInThreeDays.length} member{endingInThreeDays.length > 1 ? "s" : ""} expiring in 0-3 days</span>
           </div>
-
-          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-            <button
-              onClick={() => {
-                setStatusFilter("ending_soon");
-              }}
-              className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shadow-xs"
-            >
-              View All Ending Soon
-            </button>
-          </div>
+          <span className="text-[11px] font-extrabold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-md shrink-0">
+            View →
+          </span>
         </div>
       )}
 
-      {/* Search and Filters Bar */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3">
-        {/* Search Input */}
-        <div className="relative w-full">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by member name, phone, slot, or plan..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white"
-          />
-        </div>
-
-        {/* Filter Pills and Dropdowns */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          {/* Status Pills */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Month Badge */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
-              <Calendar className="w-3.5 h-3.5 text-slate-500" />
-              <span>Month: {selectedMonth}</span>
-            </div>
-
-            {/* All */}
-            <button
-              onClick={() => setStatusFilter("all")}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
-                statusFilter === "all"
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              All <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">{counts.all}</span>
-            </button>
-
-            {/* Paid */}
-            <button
-              onClick={() => setStatusFilter("paid")}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
-                statusFilter === "paid"
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
-              }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              Paid <span className="text-[10px] px-1 rounded-full bg-emerald-100 text-emerald-800">{counts.paid}</span>
-            </button>
-
-            {/* Due / Partial */}
-            <button
-              onClick={() => setStatusFilter("partial")}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
-                statusFilter === "partial"
-                  ? "bg-amber-600 text-white shadow-sm"
-                  : "bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100"
-              }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-              Due / Partial <span className="text-[10px] px-1 rounded-full bg-amber-200 text-amber-900">{counts.partial}</span>
-            </button>
-
-            {/* Ending Soon (3, 2, 1, Today) */}
-            <button
-              onClick={() => setStatusFilter("ending_soon")}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
-                statusFilter === "ending_soon"
-                  ? "bg-amber-500 text-white shadow-sm"
-                  : "bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100"
-              }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
-              Ending Soon (0-3 Days) <span className="text-[10px] px-1 rounded-full bg-amber-200 text-amber-900">{counts.ending_soon}</span>
-            </button>
-
-            {/* Expired (1-3 Days ago) */}
-            <button
-              onClick={() => setStatusFilter("expired")}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
-                statusFilter === "expired"
-                  ? "bg-orange-600 text-white shadow-sm"
-                  : "bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100"
-              }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
-              Expired (1-3 Days) <span className="text-[10px] px-1 rounded-full bg-orange-100 text-orange-800">{counts.expired}</span>
-            </button>
-
-            {/* Overdue (>3 Days ago) */}
-            <button
-              onClick={() => setStatusFilter("overdue")}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
-                statusFilter === "overdue"
-                  ? "bg-rose-600 text-white shadow-sm"
-                  : "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
-              }`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-              Overdue (&gt;3 Days) <span className="text-[10px] px-1 rounded-full bg-rose-100 text-rose-800">{counts.overdue}</span>
-            </button>
-
-            {/* Left (New Tab) */}
-            <button
-              onClick={() => setStatusFilter("left")}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
-                statusFilter === "left"
-                  ? "bg-slate-700 text-white shadow-sm"
-                  : "bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200"
-              }`}
-            >
-              <UserX className="w-3.5 h-3.5" />
-              Left Gym <span className="text-[10px] px-1 rounded-full bg-slate-200 text-slate-800">{counts.left}</span>
-            </button>
-
-            {/* Online UPI Requests Button (Direct link to dedicated UPI Approvals portal) */}
-            <button
-              onClick={() => navigate("/owner/upi-approvals")}
-              className="px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 cursor-pointer shadow-2xs"
-              title="Open Online UPI Approvals Portal"
-            >
-              <QrCode className="w-3.5 h-3.5 text-emerald-600" />
-              Online UPI Approvals{" "}
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
-                  counts.online_requests > 0
-                    ? "bg-red-500 text-white animate-pulse"
-                    : "bg-emerald-200 text-emerald-900"
-                }`}
+      {/* App-Style Search & Scrollable Filter Tabs */}
+      <div className="space-y-2.5">
+        {/* Search Bar + Slot selector */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search member, phone, plan or slot..."
+              className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 shadow-2xs"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
               >
-                {counts.online_requests}
-              </span>
-            </button>
+                ✕
+              </button>
+            )}
           </div>
 
-          {/* Slot Filter Dropdown */}
-          <div className="flex items-center gap-2">
-            <select
-              value={slotFilter}
-              onChange={(e) => setSlotFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-medium focus:outline-none focus:border-indigo-500"
-            >
-              <option value="all">All Slots & Batches</option>
-              <option value="Morning">🌅 Morning (6:00 AM - 9:00 AM)</option>
-              <option value="Afternoon">☀️ Afternoon (12:00 PM - 3:00 PM)</option>
-              <option value="Evening">🌆 Evening (4:00 PM - 7:00 PM)</option>
-              <option value="Night">🌙 Night (7:00 PM - 10:00 PM)</option>
-            </select>
-            <span className="text-[11px] text-slate-400 font-medium">
-              Showing {filteredSubscriptions.length} of {classifiedItems.length} records
+          <select
+            value={slotFilter}
+            onChange={(e) => setSlotFilter(e.target.value)}
+            className="bg-white border border-slate-200 rounded-xl px-2.5 py-2 text-xs text-slate-700 font-semibold focus:outline-none focus:border-indigo-500 shadow-2xs max-w-[140px] sm:max-w-[180px] truncate"
+          >
+            <option value="all">All Shifts</option>
+            <option value="Morning">🌅 Morning</option>
+            <option value="Afternoon">☀️ Afternoon</option>
+            <option value="Evening">🌆 Evening</option>
+            <option value="Night">🌙 Night</option>
+          </select>
+        </div>
+
+        {/* Horizontally Scrollable Pills Bar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          {/* All */}
+          <button
+            onClick={() => { setStatusFilter("all"); setSubFilter("all"); }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
+              statusFilter === "all"
+                ? "bg-slate-900 text-white shadow-2xs"
+                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <span>All</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${statusFilter === "all" ? "bg-white/20" : "bg-slate-100 text-slate-600"}`}>
+              {counts.all}
             </span>
-          </div>
+          </button>
+
+          {/* Dues / Partial */}
+          <button
+            onClick={() => { setStatusFilter("partial"); setSubFilter("all"); }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
+              statusFilter === "partial"
+                ? "bg-amber-600 text-white shadow-2xs"
+                : "bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100/70"
+            }`}
+          >
+            <span>⚠️ Dues</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${statusFilter === "partial" ? "bg-white/20" : "bg-amber-200 text-amber-950"}`}>
+              {counts.partial}
+            </span>
+          </button>
+
+          {/* Ending Soon */}
+          <button
+            onClick={() => { setStatusFilter("ending_soon"); setSubFilter("all"); }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
+              statusFilter === "ending_soon"
+                ? "bg-amber-500 text-white shadow-2xs"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <span>⏰ Ending</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${statusFilter === "ending_soon" ? "bg-white/20" : "bg-slate-100 text-slate-600"}`}>
+              {counts.ending_soon}
+            </span>
+          </button>
+
+          {/* Expired */}
+          <button
+            onClick={() => { setStatusFilter("expired"); setSubFilter("all"); }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
+              statusFilter === "expired"
+                ? "bg-orange-600 text-white shadow-2xs"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <span>Expired</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${statusFilter === "expired" ? "bg-white/20" : "bg-slate-100 text-slate-600"}`}>
+              {counts.expired}
+            </span>
+          </button>
+
+          {/* Overdue */}
+          <button
+            onClick={() => { setStatusFilter("overdue"); setSubFilter("all"); }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
+              statusFilter === "overdue"
+                ? "bg-rose-600 text-white shadow-2xs"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <span>Overdue</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${statusFilter === "overdue" ? "bg-white/20" : "bg-slate-100 text-slate-600"}`}>
+              {counts.overdue}
+            </span>
+          </button>
+
+          {/* Paid */}
+          <button
+            onClick={() => { setStatusFilter("paid"); setSubFilter("all"); }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
+              statusFilter === "paid"
+                ? "bg-emerald-600 text-white shadow-2xs"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <span>✅ Paid</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${statusFilter === "paid" ? "bg-white/20" : "bg-slate-100 text-slate-600"}`}>
+              {counts.paid}
+            </span>
+          </button>
+
+          {/* Left */}
+          <button
+            onClick={() => { setStatusFilter("left"); setSubFilter("all"); }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
+              statusFilter === "left"
+                ? "bg-slate-700 text-white shadow-2xs"
+                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            <span>Left</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${statusFilter === "left" ? "bg-white/20" : "bg-slate-100 text-slate-600"}`}>
+              {counts.left}
+            </span>
+          </button>
+
+          {/* Online UPI Approvals link */}
+          <button
+            onClick={() => navigate("/owner/upi-approvals")}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 cursor-pointer shadow-2xs"
+          >
+            <QrCode className="w-3.5 h-3.5 text-emerald-600" />
+            <span>UPI Approvals</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${counts.online_requests > 0 ? "bg-red-500 text-white animate-pulse" : "bg-emerald-200 text-emerald-900"}`}>
+              {counts.online_requests}
+            </span>
+          </button>
         </div>
       </div>
+
+      {/* Category Sub-Filter (Gym vs PT Breakdown) for Ending Soon, Expired, Overdue */}
+      {statusFilter === "ending_soon" && counts.ending_soon > 0 && (
+        <div className="p-2 sm:p-2.5 rounded-xl bg-amber-50/90 border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-1.5 text-amber-950 font-bold">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Ending Soon Breakdown:</span>
+            <span className="text-[11px] text-amber-800 font-medium hidden sm:inline">Select Gym or PT package:</span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => setSubFilter("all")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                subFilter === "all" ? "bg-amber-500 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-amber-100 border border-amber-200"
+              }`}
+            >
+              All Ending ({counts.ending_soon})
+            </button>
+            <button
+              onClick={() => setSubFilter("gym")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer ${
+                subFilter === "gym" ? "bg-blue-600 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-blue-50 border border-slate-200"
+              }`}
+            >
+              <Dumbbell className="w-3.5 h-3.5 shrink-0" />
+              <span>Gym Ending ({counts.gymEndingSoonCount})</span>
+            </button>
+            <button
+              onClick={() => setSubFilter("pt")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer ${
+                subFilter === "pt" ? "bg-purple-600 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-purple-50 border border-slate-200"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              <span>PT Ending ({counts.ptEndingSoonCount})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {statusFilter === "expired" && counts.expired > 0 && (
+        <div className="p-2 sm:p-2.5 rounded-xl bg-orange-50/90 border border-orange-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-1.5 text-orange-950 font-bold">
+            <AlertTriangle className="w-4 h-4 text-orange-600 shrink-0" />
+            <span>Expired Breakdown:</span>
+            <span className="text-[11px] text-orange-800 font-medium hidden sm:inline">Select Gym or PT package:</span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => setSubFilter("all")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                subFilter === "all" ? "bg-orange-600 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-orange-100 border border-orange-200"
+              }`}
+            >
+              All Expired ({counts.expired})
+            </button>
+            <button
+              onClick={() => setSubFilter("gym")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer ${
+                subFilter === "gym" ? "bg-blue-600 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-blue-50 border border-slate-200"
+              }`}
+            >
+              <Dumbbell className="w-3.5 h-3.5 shrink-0" />
+              <span>Gym Expired ({counts.gymExpiredCount})</span>
+            </button>
+            <button
+              onClick={() => setSubFilter("pt")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer ${
+                subFilter === "pt" ? "bg-purple-600 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-purple-50 border border-slate-200"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              <span>PT Expired ({counts.ptExpiredCount})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {statusFilter === "overdue" && counts.overdue > 0 && (
+        <div className="p-2 sm:p-2.5 rounded-xl bg-rose-50/90 border border-rose-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-1.5 text-rose-950 font-bold">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>Overdue Breakdown:</span>
+            <span className="text-[11px] text-rose-800 font-medium hidden sm:inline">Select Gym or PT package:</span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => setSubFilter("all")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                subFilter === "all" ? "bg-rose-600 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-rose-100 border border-rose-200"
+              }`}
+            >
+              All Overdue ({counts.overdue})
+            </button>
+            <button
+              onClick={() => setSubFilter("gym")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer ${
+                subFilter === "gym" ? "bg-blue-600 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-blue-50 border border-slate-200"
+              }`}
+            >
+              <Dumbbell className="w-3.5 h-3.5 shrink-0" />
+              <span>Gym Overdue ({counts.gymOverdueCount})</span>
+            </button>
+            <button
+              onClick={() => setSubFilter("pt")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer ${
+                subFilter === "pt" ? "bg-purple-600 text-white shadow-2xs" : "bg-white text-slate-700 hover:bg-purple-50 border border-slate-200"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              <span>PT Overdue ({counts.ptOverdueCount})</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Online UPI Renewal Requests View or Standard Subscriptions View */}
       {statusFilter === "online_requests" ? (
@@ -1329,19 +1683,18 @@ export default function Payments() {
         <table className="w-full text-left text-xs text-slate-600">
           <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-extrabold border-b border-slate-200">
             <tr>
-              <th className="px-5 py-3.5">MEMBER & PHONE</th>
-              <th className="px-5 py-3.5">SLOT / BATCH</th>
-              <th className="px-5 py-3.5">BILLING VALIDITY PERIOD</th>
-              <th className="px-5 py-3.5">AMOUNT & DUES</th>
-              <th className="px-5 py-3.5">DUE DATE</th>
-              <th className="px-5 py-3.5">STATUS</th>
-              <th className="px-5 py-3.5 text-right">ACTIONS</th>
+              <th className="px-4 py-3.5">MEMBER PROFILE & SHIFT</th>
+              <th className="px-4 py-3.5">GYM MEMBERSHIP</th>
+              <th className="px-4 py-3.5">PERSONAL TRAINING (PT)</th>
+              <th className="px-4 py-3.5">SERVICES & FACILITIES</th>
+              <th className="px-4 py-3.5">FEES & DUES</th>
+              <th className="px-4 py-3.5 text-right">ACTIONS</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filteredSubscriptions.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
+                <td colSpan={6} className="px-5 py-12 text-center text-slate-400">
                   <UserX className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                   <p className="font-bold text-slate-600">No records found for this filter</p>
                   <p className="text-xs text-slate-400 mt-0.5">Try selecting another filter or searching a different term</p>
@@ -1357,217 +1710,359 @@ export default function Payments() {
                   .slice(0, 2);
 
                 const days = item.computedDays;
-                const isEndingSoon = item.dynamicStatus === "ending_soon";
-                const isLeft = item.dynamicStatus === "left";
+                const isLeftMember = item.dynamicStatus === "left" || item.isLeft;
                 const hasDue = Number(item.dueAmount) > 0;
+                const ptDays = item.ptDays;
 
                 return (
                   <tr
                     key={item.id}
                     className={`hover:bg-slate-50/90 transition group ${
-                      isLeft ? "bg-slate-50/60 opacity-80" : ""
+                      isLeftMember ? "bg-slate-50/60 opacity-80" : ""
                     }`}
                   >
-                    {/* Member & Phone */}
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
+                    {/* 1. Member Profile & Shift */}
+                    <td className="px-4 py-3.5 align-top">
+                      <div className="flex items-start gap-3">
                         <div
-                          className={`w-9 h-9 rounded-full text-white font-bold flex items-center justify-center text-xs shadow-xs shrink-0 ${
-                            isLeft
+                          className={`w-9 h-9 rounded-xl text-white font-bold flex items-center justify-center text-xs shadow-xs shrink-0 mt-0.5 ${
+                            isLeftMember
                               ? "bg-slate-400"
                               : "bg-gradient-to-br from-indigo-500 to-purple-600"
                           }`}
                         >
                           {initials}
                         </div>
-                        <div>
-                          <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                            {item.memberName}
-                            {isLeft && (
+                        <div className="space-y-1">
+                          <button
+                            onClick={() => navigate(`/owner/members/${item.memberId || item.id}`)}
+                            className="font-bold text-slate-900 text-sm hover:text-indigo-600 hover:underline flex items-center gap-1.5 text-left transition-colors"
+                          >
+                            <span>{item.memberName}</span>
+                            {isLeftMember && (
                               <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-600 font-bold">
                                 LEFT
                               </span>
                             )}
-                          </p>
+                          </button>
                           {item.phone ? (
                             <a
                               href={`tel:${item.phone.replace(/[^0-9+]/g, '')}`}
                               onClick={(e) => e.stopPropagation()}
-                              className="text-[11px] text-slate-500 hover:text-emerald-600 hover:underline inline-flex items-center gap-1 mt-0.5 cursor-pointer transition-colors"
+                              className="text-[11px] text-slate-500 hover:text-emerald-600 hover:underline inline-flex items-center gap-1 cursor-pointer transition-colors"
                               title={`Call ${item.memberName} (${item.phone})`}
                             >
                               <Phone className="w-3 h-3 text-slate-400 shrink-0" />
                               <span>{item.phone}</span>
                             </a>
                           ) : (
-                            <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                            <p className="text-[11px] text-slate-400 flex items-center gap-1">
                               <Phone className="w-3 h-3 text-slate-300" /> No Phone
                             </p>
                           )}
+                          <div className="pt-0.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-semibold">
+                              {getSlotIcon(item.slot)}
+                              <span className="truncate max-w-[140px]">{item.slot || "General Shift"}</span>
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </td>
 
-                    {/* Slot / Batch */}
-                    <td className="px-5 py-3.5">
-                      <div className="space-y-1">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-[11px] font-bold">
-                          {item.slot || "General"}
-                        </span>
-                        <p className="text-[10px] text-slate-400 font-medium">{item.batch || "Alpha Gym"}</p>
-                      </div>
-                    </td>
-
-                    {/* Billing Validity Period */}
-                    <td className="px-5 py-3.5">
-                      <div className="space-y-0.5">
-                        <p className="font-bold text-slate-800 text-[11px]">
-                          {formatDate(item.validityStart)} to {formatDate(item.validityEnd)}
+                    {/* 2. Gym Membership */}
+                    <td className="px-4 py-3.5 align-top">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-900 text-xs">{item.planName}</span>
+                          <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                            ₹{item.planPrice || item.amount}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 font-medium">
+                          Valid: <strong className="text-slate-700">{formatDate(item.validityStart)}</strong> to <strong className="text-slate-700">{formatDate(item.validityEnd)}</strong>
                         </p>
-                        <p className="text-[10px] text-slate-500 font-medium">{item.planName}</p>
+                        <div>
+                          {isLeftMember ? (
+                            <span className="text-[10px] font-semibold text-slate-400">Left Gym</span>
+                          ) : days !== null ? (
+                            <div>
+                              {days > 3 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <CheckCircle className="w-2.5 h-2.5" />
+                                  {days} days left
+                                </span>
+                              ) : days >= 0 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
+                                  <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                                  {days === 0 ? "Expires Today!" : `${days} day${days > 1 ? "s" : ""} left`}
+                                </span>
+                              ) : days >= -2 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-orange-100 text-orange-800 border border-orange-300">
+                                  Expired {Math.abs(days)}d ago
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-700 border border-rose-300">
+                                  Overdue ({Math.abs(days)}d past)
+                                </span>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </td>
 
-                    {/* Amount & Discount / Due */}
-                    <td className="px-5 py-3.5">
-                      <div className="space-y-1">
+                    {/* 3. Personal Training (PT) */}
+                    <td className="px-4 py-3.5 align-top">
+                      {item.isPt && item.trainerName ? (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1.5 text-indigo-700 font-bold text-xs">
+                            <Dumbbell className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            <span>{item.trainerName}</span>
+                          </div>
+                          <p className="text-[10px] text-slate-600 font-medium">
+                            {item.ptPlanName || "1-on-1 PT Coaching"}
+                          </p>
+                          {item.ptEndDate && (
+                            <div className="flex items-center gap-1 text-[10px]">
+                              <span className="text-slate-400">Till:</span>
+                              <span className="font-semibold text-slate-700">{formatDate(item.ptEndDate)}</span>
+                              {ptDays !== null && (
+                                <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                                  ptDays > 3 ? "bg-indigo-50 text-indigo-700" : ptDays >= 0 ? "bg-amber-100 text-amber-800" : "bg-rose-100 text-rose-700"
+                                }`}>
+                                  {ptDays >= 0 ? `${ptDays}d left` : "PT Expired"}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {/* PT Dynamic Action: Paid -> 'PT Paid' Badge; Ending Soon -> 'Renew PT (Expiring Soon)'; Expired/Overdue -> 'Renew PT' */}
+                          {!isLeftMember && (
+                            item.ptDynamicStatus === "ending_soon" ? (
+                              <button
+                                onClick={() => handleOpenPtModal(item)}
+                                className="px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] inline-flex items-center gap-1 transition shadow-2xs animate-pulse cursor-pointer"
+                                title="PT Expiring Soon - Click to Renew PT Package"
+                              >
+                                <RotateCcw className="w-2.5 h-2.5" /> Renew PT (Expiring Soon)
+                              </button>
+                            ) : item.ptDynamicStatus === "expired" ? (
+                              <button
+                                onClick={() => handleOpenPtModal(item)}
+                                className="px-2 py-0.5 rounded bg-orange-600 hover:bg-orange-700 text-white font-extrabold text-[10px] inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                                title="PT Expired - Click to Renew PT Package"
+                              >
+                                <RotateCcw className="w-2.5 h-2.5" /> Renew PT (Expired)
+                              </button>
+                            ) : item.ptDynamicStatus === "overdue" ? (
+                              <button
+                                onClick={() => handleOpenPtModal(item)}
+                                className="px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                                title="PT Overdue - Click to Renew PT Package"
+                              >
+                                <RotateCcw className="w-2.5 h-2.5" /> Renew PT (Overdue)
+                              </button>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                                <CheckCircle2 className="w-3 h-3 text-purple-600" /> PT Active ({ptDays !== null ? `${ptDays}d left` : "Paid"})
+                              </span>
+                            )
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <span className="text-[11px] font-medium text-slate-400 block">Floor Only (No PT)</span>
+                          {!isLeftMember && (
+                            <button
+                              onClick={() => handleOpenPtModal(item)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 text-[10px] font-bold transition"
+                            >
+                              <Plus className="w-2.5 h-2.5" /> Add PT
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* 4. Services & Facilities */}
+                    <td className="px-4 py-3.5 align-top">
+                      <div className="space-y-1.5">
+                        {item.selectedServices && item.selectedServices.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 max-w-[180px]">
+                            {item.selectedServices.map((srv, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-50 border border-teal-200 text-teal-800 text-[10px] font-semibold"
+                                title={srv.name || srv.serviceName}
+                              >
+                                <Sparkles className="w-2.5 h-2.5 text-teal-600" />
+                                <span className="truncate max-w-[120px]">{srv.name || srv.serviceName}</span>
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-medium block">No active add-ons</span>
+                        )}
+                        {!isLeftMember && (
+                          <button
+                            onClick={() => handleOpenServiceModal(item)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-dashed border-teal-300 text-teal-700 hover:bg-teal-50 text-[10px] font-bold transition"
+                          >
+                            <Plus className="w-2.5 h-2.5" /> Service
+                          </button>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* 5. Fees & Dues */}
+                    <td className="px-4 py-3.5 align-top">
+                      <div className="space-y-1.5">
                         <div className="flex items-center gap-2">
                           <span className="font-extrabold text-slate-900 text-sm">₹{item.amount}</span>
                           <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 font-semibold uppercase text-slate-600">
                             {item.paymentMode || "Cash"}
                           </span>
                         </div>
-                        {hasDue ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
-                            Paid: ₹{item.paidAmount} • Due: ₹{item.dueAmount}
-                          </span>
-                        ) : item.discount > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                            <Tag className="w-2.5 h-2.5" /> -₹{item.discount} Off
-                          </span>
+                        {item.isFirstTimeUnpaid ? (
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                              Unpaid: ₹{item.dueAmount || item.planPrice}
+                            </span>
+                            <p className="text-[10px] text-slate-400 font-medium">New Admission</p>
+                          </div>
+                        ) : item.isPartialDue ? (
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                              Due: ₹{item.dueAmount}
+                            </span>
+                            <p className="text-[10px] text-slate-500 font-medium">Paid: ₹{item.paidAmount}</p>
+                          </div>
                         ) : (
-                          <span className="text-[10px] text-emerald-600 font-bold">Full Paid</span>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Paid in Full
+                          </span>
                         )}
                       </div>
                     </td>
 
-                    {/* Due Date & Countdown */}
-                    <td className="px-5 py-3.5">
-                      <div className="space-y-1">
-                        <p className="font-bold text-slate-800 text-[11px]">{formatDate(item.dueDate || item.validityEnd)}</p>
-                        {isLeft ? (
-                          <span className="text-[10px] font-semibold text-slate-400">Left Gym</span>
-                        ) : days !== null ? (
-                          <div>
-                            {days > 3 ? (
-                              <span className="text-[10px] font-bold text-slate-500">
-                                {days} days left
-                              </span>
-                            ) : days >= 0 ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
-                                <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
-                                {days === 0 ? "Expires Today!" : `${days} day${days > 1 ? "s" : ""} left`}
-                              </span>
-                            ) : days >= -3 ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-orange-100 text-orange-800 border border-orange-300">
-                                Expired {Math.abs(days)}d ago
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-700 border border-rose-300">
-                                Overdue ({Math.abs(days)}d past)
-                              </span>
-                            )}
-                          </div>
+                    {/* 6. Actions */}
+                    <td className="px-4 py-3.5 align-top text-right">
+                      <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        {/* Dynamic Primary Action Button by Status (Gym & PT aware) */}
+                        {item.isFirstTimeUnpaid && !isLeftMember ? (
+                          <button
+                            onClick={() => handleOpenCollectModal(item, "collect")}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                            title="Collect Initial Membership Admission Fee"
+                          >
+                            <IndianRupee className="w-3 h-3" /> Collect Fee
+                          </button>
+                        ) : item.isPartialDue && !isLeftMember ? (
+                          <button
+                            onClick={() => handleOpenCollectModal(item, "clear_due")}
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-black transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                            title="Collect Remaining Due Balance"
+                          >
+                            <IndianRupee className="w-3 h-3" /> Collect Due ({`₹${item.dueAmount}`})
+                          </button>
+                        ) : (item.gymDynamicStatus === "ending_soon" && item.ptDynamicStatus === "ending_soon") && !isLeftMember ? (
+                          <button
+                            onClick={() => handleOpenCollectModal(item, "renew")}
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-black transition shadow-2xs flex items-center gap-1 cursor-pointer animate-pulse"
+                            title="Gym Plan & PT Both Expiring Soon - Renew Now"
+                          >
+                            <RotateCcw className="w-3 h-3" /> Renew Plan & PT
+                          </button>
+                        ) : item.gymDynamicStatus === "ending_soon" && !isLeftMember ? (
+                          <button
+                            onClick={() => handleOpenCollectModal(item, "renew")}
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-black transition shadow-2xs flex items-center gap-1 cursor-pointer animate-pulse"
+                            title="Plan Expiring Soon - Renew Now"
+                          >
+                            <RotateCcw className="w-3 h-3" /> Renew Plan
+                          </button>
+                        ) : item.ptDynamicStatus === "ending_soon" && !isLeftMember ? (
+                          <button
+                            onClick={() => handleOpenPtModal(item)}
+                            className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-black transition shadow-2xs flex items-center gap-1 cursor-pointer animate-pulse"
+                            title="PT Expiring Soon - Renew PT Package"
+                          >
+                            <RotateCcw className="w-3 h-3" /> Renew PT
+                          </button>
+                        ) : item.gymDynamicStatus === "expired" && !isLeftMember ? (
+                          <button
+                            onClick={() => handleOpenCollectModal(item, "renew")}
+                            className="px-2.5 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-xs font-black transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                            title="Plan Expired - Renew"
+                          >
+                            <RotateCcw className="w-3 h-3" /> Renew Plan
+                          </button>
+                        ) : item.ptDynamicStatus === "expired" && !isLeftMember ? (
+                          <button
+                            onClick={() => handleOpenPtModal(item)}
+                            className="px-2.5 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-xs font-black transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                            title="PT Expired - Renew PT Package"
+                          >
+                            <RotateCcw className="w-3 h-3" /> Renew PT
+                          </button>
+                        ) : item.gymDynamicStatus === "overdue" && !isLeftMember ? (
+                          <button
+                            onClick={() => handleOpenCollectModal(item, "renew")}
+                            className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                            title="Plan Overdue - Renew"
+                          >
+                            <RotateCcw className="w-3 h-3" /> Renew Plan
+                          </button>
+                        ) : item.ptDynamicStatus === "overdue" && !isLeftMember ? (
+                          <button
+                            onClick={() => handleOpenPtModal(item)}
+                            className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                            title="PT Overdue - Renew PT Package"
+                          >
+                            <RotateCcw className="w-3 h-3" /> Renew PT
+                          </button>
+                        ) : (item.isFullyPaid || item.dynamicStatus === "paid") && !isLeftMember ? (
+                          <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Paid
+                          </span>
                         ) : null}
-                      </div>
-                    </td>
 
-                    {/* Status */}
-                    <td className="px-5 py-3.5">
-                      {item.dynamicStatus === "left" && (
-                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
-                          Left
-                        </span>
-                      )}
-                      {item.dynamicStatus === "paid" && (
-                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Paid
-                        </span>
-                      )}
-                      {item.dynamicStatus === "partial" && (
-                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
-                          Due: ₹{item.dueAmount}
-                        </span>
-                      )}
-                      {item.dynamicStatus === "ending_soon" && (
-                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                          Ending Soon
-                        </span>
-                      )}
-                      {item.dynamicStatus === "expired" && (
-                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
-                          Expired
-                        </span>
-                      )}
-                      {item.dynamicStatus === "overdue" && (
-                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-                          Overdue
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-5 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
                         {/* Receipt Button */}
                         <button
                           onClick={() => {
-                            setReceiptPayment(item);
-                            setReceiptMember(membersMap[item.memberId] || membersMap[item.phone] || null);
+                            setReceiptPayment(item.latestPayment || item);
+                            setReceiptMember(item.rawMember || membersMap[item.memberId] || membersMap[item.phone] || null);
                           }}
                           className="px-2 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1 transition shadow-2xs cursor-pointer"
                           title="View & Print Official Fee Receipt"
                         >
                           <Receipt className="w-3.5 h-3.5 text-indigo-600" />
-                          <span className="hidden sm:inline">Receipt</span>
+                          <span className="hidden xl:inline">Receipt</span>
                         </button>
-
-                        {/* Collect Due Button if due pending */}
-                        {hasDue && !isLeft && (
-                          <button
-                            onClick={() => handleOpenCollectModal(item, "clear_due")}
-                            className="px-2 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-2xs"
-                            title="Collect Remaining Due"
-                          >
-                            Collect Due
-                          </button>
-                        )}
-
-                        {/* Renew Fee Button */}
-                        {!isLeft && (
-                          <button
-                            onClick={() => handleOpenCollectModal(item, "renew")}
-                            className="px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-2xs"
-                            title="Renew Membership"
-                          >
-                            Renew
-                          </button>
-                        )}
 
                         {/* WhatsApp Button */}
                         <button
                           onClick={() => {
-                            const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${item.memberName}*,\nHere are your membership details:\n\n📋 *Plan:* ${item.planName}\n📅 *Validity:* ${formatDate(item.validityStart)} to ${formatDate(item.validityEnd)}\n💰 *Amount:* ₹${item.amount}\n${hasDue ? `⚠️ *Pending Due:* ₹${item.dueAmount}\n` : `✅ *Status:* ${item.dynamicStatus.toUpperCase()}\n`}\nThank you! 💪`;
+                            const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${item.memberName}*,\nHere are your membership details:\n\n📋 *Gym Plan:* ${item.planName}\n📅 *Validity:* ${formatDate(item.validityStart)} to ${formatDate(item.validityEnd)}\n💰 *Total Fee:* ₹${item.amount}\n${hasDue ? `⚠️ *Pending Due:* ₹${item.dueAmount}\n` : `✅ *Status:* FULLY PAID\n`}${item.isPt && item.trainerName ? `🏋️ *Personal Trainer:* ${item.trainerName} (${item.ptPlanName || "PT"})\n` : ""}\nThank you! 💪`;
                             openWhatsApp(item.phone, msg);
                           }}
                           className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition"
-                          title="Share on WhatsApp"
+                          title="Share Fee Summary on WhatsApp"
                         >
                           <MessageCircle className="w-3.5 h-3.5" />
                         </button>
 
+                        {/* View Full Profile */}
+                        <button
+                          onClick={() => navigate(`/owner/members/${item.memberId || item.id}`)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 transition"
+                          title="View Member Full Profile"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+
                         {/* Mark Left Button */}
-                        {!isLeft && (
+                        {!isLeftMember && (
                           <button
                             onClick={() => handleOpenLeftModal(item)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
@@ -1586,13 +2081,13 @@ export default function Payments() {
         </table>
       </div>
 
-      {/* Mobile Card View for Fee & Subscription (Visible only on <md screens) */}
-      <div className="md:hidden space-y-3">
+      {/* Modern App-Style Mobile Cards (Visible on <md screens) */}
+      <div className="md:hidden space-y-2.5">
         {filteredSubscriptions.length === 0 ? (
-          <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center text-slate-400">
+          <div className="p-8 rounded-2xl bg-white border border-slate-200 text-center text-slate-400 shadow-2xs">
             <UserX className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-            <p className="font-bold text-slate-600">No records found for this filter</p>
-            <p className="text-xs text-slate-400 mt-0.5">Try selecting another filter or searching</p>
+            <p className="font-bold text-slate-700 text-sm">No members found</p>
+            <p className="text-xs text-slate-400 mt-0.5">Try choosing another filter tab or search keyword</p>
           </div>
         ) : (
           filteredSubscriptions.map((item) => {
@@ -1604,171 +2099,386 @@ export default function Payments() {
               .slice(0, 2);
 
             const days = item.computedDays;
-            const isLeft = item.dynamicStatus === "left";
+            const ptDays = item.ptDays;
+            const isLeftMember = item.dynamicStatus === "left" || item.isLeft;
             const hasDue = Number(item.dueAmount) > 0;
 
             return (
               <div
                 key={item.id}
-                className={`p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-3 ${
-                  isLeft ? "bg-slate-50/60 opacity-80" : ""
-                }`}
+                className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition-all p-3.5 sm:p-4 space-y-3"
               >
-                {/* Header: Name, Initials, Status */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
+                {/* Row 1: Member Profile Header & Status Tag */}
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className={`w-9 h-9 rounded-full text-white font-bold flex items-center justify-center text-xs shadow-xs shrink-0 ${
-                        isLeft ? "bg-slate-400" : "bg-gradient-to-br from-indigo-500 to-purple-600"
+                      className={`w-11 h-11 rounded-2xl text-white font-extrabold flex items-center justify-center text-sm shadow-xs shrink-0 ${
+                        isLeftMember
+                          ? "bg-slate-400"
+                          : hasDue
+                          ? "bg-gradient-to-br from-amber-500 to-rose-500"
+                          : "bg-gradient-to-br from-indigo-500 to-emerald-500"
                       }`}
                     >
                       {initials}
                     </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm leading-tight flex items-center gap-1.5">
-                        {item.memberName}
-                        {isLeft && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-600 font-bold">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          onClick={() => navigate(`/owner/members/${item.memberId || item.id}`)}
+                          className="font-extrabold text-slate-900 text-sm hover:text-indigo-600 transition text-left truncate cursor-pointer"
+                        >
+                          {item.memberName}
+                        </button>
+                        {isLeftMember && (
+                          <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-600 font-bold border border-slate-200">
                             LEFT
                           </span>
                         )}
-                      </h4>
-                      {item.phone ? (
-                        <a
-                          href={`tel:${item.phone.replace(/[^0-9+]/g, '')}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[11px] text-slate-500 hover:text-emerald-600 hover:underline inline-flex items-center gap-1 mt-0.5 cursor-pointer transition-colors"
-                          title={`Call ${item.memberName} (${item.phone})`}
-                        >
-                          <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                          <span>{item.phone}</span>
-                        </a>
-                      ) : (
-                        <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                          <Phone className="w-3 h-3 text-slate-300" /> No Phone
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
+                        {item.phone ? (
+                          <a
+                            href={`tel:${item.phone.replace(/[^0-9+]/g, '')}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="hover:text-emerald-600 flex items-center gap-1 font-medium transition cursor-pointer"
+                            title={`Call ${item.memberName}`}
+                          >
+                            <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span>{item.phone}</span>
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">No phone</span>
+                        )}
+                        <span className="text-slate-300">•</span>
+                        <span className="flex items-center gap-1 text-slate-600 font-medium truncate">
+                          {getSlotIcon(item.slot)}
+                          <span className="truncate">{item.slot?.split("(")[0]?.trim() || "General"}</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Primary Status Tag */}
+                  <div className="shrink-0 text-right">
+                    {item.isFirstTimeUnpaid && !isLeftMember ? (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-black bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                        Unpaid: ₹{item.dueAmount || item.planPrice}
+                      </span>
+                    ) : item.isPartialDue && !isLeftMember ? (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
+                        Due: ₹{item.dueAmount}
+                      </span>
+                    ) : (item.gymDynamicStatus === "ending_soon" || item.ptDynamicStatus === "ending_soon") && !isLeftMember ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-300 animate-pulse">
+                        <AlertTriangle className="w-3 h-3 text-amber-600" />
+                        {days === 0 ? "Expires Today" : `${days}d left`}
+                      </span>
+                    ) : (item.gymDynamicStatus === "expired" || item.ptDynamicStatus === "expired") && !isLeftMember ? (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-orange-100 text-orange-800 border border-orange-200">
+                        Expired {Math.abs(days)}d ago
+                      </span>
+                    ) : (item.gymDynamicStatus === "overdue" || item.ptDynamicStatus === "overdue") && !isLeftMember ? (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                        Overdue
+                      </span>
+                    ) : isLeftMember ? (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                        Left Gym
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Paid
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Row 2: Gym Plan & Validity Banner */}
+                <div className="p-3 rounded-xl bg-slate-50/90 border border-slate-200/80 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-extrabold text-slate-900 text-xs leading-tight truncate">
+                          {item.planName}
+                        </p>
+                        <p className="text-[10px] text-slate-500 font-medium">
+                          {formatDate(item.validityStart)} – {formatDate(item.validityEnd)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <p className="font-black text-slate-900 text-sm">
+                        ₹{item.planPrice || item.amount}
+                      </p>
+                      {days !== null && !isLeftMember && (
+                        <p className={`text-[10px] font-extrabold ${
+                          days > 3
+                            ? "text-emerald-700"
+                            : days >= 0
+                            ? "text-amber-700"
+                            : "text-rose-600"
+                        }`}>
+                          {days > 3 ? `${days} days left` : days === 0 ? "Expires Today!" : days > 0 ? `${days}d left` : `${Math.abs(days)}d overdue`}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {/* Status badge */}
-                  <div>
-                    {item.dynamicStatus === "left" && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
-                        Left
-                      </span>
-                    )}
-                    {item.dynamicStatus === "paid" && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        Paid
-                      </span>
-                    )}
-                    {item.dynamicStatus === "partial" && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
-                        Due: ₹{item.dueAmount}
-                      </span>
-                    )}
-                    {item.dynamicStatus === "ending_soon" && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                        Ending Soon
-                      </span>
-                    )}
-                    {item.dynamicStatus === "expired" && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
-                        Expired
-                      </span>
-                    )}
-                    {item.dynamicStatus === "overdue" && (
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-                        Overdue
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Details Grid */}
-                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200/70">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Slot & Plan</span>
-                    <span className="font-semibold text-slate-800 text-[11px] block truncate">{item.slot || "General"}</span>
-                    <span className="text-[10px] text-slate-500 block truncate">{item.planName}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Fee / Due</span>
-                    <span className="font-extrabold text-slate-900 text-[11px] block">
-                      ₹{item.amount}{" "}
-                      <span className="text-[10px] font-normal text-slate-500 uppercase">({item.paymentMode || "Cash"})</span>
-                    </span>
-                    {hasDue ? (
-                      <span className="text-[10px] font-bold text-rose-600 block">Due: ₹{item.dueAmount}</span>
-                    ) : (
-                      <span className="text-[10px] font-semibold text-emerald-600 block">
-                        {item.discount > 0 ? `-₹${item.discount} Off` : "Full Paid"}
-                      </span>
-                    )}
-                  </div>
-                  <div className="col-span-2 pt-1 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">
-                      Validity: <strong className="text-slate-800">{formatDate(item.validityEnd)}</strong>
-                    </span>
-                    {days !== null && (
-                      <span>
-                        {days > 3 ? (
-                          <span className="font-bold text-slate-500">{days} days left</span>
-                        ) : days >= 0 ? (
-                          <span className="font-extrabold text-amber-700">{days === 0 ? "Expires Today!" : `${days}d left`}</span>
+                  {/* Clean Non-Overlapping PT & Services Rows */}
+                  {!isLeftMember && (
+                    <div className="pt-2 border-t border-slate-200/70 space-y-2 text-xs">
+                      {/* PT Coaching Row */}
+                      <div className="flex items-center justify-between gap-2 bg-white/70 px-2.5 py-1.5 rounded-lg border border-slate-100">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Dumbbell className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span className="text-slate-500 text-[11px] font-medium shrink-0">PT Coach:</span>
+                          <span className="font-bold text-slate-800 text-[11px] truncate">
+                            {item.isPt && item.trainerName ? item.trainerName : "Floor Only (No PT)"}
+                          </span>
+                        </div>
+                        {item.isPt && item.trainerName ? (
+                          item.ptDynamicStatus === "ending_soon" ? (
+                            <button
+                              onClick={() => handleOpenPtModal(item)}
+                              className="text-[10px] font-black text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2 py-0.5 rounded-lg flex items-center gap-1 transition shrink-0 cursor-pointer animate-pulse"
+                              title="Renew Expiring PT Package"
+                            >
+                              <RotateCcw className="w-2.5 h-2.5 text-amber-600" /> Renew PT
+                            </button>
+                          ) : item.ptDynamicStatus === "expired" ? (
+                            <button
+                              onClick={() => handleOpenPtModal(item)}
+                              className="text-[10px] font-black text-white bg-orange-600 hover:bg-orange-700 px-2 py-0.5 rounded-lg flex items-center gap-1 transition shrink-0 cursor-pointer"
+                              title="Renew Expired PT Package"
+                            >
+                              <RotateCcw className="w-2.5 h-2.5" /> Renew PT
+                            </button>
+                          ) : item.ptDynamicStatus === "overdue" ? (
+                            <button
+                              onClick={() => handleOpenPtModal(item)}
+                              className="text-[10px] font-black text-white bg-rose-600 hover:bg-rose-700 px-2 py-0.5 rounded-lg flex items-center gap-1 transition shrink-0 cursor-pointer"
+                              title="Renew Overdue PT Package"
+                            >
+                              <RotateCcw className="w-2.5 h-2.5" /> Renew PT
+                            </button>
+                          ) : (
+                            <span className="text-[10px] font-extrabold text-purple-800 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+                              <CheckCircle2 className="w-3 h-3 text-purple-600" /> PT Paid ({ptDays !== null ? `${ptDays}d` : "Active"})
+                            </span>
+                          )
                         ) : (
-                          <span className="font-extrabold text-rose-600">{Math.abs(days)}d past due</span>
+                          <button
+                            onClick={() => handleOpenPtModal(item)}
+                            className="text-[10px] font-extrabold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition shrink-0 cursor-pointer"
+                          >
+                            + Add PT
+                          </button>
                         )}
+                      </div>
+
+                      {/* Add-On Services Row */}
+                      <div className="flex items-center justify-between gap-2 bg-white/70 px-2.5 py-1.5 rounded-lg border border-slate-100">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Sparkles className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                          <span className="text-slate-500 text-[11px] font-medium shrink-0">Facilities:</span>
+                          <span className="font-bold text-teal-800 text-[11px] truncate">
+                            {item.selectedServices && item.selectedServices.length > 0
+                              ? item.selectedServices.map(s => s.name || s.serviceName).join(", ")
+                              : "No active add-on"}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleOpenServiceModal(item)}
+                          className="text-[10px] font-extrabold text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 px-2 py-0.5 rounded transition shrink-0 cursor-pointer"
+                        >
+                          + Service
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Row 3: Financial Fee & Balance Due Summary */}
+                <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-500 text-[11px] font-medium">Plan Fee:</span>
+                    <span className="font-extrabold text-slate-900">₹{item.planPrice || item.amount}</span>
+                  </div>
+
+                  <div>
+                    {item.isFirstTimeUnpaid ? (
+                      <span className="font-black text-rose-600 text-xs flex items-center gap-1">
+                        <span>Unpaid:</span>
+                        <span className="text-sm font-black">₹{item.dueAmount || item.planPrice}</span>
+                      </span>
+                    ) : item.isPartialDue ? (
+                      <span className="font-black text-amber-700 text-xs flex items-center gap-1">
+                        <span>Balance Due:</span>
+                        <span className="text-sm font-black">₹{item.dueAmount}</span>
+                      </span>
+                    ) : (
+                      <span className="font-bold text-emerald-700 text-xs flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Full Paid
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Actions Row */}
-                <div className="flex items-center justify-between pt-1 gap-1.5">
-                  <div className="flex items-center gap-1.5">
+                {/* Row 4: Action Buttons (Clean & Context-Aware) */}
+                <div className="space-y-2 pt-0.5">
+                  {/* Dynamic Primary Action Button by Exact Status (Gym & PT aware) */}
+                  {item.isFirstTimeUnpaid && !isLeftMember ? (
                     <button
-                      onClick={() => generatePaymentReceipt(item, settings)}
-                      className="px-2.5 py-1 rounded-lg border border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1 transition"
+                      onClick={() => handleOpenCollectModal(item, "collect")}
+                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      title="Collect Initial Admission Fee"
                     >
-                      <Download className="w-3 h-3 text-indigo-600" /> Bill
+                      <IndianRupee className="w-3.5 h-3.5" />
+                      <span>Collect Fee (₹{item.dueAmount || item.planPrice})</span>
                     </button>
+                  ) : item.isPartialDue && !isLeftMember ? (
+                    <button
+                      onClick={() => handleOpenCollectModal(item, "clear_due")}
+                      className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      title="Collect Due Amount"
+                    >
+                      <IndianRupee className="w-3.5 h-3.5" />
+                      <span>Collect Due (₹{item.dueAmount})</span>
+                    </button>
+                  ) : (item.gymDynamicStatus === "ending_soon" && item.ptDynamicStatus === "ending_soon") && !isLeftMember ? (
+                    <button
+                      onClick={() => handleOpenCollectModal(item, "renew")}
+                      className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer animate-pulse"
+                      title="Renew Gym Plan & PT Package"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Renew Plan & PT (Expiring Soon)</span>
+                    </button>
+                  ) : item.gymDynamicStatus === "ending_soon" && !isLeftMember ? (
+                    <button
+                      onClick={() => handleOpenCollectModal(item, "renew")}
+                      className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer animate-pulse"
+                      title="Renew Membership Plan (Expiring Soon)"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Renew Plan (Expiring Soon)</span>
+                    </button>
+                  ) : item.ptDynamicStatus === "ending_soon" && !isLeftMember ? (
+                    <button
+                      onClick={() => handleOpenPtModal(item)}
+                      className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer animate-pulse"
+                      title="Renew PT Package (Expiring Soon)"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Renew PT Package (Expiring Soon)</span>
+                    </button>
+                  ) : item.gymDynamicStatus === "expired" && !isLeftMember ? (
+                    <button
+                      onClick={() => handleOpenCollectModal(item, "renew")}
+                      className="w-full py-2.5 px-3 rounded-xl bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      title="Renew Expired Membership Plan"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Renew Plan (Expired)</span>
+                    </button>
+                  ) : item.ptDynamicStatus === "expired" && !isLeftMember ? (
+                    <button
+                      onClick={() => handleOpenPtModal(item)}
+                      className="w-full py-2.5 px-3 rounded-xl bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      title="Renew Expired PT Package"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Renew PT Package (Expired)</span>
+                    </button>
+                  ) : item.gymDynamicStatus === "overdue" && !isLeftMember ? (
+                    <button
+                      onClick={() => handleOpenCollectModal(item, "renew")}
+                      className="w-full py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      title="Renew Overdue Membership Plan"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Renew Plan (Overdue)</span>
+                    </button>
+                  ) : item.ptDynamicStatus === "overdue" && !isLeftMember ? (
+                    <button
+                      onClick={() => handleOpenPtModal(item)}
+                      className="w-full py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      title="Renew Overdue PT Package"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Renew PT Package (Overdue)</span>
+                    </button>
+                  ) : (item.isFullyPaid || item.dynamicStatus === "paid") && !isLeftMember ? (
+                    <div className="w-full py-2 px-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/90 font-extrabold text-xs flex items-center justify-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Paid in Full • Active</span>
+                    </div>
+                  ) : isLeftMember ? (
+                    <div className="w-full py-2 px-3 rounded-xl bg-slate-100 text-slate-600 border border-slate-200 font-bold text-xs flex items-center justify-center gap-1.5">
+                      <span>Left Gym</span>
+                    </div>
+                  ) : null}
+
+                  {/* Secondary Quick Action Bar (4 Equal Clean Buttons) */}
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {/* Bill / Receipt */}
                     <button
                       onClick={() => {
-                        const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${item.memberName}*,\nHere are your membership details:\n\n📋 *Plan:* ${item.planName}\n📅 *Validity:* ${formatDate(item.validityStart)} to ${formatDate(item.validityEnd)}\n💰 *Amount:* ₹${item.amount}\n${hasDue ? `⚠️ *Pending Due:* ₹${item.dueAmount}\n` : `✅ *Status:* ${item.dynamicStatus.toUpperCase()}\n`}\nThank you! 💪`;
+                        setReceiptPayment(item.latestPayment || item);
+                        setReceiptMember(item.rawMember || membersMap[item.memberId] || membersMap[item.phone] || null);
+                      }}
+                      className="py-2 px-1 rounded-xl bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-slate-700 hover:text-indigo-700 flex items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer shadow-2xs"
+                      title="View & Print Official Receipt"
+                    >
+                      <Receipt className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Bill</span>
+                    </button>
+
+                    {/* WhatsApp */}
+                    <button
+                      onClick={() => {
+                        const msg = `🧾 *Official Gym Fee Receipt - ${settings.gymName}*\n\nHello *${item.memberName}*,\nHere are your membership details:\n\n📋 *Gym Plan:* ${item.planName}\n📅 *Validity:* ${formatDate(item.validityStart)} to ${formatDate(item.validityEnd)}\n💰 *Total Fee:* ₹${item.amount}\n${hasDue ? `⚠️ *Pending Due:* ₹${item.dueAmount}\n` : `✅ *Status:* FULLY PAID\n`}${item.isPt && item.trainerName ? `🏋️ *Personal Trainer:* ${item.trainerName}\n` : ""}\nThank you! 💪`;
                         openWhatsApp(item.phone, msg);
                       }}
-                      className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition"
+                      className="py-2 px-1 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 text-slate-700 hover:text-emerald-700 flex items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer shadow-2xs"
+                      title="Share on WhatsApp"
                     >
-                      <MessageCircle className="w-3.5 h-3.5" />
+                      <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Chat</span>
                     </button>
-                  </div>
 
-                  <div className="flex items-center gap-1.5">
-                    {hasDue && !isLeft && (
-                      <button
-                        onClick={() => handleOpenCollectModal(item, "clear_due")}
-                        className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition"
-                      >
-                        Collect Due
-                      </button>
-                    )}
-                    {!isLeft && (
-                      <button
-                        onClick={() => handleOpenCollectModal(item, "renew")}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition"
-                      >
-                        Renew
-                      </button>
-                    )}
-                    {!isLeft && (
+                    {/* Profile */}
+                    <button
+                      onClick={() => navigate(`/owner/members/${item.memberId || item.id}`)}
+                      className="py-2 px-1 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer shadow-2xs"
+                      title="View Member Full Profile"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Profile</span>
+                    </button>
+
+                    {/* Left */}
+                    {!isLeftMember ? (
                       <button
                         onClick={() => handleOpenLeftModal(item)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition"
+                        className="py-2 px-1 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center gap-1 text-[11px] font-semibold transition cursor-pointer shadow-2xs"
+                        title="Mark Member as Left Gym"
                       >
                         <UserX className="w-3.5 h-3.5" />
+                        <span>Left</span>
                       </button>
+                    ) : (
+                      <div className="py-2 px-1 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 flex items-center justify-center gap-1 text-[11px] font-semibold">
+                        <span>Left</span>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1780,381 +2490,63 @@ export default function Payments() {
     </>
   )}
 
-      {/* COLLECT FEE & RENEW / CLEAR DUE MODAL */}
-      <Modal
-        isOpen={renewModalOpen}
-        onClose={() => setRenewModalOpen(false)}
-        title={collectMode === "clear_due" ? "💰 Collect Remaining Due Amount" : "Collect Fee & Renew Membership"}
-      >
-        <div className="space-y-4 text-slate-800 text-xs">
-          {/* Mode Switcher inside modal */}
-          {selectedMember && Number(selectedMember.dueAmount) > 0 && (
-            <div className="flex rounded-xl bg-slate-100 p-1 border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setCollectMode("renew")}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
-                  collectMode === "renew"
-                    ? "bg-white text-indigo-700 shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                🔄 Renew Membership Plan
-              </button>
-              <button
-                type="button"
-                onClick={() => setCollectMode("clear_due")}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
-                  collectMode === "clear_due"
-                    ? "bg-white text-amber-700 shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                💵 Clear Due Balance (₹{selectedMember.dueAmount})
-              </button>
-            </div>
-          )}
+      {/* COMPREHENSIVE COLLECT FEE & RENEW MODAL */}
+      {collectFeeModalOpen && selectedMember && (
+        <CollectFeeModal
+          member={selectedMember}
+          gymId={activeGymId}
+          plans={plansList}
+          trainers={trainersList}
+          onClose={() => {
+            setCollectFeeModalOpen(false);
+            setSelectedMember(null);
+          }}
+          onSave={async (updatedMember) => {
+            setCollectFeeModalOpen(false);
+            setSelectedMember(null);
+            await loadData();
+          }}
+        />
+      )}
 
-          {/* Member Card Header & Selection */}
-          <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white font-extrabold flex items-center justify-center text-sm shadow-sm">
-                  {(selectedMember?.memberName || selectedMember?.name || "M")[0]}
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    {selectedMember?.memberName || selectedMember?.name || "Select Member"}
-                  </h3>
-                  <p className="text-slate-500 text-[11px]">
-                    📱 {selectedMember?.phone || "No phone"} • 🏋️ {selectedMember?.slot || "General Shift"}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                  CURRENT DUE
-                </p>
-                <p className="text-xs font-extrabold text-rose-600 mt-0.5">
-                  ₹{selectedMember?.dueAmount || 0}
-                </p>
-              </div>
-            </div>
+      {/* PERSONAL TRAINING (PT) PACKAGE MODAL */}
+      {ptModalOpen && ptModalMember && (
+        <AddPtPackageModal
+          member={ptModalMember}
+          gymId={activeGymId}
+          plans={plansList}
+          trainers={trainersList}
+          existingMembers={membersList}
+          onClose={() => {
+            setPtModalOpen(false);
+            setPtModalMember(null);
+          }}
+          onSave={async () => {
+            setPtModalOpen(false);
+            setPtModalMember(null);
+            await loadData();
+          }}
+        />
+      )}
 
-            {/* If opening fresh or want to switch member */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block mb-1">
-                Select / Switch Member
-              </label>
-              <select
-                value={selectedMember?.id || ""}
-                onChange={(e) => {
-                  const m = paymentsList.find((p) => p.id === e.target.value);
-                  if (m) {
-                    setSelectedMember(m);
-                    if (Number(m.dueAmount) > 0 && collectMode === "clear_due") {
-                      setPayingNow(Number(m.dueAmount));
-                    }
-                  }
-                }}
-                className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500"
-              >
-                {paymentsList.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.memberName} — {p.phone} ({p.planName} • Due: ₹{p.dueAmount || 0})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {collectMode === "clear_due" ? (
-            /* Clear Due Mode UI */
-            <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-amber-900">Total Pending Due Balance:</span>
-                <span className="font-black text-rose-600 text-sm">₹{selectedMember?.dueAmount || 0}</span>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-slate-700 uppercase tracking-wide block mb-1">
-                  Amount Paying Now (₹)
-                </label>
-                <input
-                  type="number"
-                  value={payingNow}
-                  onChange={(e) => setPayingNow(Number(e.target.value) || 0)}
-                  max={selectedMember?.dueAmount || 0}
-                  className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-xs pt-1 border-t border-amber-200/60">
-                <span className="font-semibold text-slate-600">Remaining Balance after payment:</span>
-                <span className={`font-black text-sm ${remainingDue > 0 ? "text-rose-600" : "text-emerald-700"}`}>
-                  ₹{remainingDue}
-                </span>
-              </div>
-            </div>
-          ) : (
-            /* Renewal Mode UI */
-            <>
-              {/* Select Membership Plan and Discount */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1">
-                    SELECT MEMBERSHIP PLAN *
-                  </label>
-                  <select
-                    value={selectedPlanId}
-                    onChange={(e) => setSelectedPlanId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
-                  >
-                    {PLANS_CATALOG.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1 flex items-center gap-1">
-                    <Tag className="w-3.5 h-3.5 text-emerald-600" />
-                    DISCOUNT (₹)
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 100"
-                    value={discountAmount || ""}
-                    onChange={(e) => setDiscountAmount(Number(e.target.value) || 0)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-
-              {/* Membership Bill Validity Period Box */}
-              <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-emerald-900 text-xs flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-emerald-600" />
-                    Validity Period ({currentPlan.durationMonths} Month):
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-200/70 text-emerald-900 font-extrabold text-[11px]">
-                    {formatDate(validityStart)} to {formatDate(validityEnd)}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-emerald-950 uppercase block mb-1">
-                      Validity Start Date *
-                    </label>
-                    <input
-                      type="date"
-                      value={validityStart}
-                      onChange={(e) => setValidityStart(e.target.value)}
-                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-emerald-950 uppercase block mb-1">
-                      Validity End / Next Due Date *
-                    </label>
-                    <input
-                      type="text"
-                      value={validityEnd}
-                      onChange={(e) => setValidityEnd(e.target.value)}
-                      placeholder="DD/MM/YYYY"
-                      className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-semibold focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Fee Summary Row */}
-              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
-                <div>
-                  <span className="text-slate-600 font-medium">
-                    {currentPlan.name} ({currentPlan.durationMonths} Month)
-                  </span>
-                  {discountAmount > 0 && (
-                    <span className="text-emerald-600 font-bold ml-2">
-                      (Discount: -₹{discountAmount})
-                    </span>
-                  )}
-                </div>
-                <div className="text-right">
-                  <span className="font-extrabold text-indigo-700 text-base">
-                    TOTAL PLAN FEE: ₹{calculatedTotal}
-                  </span>
-                </div>
-              </div>
-
-              {/* Payment Type Selection (Full vs Partial) */}
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1.5">
-                  PAYMENT TYPE
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentType("full")}
-                    className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition ${
-                      paymentType === "full"
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    ● Full Payment (₹{calculatedTotal})
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentType("partial");
-                      setPayingNow(Math.floor(calculatedTotal / 2));
-                    }}
-                    className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition ${
-                      paymentType === "partial"
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
-                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    ● Partial / Installment
-                  </button>
-                </div>
-
-                {/* Stat Cards: Total, Paying Now, Remaining Due */}
-                <div className="grid grid-cols-3 gap-2 mt-2.5">
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">TOTAL PLAN FEE</p>
-                    <p className="text-sm font-black text-slate-900 mt-0.5">₹{calculatedTotal}</p>
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-                    <p className="text-[10px] text-emerald-800 font-bold uppercase">PAYING NOW</p>
-                    {paymentType === "partial" ? (
-                      <input
-                        type="number"
-                        value={payingNow}
-                        onChange={(e) => setPayingNow(Number(e.target.value) || 0)}
-                        className="w-full mt-0.5 text-center bg-white border border-emerald-400 rounded-lg py-0.5 text-xs font-black text-emerald-700"
-                      />
-                    ) : (
-                      <p className="text-sm font-black text-emerald-700 mt-0.5">₹{payingNow}</p>
-                    )}
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">REMAINING DUE</p>
-                    <p className={`text-sm font-black mt-0.5 ${remainingDue > 0 ? "text-rose-600" : "text-slate-700"}`}>
-                      ₹{remainingDue}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Payment Mode (Cash, UPI / QR, Bank, Split) */}
-          <div>
-            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1.5">
-              PAYMENT MODE *
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {[
-                { key: "cash", label: "💵 Cash" },
-                { key: "online", label: "📱 UPI / QR" },
-                { key: "bank", label: "🏦 Bank" },
-                { key: "split", label: "⚡ Split (Cash + UPI)" },
-              ].map((m) => (
-                <button
-                  type="button"
-                  key={m.key}
-                  onClick={() => setPaymentMode(m.key)}
-                  className={`py-2.5 px-2 rounded-xl text-xs font-bold border transition text-center ${
-                    paymentMode === m.key
-                      ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
-                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Split Amount Inputs if Split is chosen */}
-            {paymentMode === "split" && (
-              <div className="p-3 mt-2 bg-amber-50 border border-amber-200 rounded-xl grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className="font-bold text-amber-900 block mb-0.5">Cash Amount (₹)</label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 300"
-                    value={cashAmount}
-                    onChange={(e) => setCashAmount(e.target.value)}
-                    className="w-full bg-white border border-amber-300 rounded-lg p-1.5"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-amber-900 block mb-0.5">UPI Amount (₹)</label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 299"
-                    value={onlineAmount}
-                    onChange={(e) => setOnlineAmount(e.target.value)}
-                    className="w-full bg-white border border-amber-300 rounded-lg p-1.5"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Payment Remarks / Transaction ID */}
-          <div>
-            <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1">
-              PAYMENT REMARKS / TRANSACTION ID (OPTIONAL)
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. GPay Ref #123456 / ₹200 cash advance"
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-indigo-500"
-            />
-          </div>
-
-          {/* Modal Actions */}
-          <div className="pt-2 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setRenewModalOpen(false)}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition text-center"
-            >
-              Cancel
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleCollectFee(false)}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition shadow-sm text-center"
-            >
-              Collect ₹{payingNow} Only
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleCollectFee(true)}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
-            >
-              <MessageCircle className="w-3.5 h-3.5" />
-              Collect ₹{payingNow} & WhatsApp Bill
-            </button>
-          </div>
-        </div>
-      </Modal>
+      {/* ADD-ON SERVICES MODAL (LOCKER, SAUNA, DIET, ETC.) */}
+      {serviceModalOpen && serviceModalMember && (
+        <AddServiceModal
+          isOpen={serviceModalOpen}
+          member={serviceModalMember}
+          gymId={activeGymId}
+          plans={plansList}
+          onClose={() => {
+            setServiceModalOpen(false);
+            setServiceModalMember(null);
+          }}
+          onSave={async () => {
+            setServiceModalOpen(false);
+            setServiceModalMember(null);
+            await loadData();
+          }}
+        />
+      )}
 
       {/* MARK AS LEFT MODAL */}
       {leftModalOpen && memberToLeft && (

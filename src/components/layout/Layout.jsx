@@ -41,6 +41,7 @@ export default function Layout({ children, role = "owner" }) {
     return [
       { to: "/owner/dashboard", label: "Home", icon: LayoutDashboard },
       { to: "/owner/members", label: "Members", icon: Users },
+      { to: "/owner/payments", label: "Fees", icon: DollarSign },
       { to: "/owner/memberships", label: "Plans", icon: CreditCard },
       { to: "/owner/stock", label: "Stock", icon: Package },
     ];

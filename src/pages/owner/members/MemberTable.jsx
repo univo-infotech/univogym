@@ -278,9 +278,15 @@ export default function MemberTable({
                         <button
                           type="button"
                           onClick={() => onPtRenew(m)}
-                          className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs inline-flex items-center gap-1 transition shadow-xs"
+                          className={`px-2.5 py-1 rounded-lg text-white font-bold text-xs inline-flex items-center gap-1 transition shadow-xs ${
+                            ptStatus === 'ending_soon' || (ptDays !== null && ptDays >= 0 && ptDays <= 3)
+                              ? 'bg-amber-500 hover:bg-amber-600 animate-pulse'
+                              : ptStatus === 'expired'
+                              ? 'bg-orange-600 hover:bg-orange-700'
+                              : 'bg-rose-600 hover:bg-rose-700'
+                          }`}
                         >
-                          <RotateCcw size={11} /> Renew PT
+                          <RotateCcw size={11} /> {ptStatus === 'ending_soon' || (ptDays !== null && ptDays >= 0 && ptDays <= 3) ? 'Renew PT (Expiring Soon)' : ptStatus === 'expired' ? 'Renew PT (Expired)' : 'Renew PT (Overdue)'}
                         </button>
                       )}
                       <button
@@ -697,11 +703,17 @@ export default function MemberTable({
                               <button
                                 type="button"
                                 onClick={() => onPtRenew(m)}
-                                className="px-2 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] inline-flex items-center gap-1 transition shadow-2xs cursor-pointer"
+                                className={`px-2 py-1 rounded-lg text-white font-bold text-[11px] inline-flex items-center gap-1 transition shadow-2xs cursor-pointer ${
+                                  ptStatus === 'ending_soon' || (ptDays !== null && ptDays >= 0 && ptDays <= 3)
+                                    ? 'bg-amber-500 hover:bg-amber-600 animate-pulse'
+                                    : ptStatus === 'expired'
+                                    ? 'bg-orange-600 hover:bg-orange-700'
+                                    : 'bg-rose-600 hover:bg-rose-700'
+                                }`}
                                 title="Renew Personal Training Package"
                               >
                                 <RotateCcw size={11} />
-                                <span>Renew PT</span>
+                                <span>{ptStatus === 'ending_soon' || (ptDays !== null && ptDays >= 0 && ptDays <= 3) ? 'Renew PT (Expiring)' : ptStatus === 'expired' ? 'Renew PT (Expired)' : 'Renew PT (Overdue)'}</span>
                               </button>
                             )}
 
