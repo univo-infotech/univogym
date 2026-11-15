@@ -88,6 +88,33 @@ export default function Login() {
       return;
     }
 
+    // Role-mismatch guards upfront
+    const upperInput = cleanInput.toUpperCase();
+    if (selectedRole === 'owner') {
+      if (upperInput.startsWith('M-') || upperInput.startsWith('MEM-')) {
+        setError("Role mismatch: You are currently on the 'Gym Owner' tab, but you entered a Member ID. Please click the 'Member' tab above to sign in.");
+        return;
+      }
+      if (upperInput.startsWith('T-') || upperInput.startsWith('TRN-')) {
+        setError("Role mismatch: You are currently on the 'Gym Owner' tab, but you entered a Trainer ID. Please click the 'Trainer' tab above to sign in.");
+        return;
+      }
+    }
+
+    if (selectedRole === 'trainer') {
+      if (upperInput.startsWith('M-') || upperInput.startsWith('MEM-')) {
+        setError("Role mismatch: You are on the 'Trainer' tab, but you entered a Member ID. Please click the 'Member' tab above to sign in.");
+        return;
+      }
+    }
+
+    if (selectedRole === 'member') {
+      if (upperInput.startsWith('T-') || upperInput.startsWith('TRN-')) {
+        setError("Role mismatch: You are on the 'Member' tab, but you entered a Trainer ID. Please click the 'Trainer' tab above to sign in.");
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       // Helper: Complete Trainer Login
@@ -258,17 +285,29 @@ export default function Login() {
 
               // If registered in users as a trainer
               if (roleNormalized.includes('trainer') || roleNormalized.includes('coach')) {
+                if (selectedRole !== 'trainer') {
+                  setError("Role mismatch: This account is registered as a Trainer. Please select the 'Trainer' tab above to sign in.");
+                  return 'STOP';
+                }
                 logInTrainer(matchedUser);
                 return true;
               }
 
               // If registered in users as a member
               if (roleNormalized === 'member') {
+                if (selectedRole !== 'member') {
+                  setError("Role mismatch: This account is registered as a Member. Please select the 'Member' tab above to sign in.");
+                  return 'STOP';
+                }
                 logInMember(matchedUser);
                 return true;
               }
 
               // Owner or Staff
+              if (selectedRole !== 'owner') {
+                setError("Role mismatch: This is a Gym Owner / Staff account. Please select the 'Gym Owner' tab above to sign in.");
+                return 'STOP';
+              }
               const isOwner = roleNormalized === 'owner' || roleNormalized === 'co-owner' || roleNormalized.includes('owner');
               const targetRole = isOwner ? 'owner' : 'staff';
 
@@ -420,6 +459,12 @@ export default function Login() {
           const roleNormalized = (userData.role || 'owner').toLowerCase();
 
           if (roleNormalized.includes('trainer') || roleNormalized.includes('coach')) {
+            if (selectedRole !== 'trainer') {
+              try { await signOut(auth); } catch (e) {}
+              setError("Role mismatch: This account is registered as a Trainer. Please select the 'Trainer' tab above to sign in.");
+              return 'STOP';
+            }
+
             const trainerObj = {
               id: userData.profileId || userCredential.user.uid,
               uid: userCredential.user.uid,
@@ -445,6 +490,12 @@ export default function Login() {
           }
 
           if (roleNormalized === 'member') {
+            if (selectedRole !== 'member') {
+              try { await signOut(auth); } catch (e) {}
+              setError("Role mismatch: This account is registered as a Member. Please select the 'Member' tab above to sign in.");
+              return 'STOP';
+            }
+
             const memberObj = {
               id: userData.profileId || userCredential.user.uid,
               uid: userCredential.user.uid,
@@ -468,6 +519,12 @@ export default function Login() {
             return true;
           }
 
+          if (selectedRole !== 'owner') {
+            try { await signOut(auth); } catch (e) {}
+            setError("Role mismatch: This is a Gym Owner / Staff account. Please select the 'Gym Owner' tab above to sign in.");
+            return 'STOP';
+          }
+
           const targetRole = roleNormalized === 'owner' || roleNormalized === 'co-owner' ? 'owner' : 'staff';
           localStorage.setItem('univo_active_role', targetRole);
           localStorage.removeItem('univo_trainer_session');
@@ -478,6 +535,10 @@ export default function Login() {
           return true;
         } catch (authErr) {
           if (cleanEmail === 'univo@gmail.com' && (password === 'Univo@123' || password.length >= 6)) {
+            if (selectedRole !== 'owner') {
+              setError("Role mismatch: univo@gmail.com is the Gym Owner account. Please select the 'Gym Owner' tab above to sign in.");
+              return 'STOP';
+            }
             localStorage.setItem('univo_active_role', 'owner');
             localStorage.removeItem('univo_trainer_session');
             localStorage.removeItem('univo_member_session');
@@ -513,26 +574,46 @@ export default function Login() {
       // Default (selectedRole === 'owner')
       // If master owner email
       if (cleanEmail === 'univo@gmail.com') {
-        if (await checkFirebaseAuthLogin()) return;
+        const aRes = await checkFirebaseAuthLogin();
+        if (aRes === 'STOP' || aRes === true) return;
         setError('Invalid owner credentials. Please check your email and password.');
         return;
       }
 
-      // Check users collection (e.g. Co-Owner, Staff, or provisioned Trainer)
+      // Check users collection (e.g. Co-Owner or Staff)
       const uRes = await checkUsersInFirestore();
       if (uRes === 'STOP' || uRes === true) return;
 
-      // Auto-detect if user entered Trainer ID while on Owner tab!
-      if (await checkTrainerInFirestore()) return;
-
-      // Auto-detect if user entered Member ID while on Owner tab!
-      const mRes = await checkMembersInFirestore();
-      if (mRes === 'STOP' || mRes === true) return;
-
       // Try Firebase Auth
-      if (await checkFirebaseAuthLogin()) return;
+      const fRes = await checkFirebaseAuthLogin();
+      if (fRes === 'STOP' || fRes === true) return;
 
-      setError('Invalid email or password. Please check your credentials and try again.');
+      // Check if user accidentally entered Member or Trainer credentials while on the Owner tab
+      try {
+        const { getMembers } = await import('../../firebase/members');
+        const mList = await getMembers('univo_main');
+        const isMem = (mList || []).some(m =>
+          (m.email && m.email.toLowerCase() === cleanEmail) ||
+          (m.phone && m.phone.replace(/\D/g, '') === cleanInput.replace(/\D/g, ''))
+        );
+        if (isMem) {
+          setError("Role mismatch: This account belongs to a Member. Please click the 'Member' tab above to sign in to the Member Portal.");
+          return;
+        }
+
+        const { getTrainers } = await import('../../firebase/trainers');
+        const tList = await getTrainers('univo_main');
+        const isTrn = (tList || []).some(t =>
+          (t.email && t.email.toLowerCase() === cleanEmail) ||
+          (t.phone && t.phone.replace(/\D/g, '') === cleanInput.replace(/\D/g, ''))
+        );
+        if (isTrn) {
+          setError("Role mismatch: This account belongs to a Trainer. Please click the 'Trainer' tab above to sign in to the Trainer Portal.");
+          return;
+        }
+      } catch (e) {}
+
+      setError('Invalid owner credentials. Please check your email and password.');
     } catch (err) {
       console.error('Login error:', err);
       setError('Invalid email or password. Please check your credentials and try again.');

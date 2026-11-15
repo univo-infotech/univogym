@@ -69,63 +69,125 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
     };
   }, [role, gymId]);
 
-  const ownerLinks = [
-    { id: "dashboard", to: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "members", to: "/owner/members", label: "Members", icon: Users },
-    { id: "attendance", to: "/owner/attendance", label: "Attendance", icon: CheckSquare },
+  const ownerNavGroups = [
     {
-      id: "upi_approvals",
-      to: "/owner/upi-approvals",
-      label: "Online UPI Approvals",
-      icon: QrCode,
-      badge: pendingUpiCount > 0 ? pendingUpiCount : null,
-      badgeColor: "bg-red-500 text-white animate-pulse shadow-sm shadow-red-500/30",
+      title: "Overview",
+      items: [
+        { id: "dashboard", to: "/owner/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      ],
     },
-    { id: "trainers", to: "/owner/trainers", label: "Trainers", icon: Dumbbell },
-    { id: "staff", to: "/owner/staff", label: "Staff & Salary Manage", icon: UserCheck },
-    { id: "memberships", to: "/owner/memberships", label: "Memberships & Plans", icon: CreditCard },
-    { id: "services", to: "/owner/services", label: "Services", icon: Star },
-    { id: "stock", to: "/owner/stock", label: "Stock & Equipment", icon: Package },
-    { id: "expenses", to: "/owner/expenses", label: "Expenses & Utility", icon: Receipt },
-    { id: "reports", to: "/owner/reports", label: "Reports (Daily/Monthly)", icon: BarChart2 },
-    { id: "visits", to: "/owner/visits", label: "Visit & Demo", icon: CalendarCheck },
-    { id: "offers", to: "/owner/offers", label: "Offers & Broadcast", icon: Megaphone },
-    { id: "complaints", to: "/owner/complaints", label: "Complaints", icon: ShieldAlert },
-    { id: "customization", to: "/owner/customization", label: "Customization", icon: SlidersHorizontal },
-    { id: "settings", to: "/owner/settings", label: "Settings", icon: Settings },
-    { id: "roles", to: "/owner/roles", label: "Roles & Permissions", icon: ShieldCheck },
+    {
+      title: "Members & Attendance",
+      items: [
+        { id: "members", to: "/owner/members", label: "Members", icon: Users },
+        { id: "attendance", to: "/owner/attendance", label: "Attendance", icon: CheckSquare },
+        { id: "visits", to: "/owner/visits", label: "Visits & Demo Leads", icon: CalendarCheck },
+        { id: "trainers", to: "/owner/trainers", label: "Trainers & Coaches", icon: Dumbbell },
+        { id: "staff", to: "/owner/staff", label: "Staff & Salary", icon: UserCheck },
+      ],
+    },
+    {
+      title: "Plans & Finance",
+      items: [
+        { id: "memberships", to: "/owner/memberships", label: "Memberships & Plans", icon: CreditCard },
+        { id: "services", to: "/owner/services", label: "Add-on Services", icon: Star },
+        {
+          id: "upi_approvals",
+          to: "/owner/upi-approvals",
+          label: "Online UPI Approvals",
+          icon: QrCode,
+          badge: pendingUpiCount > 0 ? pendingUpiCount : null,
+          badgeColor: "bg-red-500 text-white animate-pulse shadow-sm shadow-red-500/30",
+        },
+        { id: "expenses", to: "/owner/expenses", label: "Expenses & Utility", icon: Receipt },
+      ],
+    },
+    {
+      title: "Operations & Store",
+      items: [
+        { id: "stock", to: "/owner/stock", label: "Stock & Equipment", icon: Package },
+        { id: "complaints", to: "/owner/complaints", label: "Complaints & Support", icon: ShieldAlert },
+      ],
+    },
+    {
+      title: "Growth & Analytics",
+      items: [
+        { id: "reports", to: "/owner/reports", label: "Daily / Monthly Reports", icon: BarChart2 },
+        { id: "offers", to: "/owner/offers", label: "Offers & Broadcast", icon: Megaphone },
+      ],
+    },
+    {
+      title: "Settings & System",
+      items: [
+        { id: "customization", to: "/owner/customization", label: "Customization", icon: SlidersHorizontal },
+        { id: "settings", to: "/owner/settings", label: "Gym Settings", icon: Settings },
+        { id: "roles", to: "/owner/roles", label: "Roles & Permissions", icon: ShieldCheck },
+      ],
+    },
   ];
 
-  const trainerLinks = [
-    { to: "/trainer/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/trainer/members", label: "My Members", icon: Users },
-    { to: "/trainer/reports", label: "Earnings & Reports", icon: BarChart2 },
-    { to: "/trainer/profile", label: "My Profile", icon: User },
-    { to: "/trainer/attendance", label: "Attendance", icon: CheckSquare },
+  const trainerNavGroups = [
+    {
+      title: "Overview",
+      items: [
+        { to: "/trainer/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/trainer/members", label: "My Members", icon: Users },
+      ],
+    },
+    {
+      title: "Daily Activities",
+      items: [
+        { to: "/trainer/attendance", label: "Attendance", icon: CheckSquare },
+        { to: "/trainer/reports", label: "Earnings & Reports", icon: BarChart2 },
+      ],
+    },
+    {
+      title: "Account",
+      items: [
+        { to: "/trainer/profile", label: "My Profile", icon: User },
+      ],
+    },
   ];
 
-  const memberLinks = [
-    { to: "/member/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/member/plan", label: "My Membership & Plan", icon: CreditCard },
-    { to: "/member/trainer", label: "My Coach & Diet", icon: Dumbbell },
-    { to: "/member/payments", label: "Billing & Invoices", icon: DollarSign },
-    { to: "/member/store", label: "Gym Store & Nutrition", icon: ShoppingBag },
-    { to: "/member/complain", label: "Support & Feedback", icon: ShieldAlert },
-    { to: "/member/profile", label: "My Profile & ID Card", icon: User },
+  const memberNavGroups = [
+    {
+      title: "Membership Pass",
+      items: [
+        { to: "/member/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/member/plan", label: "My Membership & Plan", icon: CreditCard },
+      ],
+    },
+    {
+      title: "Coaching & Store",
+      items: [
+        { to: "/member/trainer", label: "My Coach & Diet", icon: Dumbbell },
+        { to: "/member/store", label: "Gym Store & Nutrition", icon: ShoppingBag },
+      ],
+    },
+    {
+      title: "Account & Help",
+      items: [
+        { to: "/member/payments", label: "Billing & Invoices", icon: DollarSign },
+        { to: "/member/complain", label: "Support & Feedback", icon: ShieldAlert },
+        { to: "/member/profile", label: "My Profile & ID Card", icon: User },
+      ],
+    },
   ];
 
-  let links = ownerLinks;
-  if (role === "trainer") links = trainerLinks;
-  else if (role === "member") links = memberLinks;
+  let navGroups = ownerNavGroups;
+  if (role === "trainer") navGroups = trainerNavGroups;
+  else if (role === "member") navGroups = memberNavGroups;
   else if (role === "staff") {
-    // Support both old array and new object format
-    links = ownerLinks.filter(link => {
-      const permKey = link.id === "upi_approvals" ? "payments" : link.id;
-      if (Array.isArray(permissions)) return permissions.includes(link.id) || permissions.includes(permKey);
-      return permissions?.[link.id]?.view || permissions?.[permKey]?.view;
-    });
-  } else if (role === "owner") {
-    links = ownerLinks;
+    navGroups = ownerNavGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((link) => {
+          const permKey = link.id === "upi_approvals" ? "payments" : link.id;
+          if (Array.isArray(permissions)) return permissions.includes(link.id) || permissions.includes(permKey);
+          return permissions?.[link.id]?.view || permissions?.[permKey]?.view;
+        }),
+      }))
+      .filter((group) => group.items.length > 0);
   }
 
   return (
@@ -169,42 +231,51 @@ export default function Sidebar({ role = "owner", isOpen = false, onClose }) {
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1 overscroll-contain">
-          {links.map((link) => {
-            const Icon = link.icon;
-            const isUpiActive = link.id === "upi_approvals" && location.pathname === "/owner/upi-approvals";
-            const isPaymentsActive = link.id === "payments" && location.pathname === "/owner/payments";
-
-            return (
-              <NavLink
-                key={link.id || link.to}
-                to={link.to}
-                onClick={onClose}
-                className={({ isActive: navActive }) => {
-                  const active = isUpiActive || isPaymentsActive || (navActive && link.id !== "payments" && link.id !== "upi_approvals");
-                  return `flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all group ${
-                    active
-                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-sm"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-                  }`;
-                }}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
-                  <span className="truncate">{link.label}</span>
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-4 overscroll-contain">
+          {navGroups.map((group, groupIdx) => (
+            <div key={group.title || groupIdx} className="space-y-1">
+              {group.title && (
+                <div className="px-3 pt-1 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 select-none">
+                  {group.title}
                 </div>
-                {link.badge ? (
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-black tracking-wide shrink-0 ${
-                      link.badgeColor || "bg-emerald-100 text-emerald-800"
-                    }`}
+              )}
+              {group.items.map((link) => {
+                const Icon = link.icon;
+                const isUpiActive = link.id === "upi_approvals" && location.pathname === "/owner/upi-approvals";
+                const isPaymentsActive = link.id === "payments" && location.pathname === "/owner/payments";
+
+                return (
+                  <NavLink
+                    key={link.id || link.to}
+                    to={link.to}
+                    onClick={onClose}
+                    className={({ isActive: navActive }) => {
+                      const active = isUpiActive || isPaymentsActive || (navActive && link.id !== "payments" && link.id !== "upi_approvals");
+                      return `flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all group ${
+                        active
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs font-bold"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                      }`;
+                    }}
                   >
-                    {link.badge}
-                  </span>
-                ) : null}
-              </NavLink>
-            );
-          })}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
+                      <span className="truncate">{link.label}</span>
+                    </div>
+                    {link.badge ? (
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-black tracking-wide shrink-0 ${
+                          link.badgeColor || "bg-emerald-100 text-emerald-800"
+                        }`}
+                      >
+                        {link.badge}
+                      </span>
+                    ) : null}
+                  </NavLink>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* Footer Profile / Logout - Fixed at bottom */}
